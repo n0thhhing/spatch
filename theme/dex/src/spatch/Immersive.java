@@ -80,6 +80,8 @@ public final class Immersive extends View implements Runnable {
     private float shadeH, spectrumTop;
     private final Path spectrumPath = new Path();
     private float gainLo, gainHi = 1, spectrumAlpha;
+    private long spectrumFrame;
+    private final float[] shownLevels = new float[24]; // AudioSpectrum.levels, eased per frame
     private static final float KNEE = 1 - (float) Math.exp(-1.8f); // level 1 at the tracked peak
 
     public Immersive(Context context, PlayerArt art) {
@@ -370,7 +372,10 @@ public final class Immersive extends View implements Runnable {
         }
 
         if (closing && now - closeTime >= CLOSE_MS) post(this); // draw the landing before revealing the source
-        else if (isShown() || closing) postInvalidateDelayed(motion ? 16 : 250);
+        else if (isShown() || closing) {
+            if (motion) postInvalidateOnAnimation(); // next display frame (120Hz-safe), not a fixed 16ms timer
+            else postInvalidateDelayed(250);
+        }
     }
 
     /** Easing with overshoot s past 1 before settling (new artwork pops in with s = 2). */
@@ -514,17 +519,26 @@ public final class Immersive extends View implements Runnable {
             canvas.drawText(spectrum.status, w / 2, h - 64 * dp, paint);
             return;
         }
-        float[] levels = spectrum.levels;
+        boolean motion = Wave.animationsEnabled();
+        // Capture arrives ~30 times a second; glide every frame toward it (time-based, so the same
+        // feel at 60 or 120 Hz): quick rise, slower fall.
+        float dt = Math.min(64, Math.max(1, now - spectrumFrame));
+        spectrumFrame = now;
+        float rise = motion ? 1 - (float) Math.exp(-dt / 70f) : 1, fall = motion ? 1 - (float) Math.exp(-dt / 260f) : 1;
+        float[] levels = shownLevels;
         int n = levels.length;
         float lo = 1, hi = 0, sum = 0;
-        for (float v : levels) { lo = Math.min(lo, v); hi = Math.max(hi, v); sum += v; }
-        boolean motion = Wave.animationsEnabled();
-        float k = motion ? 0.04f : 1f;
+        for (int i = 0; i < n; i++) {
+            float target = spectrum.levels[i];
+            levels[i] += (target - levels[i]) * (target > levels[i] ? rise : fall);
+            lo = Math.min(lo, levels[i]); hi = Math.max(hi, levels[i]); sum += levels[i];
+        }
+        float k = motion ? 1 - (float) Math.exp(-dt / 1500f) : 1; // auto-gain drifts over ~1.5s
         gainLo += (lo - gainLo) * k;
         gainHi += (hi - gainHi) * k;
         float range = Math.max(0.12f, gainHi - gainLo);
         float present = clamp01(sum / n * 4); // silence or pause: settle and fade out
-        spectrumAlpha = motion ? spectrumAlpha + (present - spectrumAlpha) * 0.1f : present;
+        spectrumAlpha = motion ? spectrumAlpha + (present - spectrumAlpha) * (1 - (float) Math.exp(-dt / 200f)) : present;
         float maxH = Math.max(0, Math.min(150 * dp, h - volY - 56 * dp));
         if (spectrumAlpha < 0.01f || maxH <= 0) return;
 
