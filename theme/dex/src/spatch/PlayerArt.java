@@ -238,7 +238,7 @@ public final class PlayerArt extends ImageView {
 
     /**
      * Advances a bouncy spring (about 2.6 Hz, damping ratio 0.3: a squish that springs back past
-     * rest, like Swiftify's press "Bounce") by dtMs toward target; s = {value, velocity}.
+     * rest, a press "bounce") by dtMs toward target; s = {value, velocity}.
      */
     static void spring(float[] s, float target, long dtMs) {
         final float w = 16.3f, z = 0.3f;

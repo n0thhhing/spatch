@@ -24,9 +24,10 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive"};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
-    private static final boolean[] on = {true, true, true, true, true};
+    private static final boolean[] on = DEFAULTS.clone();
     private static SharedPreferences prefs;
     private static WeakReference<View> drawer;
     private final jg81 settings;
@@ -91,6 +92,7 @@ public final class Settings implements jg81 {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         page.bringToFront();
         page.requestFocus();
+        page.enter();
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             page.back = Back.register(page, page);
         }
@@ -101,7 +103,7 @@ public final class Settings implements jg81 {
         Palette.load(c);
         if (prefs != null || c == null) return;
         prefs = c.getSharedPreferences("spatch", 0);
-        for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], true);
+        for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], DEFAULTS[i]);
     }
 
     static boolean get(int i) {
@@ -131,5 +133,18 @@ public final class Settings implements jg81 {
 
     static boolean immersive() {
         return on[4];
+    }
+
+    /** Scalloped play buttons; off = plain circles. */
+    static boolean shapes() {
+        return on[5];
+    }
+
+    static boolean reduceMotion() {
+        return on[6];
+    }
+
+    static void resetAll() {
+        for (int i = 0; i < KEYS.length; i++) set(i, DEFAULTS[i]);
     }
 }

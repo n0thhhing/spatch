@@ -28,6 +28,10 @@ public final class ScallopShape implements bv61 {
 
     static void trace(Path path, float w, float h) {
         float r = Math.min(w, h) / 2f, depth = r * 0.075f, base = r - depth, cx = w / 2f, cy = h / 2f;
+        if (!Settings.shapes()) {
+            path.addCircle(cx, cy, r, Path.Direction.CW);
+            return;
+        }
         for (int i = 0; i <= STEPS; i++) {
             double t = 2 * Math.PI * i / STEPS;
             float rad = base + depth * (float) Math.cos(5 * t);

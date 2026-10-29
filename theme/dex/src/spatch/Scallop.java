@@ -35,6 +35,12 @@ public final class Scallop implements Runnable {
         // rapid toggles. Weak keys and a weak drawable reference avoid retaining the player.
         Object key=drawable.getCallback();
         if(key==null)key=drawable;
+        if(!Settings.shapes()) { // plain circle, still in the theme accent
+            Paint plain = new Paint(source);
+            plain.setColor((source.getAlpha() << 24) | ACCENT);
+            canvas.drawCircle(0,0,r,plain);
+            return;
+        }
         float desired=bumps==9?1:0;
         Scallop state=STATES.get(key);
         if(state==null){state=new Scallop(desired);STATES.put(key,state);}

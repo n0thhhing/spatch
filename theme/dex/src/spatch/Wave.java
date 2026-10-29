@@ -14,7 +14,7 @@ import android.os.Build;
 import android.os.SystemClock;
 
 /**
- * Swiftify-style progress, used as the whole progress drawable (res/drawable/seekbar_progress.xml)
+ * Spatch progress, used as the whole progress drawable (res/drawable/seekbar_progress.xml)
  * of the player seekbar and the mini-player bar. Played part: a sine wave that flows while playback
  * advances and eases flat when paused. Remaining part: a thin flat track (never drawn under the
  * played part). While the seekbar is held the played line is thicker; it keeps waving if playback
@@ -193,6 +193,6 @@ public final class Wave extends Drawable implements Runnable {
 
     /** Reduced motion: no wave or animated thickness when the system animator scale is 0 (API 26+). */
     public static boolean animationsEnabled() {
-        return Build.VERSION.SDK_INT < 26 || ValueAnimator.areAnimatorsEnabled();
+        return (Build.VERSION.SDK_INT < 26 || ValueAnimator.areAnimatorsEnabled()) && !Settings.reduceMotion();
     }
 }

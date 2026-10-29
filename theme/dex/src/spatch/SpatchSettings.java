@@ -27,21 +27,29 @@ import android.widget.TextView;
 public final class SpatchSettings extends FrameLayout implements View.OnClickListener, DialogInterface.OnClickListener, Runnable {
     Back back;
 
+    // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion.
     private static final String[] FEATURE_TITLES = {
-        "Wavy seekbar",
+        "Wavy progress",
         "Button animations",
-        "Dynamic backdrop",
+        "Album art backdrop",
         "Circular album art",
-        "Double-tap immersive"
+        "Double-tap for immersive",
+        "Expressive shapes",
+        "Reduce motion"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
-        "Animated waveform on Now Playing seekbar",
-        "Spring bounce feedback on controls",
-        "Blurred album art background on Now Playing",
-        "Rounded artwork shape in player",
-        "Double tap artwork for full-screen visualizer"
+        "The played part of the progress bar waves while music plays",
+        "Bounce and nudge feedback on the player controls",
+        "Blurred album art behind Now Playing",
+        "Round artwork with a slowly turning ring",
+        "Double tap the player artwork for a full-screen view",
+        "Scalloped play buttons instead of plain circles",
+        "Stills Spatch animations: waves, springs and spins"
     };
+
+    /** Section layout: Settings indices per section (the theme list sits at the top of Appearance). */
+    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4}, MOTION = {1, 6};
 
     private static final String[] THEME_TITLES = {
         "Lavender",
@@ -74,6 +82,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     };
 
     private final View backButton;
+    private View resetRow;
+    private boolean closing;
     private final Switch[] featureSwitches = new Switch[FEATURE_TITLES.length];
     private final View[] featureRows = new View[FEATURE_TITLES.length];
     private final View[] themeMarks = new View[Palette.NAMES.length];
@@ -148,54 +158,60 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         root.addView(scroll, scrollLp);
 
-        int activeAccent = Palette.color(0xFFD0BCFF);
-        ColorStateList featureSwitchTint = createSwitchTint(activeAccent);
-
-        // Section: Features
-        addSectionHeader(content, "Features", dp(20));
-        addSectionSubtitle(content, "Playback controls and interface customization");
-
+        ColorStateList featureSwitchTint = createSwitchTint(Palette.color(0xFFD0BCFF));
         for (int i = 0; i < FEATURE_TITLES.length; i++) {
             featureSwitches[i] = new Switch(context);
             featureSwitches[i].setChecked(Settings.get(i));
             applySwitchTint(featureSwitches[i], featureSwitchTint);
             featureSwitches[i].setClickable(false);
             featureSwitches[i].setFocusable(false);
-
-            View row = createSettingRow(context, null, FEATURE_TITLES[i], FEATURE_SUBTITLES[i], featureSwitches[i]);
-            row.setOnClickListener(this);
-            featureRows[i] = row;
-            content.addView(row);
+            featureRows[i] = createSettingRow(context, null, FEATURE_TITLES[i], FEATURE_SUBTITLES[i], featureSwitches[i]);
+            featureRows[i].setOnClickListener(this);
+            describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
         }
 
-        // Section: Theme
-        addSectionHeader(content, "Theme", dp(28));
-        addSectionSubtitle(content, "Select an active color palette (restart required to apply)");
-
+        addSectionHeader(content, "Appearance", dp(20));
+        addSectionSubtitle(content, "Theme applies after a restart; everything else applies straight away");
         String activeTheme = Palette.requested();
         for (int i = 0; i < Palette.NAMES.length; i++) {
-            final String themeName = Palette.NAMES[i];
-            int themeColor = THEME_ACCENTS[i];
             // Radio mark like Spotify's own one-of-many pickers: a ring, plus a dot when selected.
             FrameLayout mark = new FrameLayout(context);
             themeDots[i] = new View(context);
             mark.addView(themeDots[i], new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.CENTER));
             themeMarks[i] = mark;
-
-            // Color swatch dot previewing the theme accent
             View swatch = new View(context);
             GradientDrawable dot = new GradientDrawable();
-            dot.setColor(themeColor);
+            dot.setColor(THEME_ACCENTS[i]);
             dot.setCornerRadius(dp(10));
             swatch.setBackground(dot);
-
-            View row = createSettingRow(context, swatch, THEME_TITLES[i], themeSubtitle(i), themeMarks[i]);
-            row.setOnClickListener(this);
-            themeRows[i] = row;
-            content.addView(row);
+            themeRows[i] = createSettingRow(context, swatch, THEME_TITLES[i], themeSubtitle(i), themeMarks[i]);
+            themeRows[i].setOnClickListener(this);
+            content.addView(themeRows[i]);
         }
-        refreshThemes(activeTheme);
-        for (int i = 0; i < featureRows.length; i++) describe(featureRows[i], FEATURE_TITLES[i], featureSwitches[i].isChecked() ? "On" : "Off");
+        refreshThemes(activeTheme, false);
+        for (int i : APPEARANCE) content.addView(featureRows[i]);
+
+        addSectionHeader(content, "Player", dp(28));
+        for (int i : PLAYER) content.addView(featureRows[i]);
+
+        addSectionHeader(content, "Motion", dp(28));
+        addSectionSubtitle(content, "Android's own animation setting is respected too");
+        for (int i : MOTION) content.addView(featureRows[i]);
+
+        addSectionHeader(content, "About", dp(28));
+        addSectionSubtitle(content, "Spatch for Spotify 9.1.98.521. Built with the @THEME@ theme as its default.");
+        resetRow = createSettingRow(context, null, "Reset to defaults", "Turns every option above back to its default (keeps your theme)", null);
+        resetRow.setOnClickListener(this);
+        describe(resetRow, "Reset to defaults", "Button");
+        content.addView(resetRow);
+    }
+
+    /** Slides in from the right; called once the page is attached. */
+    void enter() {
+        if (!Wave.animationsEnabled()) return;
+        setAlpha(0f);
+        setTranslationX(density * 48);
+        animate().alpha(1f).translationX(0f).setDuration(240).start();
     }
 
     /** "Active" for the running palette; the saved-but-not-yet-applied one says so. */
@@ -205,9 +221,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         return THEME_SUBTITLES[i];
     }
 
-    private void refreshThemes(String selected) {
+    private void refreshThemes(String selected, boolean animate) {
         for (int i = 0; i < themeMarks.length; i++) {
             boolean on = Palette.NAMES[i].equals(selected);
+            boolean was = themeDots[i].getVisibility() == View.VISIBLE;
             GradientDrawable ring = new GradientDrawable();
             ring.setCornerRadius(dp(12));
             ring.setStroke(dp(2), on ? THEME_ACCENTS[i] : 0xffbcb3dc);
@@ -217,6 +234,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             dot.setColor(THEME_ACCENTS[i]);
             themeDots[i].setBackground(dot);
             themeDots[i].setVisibility(on ? View.VISIBLE : View.INVISIBLE);
+            if (on && !was && animate && Wave.animationsEnabled()) {
+                themeDots[i].setScaleX(0f);
+                themeDots[i].setScaleY(0f);
+                themeDots[i].animate().scaleX(1f).scaleY(1f).setDuration(220).start();
+            }
             themeMarks[i].setLayoutParams(new LinearLayout.LayoutParams(dp(24), dp(24)));
             themeRows[i].setSelected(on);
             describe(themeRows[i], THEME_TITLES[i], on ? "Selected" : "Not selected");
@@ -233,7 +255,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         if (themeName.equals(current)) return;
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
-        refreshThemes(themeName);
+        refreshThemes(themeName, true);
 
         new AlertDialog.Builder(getContext(), 0x010302d1) // android.R.style.Theme_DeviceDefault_Dialog_Alert: system Material dialog, not Holo
             .setTitle("Restart to apply theme?")
@@ -300,9 +322,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout.LayoutParams textLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         row.addView(textLayout, textLp);
 
-        LinearLayout.LayoutParams switchLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        switchLp.leftMargin = dp(12);
-        row.addView(switchWidget, switchLp);
+        if (switchWidget != null) { // a bare wrap_content View would take the whole row width
+            LinearLayout.LayoutParams switchLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            switchLp.leftMargin = dp(12);
+            row.addView(switchWidget, switchLp);
+        }
 
         return row;
     }
@@ -331,6 +355,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             close();
             return;
         }
+        if (v == resetRow) {
+            Settings.resetAll();
+            for (int i = 0; i < featureRows.length; i++) {
+                featureSwitches[i].setChecked(Settings.get(i));
+                describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
+            }
+            return;
+        }
         for (int i = 0; i < featureRows.length; i++) {
             if (v == featureRows[i]) {
                 boolean next = !featureSwitches[i].isChecked();
@@ -356,14 +388,22 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         }
     }
 
+    /** Back callback and the end of the exit animation. */
     public void run() {
         close();
     }
 
+    /** Slides out, then detaches (a second call, from the delayed run(), detaches at once). */
     public void close() {
         if (back != null) {
             back.unregister();
             back = null;
+        }
+        if (!closing && Wave.animationsEnabled()) {
+            closing = true;
+            animate().alpha(0f).translationX(density * 48).setDuration(180).start();
+            postDelayed(this, 180);
+            return;
         }
         ViewParent p = getParent();
         if (p instanceof ViewGroup) {

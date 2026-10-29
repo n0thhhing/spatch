@@ -121,7 +121,7 @@ pub const EDITS: [Edit; 32] = [
         replacement: "    const-wide v5, 0xffb7a3eeL\n",
     },
     // p.c3v (classes.dex): Compose CornerSize(dp). Corners <= 12dp are doubled (4->8, 6->12, 8->16,
-    // 12->24, close to Swiftify's 8/12/17/23 scale); larger radii, pills and NaN keep their value.
+    // 12->24, Spatch's 8/12/17/23 radius scale); larger radii, pills and NaN keep their value.
     Edit {
         file: "smali/p/c3v.smali",
         anchor: "    .locals 0\n\n    .line 1\n    invoke-direct {p0}, Ljava/lang/Object;-><init>()V\n\n    .line 2\n    .line 3\n    .line 4\n    iput p1, p0, Lp/c3v;->a:F\n",
@@ -215,7 +215,7 @@ pub const EDITS: [Edit; 32] = [
         replacement: "    .line 55\n    invoke-static {v1, v0}, Lp/pul1;->o0(Lp/pzj;I)Ljava/lang/String;\n\n    .line 56\n    .line 57\n    .line 58\n    move-result-object v7\n\n    const v3, 0x7f131b75\n\n    if-ne v0, v3, :spatch_not_custom\n\n    const-string v7, \"Spatch\"\n\n    :spatch_not_custom\n",
     },
     // Search tab search bar (p.bqn1.e, "search_bar_root"): Spotify's white 4dp box becomes a
-    // Swiftify field: highlight surface, pill shape, light icon and subdued hint text. Colours go
+    // Spatch field: highlight surface, pill shape, light icon and subdued hint text. Colours go
     // through y2p1.f (existing reference; Palette maps the role tokens at runtime).
     Edit {
         file: "smali_classes4/p/bqn1.smali",
@@ -247,7 +247,11 @@ pub const EDITS: [Edit; 32] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 17] = [
+const HELPERS: [(&str, &str); 18] = [
+    (
+        "MiniArt",
+        include_str!("../theme/dex/src/spatch/MiniArt.java"),
+    ),
     (
         "ScallopFill",
         include_str!("../theme/dex/src/spatch/ScallopFill.java"),
@@ -309,6 +313,10 @@ const HELPERS: [(&str, &str); 17] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    (
+        "ViewPropertyAnimator.java",
+        include_str!("../theme/dex/stubs/android/view/ViewPropertyAnimator.java"),
+    ),
     (
         "ProgressBar.java",
         include_str!("../theme/dex/stubs/android/widget/ProgressBar.java"),

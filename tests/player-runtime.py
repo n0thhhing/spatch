@@ -169,7 +169,7 @@ public class PlayerRuntimeTest {
         Field featField = SpatchSettings.class.getDeclaredField("featureSwitches");
         featField.setAccessible(true);
         android.widget.Switch[] featSwitches = (android.widget.Switch[]) featField.get(spatchPage);
-        check(featSwitches.length == 5, "must contain 5 feature switches");
+        check(featSwitches.length == 7, "must contain 7 feature switches");
         for (int i = 0; i < 5; i++) {
             check(featSwitches[i].isChecked() == Settings.get(i), "feature switch " + i + " must reflect Settings.get");
         }
@@ -180,6 +180,10 @@ public class PlayerRuntimeTest {
         Settings.set(0, !initialWave);
         check(Settings.wave() == !initialWave, "toggling wave setting must update Settings");
         check(spatchPrefs.getBoolean("wave", initialWave) == !initialWave, "toggling wave must persist to prefs");
+        Settings.set(6, true);
+        check(!Wave.animationsEnabled(), "Reduce motion must still every Spatch animation");
+        Settings.resetAll();
+        check(!Settings.get(6) && Settings.get(0) && Wave.animationsEnabled(), "Reset must restore defaults");
 
         // 4. Themes: exclusive selection & restart dialog
         Field themeField = SpatchSettings.class.getDeclaredField("themeRows");
@@ -224,7 +228,8 @@ public class PlayerRuntimeTest {
         check(!android.app.AlertDialog.Builder.shown, "selecting already active theme must not show restart dialog");
 
         // 5. Back navigation: close() removes page from root view
-        spatchPage.close();
+        spatchPage.close(); // starts the slide-out
+        spatchPage.run();   // the delayed end of the exit animation
         check(spatchRoot.getChildCount() == 1, "close() must remove SpatchSettings from root view");
 
         pref.set(null, null);
@@ -246,7 +251,7 @@ public class PlayerRuntimeTest {
         check(android.media.audiofx.Visualizer.session==92,"must attach to own live session, never output mix");
         int releases=android.media.audiofx.Visualizer.released;audio.update(allowed,false);
         check(android.media.audiofx.Visualizer.released>releases,"pause must release audio capture");
-        audio.update(new android.content.Context(),true);check(audio.status.contains("Tap"),"permission denial needs an explicit prompt");
+        audio.update(new android.content.Context(),true);check(audio.status==null,"undeclared permission: no prompt that can never succeed");
         AudioSpectrum unavailable=new AudioSpectrum();android.media.audiofx.Visualizer.fail=true;
         unavailable.update(allowed,true);int attempts=android.media.audiofx.Visualizer.created;unavailable.update(allowed,true);
         check(android.media.audiofx.Visualizer.created==attempts,"failed native capture must back off");
@@ -313,7 +318,7 @@ public class PlayerRuntimeTest {
         slider=new TraceCanvas();drawControls.invoke(overlay,slider,1000f,2000f,10000L);
         check(slider.hasThumb(20,1.9f,3.99f),"volume line must narrow while dragged");
         overlay.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,500,volY,0));
-        System.out.println("PASS Swiftify slider line dimensions, hover exit and drag width");
+        System.out.println("PASS slider line dimensions, hover exit and drag width");
         check(art.boundsWrites==1, "backdrop capture must not resize shared artwork");
         Rect b=art.getBounds();
         check(b.left==13 && b.top==17 && b.right==301 && b.bottom==309, "immersive mutated shared artwork bounds");

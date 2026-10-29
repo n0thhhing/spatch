@@ -13,7 +13,7 @@ import p.w2b1;
 import p.z2b1;
 
 /**
- * Swiftify fullscreen immersive player overlay.
+ * Spatch fullscreen immersive player overlay.
  * Opens on double-tap of the player artwork; displays artwork, metadata, wavy seekbar,
  * transport controls with Scallop play/pause, volume slider, and bottom spectrum visualizer.
  */
@@ -238,7 +238,7 @@ public final class Immersive extends View implements Runnable {
         }
     }
 
-    /** Swiftify-like portrait layout: artwork, title/artist, seek row (art + 80dp wide), transport, volume. */
+    /** Portrait layout: artwork, title/artist, seek row (art + 80dp wide), transport, volume. */
     private void layout(float w, float h) {
         artSize = Math.min(w * 0.74f, h * 0.36f);
         artX = (w - artSize) / 2f;
@@ -357,7 +357,7 @@ public final class Immersive extends View implements Runnable {
         else if (isShown() || closing) postInvalidateDelayed(motion ? 16 : 250);
     }
 
-    /** Easing with overshoot s past 1 before settling (Swiftify pops new artwork in with s = 2). */
+    /** Easing with overshoot s past 1 before settling (new artwork pops in with s = 2). */
     private static float outBack(float t, float s) {
         t = clamp01(t) - 1;
         return 1 + (s + 1) * t * t * t + s * t * t;
@@ -485,6 +485,7 @@ public final class Immersive extends View implements Runnable {
         float bottomOffset = 36*dp;
         float maxH = Math.max(0,Math.min(96*dp,h-bottomOffset-volY-48*dp));
 
+        if (getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) return; // no capture: no bars
         spectrum.update(getContext(), playing && windowActive && !closing);
         if (spectrum.status != null) {
             paint.setStyle(Paint.Style.FILL);
@@ -602,11 +603,6 @@ public final class Immersive extends View implements Runnable {
                 // Dragged down to close
                 if (y - touchDownY > 180 && Math.abs(x - touchDownX) < 160) {
                     dismiss();
-                    return true;
-                }
-
-                if (y > h - h * 0.22f && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) {
-                    AudioSpectrum.requestPermission(getContext());
                     return true;
                 }
 
