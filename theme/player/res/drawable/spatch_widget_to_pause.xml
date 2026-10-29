@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown when playback pauses: 8 bumps settle back to 5 and stay still. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/spatch_widget_scallop8">
+    <target android:name="shape" android:animation="@animator/spatch_widget_to5" />
+</animated-vector>

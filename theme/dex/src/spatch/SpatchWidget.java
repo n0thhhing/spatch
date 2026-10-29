@@ -139,7 +139,8 @@ public final class SpatchWidget extends MediaController.Callback {
         if (art != null) v.setImageViewBitmap(id(r, pkg, "artwork"), art);
         if (backdrop != null) v.setImageViewBitmap(id(r, pkg, "frame"), backdrop);
         ColorStateList accent = ColorStateList.valueOf(0xffd0bcff);
-        // While playing: the scallop turns and the equaliser bounces (both animated by the launcher).
+        // The launcher starts whichever animated scallop is shown: on play, 5 bumps morph to 8 and keep
+        // turning; on pause, 8 settle back to 5. The equaliser bounces while playing.
         v.setViewVisibility(id(r, pkg, "spinner"), playing ? VISIBLE : GONE);
         v.setViewVisibility(id(r, pkg, "image"), playing ? GONE : VISIBLE);
         v.setViewVisibility(id(r, pkg, "header"), playing ? VISIBLE : GONE);
@@ -147,7 +148,7 @@ public final class SpatchWidget extends MediaController.Callback {
         for (String bar : new String[] {"text1", "text2", "icon_view", "image_view"}) { // equaliser bars
             v.setColorStateList(id(r, pkg, bar), "setIndeterminateTintList", accent);
         }
-        v.setInt(id(r, pkg, "image"), "setColorFilter", 0xffd0bcff);
+        v.setColorStateList(id(r, pkg, "image"), "setIndeterminateTintList", accent);
         v.setImageViewResource(id(r, pkg, "icon"), r.getIdentifier(playing ? "encore_icon_pause_24" : "encore_icon_play_24", "drawable", pkg));
         v.setInt(id(r, pkg, "icon"), "setColorFilter", 0xff14121c);
         v.setContentDescription(id(r, pkg, "play_button"), playing ? "Pause" : "Play");

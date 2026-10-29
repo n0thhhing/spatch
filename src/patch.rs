@@ -159,13 +159,19 @@ macro_rules! new_file {
     };
 }
 
-pub const NEW_RESOURCES: [(arsc::NewFile, &str); 8] = [
+pub const NEW_RESOURCES: [(arsc::NewFile, &str); 14] = [
     new_file!("drawable", "spatch_widget_bg"),
     new_file!("drawable", "spatch_widget_art"),
     new_file!("drawable", "spatch_widget_scallop"),
-    new_file!("drawable", "spatch_widget_spin"),
+    new_file!("drawable", "spatch_widget_scallop8"),
+    new_file!("drawable", "spatch_widget_to_play"),
+    new_file!("drawable", "spatch_widget_to_pause"),
     new_file!("drawable", "spatch_widget_bar"),
     new_file!("drawable", "spatch_widget_eq"),
+    new_file!("animator", "spatch_widget_to8"),
+    new_file!("animator", "spatch_widget_to5"),
+    new_file!("animator", "spatch_widget_turn"),
+    new_file!("animator", "spatch_widget_press"),
     new_file!("layout", "spatch_widget"),
     new_file!("layout", "spatch_widget_large"),
 ];

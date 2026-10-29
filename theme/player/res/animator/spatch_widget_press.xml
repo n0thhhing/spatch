@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget buttons: squish while pressed, spring back past full size on release. A state-list
+     animator runs in the launcher, so it needs no app code. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <set>
+            <objectAnimator android:propertyName="scaleX" android:valueTo="0.86" android:duration="90" android:interpolator="@android:interpolator/fast_out_slow_in" />
+            <objectAnimator android:propertyName="scaleY" android:valueTo="0.86" android:duration="90" android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </set>
+    </item>
+    <item>
+        <set>
+            <objectAnimator android:propertyName="scaleX" android:valueTo="1" android:duration="420" android:interpolator="@android:anim/overshoot_interpolator" />
+            <objectAnimator android:propertyName="scaleY" android:valueTo="1" android:duration="420" android:interpolator="@android:anim/overshoot_interpolator" />
+        </set>
+    </item>
+</selector>
