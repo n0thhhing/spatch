@@ -27,7 +27,8 @@ import android.widget.TextView;
 public final class SpatchSettings extends FrameLayout implements View.OnClickListener, DialogInterface.OnClickListener, Runnable {
     Back back;
 
-    // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer.
+    // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer,
+    // viz_mirrored, viz_smooth, viz_thin, viz_floating, viz_side_margin.
     private static final String[] FEATURE_TITLES = {
         "Wavy progress",
         "Button animations",
@@ -36,7 +37,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Double-tap for immersive",
         "Expressive shapes",
         "Reduce motion",
-        "Full-screen visualizer"
+        "Full-screen visualizer",
+        "Mirrored layout",
+        "Smooth motion",
+        "Thin bars",
+        "Floating bars",
+        "Side margin"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -47,11 +53,16 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Double tap the player artwork for a full-screen view",
         "Scalloped play buttons instead of plain circles",
         "Stills Spatch animations: waves, springs and spins",
-        "Spectrum of what's playing under the immersive player (uses the microphone permission)"
+        "Spectrum of what's playing under the immersive player (uses the microphone permission)",
+        "Bass in the centre, spreading out to both sides; off runs bass to treble left to right",
+        "Softer, slower bars; off is snappy",
+        "48 slim bars instead of 24 thick ones",
+        "Lift the bars off the bottom edge; quiet bars rest as dots",
+        "A small gap at the left and right; off runs edge to edge"
     };
 
     /** Section layout: Settings indices per section (the theme list sits at the top of Appearance). */
-    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4, 7}, MOTION = {1, 6};
+    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 8, 9, 10, 11, 12}, MOTION = {1, 6};
 
     private static final String[] THEME_TITLES = {
         "Lavender",
@@ -195,6 +206,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         addSectionHeader(content, "Player", dp(28));
         for (int i : PLAYER) content.addView(featureRows[i]);
+
+        addSectionHeader(content, "Visualizer", dp(28));
+        addSectionSubtitle(content, "The spectrum under the immersive player");
+        for (int i : VISUALIZER) content.addView(featureRows[i]);
 
         addSectionHeader(content, "Motion", dp(28));
         addSectionSubtitle(content, "Android's own animation setting is respected too");

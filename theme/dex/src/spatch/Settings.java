@@ -24,8 +24,8 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer"};
-    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     private static final boolean[] on = DEFAULTS.clone();
     private static SharedPreferences prefs;
@@ -147,6 +147,31 @@ public final class Settings implements jg81 {
     /** Spectrum under the immersive player (captures Spotify's own audio session; needs the mic permission). */
     static boolean visualizer() {
         return on[7];
+    }
+
+    /** Bass at the centre, mirrored; off = bass on the left to treble on the right. */
+    static boolean vizMirrored() {
+        return on[8];
+    }
+
+    /** Softer bar motion; off = snappy. */
+    static boolean vizSmooth() {
+        return on[9];
+    }
+
+    /** 48 thin bars; off = 24 thick bars. */
+    static boolean vizThin() {
+        return on[10];
+    }
+
+    /** Bars float above a bottom margin and rest as dots; off = they rise from the bottom edge. */
+    static boolean vizFloating() {
+        return on[11];
+    }
+
+    /** 16dp gap at the left and right; off = edge to edge. */
+    static boolean vizSideMargin() {
+        return on[12];
     }
 
     static void resetAll() {

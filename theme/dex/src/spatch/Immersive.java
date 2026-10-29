@@ -81,8 +81,9 @@ public final class Immersive extends View implements Runnable {
     private final Path spectrumPath = new Path();
     private float gainLo, gainHi = 1, spectrumAlpha;
     private long spectrumFrame;
+    private boolean shadeFloating;
     private final float[] shownLevels = new float[24]; // AudioSpectrum.levels, eased per frame
-    private final float[] bandLo = new float[12], bandHi = new float[12]; // per bar pair
+    private final float[] bandLo = new float[24], bandHi = new float[24], shownBands = new float[24]; // per band
     private static final float KNEE = 1 - (float) Math.exp(-1.8f); // level 1 at the tracked peak
 
     public Immersive(Context context, PlayerArt art) {
@@ -521,12 +522,13 @@ public final class Immersive extends View implements Runnable {
             return;
         }
         boolean motion = Wave.animationsEnabled();
-        // Capture arrives ~30 times a second; glide every frame toward it (time-based, so the same
-        // feel at 60 or 120 Hz).
+        // Capture arrives often but unevenly; glide every frame toward it (time-based, so the same
+        // feel at 60 or 120 Hz). Snappy by default; "Smooth motion" uses longer constants.
         float dt = Math.min(64, Math.max(1, now - spectrumFrame));
         spectrumFrame = now;
-        // Short constants keep the hits snappy; easing only removes the 30Hz stair-steps.
-        float rise = motion ? 1 - (float) Math.exp(-dt / 15f) : 1, fall = motion ? 1 - (float) Math.exp(-dt / 60f) : 1;
+        boolean smooth = Settings.vizSmooth();
+        float rise = motion ? 1 - (float) Math.exp(-dt / (smooth ? 70f : 15f)) : 1;
+        float fall = motion ? 1 - (float) Math.exp(-dt / (smooth ? 260f : 60f)) : 1;
         float[] levels = shownLevels;
         int n = levels.length;
         float lo = 1, hi = 0, sum = 0;
@@ -535,45 +537,55 @@ public final class Immersive extends View implements Runnable {
             levels[i] += (target - levels[i]) * (target > levels[i] ? rise : fall);
             lo = Math.min(lo, levels[i]); hi = Math.max(hi, levels[i]); sum += levels[i];
         }
-        float k = motion ? 1 - (float) Math.exp(-dt / 1500f) : 1; // auto-gain drifts over ~1.5s
+        float k = motion ? 1 - (float) Math.exp(-dt / 1500f) : 1; // shared gain drifts over ~1.5s
         gainLo += (lo - gainLo) * k;
         gainHi += (hi - gainHi) * k;
         float range = Math.max(0.12f, gainHi - gainLo);
-        // Per-pair gain: each bar learns its own recent range (~2.5s), so the bass-heavy tilt of most
-        // music no longer always makes a dome; blended with the shared gain so quiet treble can't twitch.
+        // Per-band gain: each band learns its own recent range (~2.5s), so the bass-heavy tilt of most
+        // music does not always make a dome; blended with the shared gain so quiet treble can't twitch.
         float kBand = motion ? 1 - (float) Math.exp(-dt / 2500f) : 1;
-        for (int b = 0; b < n / 2; b++) {
-            float v = (levels[b * 2] + levels[b * 2 + 1]) / 2;
-            bandLo[b] += (v - bandLo[b]) * (v < bandLo[b] ? 0.5f : kBand); // new low: follow fast
-            bandHi[b] += (v - bandHi[b]) * (v > bandHi[b] ? 0.5f : kBand); // new peak: follow fast
+        for (int i = 0; i < n; i++) {
+            float v = levels[i];
+            bandLo[i] += (v - bandLo[i]) * (v < bandLo[i] ? 0.5f : kBand); // new low: follow fast
+            bandHi[i] += (v - bandHi[i]) * (v > bandHi[i] ? 0.5f : kBand); // new peak: follow fast
+            float own = (v - bandLo[i]) / Math.max(0.15f, bandHi[i] - bandLo[i]);
+            float x = Math.max(0, 0.65f * own + 0.35f * (v - gainLo) / range);
+            // Soft knee instead of a hard clip: peaks above the tracked range stay rounded, not flat.
+            shownBands[i] = Math.min(1.12f, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
         }
         float present = clamp01(sum / n * 4); // silence or pause: settle and fade out
         spectrumAlpha = motion ? spectrumAlpha + (present - spectrumAlpha) * (1 - (float) Math.exp(-dt / 200f)) : present;
-        float maxH = Math.max(0, Math.min(150 * dp, h - volY - 56 * dp));
+
+        // Optional side margin; "Floating bars" also lifts them off the bottom edge (clearing the gesture bar).
+        boolean floating = Settings.vizFloating();
+        float margin = Settings.vizSideMargin() ? 16 * dp : 0, base = floating ? h - 32 * dp : h;
+        float maxH = Math.max(0, Math.min(150 * dp, base - volY - 40 * dp));
         if (spectrumAlpha < 0.01f || maxH <= 0) return;
 
-        // Thick rounded bars across the width: neighbouring bands are paired (12 per side),
-        // mirrored with bass at the centre.
-        int half = n / 2, bars = half * 2;
-        float margin = 16 * dp; // small side margin rather than edge to edge
+        // Rounded bars; floating ones rest as dots (height = width), grounded ones rise from the edge. Mirrored: bass at the centre, treble
+        // at both sides; otherwise bass on the left to treble on the right. Bars sample the bands by
+        // position, so any bar count works.
+        boolean mirrored = Settings.vizMirrored();
+        int bars = Settings.vizThin() ? 48 : 24;
         float step = (w - 2 * margin) / bars, barW = step * 0.62f;
         spectrumPath.reset();
         for (int i = 0; i < bars; i++) {
-            int pair = i < half ? half - 1 - i : i - half;
-            float v = (levels[pair * 2] + levels[pair * 2 + 1]) / 2;
-            // Soft knee instead of a hard clip: peaks above the tracked range stay rounded, not flat.
-            float own = (v - bandLo[pair]) / Math.max(0.15f, bandHi[pair] - bandLo[pair]);
-            float x = Math.max(0, 0.65f * own + 0.35f * (v - gainLo) / range);
-            float level = Math.min(1.12f, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
-            float edge = (float) Math.sin(Math.PI * (i + 0.5f) / bars); // ease off slightly toward the sides
-            float barH = Math.max(barW, maxH * (0.06f + 0.94f * level) * (0.8f + 0.2f * edge));
+            float pos = (i + 0.5f) / bars;
+            float t = mirrored ? Math.abs(pos * 2 - 1) : pos; // 0 = bass, 1 = treble
+            float f = t * (n - 1);
+            int b0 = (int) f, b1 = Math.min(n - 1, b0 + 1);
+            float level = shownBands[b0] + (shownBands[b1] - shownBands[b0]) * (f - b0);
+            float edge = (float) Math.sin(Math.PI * pos); // ease off slightly toward the sides
+            float barH = Math.max(barW, maxH * level * (0.8f + 0.2f * edge));
             float left = margin + i * step + (step - barW) / 2;
-            spectrumPath.addRoundRect(left, h - barH, left + barW, h + barW, barW / 2, barW / 2, Path.Direction.CW);
+            float bottom = floating ? base : base + barW; // grounded: run past the edge so only the top is round
+            spectrumPath.addRoundRect(left, base - barH, left + barW, bottom, barW / 2, barW / 2, Path.Direction.CW);
         }
 
-        if (spectrumShade == null || spectrumTop != h - maxH) {
-            spectrumTop = h - maxH;
-            spectrumShade = new LinearGradient(0, spectrumTop, 0, h, new int[] {0xe6d0bcff, 0x1ad0bcff}, null, Shader.TileMode.CLAMP);
+        if (spectrumShade == null || spectrumTop != base - maxH || shadeFloating != floating) {
+            spectrumTop = base - maxH;
+            shadeFloating = floating;
+            spectrumShade = new LinearGradient(0, spectrumTop, 0, base, new int[] {0xe6d0bcff, floating ? 0x4dd0bcff : 0x1ad0bcff}, null, Shader.TileMode.CLAMP);
         }
         int alpha = Math.round(255 * spectrumAlpha);
         paint.setStyle(Paint.Style.FILL);

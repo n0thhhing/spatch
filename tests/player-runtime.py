@@ -169,7 +169,7 @@ public class PlayerRuntimeTest {
         Field featField = SpatchSettings.class.getDeclaredField("featureSwitches");
         featField.setAccessible(true);
         android.widget.Switch[] featSwitches = (android.widget.Switch[]) featField.get(spatchPage);
-        check(featSwitches.length == 8, "must contain 8 feature switches");
+        check(featSwitches.length == 13, "must contain 13 feature switches");
         for (int i = 0; i < 5; i++) {
             check(featSwitches[i].isChecked() == Settings.get(i), "feature switch " + i + " must reflect Settings.get");
         }
