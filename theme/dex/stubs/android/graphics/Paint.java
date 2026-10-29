@@ -11,6 +11,7 @@ public class Paint {
     public int getAlpha() { throw new RuntimeException(); }
     public void setAlpha(int a) { throw new RuntimeException(); }
     public void setColor(int c) { throw new RuntimeException(); }
+    public int getColor() { throw new RuntimeException(); }
     public void setStyle(Style s) { throw new RuntimeException(); }
     public void setStrokeCap(Cap c) { throw new RuntimeException(); }
     public void setStrokeWidth(float w) { throw new RuntimeException(); }

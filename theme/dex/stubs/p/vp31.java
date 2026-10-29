@@ -1,3 +1,3 @@
 package p;
 // Compile-time stub of an obfuscated app class; never packaged (resolved against the app at runtime).
-public final class vp31 extends v7n {}
+public abstract class vp31 extends v7n {} // final in the app; abstract here so it need not implement bv61

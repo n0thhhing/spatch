@@ -7,6 +7,7 @@ public class Path {
     public void moveTo(float x, float y) { throw new RuntimeException(); }
     public void lineTo(float x, float y) { throw new RuntimeException(); }
     public void close() { throw new RuntimeException(); }
+    public void offset(float dx, float dy) {}
     public void addRoundRect(RectF rect, float rx, float ry, Direction dir) {}
     public void addRoundRect(float left, float top, float right, float bottom, float rx, float ry, Direction dir) {}
 }

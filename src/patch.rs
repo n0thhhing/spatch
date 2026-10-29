@@ -39,7 +39,12 @@ macro_rules! target {
 /// Now Playing slice. Ownership: p.jcs inflates revised_template_page_layout (which includes
 /// revised_template_overlay); p.u1o inflates track_info_nowplaying_view; the seekbar drawables are
 /// reached only through the NowPlayingSeekBar style and p.ews.
-pub const TARGETS: [Target; 14] = [
+pub const TARGETS: [Target; 15] = [
+    // Encore PlayButtonView header background (albums, shows): spatch.ScallopFill.
+    target!(
+        "res/drawable/play_button_header_style_background.xml",
+        "c2205ec1f2a06c3bb3f32e4274a6bd472b5ae3bc1275710bb19bd2cd1bd4d9b6"
+    ),
     target!(
         "res/layout/square_cover_art_content.xml",
         "be430f822bf1505cb7ec73f65dee5f6c4c6cfd82b7a90654357fcbbfaf581d97"

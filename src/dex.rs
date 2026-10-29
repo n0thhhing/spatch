@@ -56,7 +56,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 31] = [
+pub const EDITS: [Edit; 32] = [
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -237,10 +237,25 @@ pub const EDITS: [Edit; 31] = [
         anchor: "    iget-wide v7, v4, Lp/jex;->e:J\n",
         replacement: "    const-wide v7, 0xffbcb3dcL\n\n    invoke-static {v7, v8}, Lp/y2p1;->f(J)J\n\n    move-result-wide v7\n",
     },
+    // Playlist "mix" play button (p.f1p1.m, "mixing_play_button_simple_green", classes4): its
+    // background is clipped to the player's scallop instead of a circle (one new field ref).
+    Edit {
+        file: "smali_classes4/p/f1p1.smali",
+        anchor: "    sget-object v5, Lp/xp31;->a:Lp/vp31;\n",
+        replacement: "    sget-object v5, Lspatch/ScallopShape;->PLAY:Lspatch/ScallopShape;\n",
+    },
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 15] = [
+const HELPERS: [(&str, &str); 17] = [
+    (
+        "ScallopFill",
+        include_str!("../theme/dex/src/spatch/ScallopFill.java"),
+    ),
+    (
+        "ScallopShape",
+        include_str!("../theme/dex/src/spatch/ScallopShape.java"),
+    ),
     (
         "Palette",
         include_str!("../theme/dex/src/spatch/Palette.java"),
@@ -294,6 +309,13 @@ const HELPERS: [(&str, &str); 15] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    ("b971.java", include_str!("../theme/dex/stubs/p/b971.java")),
+    ("ikb0.java", include_str!("../theme/dex/stubs/p/ikb0.java")),
+    ("kat.java", include_str!("../theme/dex/stubs/p/kat.java")),
+    ("v7s0.java", include_str!("../theme/dex/stubs/p/v7s0.java")),
+    ("iw4.java", include_str!("../theme/dex/stubs/p/iw4.java")),
+    ("lw4.java", include_str!("../theme/dex/stubs/p/lw4.java")),
+    ("jsq0.java", include_str!("../theme/dex/stubs/p/jsq0.java")),
     (
         "Typeface.java",
         include_str!("../theme/dex/stubs/android/graphics/Typeface.java"),
