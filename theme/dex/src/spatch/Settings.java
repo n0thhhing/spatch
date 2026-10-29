@@ -99,7 +99,11 @@ public final class Settings implements jg81 {
         return true;
     }
 
+    /** The application (load() runs from Application.attachBaseContext); used by SpatchWidget. */
+    static Context app;
+
     public static void load(Context c) {
+        if (app == null) app = c;
         Palette.load(c);
         if (prefs != null || c == null) return;
         prefs = c.getSharedPreferences("spatch", 0);

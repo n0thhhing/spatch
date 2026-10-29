@@ -56,7 +56,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 32] = [
+pub const EDITS: [Edit; 36] = [
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -244,10 +244,53 @@ pub const EDITS: [Edit; 32] = [
         anchor: "    sget-object v5, Lp/xp31;->a:Lp/vp31;\n",
         replacement: "    sget-object v5, Lspatch/ScallopShape;->PLAY:Lspatch/ScallopShape;\n",
     },
+    // Widget: Glance's hand-off of the rendered RemoteViews (p.rx5, classes.dex) asks
+    // spatch.SpatchWidget first; it returns Spatch's views only for the Now Playing widget.
+    Edit {
+        file: "smali/p/rx5.smali",
+        anchor: "    invoke-virtual {v1, v4, v0}, Landroid/appwidget/AppWidgetManager;->updateAppWidget(ILandroid/widget/RemoteViews;)V\n",
+        replacement: "    invoke-static {v4, v0}, Lspatch/SpatchWidget;->replace(ILandroid/widget/RemoteViews;)Landroid/widget/RemoteViews;\n\n    move-result-object v0\n\n    invoke-virtual {v1, v4, v0}, Landroid/appwidget/AppWidgetManager;->updateAppWidget(ILandroid/widget/RemoteViews;)V\n",
+    },
+    // Widget: every framework MediaSession Spotify constructs (the outlined constructor sites outside classes4, which has no method-reference room) is
+    // followed by spatch.SpatchWidget for title, artist, art and play state.
+    Edit {
+        file: "smali/p/bxh0.smali",
+        anchor: "    invoke-direct {p0, p1, p2}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;)V\n",
+        replacement: "    invoke-direct {p0, p1, p2}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;)V\n\n    invoke-static {p0}, Lspatch/SpatchWidget;->attach(Landroid/media/session/MediaSession;)V\n",
+    },
+    Edit {
+        file: "smali_classes3/p/x05.smali",
+        anchor: "    invoke-direct {v0, p0, p2, p1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n",
+        replacement: "    invoke-direct {v0, p0, p2, p1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n\n    invoke-static {v0}, Lspatch/SpatchWidget;->attach(Landroid/media/session/MediaSession;)V\n",
+    },
+    Edit {
+        file: "smali_classes3/p/x05.smali",
+        anchor: "    invoke-direct {v0, p0, p1, v1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n",
+        replacement: "    invoke-direct {v0, p0, p1, v1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n\n    invoke-static {v0}, Lspatch/SpatchWidget;->attach(Landroid/media/session/MediaSession;)V\n",
+    },
+];
+
+/// Original classes moved into `HELPER_DEX` (smali folder, file, original DEX, descriptor) because
+/// their own DEX has no room for the references their edits add; behaviour and names are unchanged.
+const RELOCATED: [(&str, &str, &str, &str); 4] = [
+    (
+        "smali_classes2",
+        "com/spotify/playbacknative/AudioEffectsListener.smali",
+        "classes2.dex",
+        "Lcom/spotify/playbacknative/AudioEffectsListener;",
+    ),
+    ("smali_classes4", "p/y2p1.smali", "classes4.dex", "Lp/y2p1;"),
+    // Widget hooks: Glance's RemoteViews hand-off and an outlined MediaSession constructor.
+    ("smali", "p/rx5.smali", "classes.dex", "Lp/rx5;"),
+    ("smali", "p/bxh0.smali", "classes.dex", "Lp/bxh0;"),
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 18] = [
+const HELPERS: [(&str, &str); 19] = [
+    (
+        "SpatchWidget",
+        include_str!("../theme/dex/src/spatch/SpatchWidget.java"),
+    ),
     (
         "MiniArt",
         include_str!("../theme/dex/src/spatch/MiniArt.java"),
@@ -313,6 +356,54 @@ const HELPERS: [(&str, &str); 18] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    (
+        "Parcelable.java",
+        include_str!("../theme/dex/stubs/android/os/Parcelable.java"),
+    ),
+    (
+        "Handler.java",
+        include_str!("../theme/dex/stubs/android/os/Handler.java"),
+    ),
+    (
+        "Looper.java",
+        include_str!("../theme/dex/stubs/android/os/Looper.java"),
+    ),
+    (
+        "SizeF.java",
+        include_str!("../theme/dex/stubs/android/util/SizeF.java"),
+    ),
+    (
+        "PendingIntent.java",
+        include_str!("../theme/dex/stubs/android/app/PendingIntent.java"),
+    ),
+    (
+        "MediaMetadata.java",
+        include_str!("../theme/dex/stubs/android/media/MediaMetadata.java"),
+    ),
+    (
+        "PlaybackState.java",
+        include_str!("../theme/dex/stubs/android/media/session/PlaybackState.java"),
+    ),
+    (
+        "MediaSession.java",
+        include_str!("../theme/dex/stubs/android/media/session/MediaSession.java"),
+    ),
+    (
+        "MediaController.java",
+        include_str!("../theme/dex/stubs/android/media/session/MediaController.java"),
+    ),
+    (
+        "AppWidgetProviderInfo.java",
+        include_str!("../theme/dex/stubs/android/appwidget/AppWidgetProviderInfo.java"),
+    ),
+    (
+        "AppWidgetManager.java",
+        include_str!("../theme/dex/stubs/android/appwidget/AppWidgetManager.java"),
+    ),
+    (
+        "RemoteViews.java",
+        include_str!("../theme/dex/stubs/android/widget/RemoteViews.java"),
+    ),
     (
         "LinearGradient.java",
         include_str!("../theme/dex/stubs/LinearGradient.java"),
@@ -633,15 +724,9 @@ pub fn build(
         let path = smali.join(e.file);
         fs::write(&path, apply(&fs::read_to_string(&path)?, e, theme)?)?;
     }
-    // Both original DEX tables are full. Keep these classes' names and behavior in
-    // the helper DEX so the new session/palette references do not overflow them.
-    for (folder, name) in [
-        (
-            "smali_classes2",
-            "com/spotify/playbacknative/AudioEffectsListener.smali",
-        ),
-        ("smali_classes4", "p/y2p1.smali"),
-    ] {
+    // Their original DEX tables are full. Keep these classes' names and behavior in
+    // the helper DEX so the new references they gain do not overflow them.
+    for (folder, name, _, _) in RELOCATED {
         let relocated = smali.join("smali_classes16").join(name);
         fs::create_dir_all(relocated.parent().unwrap())?;
         fs::rename(smali.join(folder).join(name), relocated)?;
@@ -683,18 +768,13 @@ pub fn build(
         fs::write(&path, &bytes)?;
         let dump = tools.run(&tools.dexdump, &[OsStr::new("-f"), path.as_os_str()])?;
         check_ref_limits(entry, &dump)?;
-        let moved = if entry == "classes2.dex" {
-            "Lcom/spotify/playbacknative/AudioEffectsListener;"
-        } else if entry == "classes4.dex" {
-            "Lp/y2p1;"
-        } else {
-            ""
-        };
-        if !moved.is_empty()
-            && dump
-                .lines()
-                .any(|line| line.trim().starts_with("Class descriptor") && line.contains(moved))
-        {
+        let still_here = RELOCATED.iter().any(|(_, _, dex, class)| {
+            *dex == entry
+                && dump
+                    .lines()
+                    .any(|line| line.trim().starts_with("Class descriptor") && line.contains(class))
+        });
+        if still_here {
             return Err(
                 "relocated classes must have exactly one definition in the helper DEX".into(),
             );
@@ -836,13 +916,14 @@ fn compile_helper(
     let all_present = HELPERS
         .iter()
         .all(|(n, _)| classes.contains(&format!("'Lspatch/{n};'")));
-    if classes.matches("Class descriptor").count() != HELPERS.len() + 2
+    if classes.matches("Class descriptor").count() != HELPERS.len() + RELOCATED.len()
         || !all_present
-        || !classes.contains("'Lcom/spotify/playbacknative/AudioEffectsListener;'")
-        || !classes.contains("'Lp/y2p1;'")
+        || !RELOCATED
+            .iter()
+            .all(|(_, _, _, class)| classes.contains(&format!("'{class}'")))
     {
         return Err(
-            "helper DEX must contain exactly the spatch helpers and the two relocated original classes"
+            "helper DEX must contain exactly the spatch helpers and the relocated original classes"
                 .into(),
         );
     }

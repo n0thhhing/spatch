@@ -144,6 +144,39 @@ pub struct Signing {
 }
 
 /// Checks that every target entry in `base` still has its original bytes.
+/// New file resources (Spatch widget), appended to the resource table by `arsc::append_files` and
+/// compiled with the other targets. Sources live under theme/player like the targets.
+macro_rules! new_file {
+    ($ty:literal, $name:literal) => {
+        (
+            arsc::NewFile {
+                type_name: $ty,
+                name: $name,
+                path: concat!("res/", $ty, "/", $name, ".xml"),
+            },
+            include_str!(concat!("../theme/player/res/", $ty, "/", $name, ".xml")),
+        )
+    };
+}
+
+pub const NEW_RESOURCES: [(arsc::NewFile, &str); 8] = [
+    new_file!("drawable", "spatch_widget_bg"),
+    new_file!("drawable", "spatch_widget_art"),
+    new_file!("drawable", "spatch_widget_scallop"),
+    new_file!("drawable", "spatch_widget_spin"),
+    new_file!("drawable", "spatch_widget_bar"),
+    new_file!("drawable", "spatch_widget_eq"),
+    new_file!("layout", "spatch_widget"),
+    new_file!("layout", "spatch_widget_large"),
+];
+
+fn new_files() -> Vec<arsc::NewFile> {
+    NEW_RESOURCES
+        .iter()
+        .map(|(f, _)| arsc::NewFile { ..*f })
+        .collect()
+}
+
 pub fn check_targets(base: &Path) -> Result<()> {
     for t in &TARGETS {
         let got = input::sha256_bytes(&input::read_entry(base, t.entry)?);
@@ -192,16 +225,18 @@ pub fn run(
     input::extract_apks(apkm, &apks)?;
     let base = apks.join("base.apk");
     check_targets(&base)?;
-    let mut compiled = compile_targets(&base, &staging.path, tools, theme)?;
+    let (mut compiled, new_entries) = compile_targets(&base, &staging.path, tools, theme)?;
     let mut dexes = dex::build(&base, &staging.path, tools, theme)?;
     let helper = dexes.pop().expect("dex::build returns the helper last");
     compiled.append(&mut dexes);
     compiled.extend(lottie::patch_all(&base, theme)?);
+    let swapped = arsc::swap_colors(&input::read_entry(&base, "resources.arsc")?, theme)?;
     compiled.push((
         "resources.arsc",
-        arsc::swap_colors(&input::read_entry(&base, "resources.arsc")?, theme)?,
+        arsc::append_files(&swapped, &new_files())?.0,
     ));
     let mut added = vec![helper];
+    added.extend(new_entries);
     added.extend(crate::theme_assets::build(&base, &compiled, theme)?);
     let Some(signing) = signing else {
         println!(
@@ -277,12 +312,7 @@ pub fn run(
 }
 
 /// Decodes base in staging, applies the theme sources and returns the compiled replacement entries.
-fn compile_targets(
-    base: &Path,
-    staging: &Path,
-    tools: &Tools,
-    theme: &Theme,
-) -> Result<Vec<(&'static str, Vec<u8>)>> {
+fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) -> Result<Compiled> {
     let fw = staging.join("framework");
     let decoded = staging.join("decoded");
     let rebuilt = staging.join("rebuilt.apk");
@@ -314,10 +344,32 @@ fn compile_targets(
         split_dumps.push(dump_resources(&base.with_file_name(split))?);
     }
     let public = decoded.join("res/values/public.xml");
-    fs::write(
-        &public,
-        declare_split_refs(&fs::read_to_string(&public)?, &split_dumps)?,
-    )?;
+    // New resources get the IDs the table append will give them, so compiled references agree.
+    let new_ids = arsc::append_files(&input::read_entry(base, "resources.arsc")?, &new_files())?.1;
+    let mut declared = declare_split_refs(&fs::read_to_string(&public)?, &split_dumps)?;
+    let lines: String = NEW_RESOURCES
+        .iter()
+        .zip(&new_ids)
+        .map(|((f, _), id)| {
+            format!(
+                "    <public type=\"{}\" name=\"{}\" id=\"{id:#010x}\" />\n",
+                f.type_name, f.name
+            )
+        })
+        .collect();
+    declared = declared.replacen("</resources>", &format!("{lines}</resources>"), 1);
+    fs::write(&public, declared)?;
+    for (f, source) in &NEW_RESOURCES {
+        let path = decoded.join(f.path);
+        if path.exists() {
+            return Err(format!(
+                "{} already exists in the base; not the supported build",
+                f.path
+            )
+            .into());
+        }
+        fs::write(path, theme.apply(source))?;
+    }
     let placeholders: String = SPLIT_REFS
         .iter()
         .map(|(ty, name, _)| {
@@ -351,6 +403,7 @@ fn compile_targets(
     )?;
     let mut known = resource_ids(&dump_resources(base)?);
     known.extend(SPLIT_REFS.iter().map(|(_, _, id)| id.to_string()));
+    known.extend(new_ids.iter().map(|id| format!("{id:#010x}")));
     let mut compiled = Vec::new();
     for t in &TARGETS {
         let dump = |apk: &Path| {
@@ -368,8 +421,26 @@ fn compile_targets(
         check_references(t.entry, &dump(&rebuilt)?, &dump(base)?, &known)?;
         compiled.push((t.entry, input::read_entry(&rebuilt, t.entry)?));
     }
-    Ok(compiled)
+    let mut added = Vec::new();
+    for (f, _) in &NEW_RESOURCES {
+        let tree = tools.run(
+            &tools.aapt2,
+            &[
+                OsStr::new("dump"),
+                OsStr::new("xmltree"),
+                OsStr::new("--file"),
+                OsStr::new(f.path),
+                rebuilt.as_os_str(),
+            ],
+        )?;
+        check_references(f.path, &tree, "", &known)?;
+        added.push((f.path, input::read_entry(&rebuilt, f.path)?));
+    }
+    Ok((compiled, added))
 }
+
+/// Replaced entries, then new ones.
+type Compiled = (Vec<(&'static str, Vec<u8>)>, Vec<(&'static str, Vec<u8>)>);
 
 /// Adds `SPLIT_REFS` to the decoded public.xml after checking each is absent from base and defined
 /// with the same type/name/ID in every density split.

@@ -1,0 +1,3 @@
+package android.media.session;
+// Compile-time stub only; never packaged (the device provides the real class).
+public final class MediaController { public abstract static class Callback { public void onMetadataChanged(android.media.MediaMetadata m) {} public void onPlaybackStateChanged(PlaybackState s) {} public void onSessionDestroyed() {} } public MediaController(android.content.Context c, MediaSession.Token t) {} public void registerCallback(Callback cb, android.os.Handler h) {} public android.media.MediaMetadata getMetadata() { return null; } public PlaybackState getPlaybackState() { return null; } }

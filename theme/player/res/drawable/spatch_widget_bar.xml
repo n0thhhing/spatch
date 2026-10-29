@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#ffd0bcff" />
+    <corners android:radius="2dp" />
+    <!-- An intrinsic size, or the progress bar shrinks the bar to a dash keeping its aspect ratio. -->
+    <size android:width="3dp" android:height="14dp" />
+</shape>

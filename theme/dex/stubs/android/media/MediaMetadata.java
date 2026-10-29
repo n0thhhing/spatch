@@ -1,0 +1,3 @@
+package android.media;
+// Compile-time stub only; never packaged (the device provides the real class).
+public final class MediaMetadata { public static final String METADATA_KEY_TITLE="android.media.metadata.TITLE", METADATA_KEY_ARTIST="android.media.metadata.ARTIST", METADATA_KEY_ALBUM_ART="android.media.metadata.ALBUM_ART", METADATA_KEY_ART="android.media.metadata.ART", METADATA_KEY_DISPLAY_ICON="android.media.metadata.DISPLAY_ICON"; public String getString(String k) { return null; } public android.graphics.Bitmap getBitmap(String k) { return null; } }
