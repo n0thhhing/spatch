@@ -50,7 +50,6 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public void setScaleY(float s) {}
     public void postInvalidateDelayed(long delay) {}
     public void postInvalidate() {}
-    public void postInvalidateOnAnimation() {}
     public boolean onHoverEvent(MotionEvent e) { return false; }
     public boolean onTouchEvent(MotionEvent e) { return false; }
     public boolean dispatchTouchEvent(MotionEvent e) { return false; }
