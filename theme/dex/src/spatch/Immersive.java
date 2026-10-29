@@ -82,6 +82,7 @@ public final class Immersive extends View implements Runnable {
     private float gainLo, gainHi = 1, spectrumAlpha;
     private long spectrumFrame;
     private final float[] shownLevels = new float[24]; // AudioSpectrum.levels, eased per frame
+    private final float[] bandLo = new float[12], bandHi = new float[12]; // per bar pair
     private static final float KNEE = 1 - (float) Math.exp(-1.8f); // level 1 at the tracked peak
 
     public Immersive(Context context, PlayerArt art) {
@@ -538,13 +539,21 @@ public final class Immersive extends View implements Runnable {
         gainLo += (lo - gainLo) * k;
         gainHi += (hi - gainHi) * k;
         float range = Math.max(0.12f, gainHi - gainLo);
+        // Per-pair gain: each bar learns its own recent range (~2.5s), so the bass-heavy tilt of most
+        // music no longer always makes a dome; blended with the shared gain so quiet treble can't twitch.
+        float kBand = motion ? 1 - (float) Math.exp(-dt / 2500f) : 1;
+        for (int b = 0; b < n / 2; b++) {
+            float v = (levels[b * 2] + levels[b * 2 + 1]) / 2;
+            bandLo[b] += (v - bandLo[b]) * (v < bandLo[b] ? 0.5f : kBand); // new low: follow fast
+            bandHi[b] += (v - bandHi[b]) * (v > bandHi[b] ? 0.5f : kBand); // new peak: follow fast
+        }
         float present = clamp01(sum / n * 4); // silence or pause: settle and fade out
         spectrumAlpha = motion ? spectrumAlpha + (present - spectrumAlpha) * (1 - (float) Math.exp(-dt / 200f)) : present;
         float maxH = Math.max(0, Math.min(150 * dp, h - volY - 56 * dp));
         if (spectrumAlpha < 0.01f || maxH <= 0) return;
 
         // Thick rounded bars across the full width: neighbouring bands are paired (12 per side),
-        // mirrored with bass at the centre, tapering toward the edges.
+        // mirrored with bass at the centre.
         int half = n / 2, bars = half * 2;
         float step = w / bars, barW = step * 0.62f;
         spectrumPath.reset();
@@ -552,10 +561,11 @@ public final class Immersive extends View implements Runnable {
             int pair = i < half ? half - 1 - i : i - half;
             float v = (levels[pair * 2] + levels[pair * 2 + 1]) / 2;
             // Soft knee instead of a hard clip: peaks above the tracked range stay rounded, not flat.
-            float x = Math.max(0, (v - gainLo) / range);
+            float own = (v - bandLo[pair]) / Math.max(0.15f, bandHi[pair] - bandLo[pair]);
+            float x = Math.max(0, 0.65f * own + 0.35f * (v - gainLo) / range);
             float level = Math.min(1.12f, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
-            float edge = (float) Math.sin(Math.PI * (i + 0.5f) / bars); // shorter toward the sides
-            float barH = Math.max(barW, maxH * (0.06f + 0.94f * level) * (0.3f + 0.7f * edge));
+            float edge = (float) Math.sin(Math.PI * (i + 0.5f) / bars); // ease off slightly toward the sides
+            float barH = Math.max(barW, maxH * (0.06f + 0.94f * level) * (0.8f + 0.2f * edge));
             float left = i * step + (step - barW) / 2;
             spectrumPath.addRoundRect(left, h - barH, left + barW, h + barW, barW / 2, barW / 2, Path.Direction.CW);
         }
