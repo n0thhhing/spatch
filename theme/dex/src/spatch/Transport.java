@@ -17,7 +17,7 @@ public final class Transport extends Drawable implements Runnable {
     private long bounceAt;
     public Transport(View v,int n,Drawable d){owner=v;bumps=n;original=d;}
     /**
-     * Previous/next, matching Swiftify's TransportButton (measured from its source, not copied):
+     * Previous/next:
      * while held, a light rounded arrow pointing the skip way fades in over 140 ms and grows from
      * 0.35x with a springy ease; on release the icon and arrow nudge ~4dp that way (90 ms out-cubic)
      * and return over 350 ms with a slight overshoot. The button itself never scales.
@@ -93,7 +93,7 @@ public final class Transport extends Drawable implements Runnable {
         float cx=(b.left+b.right)/2f,cy=(b.top+b.bottom)/2f;
         if(isSkip()){drawSkip(c,b,cx,cy);return;}
         float radius=Math.min(b.width(),b.height())*.62f;
-        // Swiftify's decorative surfaces are interaction feedback, not permanent accent fills.
+        // Decorative surfaces are interaction feedback, not permanent accent fills.
         boolean interacting=owner.isEnabled() && (owner.isPressed()||owner.isHovered());
         long now=SystemClock.uptimeMillis();
         boolean pressed=owner.isEnabled() && owner.isPressed();

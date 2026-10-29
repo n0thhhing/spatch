@@ -2,7 +2,7 @@
 name = "spatch"
 version = "0.1.0"
 edition = "2024"
-description = "Guarded Swiftify-style UI patcher for one exact Spotify Android APKM"
+description = "Guarded UI redesign patcher for one exact Spotify Android APKM"
 license = "MIT"
 
 [dependencies]

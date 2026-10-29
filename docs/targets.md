@@ -1,10 +1,10 @@
 # Patch targets — Spotify 9.1.98.521 (148115007)
 
-## Swiftify player effects (2026-10-28)
+## Player effects (2026-10-28)
 
 ### Catchphrase pill (built, signed, device-verified)
 
-Swiftify's Alt-click artwork easter egg (`Toast` showing "i mean i guess bro") is
+An artwork easter egg (`Toast` showing "i mean i guess bro") is
 triggered by a double tap on `PlayerArt`. `dispatchTouchEvent` only observes events:
 two DOWNs within 300ms and 2× slop of each other, with no move/cancel past the slop
 in between, so carousel swipes don't trigger it. It always forwards to `super`,
@@ -106,8 +106,8 @@ Reduced-motion branch is present but the device OS setting was not changed/teste
   The original previous/next icons are drawn without reflection.
   User correction: decorative surfaces appear only while enabled and pressed/hovered,
   using neutral white at 25%/14% opacity rather than the orange/theme accent. Idle
-  controls keep their original icon with no added shape. This follows Swiftify's
-  `TransportButton.qml` neutral surface role for untoggled hover/press feedback.
+  controls keep their original icon with no added shape. Untoggled hover/press
+  feedback uses a neutral surface role.
   Buttons are found inside the player transport container by English accessibility
   labels; other locales currently retain their original controls.
 - Extended split-reference declarations to keep `square_cover_art_size` (0x7f070755)
@@ -181,7 +181,7 @@ Constraints honoured: `player_overlay_footer` stays a direct child (`p.zxd` meas
 | `res/layout/track_info_nowplaying_view.xml` | `9bf266fa…614e` | title 24sp `sans-serif-black`, subtitle 16sp lavender `#C6B8FF` (explicit sizes replace split-only dimens) |
 | `res/drawable/nowplaying_overlay_gradient.xml` | `441662e8…3d55` | clear-top → deep violet scrim |
 
-All colours/sizes are **proposed** Android values informed by the Swiftify radius scale (8/12/17/23/30) and observed lavender/dark screenshots, not extracted tokens. No Swiftify code, fonts or assets are used.
+All colours/sizes are **proposed** Android values on Spatch's radius scale (8/12/17/23/30) and its lavender/dark direction, not extracted tokens. No third-party code, fonts or assets are used.
 
 ## Player controls trace (inspected via JADX + apktool smali, not runtime-confirmed)
 
@@ -234,7 +234,7 @@ Not covered by these patches: the Compose `fot0` variant and the wavy animated s
 
 - `layout/vertical_main` (phone portrait `MainLayout`) hosts `navigation_bar`, a `MainLayoutContentContainerView` (Compose host). Its constructor reads styleable `p.vmz0.c` = `contentBackground`, `contentCornerRadius`, `contentMarginBottom`, `contentMarginTop` and draws the background and corners itself. Runtime overrides exist only for `bannerContainer` (`p.c0g0`) and the now-playing container background (`p.a6p0` via `p.izf0`).
 - Injected `res/layout/vertical_main.xml`: `navigation_bar` gets `contentBackground #F21D1A2A`, `contentCornerRadius 28dp`, 12dp side and 6dp bottom margins (a floating rounded panel). The bottom gradients go from black to violet (`#E614121C`, `#FF14121C`).
-- Tabs: the four tab items are Compose (`uiautomator`: id-less `View`/`Button` with "Home, Tab 1 of 4" descriptions, built from `p.psn0` with the label in `p.tb3`). Selected-state colours and icons come from Encore Compose theme code, not resources, so the selected tab keeps Spotify's filled-icon/white-label treatment. A Swiftify-style selected pill would need a Compose code patch.
+- Tabs: the four tab items are Compose (`uiautomator`: id-less `View`/`Button` with "Home, Tab 1 of 4" descriptions, built from `p.psn0` with the label in `p.tb3`). Selected-state colours and icons come from Encore Compose theme code, not resources, so the selected tab keeps Spotify's filled-icon/white-label treatment. A selected pill needs a Compose code patch (done later: `spatch.Pill`).
 - Not patched: `horizontal_main` / `large_main` (landscape, tablets).
 
 ## Home shelf cards (built, signed, runtime-tested on Pixel 11 Pro)
@@ -322,11 +322,11 @@ Not covered by these patches: the Compose `fot0` variant and the wavy animated s
   - Seeking was broken (`SeekBar.setProgress` is programmatic, so Spotify ignored it). It now replays the touch on Spotify's real SeekBar (`MotionEvent` down/move/up/cancel). Device: tap at 80% → position 95,880 ms of a 2:00 track; Next tap changed the track.
   - Still decorative: the bottom spectrum visualiser is simulated from time and play state, not from audio.
 
-## Press animations matched to Swiftify (built, signed, runtime-tested)
+## Press animations (built, signed, runtime-tested)
 
-Reference: the user's screen recording of desktop Swiftify, plus measurements read from the local `./swiftify` checkout (`qml/components/TransportButton.qml`, `qml/design/Appearance.qml`; no license, so values only, no code copied).
-- **Previous/next** (`Transport.drawSkip`): the indicator is a light, soft rounded triangle pointing the skip way (Swiftify's mini player; its immersive view uses a dark one). It fades in over 140 ms (out-cubic) and grows from 0.35× on `cubic-bezier(.38,1.21,.22,1)` (350 ms), at about the button size + 4dp each side. On release the icon and indicator nudge 4dp (button width / 12) toward the skip direction over 90 ms (out-cubic), then return over 350 ms on `cubic-bezier(.42,1.67,.21,.90)`. The button never scales. The release is caught in `onStateChange` (it usually arrives before `draw`). Device: frames show the triangle growing in and Next nudging right, then settling.
-- **Shuffle/repeat** (`TapBounce`): Swiftify bounces only these, scaling up to 1.15× over 110 ms (out-cubic), then back to 1 over 400 ms on `cubic-bezier(.38,1.21,.22,1)`, timed from `Transport.releasedAt()` so sub-frame taps count. Every other player button, including the seekbar, now stays at 1× (the old shrink-to-0.9 bounce is gone). `PlayerArt` also treats "Choose a Listening Mode" as the shuffle button. **Not device-verified:** in the current context (a recommendations station) shuffle and repeat are disabled.
+Provenance: the early timings were measured from a user-supplied screen recording and a local design-reference checkout kept out of this repo (no licence, so values only; no code copied).
+- **Previous/next** (`Transport.drawSkip`): the indicator is a light, soft rounded triangle pointing the skip way (the immersive view uses a dark one). It fades in over 140 ms (out-cubic) and grows from 0.35× on `cubic-bezier(.38,1.21,.22,1)` (350 ms), at about the button size + 4dp each side. On release the icon and indicator nudge 4dp (button width / 12) toward the skip direction over 90 ms (out-cubic), then return over 350 ms on `cubic-bezier(.42,1.67,.21,.90)`. The button never scales. The release is caught in `onStateChange` (it usually arrives before `draw`). Device: frames show the triangle growing in and Next nudging right, then settling.
+- **Shuffle/repeat** (`TapBounce`): only these bounce, scaling up to 1.15× over 110 ms (out-cubic), then back to 1 over 400 ms on `cubic-bezier(.38,1.21,.22,1)`, timed from `Transport.releasedAt()` so sub-frame taps count. Every other player button, including the seekbar, now stays at 1× (the old shrink-to-0.9 bounce is gone). `PlayerArt` also treats "Choose a Listening Mode" as the shuffle button. **Not device-verified:** in the current context (a recommendations station) shuffle and repeat are disabled.
 - **Seekbar hold** (`Wave`): Spotify stops position updates while the bar is touched (pressed state only starts once you drag), so playback is also read from `AudioManager.isMusicActive()` (polled at most every 500 ms). Device: holding while playing keeps the wave (29 px spread); holding while paused is flat (0). No scaling of the seekbar.
 
 ## Skip icon nudge + blurred backdrop fixes (built, signed, runtime-tested)

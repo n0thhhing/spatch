@@ -7,7 +7,7 @@ import p.rhm0;
 import p.xp31;
 
 /**
- * Swiftify-style selected-tab indicator. Replaces the tab icon's Modifier.size(24.dp) call in
+ * Spatch selected-tab indicator. Replaces the tab icon's Modifier.size(24.dp) call in
  * p.psn0.a(): every tab icon gets the same 3dp outer margin and 20dp x 4dp inner padding so labels stay
  * aligned; only the selected one paints the pill (accent at 25% alpha), a 64dp x 32dp indicator.
  */

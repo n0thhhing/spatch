@@ -23,7 +23,7 @@ public final class TapBounce {
         animate(view);
     }
     /**
-     * Swiftify's transport bounce (measured from its TransportButton, not copied): only shuffle and
+     * Transport bounce: only shuffle and
      * repeat, on click, scale up to 1.15x over 110 ms (out-cubic) and settle to 1 over 400 ms on a
      * slightly overshooting curve. No shrink while pressed; every other player button stays at 1x.
      */
