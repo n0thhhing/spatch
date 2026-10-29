@@ -88,6 +88,6 @@ public final class Scallop implements Runnable {
         // Keep lbg's state alpha (pressed 70%, disabled 50%) and swap only the colour.
         paint.setColor((source.getAlpha() << 24) | ACCENT);
         canvas.drawPath(path, paint);
-        if((desired==1 || progress<1 || bt<1) && Wave.animationsEnabled() && drawable.isVisible())drawable.scheduleSelf(state,now+16);
+        if((desired==1 || progress<1 || bt<1) && Wave.animationsEnabled() && drawable.isVisible() && Wave.onScreen(drawable))drawable.scheduleSelf(state,now+16);
     }
 }

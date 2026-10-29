@@ -6,5 +6,6 @@ public class ViewPropertyAnimator {
     public ViewPropertyAnimator scaleX(float v) { return this; }
     public ViewPropertyAnimator scaleY(float v) { return this; }
     public ViewPropertyAnimator setDuration(long ms) { return this; }
+    public ViewPropertyAnimator setStartDelay(long ms) { return this; }
     public void start() {}
 }

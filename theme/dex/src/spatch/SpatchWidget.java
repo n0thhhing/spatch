@@ -34,6 +34,10 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     private static final String BUTTONS = "com.spotify.mediasession.mediasession.receiver.MediaButtonReceiver";
     private static final int VISIBLE = 0, GONE = 8;
     private static MediaController current;
+    // Two track slots for the song-change flip: the shown one and the one that slid out.
+    private static int shown;
+    private static final String[] slotKey = new String[2], slotTitle = new String[2], slotArtist = new String[2];
+    private static final Bitmap[] slotArt = new Bitmap[2];
     /** Widget work (bitmaps, RemoteViews, binder calls) stays off Spotify's main thread. */
     private static Handler worker;
     private static final SpatchWidget PUSH = new SpatchWidget(null);
@@ -123,15 +127,25 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         Bitmap art = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
         if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
         if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
-        if (art != null && Math.max(art.getWidth(), art.getHeight()) > 320) {
-            art = Bitmap.createScaledBitmap(art, 320, 320, true); // keep the RemoteViews bitmap small
+        if (art != null && Math.max(art.getWidth(), art.getHeight()) > 256) {
+            art = Bitmap.createScaledBitmap(art, 256, 256, true); // two covers travel per update; stay small
         }
         Bitmap backdrop = art == null ? null : backdrop(art);
         String title = m.getString(MediaMetadata.METADATA_KEY_TITLE);
         String artist = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
+        // Song change: write it into the hidden slot and flip to it, so the old song slides out and
+        // the new one slides in (ViewFlipper animations, run by the launcher).
+        String key = title + "\u0000" + artist;
+        if (!key.equals(slotKey[shown])) {
+            if (slotKey[shown] != null) shown = 1 - shown;
+            slotKey[shown] = key;
+            slotTitle[shown] = title;
+            slotArtist[shown] = artist;
+        }
+        slotArt[shown] = art; // art often arrives after the title; keep the current slot's up to date
         Map<SizeF, RemoteViews> sizes = new HashMap<SizeF, RemoteViews>();
-        sizes.put(new SizeF(220, 50), views(app, "spatch_widget", title, artist, art, backdrop, playing));
-        sizes.put(new SizeF(220, 110), views(app, "spatch_widget_large", title, artist, art, backdrop, playing));
+        sizes.put(new SizeF(220, 50), views(app, "spatch_widget", backdrop, playing));
+        sizes.put(new SizeF(220, 110), views(app, "spatch_widget_large", backdrop, playing));
         return new RemoteViews(sizes);
     }
 
@@ -149,17 +163,22 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         return out;
     }
 
-    private static RemoteViews views(Context app, String layout, String title, String artist, Bitmap art, Bitmap backdrop, boolean playing) {
+    private static RemoteViews views(Context app, String layout, Bitmap backdrop, boolean playing) {
         Resources r = app.getResources();
         String pkg = app.getPackageName();
         RemoteViews v = new RemoteViews(pkg, r.getIdentifier(layout, "layout", pkg));
         int root = 0x01020000; // android.R.id.background
         v.setColorStateList(root, "setBackgroundTintList", ColorStateList.valueOf(0xff1d1a2a));
-        v.setTextViewText(id(r, pkg, "title"), title == null ? "" : title);
-        v.setTextColor(id(r, pkg, "title"), 0xfff3eeff);
-        v.setTextViewText(id(r, pkg, "subtitle"), artist == null ? "" : artist);
-        v.setTextColor(id(r, pkg, "subtitle"), 0xffbcb3dc);
-        if (art != null) v.setImageViewBitmap(id(r, pkg, "artwork"), art);
+        String[][] slots = {{"title", "subtitle", "artwork"}, {"title2", "subtitle2", "thumbnail"}};
+        for (int i = 0; i < 2; i++) {
+            v.setTextViewText(id(r, pkg, slots[i][0]), slotTitle[i] == null ? "" : slotTitle[i]);
+            v.setTextColor(id(r, pkg, slots[i][0]), 0xfff3eeff);
+            v.setTextViewText(id(r, pkg, slots[i][1]), slotArtist[i] == null ? "" : slotArtist[i]);
+            v.setTextColor(id(r, pkg, slots[i][1]), 0xffbcb3dc);
+            if (slotArt[i] != null) v.setImageViewBitmap(id(r, pkg, slots[i][2]), slotArt[i]);
+        }
+        v.setDisplayedChild(id(r, pkg, "info_container"), shown);
+        v.setDisplayedChild(id(r, pkg, "metadata"), shown);
         if (backdrop != null) v.setImageViewBitmap(id(r, pkg, "frame"), backdrop);
         ColorStateList accent = ColorStateList.valueOf(0xffd0bcff);
         // The launcher starts whichever animated scallop is shown: on play, 5 bumps morph to 8 and keep

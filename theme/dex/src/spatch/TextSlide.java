@@ -37,7 +37,9 @@ final class TextSlide implements TextWatcher {
         if (first || !Wave.animationsEnabled()) return;
         view.setAlpha(0f);
         view.setTranslationX(6 * view.getResources().getDisplayMetrics().density);
-        view.animate().alpha(1f).translationX(0f).setDuration(260).start();
+        // Spotify relayouts and inflates the new track's page in the first ~100 ms (traced: up to a
+        // 55 ms frame); starting after that keeps the fade on smooth frames.
+        view.animate().alpha(1f).translationX(0f).setStartDelay(120).setDuration(260).start();
     }
 
     public void beforeTextChanged(CharSequence s, int start, int count, int after) {}

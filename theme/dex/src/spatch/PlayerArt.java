@@ -17,6 +17,9 @@ public final class PlayerArt extends ImageView {
     // Shared by every carousel page, so a song change crossfades from the old colours rather than
     // from a fresh page's blank backdrop (which flashed dark).
     private static Drawable lastArt;
+    private static int[] ids; // background, controls, title, subtitle view ids, looked up once
+    private final Path ring = new Path();
+    private float ringRadius, ringCx, ringCy;
     private static Atmosphere atmosphere;
     private long lastSetup;
     private float glowSize;
@@ -80,17 +83,23 @@ public final class PlayerArt extends ImageView {
             if (Settings.roundArt()) drawRound(canvas); else super.onDraw(canvas);
         }
         canvas.restoreToCount(scaled);
+        // The carousel keeps three pages alive; only the centred one does per-frame work. The others
+        // redraw slowly, just enough to notice when they become the centred page.
+        boolean current=isCurrentPage();
+        if(!current) {
+            if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(250);
+            return;
+        }
+        if(ids==null) ids=new int[]{id("overlay_controls_layout"),id("playback_controls_container"),id("track_info_view_title"),id("track_info_view_subtitle")};
         if(background==null || now-lastSetup>750) {
-            View root=getRootView();
-            int backgroundId=getContext().getResources().getIdentifier("overlay_controls_layout","id",getContext().getPackageName());
-            background=root.findViewById(backgroundId);
+            background=getRootView().findViewById(ids[0]);
         }
         // The artwork carousel keeps the previous and next tracks' pages alive off-screen; only the
         // page centred on screen may set the blurred backdrop, or a neighbour's art wins.
         Drawable art=getDrawable();
         if(background!=null && !Settings.backdrop()) {
             if(background.getBackground() instanceof Atmosphere) background.setBackground(original);
-        } else if(background!=null && art!=null && isCurrentPage()) {
+        } else if(background!=null && art!=null) {
             if(art!=lastArt) {
                 lastArt=art;
                 if(atmosphere==null) atmosphere=new Atmosphere();
@@ -104,11 +113,10 @@ public final class PlayerArt extends ImageView {
         if(now-lastSetup>750) {
             lastSetup=now;
             View root=getRootView();
-            int controlsId=getContext().getResources().getIdentifier("playback_controls_container","id",getContext().getPackageName());
-            View controls=root.findViewById(controlsId);
+            View controls=root.findViewById(ids[1]);
             if(controls instanceof ViewGroup) decorate((ViewGroup)controls);
-            TextSlide.attach(root.findViewById(getContext().getResources().getIdentifier("track_info_view_title","id",getContext().getPackageName())));
-            TextSlide.attach(root.findViewById(getContext().getResources().getIdentifier("track_info_view_subtitle","id",getContext().getPackageName())));
+            TextSlide.attach(root.findViewById(ids[2]));
+            TextSlide.attach(root.findViewById(ids[3]));
             if(headerProgress==null && root instanceof ViewGroup) {
                 // Collapsed-player header (built in code by p.s22, no id): its plain ProgressBar is
                 // Spotify white; give it the theme accent. Exact class, so SeekBars are left alone.
@@ -168,15 +176,27 @@ public final class PlayerArt extends ImageView {
         ink.setStyle(Paint.Style.STROKE);
         ink.setStrokeWidth(Math.max(2, radius*.012f));
         ink.setColor(0xffd0bcff);
-        outline.reset();
-        for(int i=0;i<=360;i++) {
-            double angle=i*Math.PI/180;
-            float r=radius+radius*.045f+(float)Math.sin(angle*24-phase)*radius*.012f;
-            float x=cx+(float)Math.cos(angle)*r, y=cy+(float)Math.sin(angle)*r;
-            if(i==0) outline.moveTo(x,y); else outline.lineTo(x,y);
+        if(ringRadius!=radius || ringCx!=cx || ringCy!=cy) {
+            // Built once per size; the motion is a rotation, since sin(24a - phase) is the same curve
+            // turned by phase/24.
+            ringRadius=radius; ringCx=cx; ringCy=cy;
+            ring.reset();
+            for(int i=0;i<=360;i++) {
+                double angle=i*Math.PI/180;
+                float r=radius+radius*.045f+(float)Math.sin(angle*24)*radius*.012f;
+                float x=cx+(float)Math.cos(angle)*r, y=cy+(float)Math.sin(angle)*r;
+                if(i==0) ring.moveTo(x,y); else ring.lineTo(x,y);
+            }
+            ring.close();
         }
-        outline.close();
-        canvas.drawPath(outline,ink);
+        int save=canvas.save();
+        canvas.rotate((float)Math.toDegrees(phase/24),cx,cy);
+        canvas.drawPath(ring,ink);
+        canvas.restoreToCount(save);
+    }
+
+    private int id(String name) {
+        return getContext().getResources().getIdentifier(name,"id",getContext().getPackageName());
     }
 
     void drawHeroDecoration(Canvas canvas, float cx, float cy, float size, float progress, boolean ring) {

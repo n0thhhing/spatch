@@ -411,7 +411,7 @@ public final class Immersive extends View implements Runnable {
             shownTitle = title;
         }
         // A new song's title and artist ease in: fade up while sliding 6dp into place.
-        float ease = Transport.outCubic((now - titleChangedAt) / 260f);
+        float ease = Transport.outCubic((now - titleChangedAt - 120) / 260f); // after the track-change hitch
         float slide = (1 - ease) * 6 * dp;
         paint.setAlpha(Math.round(255 * ease));
         canvas.drawText(fit(title, maxText), w / 2f + slide, titleY, paint);

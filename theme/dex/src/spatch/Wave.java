@@ -140,7 +140,7 @@ public final class Wave extends Drawable implements Runnable {
         }
         boolean settling = (amp > 0f && amp < 1f) || (thick > 0f && thick < 1f);
         if (amp > 0f || settling) {
-            scheduleSelf(this, now + 16);
+            if (onScreen(this)) scheduleSelf(this, now + 16);
         }
     }
 
@@ -190,6 +190,19 @@ public final class Wave extends Drawable implements Runnable {
     @Override
     public int getOpacity() {
         return PixelFormat.TRANSLUCENT;
+    }
+
+    /**
+     * False when the drawable's window is covered by another activity (e.g. Now Playing over the
+     * mini-player): its continuous animation would otherwise redraw the hidden screen every frame.
+     * The next progress update or focus change redraws it and restarts the animation.
+     */
+    static boolean onScreen(Drawable d) {
+        Object cb = d.getCallback();
+        while (cb instanceof Drawable) {
+            cb = ((Drawable) cb).getCallback();
+        }
+        return !(cb instanceof View) || ((View) cb).hasWindowFocus();
     }
 
     /** Reduced motion: no wave or animated thickness when the system animator scale is 0 (API 26+). */
