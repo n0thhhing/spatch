@@ -309,6 +309,10 @@ const HELPERS: [(&str, &str); 17] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    (
+        "ProgressBar.java",
+        include_str!("../theme/dex/stubs/android/widget/ProgressBar.java"),
+    ),
     ("b971.java", include_str!("../theme/dex/stubs/p/b971.java")),
     ("ikb0.java", include_str!("../theme/dex/stubs/p/ikb0.java")),
     ("kat.java", include_str!("../theme/dex/stubs/p/kat.java")),

@@ -24,6 +24,7 @@ public final class PlayerArt extends ImageView {
     private long tapAt = -1000;
     private float tapX, tapY;
     private View background;
+    private android.widget.ProgressBar headerProgress; // sticky header's thin line, tinted once
     private final int[] loc = new int[2];
     private final float[] squish = {1, 0}; // press spring: scale, velocity
     private float squishTarget = 1;
@@ -104,6 +105,15 @@ public final class PlayerArt extends ImageView {
             int controlsId=getContext().getResources().getIdentifier("playback_controls_container","id",getContext().getPackageName());
             View controls=root.findViewById(controlsId);
             if(controls instanceof ViewGroup) decorate((ViewGroup)controls);
+            if(headerProgress==null && root instanceof ViewGroup) {
+                // Collapsed-player header (built in code by p.s22, no id): its plain ProgressBar is
+                // Spotify white; give it the theme accent. Exact class, so SeekBars are left alone.
+                headerProgress=findProgress((ViewGroup)root);
+                if(headerProgress!=null) {
+                    headerProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(0xffd0bcff));
+                    headerProgress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x4dd0bcff));
+                }
+            }
         }
         TapBounce.tick(getRootView());
         if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(16);
@@ -247,6 +257,18 @@ public final class PlayerArt extends ImageView {
             for (int i = 0; i < group.getChildCount(); i++) {
                 PlayerArt art = currentPage(group.getChildAt(i));
                 if (art != null) return art;
+            }
+        }
+        return null;
+    }
+
+    private static android.widget.ProgressBar findProgress(ViewGroup group) {
+        for(int i=0;i<group.getChildCount();i++) {
+            View v=group.getChildAt(i);
+            if(v.getClass()==android.widget.ProgressBar.class) return (android.widget.ProgressBar)v;
+            if(v instanceof ViewGroup) {
+                android.widget.ProgressBar found=findProgress((ViewGroup)v);
+                if(found!=null) return found;
             }
         }
         return null;
