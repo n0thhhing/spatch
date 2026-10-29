@@ -34,8 +34,13 @@ public final class Palette {
         c.startActivity(android.content.Intent.makeRestartActivityTask(launch.getComponent()));
         Runtime.getRuntime().exit(0);
     }
+    /** Spotify brand greens in Encore's static Compose palette (p.gex): accent, then pale mints (badges). */
+    private static final int[] GREENS={0x1ed760,0x1db954,0x19e68c},MINTS={0x91eeda,0xc5f0c9};
     public static int color(int value){
-        for(int i=0;i<BASE.length;i++)if((value&0xffffff)==BASE[i])return (value&0xff000000)|COLOURS[active][i];
+        int rgb=value&0xffffff;
+        for(int i=0;i<BASE.length;i++)if(rgb==BASE[i])return (value&0xff000000)|COLOURS[active][i];
+        for(int g:GREENS)if(rgb==g)return (value&0xff000000)|COLOURS[active][6];
+        for(int g:MINTS)if(rgb==g)return (value&0xff000000)|COLOURS[active][7];
         return value;
     }
     public static long compose(long argb){return (argb & ~0xffffffffL)==0 ? color((int)argb)&0xffffffffL : argb;}

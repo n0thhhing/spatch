@@ -118,7 +118,7 @@ public class PlayerRuntimeTest {
     public static void main(String[] args) throws Exception {
         Field active=Palette.class.getDeclaredField("active");active.setAccessible(true);
         int[] accents={0xd0bcff,0xfe8019,0xcba6f7,0xc4a7e7,0x88c0d0,0x7aa2f7,0xbd93f9};
-        for(int i=0;i<7;i++){active.setInt(null,i);check(Palette.color(0x80d0bcff)==(0x80000000|accents[i]),"theme mapping must preserve role and alpha");check(Palette.color(0xff123456)==0xff123456,"semantic colour must be preserved");}
+        for(int i=0;i<7;i++){active.setInt(null,i);check(Palette.color(0x80d0bcff)==(0x80000000|accents[i]),"theme mapping must preserve role and alpha");check(Palette.color(0xff123456)==0xff123456,"semantic colour must be preserved");check(Palette.color(0xff1ed760)==(0xff000000|accents[i]),"Spotify green must follow the accent");check(Palette.compose(0xffc5f0c9L)!=0xffc5f0c9L,"badge mint must be themed");}
         active.setInt(null,0);Field pref=Palette.class.getDeclaredField("preferences");pref.setAccessible(true);pref.set(null,new Prefs());
         check(Palette.choose("nord"),"theme must commit before restart");check(Palette.requested().equals("nord") && Palette.activeName().equals("lavender"),"theme selection persists for restart without changing current palette");
         try{Palette.choose("nope");throw new AssertionError("invalid theme accepted");}catch(IllegalArgumentException expected){}

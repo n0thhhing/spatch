@@ -56,7 +56,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 27] = [
+pub const EDITS: [Edit; 31] = [
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -213,6 +213,29 @@ pub const EDITS: [Edit; 27] = [
         file: "smali_classes11/p/yg81.smali",
         anchor: "    .line 55\n    invoke-static {v1, v0}, Lp/pul1;->o0(Lp/pzj;I)Ljava/lang/String;\n\n    .line 56\n    .line 57\n    .line 58\n    move-result-object v7\n",
         replacement: "    .line 55\n    invoke-static {v1, v0}, Lp/pul1;->o0(Lp/pzj;I)Ljava/lang/String;\n\n    .line 56\n    .line 57\n    .line 58\n    move-result-object v7\n\n    const v3, 0x7f131b75\n\n    if-ne v0, v3, :spatch_not_custom\n\n    const-string v7, \"Spatch\"\n\n    :spatch_not_custom\n",
+    },
+    // Search tab search bar (p.bqn1.e, "search_bar_root"): Spotify's white 4dp box becomes a
+    // Swiftify field: highlight surface, pill shape, light icon and subdued hint text. Colours go
+    // through y2p1.f (existing reference; Palette maps the role tokens at runtime).
+    Edit {
+        file: "smali_classes4/p/bqn1.smali",
+        anchor: "    sget-wide v9, Lp/i7h;->f:J\n",
+        replacement: "    const-wide v9, 0xff2b2640L\n\n    invoke-static {v9, v10}, Lp/y2p1;->f(J)J\n\n    move-result-wide v9\n",
+    },
+    Edit {
+        file: "smali_classes4/p/bqn1.smali",
+        anchor: "    const/high16 v11, 0x40800000    # 4.0f\n",
+        replacement: "    const/high16 v11, 0x41c00000    # 24.0f\n",
+    },
+    Edit {
+        file: "smali_classes4/p/bqn1.smali",
+        anchor: "    iget-wide v9, v9, Lp/gex;->g:J\n",
+        replacement: "    const-wide v9, 0xfff3eeffL\n\n    invoke-static {v9, v10}, Lp/y2p1;->f(J)J\n\n    move-result-wide v9\n",
+    },
+    Edit {
+        file: "smali_classes4/p/bqn1.smali",
+        anchor: "    iget-wide v7, v4, Lp/jex;->e:J\n",
+        replacement: "    const-wide v7, 0xffbcb3dcL\n\n    invoke-static {v7, v8}, Lp/y2p1;->f(J)J\n\n    move-result-wide v7\n",
     },
 ];
 
