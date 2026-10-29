@@ -17,6 +17,7 @@ import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.util.SizeF;
 import android.view.KeyEvent;
 import android.widget.RemoteViews;
@@ -37,7 +38,10 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     // Two track slots for the song-change flip: the shown one and the one that slid out.
     private static int shown;
     private static final String[] slotKey = new String[2], slotTitle = new String[2], slotArtist = new String[2];
-    private static final Bitmap[] slotArt = new Bitmap[2];
+    private static final Bitmap[] slotArt = new Bitmap[2], slotSource = new Bitmap[2];
+    private static final long FLIP_MS = 420; // longest flip animation (in 320 ms) plus margin
+    private static long flipAt = -FLIP_MS, changeSeenAt;
+    private static RemoteViews lastViews;
     /** Widget work (bitmaps, RemoteViews, binder calls) stays off Spotify's main thread. */
     private static Handler worker;
     private static final SpatchWidget PUSH = new SpatchWidget(null);
@@ -87,7 +91,36 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     }
 
     public void run() {
-        push();
+        long wait = settleDelay();
+        if (wait > 0) worker().postDelayed(PUSH, wait);
+        else push();
+    }
+
+    /**
+     * Spotify announces one song change as a burst (title, then artist and cover). Flip once, when
+     * the new song's cover has arrived (or after 900 ms without one), and never mid-animation.
+     */
+    private static long settleDelay() {
+        long now = SystemClock.uptimeMillis();
+        if (now - flipAt < FLIP_MS) return FLIP_MS - (now - flipAt);
+        MediaController c = current;
+        MediaMetadata m = c == null ? null : c.getMetadata();
+        if (m == null) return 0;
+        String title = m.getString(MediaMetadata.METADATA_KEY_TITLE);
+        if (title == null || title.equals(slotKey[shown]) || slotKey[shown] == null) {
+            changeSeenAt = 0;
+            return 0;
+        }
+        if (changeSeenAt == 0) changeSeenAt = now;
+        boolean coverReady = cover(m) != null && cover(m) != slotSource[shown];
+        return coverReady || now - changeSeenAt > 900 ? 0 : 120;
+    }
+
+    private static Bitmap cover(MediaMetadata m) {
+        Bitmap art = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+        if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
+        if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+        return art;
     }
 
     /** Glance hand-off: Spatch's views for the Now Playing widget once a session is known. */
@@ -97,7 +130,9 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         try {
             AppWidgetProviderInfo info = AppWidgetManager.getInstance(app).getAppWidgetInfo(widgetId);
             if (info == null || !PROVIDER.equals(info.provider.getClassName())) return glance;
-            RemoteViews views = build(app);
+            // Mid-change or mid-flip: hand Glance the views already showing; the scheduled push
+            // delivers the change once it settles.
+            RemoteViews views = settleDelay() > 0 && lastViews != null ? lastViews : build(app);
             return views != null ? views : glance;
         } catch (RuntimeException e) {
             return glance;
@@ -124,9 +159,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         PlaybackState s = c.getPlaybackState();
         int state = s == null ? 0 : s.getState();
         boolean playing = state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING;
-        Bitmap art = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
-        if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
-        if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+        Bitmap source = cover(m), art = source;
         if (art != null && Math.max(art.getWidth(), art.getHeight()) > 256) {
             art = Bitmap.createScaledBitmap(art, 256, 256, true); // two covers travel per update; stay small
         }
@@ -135,17 +168,39 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         String artist = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
         // Song change: write it into the hidden slot and flip to it, so the old song slides out and
         // the new one slides in (ViewFlipper animations, run by the launcher).
-        String key = title + "\u0000" + artist;
+        // Keyed by title only: an artist or cover arriving a moment later updates the shown slot
+        // instead of flipping a second time.
+        String key = title == null ? "" : title;
+        boolean flip = false;
         if (!key.equals(slotKey[shown])) {
-            if (slotKey[shown] != null) shown = 1 - shown;
+            if (slotKey[shown] != null) {
+                shown = 1 - shown;
+                flipAt = SystemClock.uptimeMillis();
+                flip = true;
+            }
             slotKey[shown] = key;
-            slotTitle[shown] = title;
-            slotArtist[shown] = artist;
+            changeSeenAt = 0;
         }
-        slotArt[shown] = art; // art often arrives after the title; keep the current slot's up to date
+        slotTitle[shown] = title;
+        slotArtist[shown] = artist;
+        if (source != slotSource[shown] || slotArt[shown] == null) {
+            slotSource[shown] = source;
+            slotArt[shown] = art;
+        }
+        // ViewFlipper restarts its in-animation on every setDisplayedChild, even to the same child, so
+        // it is sent only on the flip itself. Steady updates write the current song into both slots,
+        // which keeps whichever slot a (re)inflated widget shows correct.
+        RemoteViews result = sized(app, backdrop, playing, flip ? FLIP : STEADY);
+        lastViews = flip ? sized(app, backdrop, playing, HOLD) : result; // Glance reuse: no re-flip
+        return result;
+    }
+
+    private static final int STEADY = 0, FLIP = 1, HOLD = 2;
+
+    private static RemoteViews sized(Context app, Bitmap backdrop, boolean playing, int mode) {
         Map<SizeF, RemoteViews> sizes = new HashMap<SizeF, RemoteViews>();
-        sizes.put(new SizeF(220, 50), views(app, "spatch_widget", backdrop, playing));
-        sizes.put(new SizeF(220, 110), views(app, "spatch_widget_large", backdrop, playing));
+        sizes.put(new SizeF(220, 50), views(app, "spatch_widget", backdrop, playing, mode));
+        sizes.put(new SizeF(220, 110), views(app, "spatch_widget_large", backdrop, playing, mode));
         return new RemoteViews(sizes);
     }
 
@@ -163,22 +218,25 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         return out;
     }
 
-    private static RemoteViews views(Context app, String layout, Bitmap backdrop, boolean playing) {
+    private static RemoteViews views(Context app, String layout, Bitmap backdrop, boolean playing, int mode) {
         Resources r = app.getResources();
         String pkg = app.getPackageName();
         RemoteViews v = new RemoteViews(pkg, r.getIdentifier(layout, "layout", pkg));
         int root = 0x01020000; // android.R.id.background
         v.setColorStateList(root, "setBackgroundTintList", ColorStateList.valueOf(0xff1d1a2a));
         String[][] slots = {{"title", "subtitle", "artwork"}, {"title2", "subtitle2", "thumbnail"}};
-        for (int i = 0; i < 2; i++) {
-            v.setTextViewText(id(r, pkg, slots[i][0]), slotTitle[i] == null ? "" : slotTitle[i]);
-            v.setTextColor(id(r, pkg, slots[i][0]), 0xfff3eeff);
-            v.setTextViewText(id(r, pkg, slots[i][1]), slotArtist[i] == null ? "" : slotArtist[i]);
-            v.setTextColor(id(r, pkg, slots[i][1]), 0xffbcb3dc);
-            if (slotArt[i] != null) v.setImageViewBitmap(id(r, pkg, slots[i][2]), slotArt[i]);
+        for (int k = 0; k < 2; k++) {
+            int i = mode == STEADY ? shown : k; // steady: both slots show the current song
+            v.setTextViewText(id(r, pkg, slots[k][0]), slotTitle[i] == null ? "" : slotTitle[i]);
+            v.setTextColor(id(r, pkg, slots[k][0]), 0xfff3eeff);
+            v.setTextViewText(id(r, pkg, slots[k][1]), slotArtist[i] == null ? "" : slotArtist[i]);
+            v.setTextColor(id(r, pkg, slots[k][1]), 0xffbcb3dc);
+            if (slotArt[i] != null) v.setImageViewBitmap(id(r, pkg, slots[k][2]), slotArt[i]);
         }
-        v.setDisplayedChild(id(r, pkg, "info_container"), shown);
-        v.setDisplayedChild(id(r, pkg, "metadata"), shown);
+        if (mode == FLIP) {
+            v.setDisplayedChild(id(r, pkg, "info_container"), shown);
+            v.setDisplayedChild(id(r, pkg, "metadata"), shown);
+        }
         if (backdrop != null) v.setImageViewBitmap(id(r, pkg, "frame"), backdrop);
         ColorStateList accent = ColorStateList.valueOf(0xffd0bcff);
         // The launcher starts whichever animated scallop is shown: on play, 5 bumps morph to 8 and keep
