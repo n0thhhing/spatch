@@ -5,7 +5,7 @@ public class Canvas {
  public void translate(float x,float y){} public void scale(float x,float y,float px,float py){}
  public int saveLayerAlpha(float l,float t,float r,float b,int alpha){return 0;}
  public int save(){return 0;} public boolean clipPath(Path p){return false;} public void restoreToCount(int n){}
- public void drawPath(Path p,Paint q){} public void drawColor(int c){}
+ public void drawPath(Path p,Paint q){} public void drawColor(int c){} public void drawBitmap(Bitmap b,float x,float y,Paint p){}
  public void drawRect(float l,float t,float r,float b,Paint p){}
  public void drawRoundRect(float l,float t,float r,float b,float rx,float ry,Paint p){}
  public void drawText(String s,float x,float y,Paint p){}

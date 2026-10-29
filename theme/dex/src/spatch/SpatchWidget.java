@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.MediaSession;
@@ -102,15 +103,30 @@ public final class SpatchWidget extends MediaController.Callback {
         if (art != null && Math.max(art.getWidth(), art.getHeight()) > 320) {
             art = Bitmap.createScaledBitmap(art, 320, 320, true); // keep the RemoteViews bitmap small
         }
+        Bitmap backdrop = art == null ? null : backdrop(art);
         String title = m.getString(MediaMetadata.METADATA_KEY_TITLE);
         String artist = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
         Map<SizeF, RemoteViews> sizes = new HashMap<SizeF, RemoteViews>();
-        sizes.put(new SizeF(220, 50), views(app, "spatch_widget", title, artist, art, playing));
-        sizes.put(new SizeF(220, 110), views(app, "spatch_widget_large", title, artist, art, playing));
+        sizes.put(new SizeF(220, 50), views(app, "spatch_widget", title, artist, art, backdrop, playing));
+        sizes.put(new SizeF(220, 110), views(app, "spatch_widget_large", title, artist, art, backdrop, playing));
         return new RemoteViews(sizes);
     }
 
-    private static RemoteViews views(Context app, String layout, String title, String artist, Bitmap art, boolean playing) {
+    /**
+     * The player's backdrop idea at widget scale: the cover shrunk to a few pixels and smoothed back
+     * up (a cheap, strong blur), under a theme-surface scrim so text stays readable.
+     */
+    private static Bitmap backdrop(Bitmap art) {
+        Bitmap tiny = Bitmap.createScaledBitmap(Bitmap.createScaledBitmap(art, 48, 48, true), 10, 10, true);
+        Bitmap soft = Bitmap.createScaledBitmap(Bitmap.createScaledBitmap(tiny, 40, 40, true), 200, 100, true);
+        Bitmap out = Bitmap.createBitmap(200, 100, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(out);
+        canvas.drawBitmap(soft, 0, 0, null);
+        canvas.drawColor(0xb814121c);
+        return out;
+    }
+
+    private static RemoteViews views(Context app, String layout, String title, String artist, Bitmap art, Bitmap backdrop, boolean playing) {
         Resources r = app.getResources();
         String pkg = app.getPackageName();
         RemoteViews v = new RemoteViews(pkg, r.getIdentifier(layout, "layout", pkg));
@@ -121,6 +137,7 @@ public final class SpatchWidget extends MediaController.Callback {
         v.setTextViewText(id(r, pkg, "subtitle"), artist == null ? "" : artist);
         v.setTextColor(id(r, pkg, "subtitle"), 0xffbcb3dc);
         if (art != null) v.setImageViewBitmap(id(r, pkg, "artwork"), art);
+        if (backdrop != null) v.setImageViewBitmap(id(r, pkg, "frame"), backdrop);
         ColorStateList accent = ColorStateList.valueOf(0xffd0bcff);
         // While playing: the scallop turns and the equaliser bounces (both animated by the launcher).
         v.setViewVisibility(id(r, pkg, "spinner"), playing ? VISIBLE : GONE);
