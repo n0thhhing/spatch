@@ -552,10 +552,11 @@ public final class Immersive extends View implements Runnable {
         float maxH = Math.max(0, Math.min(150 * dp, h - volY - 56 * dp));
         if (spectrumAlpha < 0.01f || maxH <= 0) return;
 
-        // Thick rounded bars across the full width: neighbouring bands are paired (12 per side),
+        // Thick rounded bars across the width: neighbouring bands are paired (12 per side),
         // mirrored with bass at the centre.
         int half = n / 2, bars = half * 2;
-        float step = w / bars, barW = step * 0.62f;
+        float margin = 16 * dp; // small side margin rather than edge to edge
+        float step = (w - 2 * margin) / bars, barW = step * 0.62f;
         spectrumPath.reset();
         for (int i = 0; i < bars; i++) {
             int pair = i < half ? half - 1 - i : i - half;
@@ -566,7 +567,7 @@ public final class Immersive extends View implements Runnable {
             float level = Math.min(1.12f, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
             float edge = (float) Math.sin(Math.PI * (i + 0.5f) / bars); // ease off slightly toward the sides
             float barH = Math.max(barW, maxH * (0.06f + 0.94f * level) * (0.8f + 0.2f * edge));
-            float left = i * step + (step - barW) / 2;
+            float left = margin + i * step + (step - barW) / 2;
             spectrumPath.addRoundRect(left, h - barH, left + barW, h + barW, barW / 2, barW / 2, Path.Direction.CW);
         }
 
