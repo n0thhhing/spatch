@@ -1,0 +1,1 @@
+package android.content.res; public class Resources { public void addLoaders(android.content.res.loader.ResourcesLoader... loaders) {} public android.util.DisplayMetrics getDisplayMetrics(){return null;} public int getIdentifier(String a,String b,String c){return 0;} public int getDimensionPixelSize(int id){return 0;} }

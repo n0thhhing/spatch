@@ -1,0 +1,5 @@
+package android.view;
+// Compile-time stub only; never packaged (the device provides the real class).
+public interface ViewParent {
+    ViewParent getParent();
+}

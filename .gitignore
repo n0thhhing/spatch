@@ -1,0 +1,6 @@
+target/
+*.apkm
+dist/
+# upstream reference checkout (own repo, no licence): never vendored
+swiftify/
+.cache/

@@ -1,0 +1,1 @@
+package android.graphics; public class Bitmap { public enum Config {ARGB_8888} public static Bitmap createBitmap(int w,int h,Config c){return null;} public void eraseColor(int c){} public int getPixel(int x,int y){return 0;} }

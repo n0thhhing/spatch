@@ -1,0 +1,776 @@
+//! Guarded resource-entry replacement, rebuild, signing and verification.
+//!
+//! Only compiled XML entries listed in `TARGETS` and the DEX handled by `dex` change. `resources.arsc`,
+//! the manifest and every other DEX stay byte-identical: apktool's full resource round trip is lossy for this build
+//! (base references density-split-only dimens), so apktool is used only to compile the patched XML
+//! against the original resource IDs, and the compiled entries are injected into the original APK.
+
+use crate::Result;
+use crate::arsc;
+use crate::dex;
+use crate::input::{self, APKS, PACKAGE, VERSION_CODE};
+use crate::lottie;
+use crate::theme::Theme;
+use crate::tools::Tools;
+use std::collections::HashSet;
+use std::ffi::OsStr;
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
+use zip::write::SimpleFileOptions;
+
+pub struct Target {
+    /// Entry path in base.apk (also the path in the decoded tree).
+    pub entry: &'static str,
+    /// SHA-256 of the original compiled entry; anything else (other build, already patched) is rejected.
+    pub original_sha256: &'static str,
+    pub source: &'static str,
+}
+
+macro_rules! target {
+    ($entry:literal, $sha:literal) => {
+        Target {
+            entry: $entry,
+            original_sha256: $sha,
+            source: include_str!(concat!("../theme/player/", $entry)),
+        }
+    };
+}
+
+/// Now Playing slice. Ownership: p.jcs inflates revised_template_page_layout (which includes
+/// revised_template_overlay); p.u1o inflates track_info_nowplaying_view; the seekbar drawables are
+/// reached only through the NowPlayingSeekBar style and p.ews.
+pub const TARGETS: [Target; 14] = [
+    target!(
+        "res/layout/square_cover_art_content.xml",
+        "be430f822bf1505cb7ec73f65dee5f6c4c6cfd82b7a90654357fcbbfaf581d97"
+    ),
+    target!(
+        "res/layout/revised_template_page_layout.xml",
+        "c616ffbf6aa8f51c453385870ce03efc2576578c8b7cfe93b6bbb3aa25fa9361"
+    ),
+    target!(
+        "res/layout/revised_template_overlay.xml",
+        "973d7edf5612c7c730b0ebd8888f62115a28af9cf1f9f5967a7e345ee36f35f9"
+    ),
+    target!(
+        "res/layout/track_info_nowplaying_view.xml",
+        "9bf266faf8b65235ca469fd81c2f5baa03339d7224f1788158ed0b290bfb614e"
+    ),
+    target!(
+        "res/drawable/nowplaying_overlay_gradient.xml",
+        "441662e890cab6c5ea08b3b302b04a405614d67b262a3418250907721b843d55"
+    ),
+    target!(
+        "res/drawable/seekbar_thumb_default.xml",
+        "77d89f8b63fed7bacef8bc2d709a854b2d185dab7f82f394b603dda66104fd75"
+    ),
+    target!(
+        "res/drawable/seekbar_progress.xml",
+        "5b47d070e7982c168d18f157bf5d8621aa99d473a0309917a73929cede19cff9"
+    ),
+    // Mini-player: p.m1p0 inflates now_playing_bar (MotionLayout driven by xml/now_playing_bar_scene);
+    // TrackInfoView inflates now_playing_bar_track_info_view. The outer bar corners are drawn by a
+    // Compose host (device check 2026-10-28), so floating_layout_bg is deliberately left alone.
+    target!(
+        "res/layout/now_playing_bar.xml",
+        "d82f2e66955a6be84614c0de863aa8bdcdd2346e5bdf22f8fa3fdbd402a2b9b5"
+    ),
+    target!(
+        "res/xml/now_playing_bar_scene.xml",
+        "9afe1830631736ef1f7b32b4c413360d41a2e0d42a134c005b700b10e038aad6"
+    ),
+    target!(
+        "res/layout/now_playing_bar_track_info_view.xml",
+        "b12f9503969c41ebb1996f6343e17b0bc1498276543f71c8c5f67fea71b4938c"
+    ),
+    // Phone-portrait main layout (MainLayout, app:mode="vertical"): navigation_bar container and bottom
+    // gradients. horizontal_main / large_main (landscape, tablets) are not patched.
+    target!(
+        "res/layout/vertical_main.xml",
+        "e31f403f6ac29a03d5c656ff1a25159f7230c1b4eff56f2838a9a86769469545"
+    ),
+    // Home shelf card (p.a2s inflates image_link_card_layout); the same Encore card appears in other shelves.
+    target!(
+        "res/layout/image_link_card_layout.xml",
+        "03047e5a25eaf1cc87fe8549fb18682ad727128b276ad96f5fd8ab74af49fe5c"
+    ),
+    // Player seekbar layout (p.ews inflates it): taller track for the wavy progress.
+    target!(
+        "res/layout/track_seekbar.xml",
+        "9a52a0a29e1431dec55ba411335251410f94882e3226ecb8cef9b49940af4364"
+    ),
+    // MainActivity window background (Theme.Glue.Launcher windowBackground); shows behind the
+    // transparent Compose Search and Home pages.
+    target!(
+        "res/drawable/launcher_screen.xml",
+        "78d71eb64c7fd787d8595ce19a1be21a6d555a0bca45bc71b1b624fa08aadfcb"
+    ),
+];
+
+/// Resources defined only in the density splits that a patched entry must keep referencing. apktool
+/// cannot see them from base (it writes `@null`), so the staging copy declares each with its exact ID
+/// and a placeholder value; only the compiled XML is shipped, never the staging resource table.
+pub const SPLIT_REFS: [(&str, &str, &str); 3] = [
+    ("drawable", "ic_spotify_icon_rgb_green", "0x7f080a71"),
+    ("dimen", "square_cover_art_size", "0x7f070755"),
+    ("dimen", "square_cover_art_top_margin", "0x7f070756"),
+];
+const DENSITY_SPLITS: [&str; 2] = ["split_config.xxhdpi.apk", "split_config.xxxhdpi.apk"];
+
+/// Original base resources.arsc; the output must differ (colour swaps applied).
+const ORIGINAL_ARSC_SHA256: &str =
+    "cc2b8bbe9712430de766c32031ef082d4d6307f6e2f26dfc57dd9b61ff3b4eb4";
+
+/// Manifest flag values aapt2 36 rejects for recreateOnConfigChanges. Removed in the staging copy only:
+/// the shipped manifest is the original binary entry.
+const MANIFEST_WORKAROUND: &str = " android:recreateOnConfigChanges=\"0x40";
+const MANIFEST_WORKAROUND_COUNT: usize = 2;
+
+pub struct Signing {
+    pub keystore: PathBuf,
+    pub alias: String,
+    /// Name of the environment variable holding the keystore password (passed to apksigner as env:NAME).
+    pub pass_env: String,
+}
+
+/// Checks that every target entry in `base` still has its original bytes.
+pub fn check_targets(base: &Path) -> Result<()> {
+    for t in &TARGETS {
+        let got = input::sha256_bytes(&input::read_entry(base, t.entry)?);
+        if got != t.original_sha256 {
+            return Err(format!(
+                "target {} does not match the supported original (got {got}); input is modified, \
+                 already patched or a different build",
+                t.entry
+            )
+            .into());
+        }
+    }
+    dex::check_originals(base)
+}
+
+pub fn run(
+    apkm: &Path,
+    out: &Path,
+    signing: Option<&Signing>,
+    tools: &Tools,
+    theme: &Theme,
+) -> Result<()> {
+    if out.exists() {
+        return Err(format!(
+            "output {} already exists; refusing to overwrite",
+            out.display()
+        )
+        .into());
+    }
+    if let Some(s) = signing {
+        if std::env::var_os(&s.pass_env).is_none() {
+            return Err(format!(
+                "environment variable {} (keystore password) is not set",
+                s.pass_env
+            )
+            .into());
+        }
+        if !s.keystore.is_file() {
+            return Err(format!("keystore {} not found", s.keystore.display()).into());
+        }
+    }
+    input::check_identity(apkm)?;
+    let staging = Staging::new(out)?;
+    let apks = staging.path.join("apkm");
+    fs::create_dir(&apks)?;
+    input::extract_apks(apkm, &apks)?;
+    let base = apks.join("base.apk");
+    check_targets(&base)?;
+    let mut compiled = compile_targets(&base, &staging.path, tools, theme)?;
+    let mut dexes = dex::build(&base, &staging.path, tools, theme)?;
+    let helper = dexes.pop().expect("dex::build returns the helper last");
+    compiled.append(&mut dexes);
+    compiled.extend(lottie::patch_all(&base, theme)?);
+    compiled.push((
+        "resources.arsc",
+        arsc::swap_colors(&input::read_entry(&base, "resources.arsc")?, theme)?,
+    ));
+    let mut added = vec![helper];
+    added.extend(crate::theme_assets::build(&base, &compiled, theme)?);
+    let Some(signing) = signing else {
+        println!(
+            "dry run: input, targets, resource compilation and DEX reassembly verified; no output written"
+        );
+        return Ok(());
+    };
+
+    let result = staging.path.join("result");
+    fs::create_dir(&result)?;
+    let mut certs = HashSet::new();
+    for (name, _) in APKS {
+        let unsigned = staging.path.join(format!("{name}.unsigned"));
+        let aligned = staging.path.join(format!("{name}.aligned"));
+        let signed = result.join(name);
+        let (replace, add): (&[_], &[_]) = if name == "base.apk" {
+            (&compiled, &added)
+        } else {
+            (&[], &[])
+        };
+        rewrite_apk(&apks.join(name), &unsigned, replace, add)?;
+        tools.run(
+            &tools.zipalign,
+            &[
+                OsStr::new("-p"),
+                OsStr::new("-f"),
+                OsStr::new("4"),
+                unsigned.as_os_str(),
+                aligned.as_os_str(),
+            ],
+        )?;
+        let pass = format!("env:{}", signing.pass_env);
+        tools.run(
+            &tools.apksigner,
+            &[
+                OsStr::new("sign"),
+                OsStr::new("--ks"),
+                signing.keystore.as_os_str(),
+                OsStr::new("--ks-key-alias"),
+                OsStr::new(&signing.alias),
+                OsStr::new("--ks-pass"),
+                OsStr::new(&pass),
+                OsStr::new("--out"),
+                signed.as_os_str(),
+                aligned.as_os_str(),
+            ],
+        )?;
+        certs.insert(verify_apk(&signed, tools)?);
+    }
+    if certs.len() != 1 {
+        return Err("signed APKs do not share one certificate".into());
+    }
+    verify_identity(&result.join("base.apk"), tools)?;
+    let originals = TARGETS
+        .iter()
+        .map(|t| (t.entry, t.original_sha256))
+        .chain(dex::DEX_TARGETS)
+        .chain([("resources.arsc", ORIGINAL_ARSC_SHA256)]);
+    for (entry, sha) in originals {
+        let got = input::read_entry(&result.join("base.apk"), entry)?;
+        if input::sha256_bytes(&got) == sha {
+            return Err(format!("{entry} unchanged in output").into());
+        }
+    }
+    input::read_entry(&result.join("base.apk"), dex::HELPER_DEX)?;
+    fs::write(
+        result.join("install-manifest.json"),
+        install_manifest(certs.iter().next().unwrap(), theme.name),
+    )?;
+    fs::rename(&result, out)?;
+    println!("wrote {}", out.display());
+    Ok(())
+}
+
+/// Decodes base in staging, applies the theme sources and returns the compiled replacement entries.
+fn compile_targets(
+    base: &Path,
+    staging: &Path,
+    tools: &Tools,
+    theme: &Theme,
+) -> Result<Vec<(&'static str, Vec<u8>)>> {
+    let fw = staging.join("framework");
+    let decoded = staging.join("decoded");
+    let rebuilt = staging.join("rebuilt.apk");
+    tools.run(
+        &tools.apktool,
+        &[
+            OsStr::new("d"),
+            OsStr::new("-s"),
+            OsStr::new("-p"),
+            fw.as_os_str(),
+            OsStr::new("-o"),
+            decoded.as_os_str(),
+            base.as_os_str(),
+        ],
+    )?;
+    let manifest = decoded.join("AndroidManifest.xml");
+    fs::write(
+        &manifest,
+        strip_manifest_workaround(&fs::read_to_string(&manifest)?)?,
+    )?;
+    let dump_resources = |apk: &Path| {
+        tools.run(
+            &tools.aapt2,
+            &[OsStr::new("dump"), OsStr::new("resources"), apk.as_os_str()],
+        )
+    };
+    let mut split_dumps = Vec::new();
+    for split in DENSITY_SPLITS {
+        split_dumps.push(dump_resources(&base.with_file_name(split))?);
+    }
+    let public = decoded.join("res/values/public.xml");
+    fs::write(
+        &public,
+        declare_split_refs(&fs::read_to_string(&public)?, &split_dumps)?,
+    )?;
+    let placeholders: String = SPLIT_REFS
+        .iter()
+        .map(|(ty, name, _)| {
+            let value = if *ty == "dimen" { "0dp" } else { "#00000000" };
+            format!("    <{ty} name=\"{name}\">{value}</{ty}>\n")
+        })
+        .collect();
+    fs::write(
+        decoded.join("res/values/spatch_split_refs.xml"),
+        format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n{placeholders}</resources>\n"
+        ),
+    )?;
+    for t in &TARGETS {
+        let path = decoded.join(t.entry);
+        if !path.is_file() {
+            return Err(format!("decoded target {} missing", t.entry).into());
+        }
+        fs::write(path, theme.apply(t.source))?;
+    }
+    tools.run(
+        &tools.apktool,
+        &[
+            OsStr::new("b"),
+            OsStr::new("-p"),
+            fw.as_os_str(),
+            OsStr::new("-o"),
+            rebuilt.as_os_str(),
+            decoded.as_os_str(),
+        ],
+    )?;
+    let mut known = resource_ids(&dump_resources(base)?);
+    known.extend(SPLIT_REFS.iter().map(|(_, _, id)| id.to_string()));
+    let mut compiled = Vec::new();
+    for t in &TARGETS {
+        let dump = |apk: &Path| {
+            tools.run(
+                &tools.aapt2,
+                &[
+                    OsStr::new("dump"),
+                    OsStr::new("xmltree"),
+                    OsStr::new("--file"),
+                    OsStr::new(t.entry),
+                    apk.as_os_str(),
+                ],
+            )
+        };
+        check_references(t.entry, &dump(&rebuilt)?, &dump(base)?, &known)?;
+        compiled.push((t.entry, input::read_entry(&rebuilt, t.entry)?));
+    }
+    Ok(compiled)
+}
+
+/// Adds `SPLIT_REFS` to the decoded public.xml after checking each is absent from base and defined
+/// with the same type/name/ID in every density split.
+pub fn declare_split_refs(public: &str, split_dumps: &[String]) -> Result<String> {
+    let mut decls = String::new();
+    for (ty, name, id) in SPLIT_REFS {
+        if public.contains(&format!("name=\"{name}\"")) || public.contains(&format!("id=\"{id}\""))
+        {
+            return Err(format!("{ty}/{name} ({id}) unexpectedly present in base").into());
+        }
+        let want = format!("resource {id} {ty}/{name}");
+        if !split_dumps
+            .iter()
+            .all(|d| d.lines().any(|l| l.trim() == want))
+        {
+            return Err(format!("{ty}/{name} ({id}) not defined in every density split").into());
+        }
+        decls.push_str(&format!(
+            "    <public type=\"{ty}\" name=\"{name}\" id=\"{id}\" />\n"
+        ));
+    }
+    let end = public
+        .rfind("</resources>")
+        .ok_or("public.xml has no </resources>")?;
+    Ok(format!("{}{decls}{}", &public[..end], &public[end..]))
+}
+
+pub fn strip_manifest_workaround(manifest: &str) -> Result<String> {
+    let count = manifest.matches(MANIFEST_WORKAROUND).count();
+    if count != MANIFEST_WORKAROUND_COUNT {
+        return Err(format!(
+            "expected {MANIFEST_WORKAROUND_COUNT} recreateOnConfigChanges attributes, found {count}"
+        )
+        .into());
+    }
+    let mut out = String::with_capacity(manifest.len());
+    let mut rest = manifest;
+    while let Some(i) = rest.find(MANIFEST_WORKAROUND) {
+        out.push_str(&rest[..i]);
+        let value = i + MANIFEST_WORKAROUND.len();
+        let close = rest[value..]
+            .find('"')
+            .ok_or("unterminated manifest attribute")?;
+        rest = &rest[value + close + 1..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
+/// IDs (`0x7f......`) defined by the original resource table.
+pub fn resource_ids(dump: &str) -> HashSet<String> {
+    dump.lines()
+        .filter_map(|l| l.trim_start().strip_prefix("resource 0x"))
+        .filter_map(|r| r.get(..8).map(|id| format!("0x{id}")))
+        .collect()
+}
+
+/// Every app resource referenced by a compiled entry must exist in the original table, and the
+/// entry may hold no more `@null` values than the original did (extra ones are references apktool
+/// lost to density-split-only resources).
+pub fn check_references(
+    entry: &str,
+    tree: &str,
+    original: &str,
+    known: &HashSet<String>,
+) -> Result<()> {
+    let nulls = |t: &str| t.matches("=@null").count();
+    if nulls(tree) > nulls(original) {
+        return Err(format!(
+            "{entry}: {} @null values vs {} in the original; a reference was lost",
+            nulls(tree),
+            nulls(original)
+        )
+        .into());
+    }
+    for (i, _) in tree.match_indices("@0x7f") {
+        let id = &tree[i + 1..i + 11];
+        if !known.contains(id) {
+            return Err(format!(
+                "{entry}: reference {id} is not defined in the original base resource table"
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn is_signature_entry(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix("META-INF/") else {
+        return false;
+    };
+    rest == "MANIFEST.MF"
+        || rest.starts_with("stamp-cert-sha256")
+        || [".SF", ".RSA", ".DSA", ".EC"]
+            .iter()
+            .any(|ext| rest.ends_with(ext))
+}
+
+/// Copies `src` to `dst` without old signatures, replacing the given entries (which must all exist)
+/// and appending `add` (which must not exist yet).
+pub fn rewrite_apk(
+    src: &Path,
+    dst: &Path,
+    replace: &[(&str, Vec<u8>)],
+    add: &[(&str, Vec<u8>)],
+) -> Result<()> {
+    let mut zin = zip::ZipArchive::new(File::open(src)?)?;
+    let mut zout = zip::ZipWriter::new(File::create_new(dst)?);
+    let mut replaced = 0;
+    for i in 0..zin.len() {
+        let f = zin.by_index_raw(i)?;
+        let name = f.name().to_string();
+        if is_signature_entry(&name) {
+            continue;
+        }
+        if add.iter().any(|(n, _)| *n == name) {
+            return Err(format!("{}: entry {name} to add already exists", src.display()).into());
+        }
+        if let Some((_, bytes)) = replace.iter().find(|(n, _)| *n == name) {
+            // Keep the original method: resources.arsc must stay stored (uncompressed) to be mapped.
+            let opts = SimpleFileOptions::default().compression_method(f.compression());
+            drop(f);
+            zout.start_file(name, opts)?;
+            std::io::Write::write_all(&mut zout, bytes)?;
+            replaced += 1;
+        } else {
+            zout.raw_copy_file(f)?;
+        }
+    }
+    for (name, bytes) in add {
+        zout.start_file(*name, deflated())?;
+        std::io::Write::write_all(&mut zout, bytes)?;
+    }
+    zout.finish()?;
+    if replaced != replace.len() {
+        return Err(format!(
+            "{}: replaced {replaced} of {} entries",
+            src.display(),
+            replace.len()
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn deflated() -> SimpleFileOptions {
+    SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated)
+}
+
+/// Verifies alignment and signature; returns the signer certificate SHA-256.
+fn verify_apk(apk: &Path, tools: &Tools) -> Result<String> {
+    tools.run(
+        &tools.zipalign,
+        &[
+            OsStr::new("-c"),
+            OsStr::new("-p"),
+            OsStr::new("4"),
+            apk.as_os_str(),
+        ],
+    )?;
+    let out = tools.run(
+        &tools.apksigner,
+        &[
+            OsStr::new("verify"),
+            OsStr::new("--print-certs"),
+            apk.as_os_str(),
+        ],
+    )?;
+    out.lines()
+        .find_map(|l| l.strip_prefix("Signer #1 certificate SHA-256 digest: "))
+        .map(str::to_string)
+        .ok_or_else(|| format!("{}: no signer certificate reported", apk.display()).into())
+}
+
+fn verify_identity(base: &Path, tools: &Tools) -> Result<()> {
+    let badging = tools.run(
+        &tools.aapt2,
+        &[OsStr::new("dump"), OsStr::new("badging"), base.as_os_str()],
+    )?;
+    let want = format!("package: name='{PACKAGE}' versionCode='{VERSION_CODE}'");
+    if !badging.starts_with(&want) {
+        return Err(format!(
+            "rebuilt base identity mismatch: {}",
+            badging.lines().next().unwrap_or("")
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn install_manifest(cert: &str, theme: &str) -> String {
+    format!(
+        r#"{{
+  "package": "{PACKAGE}",
+  "versionCode": {VERSION_CODE},
+  "theme": "{theme}",
+  "signerCertificateSha256": "{cert}",
+  "required": ["base.apk", "split_config.arm64_v8a.apk"],
+  "language": ["split_config.en.apk"],
+  "densityChooseOne": ["split_config.xxhdpi.apk", "split_config.xxxhdpi.apk"],
+  "note": "requiredSplitTypes=base__abi,base__density: install base + ABI + one density split (+ language). A different certificate cannot update the stock Spotify installation."
+}}
+"#
+    )
+}
+
+/// Disposable staging directory next to the output; removed on drop, success or failure.
+struct Staging {
+    path: PathBuf,
+}
+
+impl Staging {
+    fn new(out: &Path) -> Result<Staging> {
+        let name = out
+            .file_name()
+            .ok_or("output path has no file name")?
+            .to_string_lossy();
+        let path = out.with_file_name(format!(".{name}.spatch-staging-{}", std::process::id()));
+        fs::create_dir_all(
+            out.parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(Path::new(".")),
+        )?;
+        fs::create_dir(&path)?;
+        Ok(Staging { path })
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::input::tests::{temp_dir, write_zip};
+
+    #[test]
+    fn split_refs_require_every_density_split() {
+        let (_, name, id) = SPLIT_REFS[0];
+        let dump: String = SPLIT_REFS
+            .iter()
+            .map(|(ty, name, id)| {
+                format!("    resource {id} {ty}/{name}\n      (xxhdpi) placeholder\n")
+            })
+            .collect();
+        let public = "<resources>\n</resources>\n";
+        let out = declare_split_refs(public, &[dump.clone(), dump.clone()]).unwrap();
+        assert!(out.contains(&format!("name=\"{name}\" id=\"{id}\"")));
+        assert!(out.trim_end().ends_with("</resources>"));
+        assert!(declare_split_refs(public, &[dump.clone(), String::new()]).is_err());
+        assert!(declare_split_refs(&out, &[dump.clone(), dump]).is_err());
+    }
+
+    #[test]
+    fn manifest_workaround_removes_exactly_the_two_attributes() {
+        let m = r#"<a android:x="1" android:recreateOnConfigChanges="0x4058" android:y="2"/><b android:recreateOnConfigChanges="0x4078"/>"#;
+        assert_eq!(
+            strip_manifest_workaround(m).unwrap(),
+            r#"<a android:x="1" android:y="2"/><b/>"#
+        );
+        assert!(strip_manifest_workaround("<a/>").is_err());
+    }
+
+    #[test]
+    fn references_must_exist_and_not_be_null() {
+        let known = resource_ids(
+            "    resource 0x7f080c54 drawable/seek_timestamp_background_large\n      () (file) res/x.xml",
+        );
+        assert!(known.contains("0x7f080c54"));
+        let ok = "A: background(0x010100d4)=@0x7f080c54";
+        assert!(check_references("e", ok, "", &known).is_ok());
+        assert!(check_references("e", "A: textSize(0x01010095)=@0x7f0707c5", "", &known).is_err());
+        let lost = "A: textSize(0x01010095)=@null";
+        assert!(check_references("e", lost, "A: textSize=@0x7f0707c5", &known).is_err());
+        // Deliberate @null in the original (e.g. now_playing_bar ViewStub backgrounds) stays allowed.
+        assert!(check_references("e", lost, "A: background=@null", &known).is_ok());
+    }
+
+    #[test]
+    fn rewrite_keeps_stored_entries_stored() {
+        let d = temp_dir("stored");
+        let src = d.join("in.apk");
+        let mut z = zip::ZipWriter::new(File::create(&src).unwrap());
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        z.start_file("resources.arsc", stored).unwrap();
+        std::io::Write::write_all(&mut z, b"old").unwrap();
+        z.finish().unwrap();
+        let dst = d.join("out.apk");
+        rewrite_apk(&src, &dst, &[("resources.arsc", b"new".to_vec())], &[]).unwrap();
+        let mut out = zip::ZipArchive::new(File::open(&dst).unwrap()).unwrap();
+        assert_eq!(
+            out.by_name("resources.arsc").unwrap().compression(),
+            zip::CompressionMethod::Stored
+        );
+    }
+
+    #[test]
+    fn rewrite_replaces_entries_and_drops_old_signatures() {
+        let d = temp_dir("rewrite");
+        let src = d.join("in.apk");
+        write_zip(
+            &src,
+            &[
+                ("META-INF/MANIFEST.MF", b"m"),
+                ("META-INF/CERT.RSA", b"r"),
+                ("META-INF/services/x", b"keep"),
+                ("res/a.xml", b"old"),
+                ("classes.dex", b"dex"),
+            ],
+        );
+        let dst = d.join("out.apk");
+        rewrite_apk(
+            &src,
+            &dst,
+            &[("res/a.xml", b"new".to_vec())],
+            &[("classes2.dex", b"add".to_vec())],
+        )
+        .unwrap();
+        let names: Vec<String> = zip::ZipArchive::new(File::open(&dst).unwrap())
+            .unwrap()
+            .file_names()
+            .map(String::from)
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "META-INF/services/x",
+                "res/a.xml",
+                "classes.dex",
+                "classes2.dex"
+            ]
+        );
+        assert_eq!(input::read_entry(&dst, "classes2.dex").unwrap(), b"add");
+        let dst3 = d.join("out3.apk");
+        assert!(rewrite_apk(&src, &dst3, &[], &[("classes.dex", vec![])]).is_err());
+        assert_eq!(input::read_entry(&dst, "res/a.xml").unwrap(), b"new");
+        assert_eq!(input::read_entry(&dst, "classes.dex").unwrap(), b"dex");
+
+        let dst2 = d.join("out2.apk");
+        assert!(rewrite_apk(&src, &dst2, &[("res/missing.xml", vec![])], &[]).is_err());
+    }
+
+    #[test]
+    fn targets_reject_patched_or_foreign_base() {
+        let d = temp_dir("targets");
+        let base = d.join("base.apk");
+        let entries: Vec<(&str, &[u8])> = TARGETS
+            .iter()
+            .map(|t| (t.entry, t.source.as_bytes()))
+            .collect();
+        write_zip(&base, &entries);
+        assert!(
+            check_targets(&base)
+                .unwrap_err()
+                .to_string()
+                .contains("already patched")
+        );
+        write_zip(&base, &[("res/other.xml", b"x")]);
+        assert!(check_targets(&base).is_err());
+    }
+
+    #[test]
+    fn refuses_existing_output_before_touching_input() {
+        let d = temp_dir("exists");
+        let out = d.join("out");
+        std::fs::create_dir(&out).unwrap();
+        let tools = Tools {
+            java_home: d.clone(),
+            apktool: d.clone(),
+            aapt2: d.clone(),
+            zipalign: d.clone(),
+            apksigner: d.clone(),
+            d8: d.clone(),
+            dexdump: d.clone(),
+        };
+        let err = run(
+            &d.join("missing.apkm"),
+            &out,
+            None,
+            &tools,
+            &crate::theme::THEMES[0],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("already exists"));
+    }
+
+    /// Full dry run against the supplied APKM; needs the real input and Android tools.
+    #[test]
+    #[ignore]
+    fn dry_run_on_supplied_apkm() {
+        let apkm = std::fs::read_dir(env!("CARGO_MANIFEST_DIR"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .find(|p| p.extension().is_some_and(|x| x == "apkm"))
+            .expect("supplied .apkm in the project root");
+        let before = input::sha256_file(&apkm).unwrap();
+        let out = temp_dir("dry").join("out");
+        run(
+            &apkm,
+            &out,
+            None,
+            &Tools::discover().unwrap(),
+            crate::theme::by_name("gruvbox").unwrap(),
+        )
+        .unwrap();
+        assert!(!out.exists());
+        assert_eq!(input::sha256_file(&apkm).unwrap(), before);
+    }
+}
