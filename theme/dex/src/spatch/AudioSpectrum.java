@@ -47,14 +47,14 @@ public final class AudioSpectrum {
                     throw new IllegalStateException("Visualizer setup failed");
                 fft = new byte[size];
             }
-            if (now - sampledAt < 33) return;
-            float dt = sampledAt == 0 ? 33 : Math.min(100, now - sampledAt);
+            if (now - sampledAt < 16) return; // about one capture per display frame
+            float dt = sampledAt == 0 ? 16 : Math.min(100, now - sampledAt);
             sampledAt = now;
             if (visualizer.getFft(fft) != 0) throw new IllegalStateException("Audio session unavailable");
             int rate = visualizer.getSamplingRate() / 1000;
             float[] target = bands(fft, rate, levels.length);
             for (int i = 0; i < levels.length; i++) {
-                float a = 1 - (float)Math.exp(-dt / (target[i] > levels[i] ? 45 : 180));
+                float a = 1 - (float)Math.exp(-dt / (target[i] > levels[i] ? 20 : 110)); // snappy attack, short release
                 levels[i] += (target[i] - levels[i]) * a;
             }
             status = null;

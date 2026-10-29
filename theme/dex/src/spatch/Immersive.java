@@ -525,7 +525,7 @@ public final class Immersive extends View implements Runnable {
         float dt = Math.min(64, Math.max(1, now - spectrumFrame));
         spectrumFrame = now;
         // Short constants keep the hits snappy; easing only removes the 30Hz stair-steps.
-        float rise = motion ? 1 - (float) Math.exp(-dt / 30f) : 1, fall = motion ? 1 - (float) Math.exp(-dt / 110f) : 1;
+        float rise = motion ? 1 - (float) Math.exp(-dt / 15f) : 1, fall = motion ? 1 - (float) Math.exp(-dt / 60f) : 1;
         float[] levels = shownLevels;
         int n = levels.length;
         float lo = 1, hi = 0, sum = 0;
