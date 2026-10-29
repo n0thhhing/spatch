@@ -124,7 +124,8 @@ public final class Wave extends Drawable implements Runnable {
         if (end > x0) {
             path.reset();
             for (float x = x0; ; x = Math.min(x + 2f, end)) {
-                float y = cy + a * (float) Math.sin((x - b.left - phase) / wl * 2.0 * Math.PI);
+                // + phase: crests travel left, back along the played part (not toward the playhead).
+                float y = cy + a * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
                 if (x == x0) {
                     path.moveTo(x, y);
                 } else {
