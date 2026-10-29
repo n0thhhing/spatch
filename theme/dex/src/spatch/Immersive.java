@@ -76,9 +76,11 @@ public final class Immersive extends View implements Runnable {
     private boolean windowActive = true;
 
     // Real frequency spectrum from Spotify's AudioTrack session.
-    private static final int BARS = 48;
     private Shader shade, spectrumShade;
     private float shadeH, spectrumTop;
+    private final Path spectrumPath = new Path();
+    private float gainLo, gainHi = 1, spectrumAlpha;
+    private static final float KNEE = 1 - (float) Math.exp(-1.8f); // level 1 at the tracked peak
 
     public Immersive(Context context, PlayerArt art) {
         super(context, null);
@@ -493,14 +495,12 @@ public final class Immersive extends View implements Runnable {
         d.draw(canvas);
     }
 
+    /**
+     * Spectrum as thick rounded bars, mirrored (bass at the centre) across the full width and rising
+     * from the bottom edge, filled with the accent fading toward the floor. Auto-gain follows the music's own range so quiet and
+     * loud passages both move; it fades out when there is nothing to show.
+     */
     private void drawSpectrum(Canvas canvas, float w, float h, boolean playing, long now) {
-        float padding = w * 0.13f;
-        float avail = w - padding * 2;
-        float step = avail / BARS;
-        float barW = step * 0.46f; // slimmer bars with air between them
-        float bottomOffset = 36*dp;
-        float maxH = Math.max(0,Math.min(96*dp,h-bottomOffset-volY-48*dp));
-
         if (!Settings.visualizer()) {
             spectrum.update(getContext(), false); // hidden: release any capture
             return;
@@ -514,24 +514,47 @@ public final class Immersive extends View implements Runnable {
             canvas.drawText(spectrum.status, w / 2, h - 64 * dp, paint);
             return;
         }
+        float[] levels = spectrum.levels;
+        int n = levels.length;
+        float lo = 1, hi = 0, sum = 0;
+        for (float v : levels) { lo = Math.min(lo, v); hi = Math.max(hi, v); sum += v; }
+        boolean motion = Wave.animationsEnabled();
+        float k = motion ? 0.04f : 1f;
+        gainLo += (lo - gainLo) * k;
+        gainHi += (hi - gainHi) * k;
+        float range = Math.max(0.12f, gainHi - gainLo);
+        float present = clamp01(sum / n * 4); // silence or pause: settle and fade out
+        spectrumAlpha = motion ? spectrumAlpha + (present - spectrumAlpha) * 0.1f : present;
+        float maxH = Math.max(0, Math.min(150 * dp, h - volY - 56 * dp));
+        if (spectrumAlpha < 0.01f || maxH <= 0) return;
+
+        // Thick rounded bars across the full width: neighbouring bands are paired (12 per side),
+        // mirrored with bass at the centre, tapering toward the edges.
+        int half = n / 2, bars = half * 2;
+        float step = w / bars, barW = step * 0.62f;
+        spectrumPath.reset();
+        for (int i = 0; i < bars; i++) {
+            int pair = i < half ? half - 1 - i : i - half;
+            float v = (levels[pair * 2] + levels[pair * 2 + 1]) / 2;
+            // Soft knee instead of a hard clip: peaks above the tracked range stay rounded, not flat.
+            float x = Math.max(0, (v - gainLo) / range);
+            float level = Math.min(1.12f, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
+            float edge = (float) Math.sin(Math.PI * (i + 0.5f) / bars); // shorter toward the sides
+            float barH = Math.max(barW, maxH * (0.06f + 0.94f * level) * (0.3f + 0.7f * edge));
+            float left = i * step + (step - barW) / 2;
+            spectrumPath.addRoundRect(left, h - barH, left + barW, h + barW, barW / 2, barW / 2, Path.Direction.CW);
+        }
+
+        if (spectrumShade == null || spectrumTop != h - maxH) {
+            spectrumTop = h - maxH;
+            spectrumShade = new LinearGradient(0, spectrumTop, 0, h, new int[] {0xe6d0bcff, 0x1ad0bcff}, null, Shader.TileMode.CLAMP);
+        }
+        int alpha = Math.round(255 * spectrumAlpha);
         paint.setStyle(Paint.Style.FILL);
-        float base = h - bottomOffset;
-        if (spectrumShade == null || spectrumTop != base - maxH) {
-            spectrumTop = base - maxH;
-            // Bright at the crest, fading toward the floor: light rising rather than a solid wall.
-            spectrumShade = new LinearGradient(0, spectrumTop, 0, base, new int[] {0xffd0bcff, 0x40d0bcff}, null, Shader.TileMode.CLAMP);
-        }
+        paint.setColor(0xffd0bcff);
         paint.setShader(spectrumShade);
-        for (int i = 0; i < BARS; i++) {
-            // Mirror the same measured spectrum, bass at the centre and treble at the edges.
-            int band=i<BARS/2 ? BARS/2-1-i : i-BARS/2;
-            float level=spectrum.levels[band];
-            float bh = 2*dp + maxH*level;
-            paint.setColor(0xffd0bcff);paint.setAlpha(Math.round(80+175*level));
-            float bx = padding + i * step + (step - barW) / 2f;
-            float by = h - bottomOffset - bh;
-            canvas.drawRoundRect(bx, by, bx + barW, h - bottomOffset, barW / 2, barW / 2, paint);
-        }
+        paint.setAlpha(alpha);
+        canvas.drawPath(spectrumPath, paint);
         paint.setShader(null);
         paint.setAlpha(255);
     }
