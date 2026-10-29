@@ -159,7 +159,7 @@ macro_rules! new_file {
     };
 }
 
-pub const NEW_RESOURCES: [(arsc::NewFile, &str); 14] = [
+pub const NEW_RESOURCES: [(arsc::NewFile, &str); 24] = [
     new_file!("drawable", "spatch_widget_bg"),
     new_file!("drawable", "spatch_widget_art"),
     new_file!("drawable", "spatch_widget_scallop"),
@@ -168,10 +168,20 @@ pub const NEW_RESOURCES: [(arsc::NewFile, &str); 14] = [
     new_file!("drawable", "spatch_widget_to_pause"),
     new_file!("drawable", "spatch_widget_bar"),
     new_file!("drawable", "spatch_widget_eq"),
+    new_file!("drawable", "spatch_widget_tri_next"),
+    new_file!("drawable", "spatch_widget_tri_prev"),
+    new_file!("drawable", "spatch_widget_tri_next_in"),
+    new_file!("drawable", "spatch_widget_tri_prev_in"),
+    new_file!("drawable", "spatch_widget_skip_next"),
+    new_file!("drawable", "spatch_widget_skip_prev"),
     new_file!("animator", "spatch_widget_to8"),
     new_file!("animator", "spatch_widget_to5"),
     new_file!("animator", "spatch_widget_turn"),
     new_file!("animator", "spatch_widget_press"),
+    new_file!("animator", "spatch_widget_nudge_next"),
+    new_file!("animator", "spatch_widget_nudge_prev"),
+    new_file!("animator", "spatch_widget_tri_grow"),
+    new_file!("animator", "spatch_widget_tri_fade"),
     new_file!("layout", "spatch_widget"),
     new_file!("layout", "spatch_widget_large"),
 ];

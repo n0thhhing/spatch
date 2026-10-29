@@ -357,6 +357,10 @@ const HELPERS: [(&str, &str); 19] = [
 ];
 const STUBS: &[(&str, &str)] = &[
     (
+        "HandlerThread.java",
+        include_str!("../theme/dex/stubs/android/os/HandlerThread.java"),
+    ),
+    (
         "Parcelable.java",
         include_str!("../theme/dex/stubs/android/os/Parcelable.java"),
     ),

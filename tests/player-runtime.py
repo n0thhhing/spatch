@@ -258,6 +258,10 @@ public class PlayerRuntimeTest {
         android.media.audiofx.Visualizer.fail=false;AudioSpectrum.destroyed(92);
         System.out.println("PASS own-session capture, permission gate, pause release and error backoff");
         View action=new View(allowed,null){public boolean performClick(){clicks++;return true;}};
+        View skipAction=new View(allowed,null){public boolean performClick(){return true;}};
+        ImmersiveButton skip=new ImmersiveButton(allowed,3,false);skip.source=skipAction;
+        skip.interaction(true,false,true);skip.draw(new Canvas(),new Art(),null,0,0,40,false);
+        check(((float[])field(skip,"scale"))[0]==1f,"skip buttons nudge sideways and never scale");
         ImmersiveButton button=new ImmersiveButton(allowed,4,false);button.source=action;
         action.setEnabled(false);check(!button.enabled() && !button.click() && clicks==0,"disabled action must not click");
         button.interaction(true,true,false);View buttonState=(View)field(button,"state");

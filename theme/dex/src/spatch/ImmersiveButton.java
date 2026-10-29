@@ -42,7 +42,8 @@ final class ImmersiveButton {
 
     void interaction(boolean pressed, boolean hovered, boolean clicked) {
         pressed &= enabled(); hovered &= enabled();
-        if (clicked && Settings.buttons()) scale[0] = Math.min(scale[0], 0.92f);
+        // Skip buttons never scale (they nudge sideways, as in the player); the rest bounce on click.
+        if (clicked && Settings.buttons() && !surface.isSkip()) scale[0] = Math.min(scale[0], 0.92f);
         state.setEnabled(enabled()); state.setPressed(pressed); state.setHovered(hovered);
         surface.setState(pressed ? new int[]{0x0101009e,0x010100a7} : hovered ? new int[]{0x0101009e,0x01010367} : new int[0]);
     }
@@ -59,10 +60,12 @@ final class ImmersiveButton {
         float blend = motion ? 1-(float)Math.exp(-dt/110f) : 1;
         alpha += (desired-alpha)*blend;
         hover += ((enabled && state.isHovered()?1:0)-hover)*blend;
-        if (motion) PlayerArt.spring(scale, state.isPressed() ? 0.92f : 1, dt);
+        if (motion && !surface.isSkip()) PlayerArt.spring(scale, state.isPressed() ? 0.92f : 1, dt);
         else { scale[0]=1;scale[1]=0; }
         int save = c.save();
-        c.translate(x,y); c.scale(scale[0],scale[0],0,0);
+        // Transport computes the skip nudge onto the state view (as it moves the real player button);
+        // apply it here so icon and highlight slide together. It is one frame behind, unnoticeable.
+        c.translate(x+state.getTranslationX(),y); c.scale(scale[0],scale[0],0,0);
         boolean selected = source != null && (source.isSelected() || source.isActivated());
         if (alternate != null) {
             paint.setColor(0xffffff);paint.setAlpha(Math.round(28*hover*alpha));

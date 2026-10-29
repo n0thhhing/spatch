@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Press: the next highlight grows in from 35% and fades in, as in the player. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/spatch_widget_tri_next">
+    <target android:name="grow" android:animation="@animator/spatch_widget_tri_grow" />
+    <target android:name="tri" android:animation="@animator/spatch_widget_tri_fade" />
+</animated-vector>

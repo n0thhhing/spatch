@@ -16,7 +16,7 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
-import android.os.Looper;
+import android.os.HandlerThread;
 import android.util.SizeF;
 import android.view.KeyEvent;
 import android.widget.RemoteViews;
@@ -29,11 +29,14 @@ import java.util.Map;
  * Spotify's own media session (attach, from MediaSessionImplApi23). The launcher animates the scallop
  * and equaliser itself (indeterminate progress drawables), so they move while no app code runs.
  */
-public final class SpatchWidget extends MediaController.Callback {
+public final class SpatchWidget extends MediaController.Callback implements Runnable {
     private static final String PROVIDER = "com.spotify.proactiveplatforms.npvwidget.NpvWidgetProvider";
     private static final String BUTTONS = "com.spotify.mediasession.mediasession.receiver.MediaButtonReceiver";
     private static final int VISIBLE = 0, GONE = 8;
     private static MediaController current;
+    /** Widget work (bitmaps, RemoteViews, binder calls) stays off Spotify's main thread. */
+    private static Handler worker;
+    private static final SpatchWidget PUSH = new SpatchWidget(null);
     private final MediaController controller;
 
     private SpatchWidget(MediaController controller) {
@@ -46,20 +49,40 @@ public final class SpatchWidget extends MediaController.Callback {
         if (app == null || session == null || Build.VERSION.SDK_INT < 31) return;
         try {
             MediaController c = new MediaController(app, session.getSessionToken());
-            c.registerCallback(new SpatchWidget(c), new Handler(Looper.getMainLooper()));
+            c.registerCallback(new SpatchWidget(c), worker());
             if (current == null) current = c;
         } catch (RuntimeException ignored) {
             // A session we cannot follow just leaves the widget to Spotify.
         }
     }
 
+    private static synchronized Handler worker() {
+        if (worker == null) {
+            HandlerThread thread = new HandlerThread("spatch-widget");
+            thread.start();
+            worker = new Handler(thread.getLooper());
+        }
+        return worker;
+    }
+
     public void onMetadataChanged(MediaMetadata metadata) {
         if (metadata != null) current = controller;
-        push();
+        schedule();
     }
 
     public void onPlaybackStateChanged(PlaybackState state) {
         if (state != null && state.getState() == PlaybackState.STATE_PLAYING) current = controller;
+        schedule();
+    }
+
+    /** A skip or play/pause fires several callbacks in a burst; rebuild once, after it settles. */
+    private static void schedule() {
+        Handler h = worker();
+        h.removeCallbacks(PUSH);
+        h.postDelayed(PUSH, 100);
+    }
+
+    public void run() {
         push();
     }
 
