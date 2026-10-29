@@ -80,7 +80,8 @@ public final class Immersive extends View implements Runnable {
     private float shadeH, spectrumTop;
     private final Path spectrumPath = new Path();
     private float gainLo, gainHi = 1, spectrumAlpha;
-    private long spectrumFrame;
+    private long spectrumFrame, titleChangedAt = -1000;
+    private String shownTitle;
     private boolean shadeFloating;
     private final float[] shownLevels = new float[24]; // AudioSpectrum.levels, eased per frame
     private final float[] bandLo = new float[24], bandHi = new float[24], shownBands = new float[24]; // per band
@@ -405,13 +406,23 @@ public final class Immersive extends View implements Runnable {
         paint.setColor(0xfff3eeff);
         paint.setTextSize(w * 0.058f);
         String title = titleView != null && titleView.getText() != null ? titleView.getText().toString() : "Spotify";
-        canvas.drawText(fit(title, maxText), w / 2f, titleY, paint);
+        if (!title.equals(shownTitle)) {
+            if (shownTitle != null && Wave.animationsEnabled()) titleChangedAt = now;
+            shownTitle = title;
+        }
+        // A new song's title and artist ease in: fade up while sliding 6dp into place.
+        float ease = Transport.outCubic((now - titleChangedAt) / 260f);
+        float slide = (1 - ease) * 6 * dp;
+        paint.setAlpha(Math.round(255 * ease));
+        canvas.drawText(fit(title, maxText), w / 2f + slide, titleY, paint);
         Typeface subFace = subtitleView != null ? subtitleView.getTypeface() : null;
         paint.setTypeface(subFace != null ? subFace : Typeface.DEFAULT); // Spotify's own subtitle face, regular weight
         paint.setColor(0xffbcb3dc);
         paint.setTextSize(w * 0.038f);
         String sub = subtitleView != null && subtitleView.getText() != null ? subtitleView.getText().toString() : "";
-        canvas.drawText(fit(sub, maxText), w / 2f, titleY + h * 0.038f, paint);
+        paint.setAlpha(Math.round(255 * ease));
+        canvas.drawText(fit(sub, maxText), w / 2f + slide, titleY + h * 0.038f, paint);
+        paint.setAlpha(255);
 
         // Seek row: times either side of the same Wave drawable the player seekbar uses.
         float prog = 0f;

@@ -14,8 +14,10 @@ import android.os.SystemClock;
 public final class PlayerArt extends ImageView {
     private final Paint ink = new Paint(3);
     private final Path outline = new Path();
-    private Drawable lastArt;
-    private Atmosphere atmosphere;
+    // Shared by every carousel page, so a song change crossfades from the old colours rather than
+    // from a fresh page's blank backdrop (which flashed dark).
+    private static Drawable lastArt;
+    private static Atmosphere atmosphere;
     private long lastSetup;
     private float glowSize;
     private Shader glow;
@@ -105,6 +107,8 @@ public final class PlayerArt extends ImageView {
             int controlsId=getContext().getResources().getIdentifier("playback_controls_container","id",getContext().getPackageName());
             View controls=root.findViewById(controlsId);
             if(controls instanceof ViewGroup) decorate((ViewGroup)controls);
+            TextSlide.attach(root.findViewById(getContext().getResources().getIdentifier("track_info_view_title","id",getContext().getPackageName())));
+            TextSlide.attach(root.findViewById(getContext().getResources().getIdentifier("track_info_view_subtitle","id",getContext().getPackageName())));
             if(headerProgress==null && root instanceof ViewGroup) {
                 // Collapsed-player header (built in code by p.s22, no id): its plain ProgressBar is
                 // Spotify white; give it the theme accent. Exact class, so SeekBars are left alone.

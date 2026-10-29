@@ -286,7 +286,11 @@ const RELOCATED: [(&str, &str, &str, &str); 4] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 19] = [
+const HELPERS: [(&str, &str); 20] = [
+    (
+        "TextSlide",
+        include_str!("../theme/dex/src/spatch/TextSlide.java"),
+    ),
     (
         "SpatchWidget",
         include_str!("../theme/dex/src/spatch/SpatchWidget.java"),
@@ -356,6 +360,14 @@ const HELPERS: [(&str, &str); 19] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    (
+        "Editable.java",
+        include_str!("../theme/dex/stubs/android/text/Editable.java"),
+    ),
+    (
+        "TextWatcher.java",
+        include_str!("../theme/dex/stubs/android/text/TextWatcher.java"),
+    ),
     (
         "HandlerThread.java",
         include_str!("../theme/dex/stubs/android/os/HandlerThread.java"),
