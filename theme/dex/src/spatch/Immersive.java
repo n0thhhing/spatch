@@ -77,6 +77,8 @@ public final class Immersive extends View implements Runnable {
 
     // Real frequency spectrum from Spotify's AudioTrack session.
     private static final int BARS = 48;
+    private Shader shade, spectrumShade;
+    private float shadeH, spectrumTop;
 
     public Immersive(Context context, PlayerArt art) {
         super(context, null);
@@ -303,6 +305,14 @@ public final class Immersive extends View implements Runnable {
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Settings.backdrop() ? 0x8c14121c : 0xff14121c); // keep an opaque surface when the backdrop is off
         canvas.drawRect(0, 0, w, h, paint);
+        // Calmer ground for the controls and spectrum: the surface deepens over the lower 45%.
+        if (shade == null || shadeH != h) {
+            shadeH = h;
+            shade = new LinearGradient(0, h * 0.55f, 0, h, new int[] {0x0014121c, 0xb314121c}, null, Shader.TileMode.CLAMP);
+        }
+        paint.setShader(shade);
+        canvas.drawRect(0, h * 0.55f, w, h, paint);
+        paint.setShader(null);
         canvas.restoreToCount(layer);
 
         // 2. Artwork: flies between the player and its spot; squishes on press; pops on a new song.
@@ -329,9 +339,13 @@ public final class Immersive extends View implements Runnable {
         float left = cxArt - size / 2f, top = cyArt - size / 2f;
 
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, false);
-        paint.setColor((Math.round(uiAlpha * 0.35f) << 24) | 0xd0bcff); // glow
-        float g = 6 * dp;
-        canvas.drawRoundRect(left - g, top - g, left + size + g, top + size + g, radius + g, radius + g, paint);
+        // Soft depth instead of a hard border: an accent glow, then a dark drop shadow under the art.
+        paint.setColor(0xff14121c);
+        paint.setShadowLayer(36 * dp, 0, 0, (Math.round(uiAlpha * 0.45f) << 24) | 0xd0bcff);
+        canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
+        paint.setShadowLayer(20 * dp, 0, 10 * dp, Math.round(bgAlpha * 0.55f) << 24);
+        canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
+        paint.clearShadowLayer();
         int save = canvas.save();
         path.reset();
         path.addRoundRect(left, top, left + size, top + size, radius, radius, Path.Direction.CW);
@@ -376,13 +390,15 @@ public final class Immersive extends View implements Runnable {
         // Metadata, ellipsized to the seek row's width
         float titleY = artY + artSize + h * 0.052f;
         float maxText = Math.min(w - 32 * dp, artSize + 80 * dp);
-        paint.setFakeBoldText(true);
+        Typeface face = titleView != null ? titleView.getTypeface() : null;
+        paint.setTypeface(face != null ? Typeface.create(face, Typeface.BOLD) : Typeface.DEFAULT_BOLD); // Spotify's title face
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setColor(0xfff3eeff);
         paint.setTextSize(w * 0.058f);
         String title = titleView != null && titleView.getText() != null ? titleView.getText().toString() : "Spotify";
         canvas.drawText(fit(title, maxText), w / 2f, titleY, paint);
-        paint.setFakeBoldText(false);
+        Typeface subFace = subtitleView != null ? subtitleView.getTypeface() : null;
+        paint.setTypeface(subFace != null ? subFace : Typeface.DEFAULT); // Spotify's own subtitle face, regular weight
         paint.setColor(0xffbcb3dc);
         paint.setTextSize(w * 0.038f);
         String sub = subtitleView != null && subtitleView.getText() != null ? subtitleView.getText().toString() : "";
@@ -481,11 +497,14 @@ public final class Immersive extends View implements Runnable {
         float padding = w * 0.13f;
         float avail = w - padding * 2;
         float step = avail / BARS;
-        float barW = step * 0.62f;
+        float barW = step * 0.46f; // slimmer bars with air between them
         float bottomOffset = 36*dp;
         float maxH = Math.max(0,Math.min(96*dp,h-bottomOffset-volY-48*dp));
 
-        if (getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) return; // no capture: no bars
+        if (!Settings.visualizer()) {
+            spectrum.update(getContext(), false); // hidden: release any capture
+            return;
+        }
         spectrum.update(getContext(), playing && windowActive && !closing);
         if (spectrum.status != null) {
             paint.setStyle(Paint.Style.FILL);
@@ -496,7 +515,13 @@ public final class Immersive extends View implements Runnable {
             return;
         }
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(0xddf3eeff);
+        float base = h - bottomOffset;
+        if (spectrumShade == null || spectrumTop != base - maxH) {
+            spectrumTop = base - maxH;
+            // Bright at the crest, fading toward the floor: light rising rather than a solid wall.
+            spectrumShade = new LinearGradient(0, spectrumTop, 0, base, new int[] {0xffd0bcff, 0x40d0bcff}, null, Shader.TileMode.CLAMP);
+        }
+        paint.setShader(spectrumShade);
         for (int i = 0; i < BARS; i++) {
             // Mirror the same measured spectrum, bass at the centre and treble at the edges.
             int band=i<BARS/2 ? BARS/2-1-i : i-BARS/2;
@@ -507,6 +532,7 @@ public final class Immersive extends View implements Runnable {
             float by = h - bottomOffset - bh;
             canvas.drawRoundRect(bx, by, bx + barW, h - bottomOffset, barW / 2, barW / 2, paint);
         }
+        paint.setShader(null);
         paint.setAlpha(255);
     }
 
@@ -603,6 +629,11 @@ public final class Immersive extends View implements Runnable {
                 // Dragged down to close
                 if (y - touchDownY > 180 && Math.abs(x - touchDownX) < 160) {
                     dismiss();
+                    return true;
+                }
+
+                if (Settings.visualizer() && y > h - h * 0.22f && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) {
+                    AudioSpectrum.requestPermission(getContext());
                     return true;
                 }
 

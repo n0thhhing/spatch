@@ -314,6 +314,10 @@ const HELPERS: [(&str, &str); 18] = [
 ];
 const STUBS: &[(&str, &str)] = &[
     (
+        "LinearGradient.java",
+        include_str!("../theme/dex/stubs/LinearGradient.java"),
+    ),
+    (
         "ViewPropertyAnimator.java",
         include_str!("../theme/dex/stubs/android/view/ViewPropertyAnimator.java"),
     ),

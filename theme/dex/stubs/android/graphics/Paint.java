@@ -17,6 +17,9 @@ public class Paint {
     public void setStrokeWidth(float w) { throw new RuntimeException(); }
     public void setTextSize(float s) { throw new RuntimeException(); }
     public void setFakeBoldText(boolean b) { throw new RuntimeException(); }
+    public Typeface setTypeface(Typeface t) { throw new RuntimeException(); }
+    public void setShadowLayer(float radius, float dx, float dy, int color) { throw new RuntimeException(); }
+    public void clearShadowLayer() { throw new RuntimeException(); }
     public float measureText(String s) { throw new RuntimeException(); }
     public int breakText(String s, boolean forwards, float maxWidth, float[] measured) { throw new RuntimeException(); }
     public void setTextAlign(Align a) { throw new RuntimeException(); }

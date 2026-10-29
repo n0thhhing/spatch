@@ -27,7 +27,7 @@ import android.widget.TextView;
 public final class SpatchSettings extends FrameLayout implements View.OnClickListener, DialogInterface.OnClickListener, Runnable {
     Back back;
 
-    // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion.
+    // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer.
     private static final String[] FEATURE_TITLES = {
         "Wavy progress",
         "Button animations",
@@ -35,7 +35,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Circular album art",
         "Double-tap for immersive",
         "Expressive shapes",
-        "Reduce motion"
+        "Reduce motion",
+        "Full-screen visualizer"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -45,11 +46,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Round artwork with a slowly turning ring",
         "Double tap the player artwork for a full-screen view",
         "Scalloped play buttons instead of plain circles",
-        "Stills Spatch animations: waves, springs and spins"
+        "Stills Spatch animations: waves, springs and spins",
+        "Spectrum of what's playing under the immersive player (uses the microphone permission)"
     };
 
     /** Section layout: Settings indices per section (the theme list sits at the top of Appearance). */
-    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4}, MOTION = {1, 6};
+    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4, 7}, MOTION = {1, 6};
 
     private static final String[] THEME_TITLES = {
         "Lavender",

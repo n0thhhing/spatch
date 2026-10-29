@@ -1,6 +1,8 @@
 package spatch;
 
 import android.content.Context;
+import android.content.ContextWrapper;
+import android.app.Activity;
 import android.media.audiofx.Visualizer;
 import android.os.SystemClock;
 import java.util.LinkedHashSet;
@@ -29,9 +31,7 @@ public final class AudioSpectrum {
     void update(Context context, boolean active) {
         long now = SystemClock.uptimeMillis();
         if (context.checkSelfPermission(PERMISSION) != 0) {
-            // The patched manifest does not declare RECORD_AUDIO, so it cannot be granted: draw nothing
-            // rather than offer a prompt that can never succeed.
-            release(); status = null; return;
+            release(); status = "Tap to enable audio visualizer"; return;
         }
         if (!active) { release(); status = null; return; }
         int session = current;
@@ -90,5 +90,14 @@ public final class AudioSpectrum {
         }
         visualizer = null; sampledAt = 0;
         java.util.Arrays.fill(levels, 0);
+    }
+
+    static void requestPermission(Context c) {
+        while (c instanceof ContextWrapper && !(c instanceof Activity)) {
+            Context base = ((ContextWrapper)c).getBaseContext();
+            if (base == c) return;
+            c = base;
+        }
+        if (c instanceof Activity) ((Activity)c).requestPermissions(new String[]{PERMISSION}, 7341);
     }
 }

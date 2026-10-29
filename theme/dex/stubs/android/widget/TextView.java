@@ -8,6 +8,7 @@ public class TextView extends android.view.View {
     public void setTextSize(float sp) {}
     public void setTextColor(int c) {}
     public void setTypeface(android.graphics.Typeface tf) {}
+    public android.graphics.Typeface getTypeface() { return null; }
     public void setTypeface(android.graphics.Typeface tf, int style) {}
     public void setGravity(int g) {}
 }

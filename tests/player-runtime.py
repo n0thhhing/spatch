@@ -169,7 +169,7 @@ public class PlayerRuntimeTest {
         Field featField = SpatchSettings.class.getDeclaredField("featureSwitches");
         featField.setAccessible(true);
         android.widget.Switch[] featSwitches = (android.widget.Switch[]) featField.get(spatchPage);
-        check(featSwitches.length == 7, "must contain 7 feature switches");
+        check(featSwitches.length == 8, "must contain 8 feature switches");
         for (int i = 0; i < 5; i++) {
             check(featSwitches[i].isChecked() == Settings.get(i), "feature switch " + i + " must reflect Settings.get");
         }
@@ -251,7 +251,7 @@ public class PlayerRuntimeTest {
         check(android.media.audiofx.Visualizer.session==92,"must attach to own live session, never output mix");
         int releases=android.media.audiofx.Visualizer.released;audio.update(allowed,false);
         check(android.media.audiofx.Visualizer.released>releases,"pause must release audio capture");
-        audio.update(new android.content.Context(),true);check(audio.status==null,"undeclared permission: no prompt that can never succeed");
+        audio.update(new android.content.Context(),true);check(audio.status.contains("Tap"),"permission denial needs an explicit prompt");
         AudioSpectrum unavailable=new AudioSpectrum();android.media.audiofx.Visualizer.fail=true;
         unavailable.update(allowed,true);int attempts=android.media.audiofx.Visualizer.created;unavailable.update(allowed,true);
         check(android.media.audiofx.Visualizer.created==attempts,"failed native capture must back off");
