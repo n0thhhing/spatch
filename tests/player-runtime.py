@@ -433,6 +433,13 @@ public class PlayerRuntimeTest {
         Settings.resetAll();
         check(Content.slug("spotify:section:0abc|made-for-you").equals("made-for-you"),"slug");
         System.out.println("PASS content filters");
+
+        // Navigation colours: ends are exact, the middle is per channel, other colour spaces switch.
+        long white=0xffffffffL<<32, black=0xff000000L<<32;
+        check(Pill.mix(black,white,0)==black&&Pill.mix(black,white,1)==white,"mix ends");
+        check(Pill.mix(black,white,0.5f)==(0xff808080L<<32),"mix middle");
+        check(Pill.mix(black,white|1,0.5f)==(white|1),"non-sRGB colours switch");
+        System.out.println("PASS navigation colours");
     }
 }
 ''')

@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 41] = [
+pub const EDITS: [Edit; 45] = [
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -136,12 +136,23 @@ pub const EDITS: [Edit; 41] = [
         replacement: "    .locals 1\n\n    .line 1\n    invoke-direct {p0}, Ljava/lang/Object;-><init>()V\n\n    const/high16 v0, 0x41400000    # 12.0f\n\n    cmpl-float v0, p1, v0\n\n    if-gtz v0, :spatch_keep\n\n    const/high16 v0, 0x40000000    # 2.0f\n\n    mul-float/2addr p1, v0\n\n    :spatch_keep\n    iput p1, p0, Lp/c3v;->a:F\n",
     },
     // p.psn0.a() (classes2): the bottom-navigation tab icon's Modifier.size(24dp) call becomes
-    // spatch.Pill.a(modifier, selected), which adds the selected-tab pill and then sizes the icon.
-    // classes2 has 65,535 method refs, so this single new reference fills the last slot.
+    // spatch.Pill.a(modifier, tab), which adds the Material 3 indicator and then sizes the icon. Icon
+    // and label colours and the label's bottom padding go through Pill too (psn0 is relocated:
+    // classes2 has no method refs to spare).
     Edit {
         file: "smali_classes2/p/psn0.smali",
         anchor: "    const/high16 p3, 0x41c00000    # 24.0f\n\n    .line 80\n    .line 81\n    invoke-static {p4, p3}, Lp/n191;->r(Lp/rhm0;F)Lp/rhm0;\n",
-        replacement: "    iget-boolean p3, p0, Lp/psn0;->g:Z\n\n    .line 80\n    .line 81\n    invoke-static {p4, p3}, Lspatch/Pill;->a(Lp/rhm0;Z)Lp/rhm0;\n",
+        replacement: "    .line 80\n    .line 81\n    invoke-static {p4, p0}, Lspatch/Pill;->a(Lp/rhm0;Lp/psn0;)Lp/rhm0;\n",
+    },
+    Edit {
+        file: "smali_classes2/p/psn0.smali",
+        anchor: "    move-wide v3, v0\n\n    .line 134\n",
+        replacement: "    move-wide v3, v0\n\n    invoke-static {p0, v5, v6, v3, v4}, Lspatch/Pill;->tint(Lp/psn0;JJ)J\n\n    move-result-wide v3\n\n    move-wide v5, v3\n\n    .line 134\n",
+    },
+    Edit {
+        file: "smali_classes2/p/psn0.smali",
+        anchor: "    :goto_8\n    new-instance v11, Lp/jyd1;\n",
+        replacement: "    :goto_8\n    invoke-static {v7}, Lspatch/Pill;->label(Lp/rhm0;)Lp/rhm0;\n\n    move-result-object v7\n\n    invoke-static {v4, v8, v9}, Lspatch/Pill;->labelTint(Lp/psn0;J)J\n\n    move-result-wide v8\n\n    new-instance v11, Lp/jyd1;\n",
     },
     // p.lbg (classes3): per-instance bump count, 0 = original circle (p.o2a keeps that).
     Edit {
@@ -305,11 +316,23 @@ pub const EDITS: [Edit; 41] = [
         anchor: "    invoke-static {v2, v1}, Lp/gpo1;->l(Ljava/lang/String;Ljava/util/List;)Lp/i5c0;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    return-object v0\n",
         replacement: "    invoke-static {v2, v1}, Lp/gpo1;->l(Ljava/lang/String;Ljava/util/List;)Lp/i5c0;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    invoke-static {v0}, Lspatch/Content;->libraryChips(Ljava/util/ArrayList;)Ljava/util/ArrayList;\n\n    move-result-object v0\n\n    return-object v0\n",
     },
+    // Tab press feedback (k1u.c, classes12): Spotify's default indication shrinks the whole tab to 0.9,
+    // moving the label; usr.b is its plain dim overlay, clipped to the tab, so nothing moves.
+    Edit {
+        file: "smali_classes12/p/k1u.smali",
+        anchor: "    const/16 v19, 0x7b8\n\n    .line 235\n",
+        replacement: "    const/16 v19, 0x6b8\n\n    .line 235\n",
+    },
+    Edit {
+        file: "smali_classes12/p/k1u.smali",
+        anchor: "    .line 242\n    const/4 v12, 0x0\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
+        replacement: "    .line 242\n    sget-object v12, Lp/usr;->b:Lp/usr;\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
+    },
 ];
 
 /// Original classes moved into `HELPER_DEX` (smali folder, file, original DEX, descriptor) because
 /// their own DEX has no room for the references their edits add; behaviour and names are unchanged.
-const RELOCATED: [(&str, &str, &str, &str); 5] = [
+const RELOCATED: [(&str, &str, &str, &str); 6] = [
     (
         "smali_classes2",
         "com/spotify/playbacknative/AudioEffectsListener.smali",
@@ -321,6 +344,7 @@ const RELOCATED: [(&str, &str, &str, &str); 5] = [
     ("smali", "p/rx5.smali", "classes.dex", "Lp/rx5;"),
     ("smali", "p/bxh0.smali", "classes.dex", "Lp/bxh0;"),
     ("smali_classes2", "p/xmc0.smali", "classes2.dex", "Lp/xmc0;"),
+    ("smali_classes2", "p/psn0.smali", "classes2.dex", "Lp/psn0;"),
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
@@ -420,6 +444,9 @@ const STUBS: &[(&str, &str)] = &[
     ("u4c0.java", include_str!("../theme/dex/stubs/p/u4c0.java")),
     ("r4c0.java", include_str!("../theme/dex/stubs/p/r4c0.java")),
     ("ndy.java", include_str!("../theme/dex/stubs/p/ndy.java")),
+    ("psn0.java", include_str!("../theme/dex/stubs/p/psn0.java")),
+    ("hqr0.java", include_str!("../theme/dex/stubs/p/hqr0.java")),
+    ("zpo.java", include_str!("../theme/dex/stubs/p/zpo.java")),
     ("dsm1.java", include_str!("../theme/dex/stubs/p/dsm1.java")),
     ("s6e.java", include_str!("../theme/dex/stubs/p/s6e.java")),
     ("j360.java", include_str!("../theme/dex/stubs/p/j360.java")),

@@ -233,7 +233,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         refreshChoices();
 
         addSectionHeader(content, "Content", dp(28));
-        addSectionSubtitle(content, "Only changes what is shown: nothing is deleted and links still open. Pull down on Home to apply.");
+        addSectionSubtitle(content, "Only changes what is shown: nothing is deleted and links still open.");
         for (int i : CONTENT) content.addView(featureRows[i]);
         addSectionHeader(content, "Home sections", dp(20));
         java.util.ArrayList<String[]> sections = Settings.sections();
@@ -373,6 +373,16 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     /** TalkBack reads the whole row as one control, including its state. */
     private static void describe(View row, String title, String state) {
         row.setContentDescription(title + ", " + state);
+    }
+
+    /** Chips and drawer rows are read at startup, and a restart also leaves a hidden chip selected safely. */
+    private void askRestart() {
+        new AlertDialog.Builder(getContext(), 0x010302d1)
+            .setTitle("Restart to apply everywhere?")
+            .setMessage("Spotify restarts on All, with the top chips and profile menu updated. Later applies on the next start.")
+            .setPositiveButton("Restart now", this)
+            .setNegativeButton("Later", this)
+            .show();
     }
 
     private void onThemeSelected(int index, String themeName) {
@@ -521,6 +531,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 Settings.set(i, next);
                 describe(featureRows[i], FEATURE_TITLES[i], next ? "On" : "Off");
                 refreshChoices();
+                for (int content : CONTENT) if (i == content) askRestart();
                 return;
             }
         }

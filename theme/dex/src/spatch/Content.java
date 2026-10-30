@@ -147,7 +147,7 @@ public final class Content {
     /** The section's visible title (the first text heading in its model), else a readable slug. */
     static String title(Object model, String id) {
         String found = heading(model, 4);
-        if (found != null && !found.isEmpty() && !found.startsWith("spotify:")) return found;
+        if (found != null && !found.isEmpty() && !found.startsWith("spotify:")) return found.replaceAll("\\[\\d+\\]", "").trim();
         String words = slug(id).replace('-', ' ');
         return words.isEmpty() ? "Home section" : Character.toUpperCase(words.charAt(0)) + words.substring(1);
     }

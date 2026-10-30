@@ -165,7 +165,7 @@ public final class PlayerArt extends ImageView {
             return;
         }
         AudioSpectrum.request(getContext(), AudioSpectrum.RADIAL, playing());
-        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), SystemClock.uptimeMillis(), true, Settings.vizSmooth());
+        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), SystemClock.uptimeMillis(), Wave.animationsEnabled(), Settings.vizSmooth());
         if (Spectrum.alpha < 0.01f) return;
         float dp = getResources().getDisplayMetrics().density;
         // Fits inside the view's 12% margin, past the outline; nothing is clipped or covers controls.

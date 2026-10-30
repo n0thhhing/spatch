@@ -443,3 +443,21 @@ Checks: 26 Rust tests pass (one real-input dry-run ignored in this run), 18 JVM
 behavior groups pass including pending/active restart visibility and Later saving;
 format/clippy/release pass. Signed pipeline completes and verifies all five APKs.
 Theme application and automatic relaunch still require live phone verification.
+
+## Player personalization and navigation revision (R1-R8, 2026-10-30, built, signed, device-tested)
+
+**Spectrum.** `Spectrum.java` owns one model for every renderer (bands 0..1.12, `step` once per frame); `AudioSpectrum.SHARED` owns the one `Visualizer`, with consumer bits `BOTTOM` and `RADIAL`. Startup dome cause: ranges started at zero and took seconds to learn. They are now seeded from the first frame with mean >= `VALID` (0.12) using `PRIOR`, a per-band table measured from settled music on the device. A new audio session resets; silence never seeds or moves ranges.
+
+**Choices.** `Settings.CHOICE_KEYS` hold stable strings; an unknown stored value falls back to the first (today's look). `viz_shape`, `viz_taper`, `art_outline`, `art_glow`, `art_spectrum`. In immersive the art is a rounded square, so the radial follows that contour (exponent 8) rather than drawing a circle over it.
+
+**Content (`Content.java`).** Presentation only, nothing deleted.
+- Home: `p.xmc0` constructor (`classes2`, relocated to the helper DEX) receives `q6k1` pairs of model and `spotify:section:<id>|<slug>`. The section URI is identity and the title is a label. Models: `cu70`, `oz71`, `bfi0` filter item by item; others (`udi0`, `dp01`, `zw80`) drop only if every content URI is blocked. The `casita` HomeStructure and `dgm0` paths never fired on the test account.
+- Home chips: `p.sdy` (`classes7`) maps feeds via `aj00.a`; live ids `client-native:default|music|podcasts|audiobooks`. Fetched once at startup, so a toggle offers a restart, which also returns to All.
+- Search: `p.s8e` constructor (`classes5`), `s6e.a` page URIs `spotify:page:0JQ5DArNBzkmxXHCqFLx2J` (Podcasts), `spotify:page:0JQ5DAqbMKFETqK4t8f1n3` (Audiobooks).
+- Library: items `zzo1.D` (`classes12`) by `dsm1.e` (`ndy.b` SHOW, `Y` NEW_EPISODES, `a` BOOK, `g` AUTHOR); chips `oxo1.q` (`classes4`), classes `e5c0`/`u4c0` (podcasts, downloaded) and `l4c0`/`r4c0` (books, downloaded).
+- Messages: drawer block is `p.upf` in `Settings.rows`.
+
+**Bottom navigation.** Tab: `k1u.c` (`classes12`) wraps `k1u.d`, which calls `psn0.a` (icon) and `psn0.b` (label). `psn0` is relocated to the helper DEX because `classes2` has no method refs left.
+- `Pill`: a `hqr0` snapshot state per tab position (`zpo.q` is `mutableStateOf`), driven by a 200 ms `ValueAnimator`, so only that tab recomposes and only while it moves. Reduced motion sets it directly. Indicator grows from the centre: outer plus inner horizontal padding is always 20dp.
+- Press: the Encore default indication `kch(slo1.l, usr.f)` contains `if41`, a 0.9 scale of the whole tab. `k1u.c` now passes `usr.b` (`tsr`, a dim overlay inside the tab) by setting `amo1.c`'s mask `0x7b8` to `0x6b8`.
+- `vertical_main.xml`: no margins or corners; the bar and `bottom_gradient_window_insets` share one surface colour. Height on the device: 214 px at 420 dpi, about 81dp.
