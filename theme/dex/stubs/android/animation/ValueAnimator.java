@@ -1,6 +1,6 @@
 package android.animation;
 // Compile-time stub only; never packaged (the device provides the real class).
-public class ValueAnimator {
+public class ValueAnimator { public void removeAllUpdateListeners() {}
     public interface AnimatorUpdateListener { void onAnimationUpdate(ValueAnimator animation); }
     public static boolean areAnimatorsEnabled() { throw new RuntimeException(); }
     public static ValueAnimator ofFloat(float... values) { throw new RuntimeException(); }

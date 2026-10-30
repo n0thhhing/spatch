@@ -1,0 +1,126 @@
+package spatch;
+
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.media.MediaMetadata;
+import android.media.session.PlaybackState;
+import android.os.SystemClock;
+import android.util.AttributeSet;
+import android.view.MotionEvent;
+import android.view.View;
+import androidx.constraintlayout.motion.widget.MotionLayout;
+import java.lang.ref.WeakReference;
+
+/**
+ * The mini-player root (layout/now_playing_bar). m1p0 and tro0 tint its background from artwork;
+ * MiniSurface ignores that, so the theme surface stays. classes9 is full, so this is a view subclass
+ * rather than DEX edits. The session worker calls update(); bindings run on the main thread.
+ */
+public final class MiniBar extends MotionLayout implements Runnable {
+    private static WeakReference<MiniBar> bar;
+    private static Bitmap accentSource;
+    private static int accent;
+    private static final long EXPAND_WINDOW = 900;
+    private static float[] expandFrom;
+    private static long expandAt;
+    private MiniSkip previous, next;
+    private MiniEq eq;
+    private volatile boolean playing;
+    private volatile long actions = 48;
+
+    public MiniBar(Context c, AttributeSet a) {
+        super(c, a);
+    }
+
+    protected void onFinishInflate() {
+        super.onFinishInflate();
+        MiniSurface surface = new MiniSurface();
+        surface.setColor(Palette.color(0xff2b2640));
+        surface.setCornerRadius(20 * getResources().getDisplayMetrics().density);
+        setBackground(surface);
+        for (int i = 0; i < getChildCount(); i++) adopt(getChildAt(i));
+        bar = new WeakReference<MiniBar>(this);
+        SpatchWidget.refreshMini();
+    }
+
+    public void onViewAdded(View child) {
+        super.onViewAdded(child);
+        adopt(child);
+    }
+
+    private void adopt(View child) {
+        if (child instanceof MiniSkip) {
+            if ("next".equals(child.getTag())) next = (MiniSkip) child;
+            else previous = (MiniSkip) child;
+        } else if (child instanceof MiniEq) {
+            eq = (MiniEq) child;
+        } else if (child.getId() == id("connect_destination_button")) {
+            // Device picking stays in the full player: no pixels, touch or focus here.
+            child.setAlpha(0f);
+            child.setEnabled(false);
+            child.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        }
+    }
+
+    private int id(String name) {
+        return getResources().getIdentifier(name, "id", getContext().getPackageName());
+    }
+
+    /** A tap on the artwork or metadata opens the player; remember where the cover was. */
+    public boolean dispatchTouchEvent(MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_UP && previous != null && e.getX() < previous.getLeft()) {
+            View cover = findViewById(id("cover_image"));
+            if (cover != null && cover.getWidth() > 0) {
+                int[] at = new int[2];
+                cover.getLocationOnScreen(at);
+                expandFrom = new float[] {at[0] + cover.getWidth() / 2f, at[1] + cover.getHeight() / 2f, cover.getWidth()};
+                expandAt = SystemClock.uptimeMillis();
+            }
+        }
+        return super.dispatchTouchEvent(e);
+    }
+
+    /** One flight per tap, and only if the player really opened right after it. */
+    static float[] claimExpansion() {
+        float[] from = expandFrom;
+        expandFrom = null;
+        return from != null && SystemClock.uptimeMillis() - expandAt < EXPAND_WINDOW && Wave.animationsEnabled() ? from : null;
+    }
+
+    public void run() {
+        if (previous != null) previous.allow(actions);
+        if (next != null) next.allow(actions);
+        ClickHaptic.attach(findViewById(id("play_pause_button")));
+        if (eq != null) eq.show(playing, accent != 0 ? accent : Palette.color(0xffd0bcff));
+    }
+
+    /** Session worker: one accent per artwork bitmap, derived off the draw path. */
+    static void update(MediaMetadata m, PlaybackState s, Bitmap art) {
+        MiniBar view = bar == null ? null : bar.get();
+        if (view == null) return;
+        if (art != accentSource) {
+            accentSource = art;
+            accent = art == null ? 0 : accentOf(art);
+        }
+        int state = s == null ? 0 : s.getState();
+        view.playing = state == PlaybackState.STATE_PLAYING;
+        view.actions = s == null ? 0 : s.getActions();
+        view.post(view);
+    }
+
+    private static int accentOf(Bitmap art) {
+        try {
+            Bitmap tiny = Bitmap.createScaledBitmap(art, 16, 16, true);
+            int[] pixels = new int[256];
+            tiny.getPixels(pixels, 0, 16, 0, 0, 16, 16);
+            return MiniEq.accent(pixels, Palette.color(0xff2b2640), Palette.color(0xffd0bcff));
+        } catch (RuntimeException e) {
+            return 0; // a recycled cover: the theme accent stands in
+        }
+    }
+
+    static void settingsChanged() {
+        MiniBar view = bar == null ? null : bar.get();
+        if (view != null) view.run();
+    }
+}

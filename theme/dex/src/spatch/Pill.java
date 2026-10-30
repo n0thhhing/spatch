@@ -27,19 +27,23 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     private static final HashMap<Integer, Pill> TABS = new HashMap<Integer, Pill>();
 
     private final hqr0 shown;
+    private final int position;
     private boolean target;
     private ValueAnimator animator;
     private long on, off;
 
-    private Pill(boolean selected) {
+    private Pill(int tab, boolean selected) {
+        position = tab;
         target = selected;
+        if (selected) NavIndicator.select(tab);
         shown = zpo.q(Float.valueOf(selected ? 1f : 0f));
     }
 
     private static Pill tab(psn0 item) {
         Pill tab = TABS.get(item.b);
         if (tab == null) {
-            tab = new Pill(item.g);
+            tab = new Pill(item.b, item.g);
+            NavIndicator.tabs(TABS.size() + 1);
             TABS.put(item.b, tab);
         } else if (tab.target != item.g) {
             tab.select(item.g);
@@ -49,6 +53,7 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
 
     private void select(boolean selected) {
         target = selected;
+        if (selected) NavIndicator.select(position);
         if (animator != null) animator.cancel();
         animator = null;
         float to = selected ? 1f : 0f;
@@ -78,7 +83,7 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         modifier = rail() ? cxn1.D(modifier, 0f, 3f) : cxn1.G(cxn1.G(modifier, 0f, TOP, 0f, 0f, 13), 0f, 0f, 0f, BOTTOM, 7);
         // The indicator grows from the icon's centre; the outer and inner padding always sum to 20dp.
         modifier = cxn1.D(modifier, 20f * (1 - t), 0f);
-        if (t > 0) {
+        if (t > 0 && rail()) { // portrait: NavIndicator draws the moving indicator
             int alpha = Math.round((CONTAINER >>> 24) * t);
             long color = (long) (alpha << 24 | CONTAINER & 0xffffff) << 32; // Compose Color: sRGB ARGB, high 32 bits
             modifier = mtg.n(modifier, color, xp31.a); // background(color, pill shape)
@@ -107,6 +112,16 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         if (Settings.app == null) return false;
         android.util.DisplayMetrics screen = Settings.app.getResources().getDisplayMetrics();
         return screen.widthPixels > screen.heightPixels;
+    }
+
+    /** Interpolates ARGB view colours. */
+    static int blend(int from, int to, float t) {
+        int out = 0;
+        for (int shift = 0; shift < 32; shift += 8) {
+            int x = from >>> shift & 255, y = to >>> shift & 255;
+            out |= Math.round(x + (y - x) * t) << shift;
+        }
+        return out;
     }
 
     /** Interpolates sRGB Compose colours; anything else (non-zero colour-space bits) just switches. */

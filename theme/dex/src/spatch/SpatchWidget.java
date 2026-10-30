@@ -45,6 +45,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     /** Widget work (bitmaps, RemoteViews, binder calls) stays off Spotify's main thread. */
     private static Handler worker;
     private static final SpatchWidget PUSH = new SpatchWidget(null);
+    private static final SpatchWidget MINI = new SpatchWidget(null);
     private final MediaController controller;
 
     private SpatchWidget(MediaController controller) {
@@ -52,6 +53,15 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     }
 
     /** Called with every media session Spotify creates; the one that plays or has metadata wins. */
+    static MediaController controller() {
+        return current;
+    }
+
+    /** The mini-player appeared: bring it up to date from the session worker. */
+    static void refreshMini() {
+        worker().post(MINI);
+    }
+
     public static void attach(MediaSession session) {
         Context app = Settings.app;
         if (app == null || session == null || Build.VERSION.SDK_INT < 31) return;
@@ -88,9 +98,22 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         Handler h = worker();
         h.removeCallbacks(PUSH);
         h.postDelayed(PUSH, 100);
+        h.removeCallbacks(MINI);
+        h.postDelayed(MINI, 60);
+    }
+
+    private static void updateMini() {
+        MediaController c = current;
+        if (c == null) return;
+        MediaMetadata m = c.getMetadata();
+        MiniBar.update(m, c.getPlaybackState(), m == null ? null : cover(m));
     }
 
     public void run() {
+        if (this == MINI) {
+            updateMini();
+            return;
+        }
         long wait = settleDelay();
         if (wait > 0) worker().postDelayed(PUSH, wait);
         else push();

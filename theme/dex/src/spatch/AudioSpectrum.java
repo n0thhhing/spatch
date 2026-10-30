@@ -22,7 +22,7 @@ public final class AudioSpectrum {
     }
 
     /** Renderers of the one shared capture: it runs while any of them is visible and playing. */
-    static final int BOTTOM = 1, RADIAL = 2;
+    static final int BOTTOM = 1, RADIAL = 2, MINI = 4;
     static final AudioSpectrum SHARED = new AudioSpectrum();
     private static int consumers;
 

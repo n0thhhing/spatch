@@ -463,3 +463,16 @@ Theme application and automatic relaunch still require live phone verification.
 - Press: the Encore default indication `kch(slo1.l, usr.f)` contains `if41`, a 0.9 scale of the whole tab. `k1u.c` now passes `usr.b` (`tsr`, a dim overlay inside the tab) by setting `amo1.c`'s mask `0x7b8` to `0x6b8`.
 
 **Settings page.** `SpatchSettings` plus `M3Switch`, `SettingsHero`, `ThemeSwatch`. Colours go through `Palette.color`/`Palette.tone`, icons through `encore_icon_<name>_24` by name. `SettingsHero` stops its frame loop once scrolled away. Section list key moved to `home_seen2` to drop the entries collected before podcast feeds were excluded (`Content.showsOnly`); rows are one per title, so a repeated title hides all its ids.
+
+
+## Compose owners found by runtime trace (2026-10-30, device-confirmed)
+
+A temporary stack log in `p.yw9` (background), `p.dto1.e` (text) and `p.eqo1.f` (image) mapped these; the trace is not shipped.
+
+- Search: field `p.bqn1.e`; category tile `p.o6e` (colour field `c`, tilt 25 degrees, built from `hcx`/`gcx`); page title `p.rro1.g`.
+- Home: shortcut `p.ry71.a`/`p.qy71`; chips `p.epr0.b`; shelf heading `p.dfm` ("NavigableHeadingTitle") with `p.hon1.g` Show all; skeleton `p.cp01`.
+- Library: list rows `p.r0a1.j/r` with `p.vrh1.f` subtitle; grid `p.kdy.a/b`; sort row `p.ik41`; surface `p.i2d1.c`.
+- Below player: lyrics `p.r030.f`/`p.yo10.i`; cards `p.c1p1.r`, `p.rro1.e`, `p.kyo1.e`; SongDNA `p.c6a1`.
+- Save: `AddToButtonView.a(kk1)`, tap flag `e`, `lk1.a` = not added. Spotify's own Lottie is the plus-to-check.
+
+Mini-player: `spatch.MiniBar` subclasses MotionLayout in `now_playing_bar.xml` (classes9 stays full); `cover_image` is replaced at runtime, so `MiniArt` no longer renders there. MotionLayout's onAttachedToWindow, onMeasure, onLayout, dispatchDraw and touch methods are final. `activity_main` children need ids because ConstraintSet clones them.

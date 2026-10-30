@@ -34,13 +34,25 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public void setSelected(boolean selected) {}
     public boolean isSelected() { return false; }
     public boolean isActivated() { return false; }
-    public boolean isPressed() { return false; }
     public boolean isHovered() { return false; }
     public void setEnabled(boolean enabled) {}
     public void setPressed(boolean pressed) {}
     public void setHovered(boolean hovered) {}
     public boolean isEnabled() { return true; }
     public boolean isShown() { return true; }
+    public static class AccessibilityDelegate { public void sendAccessibilityEvent(View host, int type) {} }
+    public AccessibilityDelegate getAccessibilityDelegate() { return null; }
+    public void setAccessibilityDelegate(AccessibilityDelegate d) {}
+    public android.view.ViewOverlay getOverlay() { return new android.view.ViewOverlay(); }
+    public boolean isPressed() { return false; }
+    public int getId() { return 0; }
+    protected void onFinishInflate() {}
+    public static final int LAYOUT_DIRECTION_RTL = 1, IMPORTANT_FOR_ACCESSIBILITY_NO = 2, IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 4;
+    public boolean performHapticFeedback(int c) { return true; }
+    public boolean isAttachedToWindow() { return true; }
+    public int getLayoutDirection() { return 0; }
+    public void setImportantForAccessibility(int m) {}
+    public int getLeft() { return 0; } public int getRight() { return 0; } public int getTop() { return 0; } public int getBottom() { return 0; }
     public boolean isClickable() { return false; }
     public void setClickable(boolean c) {}
     public void setScaleX(float s) {}

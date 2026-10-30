@@ -50,7 +50,7 @@ final class Spectrum {
 
     /** Advances the model one frame. Call once per drawn frame, from one visible renderer per frame. */
     static void step(float[] raw, int audioSession, long now, boolean motion, boolean smooth) {
-        if (now == frame) return; // two renderers in one frame share one step
+        if (now >= frame && now - frame < 8) return; // renderers within one frame share one step
         if (audioSession != session) {
             session = audioSession;
             reset();
@@ -188,9 +188,21 @@ final class Spectrum {
      */
     static void drawRadial(Canvas c, Paint paint, Path path, float[] levels, boolean dots, float cx, float cy,
                            float halfSize, float gap, float depth, float exponent, float dp) {
-        int rays = 72;
+        drawPerimeter(c, paint, path, levels, 72, dots, cx, cy, halfSize, gap, depth, exponent, Math.max(2 * dp, halfSize * 0.012f));
+    }
+
+    /** The Fine style: many hairlines, a clear gap, a short reach, and quiet levels kept close to rest. */
+    static void drawFine(Canvas c, Paint paint, Path path, float[] levels, float cx, float cy, float halfSize, float exponent, float dp) {
+        System.arraycopy(levels, 0, fine, 0, BANDS);
+        for (int i = 0; i < BANDS; i++) fine[i] = 0.08f + 0.92f * fine[i] * fine[i];
+        drawPerimeter(c, paint, path, fine, 120, false, cx, cy, halfSize, 12 * dp, Math.min(9 * dp, halfSize * 0.05f), exponent, 1.25f * dp);
+    }
+
+    private static final float[] fine = new float[BANDS];
+
+    private static void drawPerimeter(Canvas c, Paint paint, Path path, float[] levels, int rays, boolean dots, float cx, float cy,
+                                      float halfSize, float gap, float depth, float exponent, float stroke) {
         path.reset();
-        float stroke = Math.max(2 * dp, halfSize * 0.012f);
         for (int i = 0; i < rays; i++) {
             float pos = (i + 0.5f) / rays;
             double a = 2 * Math.PI * pos - Math.PI / 2;

@@ -21,6 +21,7 @@ import android.os.SystemClock;
  * was running when the press began (Spotify pauses position updates while dragging).
  */
 public final class Wave extends Drawable implements Runnable {
+    private int detent = -1;
     private static final int ACCENT = 0xd0bcff; // theme accent token, substituted at patch time
     private static final long ACTIVE_MS = 1200;
     private static final long PERIOD_MS = 1600;
@@ -53,8 +54,19 @@ public final class Wave extends Drawable implements Runnable {
         rest.setColor(0x4d000000 | ACCENT);
     }
 
+    /** Ten steps along a seekbar, only while a finger holds it: playback updates stay silent. */
+    private void detent(int level) {
+        int step = level / 1000;
+        if (step == detent) return;
+        detent = step;
+        Object cb = getCallback();
+        if (cb instanceof Drawable) cb = ((Drawable) cb).getCallback();
+        if (cb instanceof View && ((View) cb).isPressed()) Haptics.detent((View) cb);
+    }
+
     @Override
     protected boolean onLevelChange(int newLevel) {
+        detent(newLevel);
         int step = newLevel - level;
         level = newLevel;
         if (!pressed && step > 0 && step <= MAX_PLAYBACK_STEP) {

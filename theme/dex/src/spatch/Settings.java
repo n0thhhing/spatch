@@ -25,10 +25,11 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages"};
-    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
+    static final int MINI_VISUALIZER = 16, HAPTICS = 17;
     static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4;
     static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum"};
     static final String[][] CHOICES = {
@@ -36,7 +37,7 @@ public final class Settings implements jg81 {
         {"subtle", "none"},
         {"wavy", "simple", "none"},
         {"current", "soft", "off"},
-        {"off", "bars", "dots"},
+        {"off", "fine", "bars", "dots"},
     };
     private static final String[] chosen = new String[CHOICES.length];
     private static final boolean[] on = DEFAULTS.clone();

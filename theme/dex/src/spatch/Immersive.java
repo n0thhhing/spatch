@@ -524,8 +524,13 @@ public final class Immersive extends View implements Runnable {
         if (Spectrum.alpha < 0.01f || alpha <= 0) return;
         paint.setColor(0xffd0bcff);
         paint.setAlpha(Math.round(alpha * Spectrum.alpha));
-        Spectrum.drawRadial(canvas, paint, spectrumPath, Spectrum.bands, "dots".equals(style), cx, cy, size / 2, 8 * dp,
-            Math.min(16 * dp, size * 0.05f), 8f, dp);
+        if ("fine".equals(style)) {
+            paint.setAlpha(Math.round(alpha * 0.75f * Spectrum.alpha));
+            Spectrum.drawFine(canvas, paint, spectrumPath, Spectrum.bands, cx, cy, size / 2, 8f, dp);
+        } else {
+            Spectrum.drawRadial(canvas, paint, spectrumPath, Spectrum.bands, "dots".equals(style), cx, cy, size / 2, 8 * dp,
+                Math.min(16 * dp, size * 0.05f), 8f, dp);
+        }
         paint.setAlpha(255);
     }
 
@@ -632,7 +637,7 @@ public final class Immersive extends View implements Runnable {
                 pressedButton=-1;
                 updateButtonFeedback(false);
                 if (click) {
-                    if (clicked==0) dismiss(); else buttons[clicked].click();
+                    if (clicked==0) dismiss(); else { Haptics.playback(this); buttons[clicked].click(); }
                     return true;
                 }
                 if (squishTarget == PlayerArt.PRESSED) PlayerArt.release(squish);

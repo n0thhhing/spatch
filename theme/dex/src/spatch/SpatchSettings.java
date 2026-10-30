@@ -46,7 +46,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Side margin",
         "Hide podcasts",
         "Hide audiobooks",
-        "Hide Messages"
+        "Hide Messages",
+        "Mini-player visualizer",
+        "Haptics",
+        "Playback controls",
+        "Navigation & filters",
+        "Sliders & switches"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -65,17 +70,22 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "A small gap at the left and right; off runs edge to edge",
         "From Home, Search, top chips and Your Library",
         "From Home, Search, top chips and Your Library",
-        "Removes Messages from the profile menu; your messages stay"
+        "Removes Messages from the profile menu; your messages stay",
+        "Tiny real-audio bars on the mini-player artwork",
+        "Follows Android's touch feedback setting",
+        "Play, pause, skip and save",
+        "Tab changes",
+        "Toggles here and slider steps"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
     private static final String[] FEATURE_ICONS = {
         "soundwave", "enhance", "album", "album", "now_playing", "play", "pause", "soundwave",
-        "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden"
+        "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden", "soundwave", "notifications_active", "play", "home", "filter"
     };
 
     /** Section layout: Settings indices per group. */
-    private static final int[] ARTWORK = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 8, 9, 10, 11, 12}, CONTENT = {13, 14, 15}, MOTION = {1, 6};
+    private static final int[] ARTWORK = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 16, 8, 9, 10, 11, 12}, CONTENT = {13, 14, 15}, MOTION = {1, 6};
 
     private static final String[] THEME_TITLES = {
         "Lavender",
@@ -105,6 +115,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private TextView homeCount, themeNote;
     private boolean closing;
     private final M3Switch[] featureSwitches = new M3Switch[FEATURE_TITLES.length];
+    private static final int[] HAPTICS = {17, 18, 19, 20};
+    private View tryHaptics;
     private final View[] featureRows = new View[FEATURE_TITLES.length];
     private final View[] themeRows = new View[Palette.NAMES.length];
     private final float density;
@@ -210,7 +222,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         for (int i : ARTWORK) artwork.addView(featureRows[i]);
         addChoice(artwork, Settings.ART_OUTLINE, "Outline", "On circular art in the player", new String[] {"Wavy", "Simple", "None"});
         addChoice(artwork, Settings.ART_GLOW, "Glow", null, new String[] {"Full", "Soft", "Off"});
-        addChoice(artwork, Settings.ART_SPECTRUM, "Spectrum", "Real audio around the art; uses the microphone permission", new String[] {"Off", "Bars", "Dots"});
+        addChoice(artwork, Settings.ART_SPECTRUM, "Spectrum", "Real audio around the art; uses the microphone permission", new String[] {"Off", "Fine", "Bars", "Dots"});
         finish(artwork);
 
         addSectionHeader("Player");
@@ -265,6 +277,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout motion = addGroup();
         for (int i : MOTION) motion.addView(featureRows[i]);
         finish(motion);
+
+        addSectionHeader("Haptics");
+        LinearLayout haptics = addGroup();
+        for (int i : HAPTICS) haptics.addView(featureRows[i]);
+        tryHaptics = createSettingRow("check", "Try feedback", "One sample tap", icon("chevron_right"));
+        tryHaptics.setOnClickListener(this);
+        haptics.addView(tryHaptics);
+        finish(haptics);
 
         TextView reset = new TextView(context);
         reset.setText("Reset to defaults");
@@ -591,11 +611,17 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             refreshHomeCount();
             return;
         }
+        if (v == tryHaptics) {
+            Haptics.preview(v);
+            return;
+        }
         for (int i = 0; i < featureRows.length; i++) {
             if (v == featureRows[i]) {
                 featureSwitches[i].toggle();
                 boolean next = featureSwitches[i].isChecked();
                 Settings.set(i, next);
+                Haptics.toggle(v, next);
+                MiniBar.settingsChanged();
                 describe(featureRows[i], FEATURE_TITLES[i], next ? "On" : "Off");
                 refreshChoices();
                 for (int content : CONTENT) if (i == content) askRestart();

@@ -1,6 +1,7 @@
 package android.graphics;
 // Compile-time stub only; never packaged (the device provides the real class).
 public class Canvas {
+    public void drawRoundRect(android.graphics.RectF r, float x, float y, Paint p) {}
  public Canvas(){} public Canvas(Bitmap b){}
  public void translate(float x,float y){} public void scale(float x,float y,float px,float py){}
  public int saveLayerAlpha(float l,float t,float r,float b,int alpha){return 0;}

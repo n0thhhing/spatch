@@ -34,7 +34,8 @@ public final class PlayerArt extends ImageView {
     private final float[] squish = {1, 0}; // press spring: scale, velocity
     private float squishTarget = 1;
     private long squishAt;
-    private boolean heroHidden;
+    private boolean heroHidden, radialOn;
+    private Expansion expansion;
     private static Drawable original; // controls background before any page's backdrop replaced it
     public PlayerArt(Context c, AttributeSet a) { super(c, a); Settings.load(c); }
 
@@ -90,6 +91,8 @@ public final class PlayerArt extends ImageView {
             if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(250);
             return;
         }
+        float[] from=MiniBar.claimExpansion();
+        if(from!=null) expansion=Expansion.start(this,from);
         if(ids==null) ids=new int[]{id("overlay_controls_layout"),id("playback_controls_container"),id("track_info_view_title"),id("track_info_view_subtitle"),id("nowplaying_elements_playpause_button")};
         if(background==null || now-lastSetup>750) {
             background=getRootView().findViewById(ids[0]);
@@ -115,6 +118,7 @@ public final class PlayerArt extends ImageView {
             View root=getRootView();
             View controls=root.findViewById(ids[1]);
             if(controls instanceof ViewGroup) decorate((ViewGroup)controls);
+            ClickHaptic.attach(controls);
             TextSlide.attach(root.findViewById(ids[2]));
             TextSlide.attach(root.findViewById(ids[3]));
             if(headerProgress==null && root instanceof ViewGroup) {
@@ -161,9 +165,12 @@ public final class PlayerArt extends ImageView {
     private void drawRadial(Canvas canvas, float cx, float cy, float radius) {
         String style = Settings.choice(Settings.ART_SPECTRUM);
         if ("off".equals(style) || heroHidden || !Wave.animationsEnabled() || !isCurrentPage() || !hasWindowFocus()) {
-            AudioSpectrum.drop(AudioSpectrum.RADIAL);
+            // Neighbour carousel pages redraw too: only the page that asked may release the capture.
+            if (radialOn) AudioSpectrum.drop(AudioSpectrum.RADIAL);
+            radialOn = false;
             return;
         }
+        radialOn = true;
         AudioSpectrum.request(getContext(), AudioSpectrum.RADIAL, playing());
         Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), SystemClock.uptimeMillis(), Wave.animationsEnabled(), Settings.vizSmooth());
         if (Spectrum.alpha < 0.01f) return;
@@ -173,7 +180,12 @@ public final class PlayerArt extends ImageView {
         ink.setShader(null);
         ink.setColor(0xffd0bcff);
         ink.setAlpha(Math.round(255 * Spectrum.alpha));
-        Spectrum.drawRadial(canvas, ink, outline, Spectrum.bands, "dots".equals(style), cx, cy, radius, gap, radius * 0.05f, 0, dp);
+        if ("fine".equals(style)) {
+            ink.setAlpha(Math.round(190 * Spectrum.alpha));
+            Spectrum.drawFine(canvas, ink, outline, Spectrum.bands, cx, cy, radius, 0, dp);
+        } else {
+            Spectrum.drawRadial(canvas, ink, outline, Spectrum.bands, "dots".equals(style), cx, cy, radius, gap, radius * 0.05f, 0, dp);
+        }
     }
 
     private boolean playing() {
@@ -193,6 +205,8 @@ public final class PlayerArt extends ImageView {
     }
 
     protected void onDetachedFromWindow() {
+        if(expansion!=null) expansion.finish();
+        expansion=null;
         AudioSpectrum.drop(AudioSpectrum.RADIAL);
         super.onDetachedFromWindow();
     }

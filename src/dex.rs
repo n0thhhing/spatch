@@ -64,7 +64,40 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 46] = [
+pub const EDITS: [Edit; 52] = [
+    // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
+    Edit {
+        file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
+        anchor: ".method public final a(Lp/kk1;)V\n    .locals 3\n",
+        replacement: ".method public final a(Lp/kk1;)V\n    .locals 3\n\n    iget-boolean v0, p0, Lcom/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView;->e:Z\n\n    iget-object v1, p0, Lcom/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView;->d:Lp/kk1;\n\n    invoke-static {p0, v0, v1, p1}, Lspatch/SaveBurst;->changed(Landroid/view/View;ZLp/kk1;Lp/kk1;)V\n",
+    },
+    Edit {
+        file: "smali/p/yw9.smali",
+        anchor: ".method public constructor <init>(JLandroidx/compose/ui/graphics/Brush;FLp/bv61;I)V\n    .locals 1\n",
+        replacement: ".method public constructor <init>(JLandroidx/compose/ui/graphics/Brush;FLp/bv61;I)V\n    .locals 1\n\n    invoke-static {p1, p2}, Lspatch/Surfaces;->bg(J)J\n\n    move-result-wide p1\n",
+    },
+    Edit {
+        file: "smali/p/xp31.smali",
+        anchor: ".method public static final b(F)Lp/vp31;\n    .locals 1\n",
+        replacement: ".method public static final b(F)Lp/vp31;\n    .locals 1\n\n    invoke-static {p0}, Lspatch/Surfaces;->radius(F)F\n\n    move-result p0\n",
+    },
+    // Search category tile: theme-toned surface, gentler artwork tilt.
+    Edit {
+        file: "smali_classes5/p/o6e.smali",
+        anchor: "    iget-wide v4, v0, Lp/o6e;->c:J\n",
+        replacement: "    iget-wide v4, v0, Lp/o6e;->c:J\n\n    invoke-static {v4, v5}, Lspatch/Surfaces;->tile(J)J\n\n    move-result-wide v4\n",
+    },
+    Edit {
+        file: "smali_classes5/p/o6e.smali",
+        anchor: "    const/high16 v7, 0x41c80000    # 25.0f\n",
+        replacement: "    const/high16 v7, 0x41600000    # 14.0f\n",
+    },
+    Edit {
+        file: "smali_classes5/p/o6e.smali",
+        anchor: "    const/high16 v7, -0x3e380000    # -25.0f\n",
+        replacement: "    const/high16 v7, -0x3ea00000    # -14.0f\n",
+    },
+
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -339,7 +372,10 @@ pub const EDITS: [Edit; 46] = [
 
 /// Original classes moved into `HELPER_DEX` (smali folder, file, original DEX, descriptor) because
 /// their own DEX has no room for the references their edits add; behaviour and names are unchanged.
-const RELOCATED: [(&str, &str, &str, &str); 6] = [
+const RELOCATED: [(&str, &str, &str, &str); 8] = [
+    // Compose surface and shape policy (spatch.Surfaces): both DEX tables are full.
+    ("smali", "p/yw9.smali", "classes.dex", "Lp/yw9;"),
+    ("smali", "p/xp31.smali", "classes.dex", "Lp/xp31;"),
     (
         "smali_classes2",
         "com/spotify/playbacknative/AudioEffectsListener.smali",
@@ -355,7 +391,47 @@ const RELOCATED: [(&str, &str, &str, &str); 6] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 26] = [
+const HELPERS: [(&str, &str); 36] = [
+    (
+        "Expansion",
+        include_str!("../theme/dex/src/spatch/Expansion.java"),
+    ),
+    (
+        "ClickHaptic",
+        include_str!("../theme/dex/src/spatch/ClickHaptic.java"),
+    ),
+    (
+        "SaveBurst",
+        include_str!("../theme/dex/src/spatch/SaveBurst.java"),
+    ),
+    (
+        "Surfaces",
+        include_str!("../theme/dex/src/spatch/Surfaces.java"),
+    ),
+    (
+        "MiniSurface",
+        include_str!("../theme/dex/src/spatch/MiniSurface.java"),
+    ),
+    (
+        "Haptics",
+        include_str!("../theme/dex/src/spatch/Haptics.java"),
+    ),
+    (
+        "MiniBar",
+        include_str!("../theme/dex/src/spatch/MiniBar.java"),
+    ),
+    (
+        "MiniEq",
+        include_str!("../theme/dex/src/spatch/MiniEq.java"),
+    ),
+    (
+        "MiniSkip",
+        include_str!("../theme/dex/src/spatch/MiniSkip.java"),
+    ),
+    (
+        "NavIndicator",
+        include_str!("../theme/dex/src/spatch/NavIndicator.java"),
+    ),
     (
         "M3Switch",
         include_str!("../theme/dex/src/spatch/M3Switch.java"),
@@ -453,6 +529,22 @@ const HELPERS: [(&str, &str); 26] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    (
+        "ViewOverlay.java",
+        include_str!("../theme/dex/stubs/android/view/ViewOverlay.java"),
+    ),
+    (
+        "DecelerateInterpolator.java",
+        include_str!("../theme/dex/stubs/android/view/animation/DecelerateInterpolator.java"),
+    ),
+    ("kk1.java", include_str!("../theme/dex/stubs/p/kk1.java")),
+    ("lk1.java", include_str!("../theme/dex/stubs/p/lk1.java")),
+    (
+        "MotionLayout.java",
+        include_str!(
+            "../theme/dex/stubs/androidx/constraintlayout/motion/widget/MotionLayout.java"
+        ),
+    ),
     ("upf.java", include_str!("../theme/dex/stubs/p/upf.java")),
     ("e5c0.java", include_str!("../theme/dex/stubs/p/e5c0.java")),
     ("l4c0.java", include_str!("../theme/dex/stubs/p/l4c0.java")),
