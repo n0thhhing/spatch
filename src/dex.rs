@@ -395,8 +395,8 @@ pub const EDITS: [Edit; 59] = [
         anchor: "    if-ge v6, v7, :cond_9\n\n    .line 114\n",
         replacement: "    .line 114\n",
     },
-    // Tab press feedback (k1u.c, classes12): Spotify's default indication shrinks the whole tab to 0.9,
-    // moving the label; usr.b is its plain dim overlay, clipped to the tab, so nothing moves.
+    // Tab press feedback (k1u.c, classes12): Spotify's default indication shrinks the whole tab to 0.9
+    // and an overlay fills the square tab cell. Compose draws none; NavIndicator draws a pill state layer.
     Edit {
         file: "smali_classes12/p/k1u.smali",
         anchor: "    const/16 v19, 0x7b8\n\n    .line 235\n",
@@ -405,7 +405,7 @@ pub const EDITS: [Edit; 59] = [
     Edit {
         file: "smali_classes12/p/k1u.smali",
         anchor: "    .line 242\n    const/4 v12, 0x0\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
-        replacement: "    .line 242\n    sget-object v12, Lp/usr;->b:Lp/usr;\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
+        replacement: "    .line 242\n    const/4 v12, 0x0\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
     },
 ];
 

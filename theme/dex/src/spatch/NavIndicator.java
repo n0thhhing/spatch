@@ -23,7 +23,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private static final long MILLIS = 340, TAP_MILLIS = 40, CONFIRM_MILLIS = 700;
     private static final float BAR_LIFT = 1.03f, FOLLOW_MS = 45;
     private static final float LIFT_WIDTH = 8, LIFT_HEIGHT = 6, STRETCH = 40, SQUASH = 4; // dp
-    private static final int ALPHA = 0x40, LIFT_ALPHA = 0x30;
+    private static final int ALPHA = 0x40, LIFT_ALPHA = 0x30, PRESS_ALPHA = 0x24;
     private static final float WIDTH = 64, HEIGHT = 32, TOP = 14; // dp, Pill's padding
     private static WeakReference<NavIndicator> view;
     private static int selected = -1, count = 1;
@@ -32,7 +32,9 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private final OvershootInterpolator settle = new OvershootInterpolator(1.4f);
     private ValueAnimator animator;
     private float from, to, t = 1;
-    private boolean dragging, forwarding;
+    private boolean dragging, forwarding, pressing;
+    private int pressTab;
+    private float press;
     private float downX, downY, finger, shown, lift;
     private int hover;
     private long drawn;
@@ -115,11 +117,17 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             downX = e.getX();
             downY = e.getY();
             dragging = false;
-            forwarding = true;
+            forwarding = pressing = true;
+            pressTab = Math.round(dragPosition(downX, getWidth(), count, rtl()));
+            invalidate();
             forward(e, action);
             return true;
         }
         if (nav == null) return false;
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            pressing = false;
+            invalidate();
+        }
         if (action == MotionEvent.ACTION_MOVE && !dragging) {
             float dx = Math.abs(e.getX() - downX), dy = Math.abs(e.getY() - downY);
             if (dx <= ViewConfiguration.get(getContext()).getScaledTouchSlop() || dx <= dy) {
@@ -153,6 +161,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         if (animator != null) animator.cancel();
         removeCallbacks(this);
         dragging = true;
+        pressing = false;
         hover = Math.round(shown);
         drawn = SystemClock.uptimeMillis();
         getParent().requestDisallowInterceptTouchEvent(true);
@@ -211,8 +220,8 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         removeCallbacks(this);
         if (tapUp != null) tapUp.recycle();
         tapUp = null;
-        dragging = forwarding = false;
-        lift = 0;
+        dragging = forwarding = pressing = false;
+        lift = press = 0;
         from = to = selected;
         t = 1;
     }
@@ -254,8 +263,20 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         lift += (aim - lift) * (1 - (float) Math.exp(-dt / 70f));
         if (Math.abs(aim - lift) > .01f) invalidate();
         else lift = aim;
+        float pressAim = pressing ? 1 : 0;
+        press = calm ? pressAim : press + (pressAim - press) * (1 - (float) Math.exp(-dt / 60f));
+        if (Math.abs(pressAim - press) > .01f) invalidate();
+        else press = pressAim;
+        boolean onPill = !dragging && pressTab == Math.round(position());
+        if (press > 0 && !onPill) { // state layer on a tab without the pill, growing from its icon
+            float half = WIDTH * d * (.4f + .1f * press), centre = (pressTab + .5f) * cell;
+            if (rtl) centre = getWidth() - centre;
+            paint.setAlpha(Math.round(PRESS_ALPHA * press));
+            rect.set(centre - half, TOP * d, centre + half, (TOP + HEIGHT) * d);
+            canvas.drawRoundRect(rect, HEIGHT * d / 2, HEIGHT * d / 2, paint);
+        }
         float height = (HEIGHT + lift * LIFT_HEIGHT - stretch * SQUASH) * d, middle = (TOP + HEIGHT / 2) * d;
-        paint.setAlpha(ALPHA + Math.round(lift * LIFT_ALPHA));
+        paint.setAlpha(ALPHA + Math.round(lift * LIFT_ALPHA + (onPill ? press * PRESS_ALPHA : 0)));
         rect.set(left - lift * LIFT_WIDTH * d / 2, middle - height / 2, right + lift * LIFT_WIDTH * d / 2, middle + height / 2);
         canvas.drawRoundRect(rect, height / 2, height / 2, paint);
     }
