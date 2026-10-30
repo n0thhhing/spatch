@@ -3,6 +3,7 @@ package android.graphics.drawable;
 public class GradientDrawable extends Drawable {
     public void setColor(int c) {}
     public void setCornerRadius(float r) {}
+    public void setCornerRadii(float[] radii) {}
     public void setStroke(int width, int color) {}
     public void draw(android.graphics.Canvas c) {}
     public void setAlpha(int a) {}

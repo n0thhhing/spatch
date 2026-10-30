@@ -170,7 +170,7 @@ public class PlayerRuntimeTest {
         // 3. SpatchSettings page controls
         Field featField = SpatchSettings.class.getDeclaredField("featureSwitches");
         featField.setAccessible(true);
-        android.widget.Switch[] featSwitches = (android.widget.Switch[]) featField.get(spatchPage);
+        M3Switch[] featSwitches = (M3Switch[]) featField.get(spatchPage);
         check(featSwitches.length == Settings.KEYS.length, "must contain every feature switch");
         for (int i = 0; i < 5; i++) {
             check(featSwitches[i].isChecked() == Settings.get(i), "feature switch " + i + " must reflect Settings.get");
@@ -432,6 +432,8 @@ public class PlayerRuntimeTest {
         check(Content.blocked("spotify:show:x","popular-audiobooks"),"audiobook filter covers its shelves");
         Settings.resetAll();
         check(Content.slug("spotify:section:0abc|made-for-you").equals("made-for-you"),"slug");
+        check(Content.title(null,"spotify:section:0|musicfeed-for-fans-of[2]").equals("For fans of"),"feed ids read as titles");
+        check(Content.title(null,"spotify:section:0|more-like-artist-listens-favorites[1]").equals("More like your artists"),"indexed feeds merge");
         System.out.println("PASS content filters");
 
         // Navigation colours: ends are exact, the middle is per channel, other colour spaces switch.

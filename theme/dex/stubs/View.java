@@ -46,6 +46,12 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public void setScaleX(float s) {}
     public float getScaleX() { return 1f; }
     public void setTranslationX(float x) {}
+    public static final int GONE = 8;
+    public void setTranslationY(float y) {}
+    public void setRotation(float r) {}
+    public ViewGroup.LayoutParams getLayoutParams() { return null; }
+    public interface OnScrollChangeListener { void onScrollChange(View v, int x, int y, int oldX, int oldY); }
+    public void setOnScrollChangeListener(OnScrollChangeListener l) {}
     public void getLocationOnScreen(int[] out) {}
     public float getTranslationX() { return 0f; }
     public void setScaleY(float s) {}

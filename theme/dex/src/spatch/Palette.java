@@ -22,6 +22,8 @@ public final class Palette {
             if(active!=indexDefault() && (android.os.Build.VERSION.SDK_INT<30 || !PaletteResources.install(c,NAMES[active]))){active=indexDefault();resourceError=true;}
         }catch(RuntimeException e){active=indexDefault();resourceError=true;}
     }
+    /** A role of any theme, for showing themes side by side; roles are BASE's order. */
+    static int tone(int theme,int role){return 0xff000000|COLOURS[theme][role];}
     static String activeName(){return NAMES[active];}
     static String requested(){return preferences==null?NAMES[active]:NAMES[index(preferences.getString("theme",NAMES[active]))];}
     static boolean choose(String name){

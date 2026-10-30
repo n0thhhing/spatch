@@ -226,12 +226,13 @@ public final class Settings implements jg81 {
     private static final java.util.TreeMap<String, String> seen = new java.util.TreeMap<String, String>();
     private static final java.util.HashSet<String> hidden = new java.util.HashSet<String>();
     private static final char SEP = 0x1f;
+    private static final String SEEN = "home_seen3"; // earlier lists held podcast feeds and raw feed ids
 
     static synchronized void seeSection(String id, String title) {
         if (title.equals(seen.put(id, title)) || prefs == null) return;
         java.util.HashSet<String> stored = new java.util.HashSet<String>();
         for (java.util.Map.Entry<String, String> e : seen.entrySet()) stored.add(e.getKey() + SEP + e.getValue());
-        prefs.edit().putStringSet("home_seen", stored).apply();
+        prefs.edit().putStringSet(SEEN, stored).apply();
     }
 
     static synchronized boolean sectionHidden(String id) {
@@ -244,18 +245,26 @@ public final class Settings implements jg81 {
         if (prefs != null) prefs.edit().putStringSet("home_hidden", new java.util.HashSet<String>(hidden)).apply();
     }
 
-    /** Sections by title, for the settings list. */
+    /** The settings list, one {title, ids...} per title: Spotify repeats a title across feeds. */
     static synchronized java.util.ArrayList<String[]> sections() {
+        java.util.TreeMap<String, String> byTitle = new java.util.TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER);
+        for (java.util.Map.Entry<String, String> e : seen.entrySet()) {
+            String ids = byTitle.get(e.getValue());
+            byTitle.put(e.getValue(), ids == null ? e.getKey() : ids + SEP + e.getKey());
+        }
         java.util.ArrayList<String[]> out = new java.util.ArrayList<String[]>();
-        for (java.util.Map.Entry<String, String> e : seen.entrySet()) out.add(new String[] {e.getKey(), e.getValue()});
-        java.util.Collections.sort(out, BY_TITLE);
+        for (java.util.Map.Entry<String, String> e : byTitle.entrySet()) {
+            String[] ids = e.getValue().split(String.valueOf(SEP));
+            String[] row = new String[ids.length + 1];
+            row[0] = e.getKey();
+            System.arraycopy(ids, 0, row, 1, ids.length);
+            out.add(row);
+        }
         return out;
     }
 
-    private static final java.util.Comparator<String[]> BY_TITLE = new SectionOrder();
-
     private static synchronized void loadSections() {
-        for (String row : prefs.getStringSet("home_seen", new java.util.HashSet<String>())) {
+        for (String row : prefs.getStringSet(SEEN, new java.util.HashSet<String>())) {
             int at = row.indexOf(SEP);
             if (at > 0) seen.put(row.substring(0, at), row.substring(at + 1));
         }

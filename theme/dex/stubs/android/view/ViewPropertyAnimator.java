@@ -3,6 +3,8 @@ package android.view;
 public class ViewPropertyAnimator {
     public ViewPropertyAnimator alpha(float v) { return this; }
     public ViewPropertyAnimator translationX(float v) { return this; }
+    public ViewPropertyAnimator translationY(float v) { return this; }
+    public ViewPropertyAnimator rotation(float v) { return this; }
     public ViewPropertyAnimator scaleX(float v) { return this; }
     public ViewPropertyAnimator scaleY(float v) { return this; }
     public ViewPropertyAnimator setDuration(long ms) { return this; }

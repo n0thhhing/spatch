@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 45] = [
+pub const EDITS: [Edit; 46] = [
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -137,7 +137,7 @@ pub const EDITS: [Edit; 45] = [
     },
     // p.psn0.a() (classes2): the bottom-navigation tab icon's Modifier.size(24dp) call becomes
     // spatch.Pill.a(modifier, tab), which adds the Material 3 indicator and then sizes the icon. Icon
-    // and label colours and the label's bottom padding go through Pill too (psn0 is relocated:
+    // and label colours go through Pill too (psn0 is relocated:
     // classes2 has no method refs to spare).
     Edit {
         file: "smali_classes2/p/psn0.smali",
@@ -152,7 +152,7 @@ pub const EDITS: [Edit; 45] = [
     Edit {
         file: "smali_classes2/p/psn0.smali",
         anchor: "    :goto_8\n    new-instance v11, Lp/jyd1;\n",
-        replacement: "    :goto_8\n    invoke-static {v7}, Lspatch/Pill;->label(Lp/rhm0;)Lp/rhm0;\n\n    move-result-object v7\n\n    invoke-static {v4, v8, v9}, Lspatch/Pill;->labelTint(Lp/psn0;J)J\n\n    move-result-wide v8\n\n    new-instance v11, Lp/jyd1;\n",
+        replacement: "    :goto_8\n    invoke-static {v4, v8, v9}, Lspatch/Pill;->labelTint(Lp/psn0;J)J\n\n    move-result-wide v8\n\n    new-instance v11, Lp/jyd1;\n",
     },
     // p.lbg (classes3): per-instance bump count, 0 = original circle (p.o2a keeps that).
     Edit {
@@ -316,6 +316,13 @@ pub const EDITS: [Edit; 45] = [
         anchor: "    invoke-static {v2, v1}, Lp/gpo1;->l(Ljava/lang/String;Ljava/util/List;)Lp/i5c0;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    return-object v0\n",
         replacement: "    invoke-static {v2, v1}, Lp/gpo1;->l(Ljava/lang/String;Ljava/util/List;)Lp/i5c0;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    invoke-static {v0}, Lspatch/Content;->libraryChips(Ljava/util/ArrayList;)Ljava/util/ArrayList;\n\n    move-result-object v0\n\n    return-object v0\n",
     },
+    // Floating icon-only bar: k1u.c always takes its compact branch (no label; TalkBack still reads
+    // the tab's description), which Spotify otherwise uses below 520dp of height.
+    Edit {
+        file: "smali_classes12/p/k1u.smali",
+        anchor: "    if-ge v6, v7, :cond_9\n\n    .line 114\n",
+        replacement: "    .line 114\n",
+    },
     // Tab press feedback (k1u.c, classes12): Spotify's default indication shrinks the whole tab to 0.9,
     // moving the label; usr.b is its plain dim overlay, clipped to the tab, so nothing moves.
     Edit {
@@ -348,10 +355,18 @@ const RELOCATED: [(&str, &str, &str, &str); 6] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 24] = [
+const HELPERS: [(&str, &str); 26] = [
     (
-        "SectionOrder",
-        include_str!("../theme/dex/src/spatch/SectionOrder.java"),
+        "M3Switch",
+        include_str!("../theme/dex/src/spatch/M3Switch.java"),
+    ),
+    (
+        "SettingsHero",
+        include_str!("../theme/dex/src/spatch/SettingsHero.java"),
+    ),
+    (
+        "ThemeSwatch",
+        include_str!("../theme/dex/src/spatch/ThemeSwatch.java"),
     ),
     (
         "Content",
@@ -445,6 +460,20 @@ const STUBS: &[(&str, &str)] = &[
     ("r4c0.java", include_str!("../theme/dex/stubs/p/r4c0.java")),
     ("ndy.java", include_str!("../theme/dex/stubs/p/ndy.java")),
     ("psn0.java", include_str!("../theme/dex/stubs/p/psn0.java")),
+    ("z341.java", include_str!("../theme/dex/stubs/p/z341.java")),
+    ("k1b.java", include_str!("../theme/dex/stubs/p/k1b.java")),
+    (
+        "OvershootInterpolator.java",
+        include_str!("../theme/dex/stubs/android/view/animation/OvershootInterpolator.java"),
+    ),
+    (
+        "TimeInterpolator.java",
+        include_str!("../theme/dex/stubs/android/animation/TimeInterpolator.java"),
+    ),
+    (
+        "RippleDrawable.java",
+        include_str!("../theme/dex/stubs/android/graphics/drawable/RippleDrawable.java"),
+    ),
     ("hqr0.java", include_str!("../theme/dex/stubs/p/hqr0.java")),
     ("zpo.java", include_str!("../theme/dex/stubs/p/zpo.java")),
     ("dsm1.java", include_str!("../theme/dex/stubs/p/dsm1.java")),

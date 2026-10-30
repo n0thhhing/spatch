@@ -6,7 +6,7 @@ import android.content.DialogInterface;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Build;
+import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -17,14 +17,14 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Switch;
 import android.widget.TextView;
 
 /**
- * Spatch settings screen matching Spotify's native layout, typography, controls, and colors.
- * Opened from the profile side drawer; handles system back gesture, hardware back, and header back button.
+ * Spatch settings in Material 3: an animated hero, theme swatches, and connected groups of rows that
+ * round at the group's ends. Opened from the profile side drawer; handles system back gesture,
+ * hardware back, and the header back button.
  */
-public final class SpatchSettings extends FrameLayout implements View.OnClickListener, DialogInterface.OnClickListener, Runnable {
+public final class SpatchSettings extends FrameLayout implements View.OnClickListener, View.OnScrollChangeListener, DialogInterface.OnClickListener, Runnable {
     Back back;
 
     // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer,
@@ -63,56 +63,49 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "48 slim bars instead of 24 thick ones",
         "Lift the bars off the bottom edge; quiet bars rest as dots",
         "A small gap at the left and right; off runs edge to edge",
-        "From Home, its chips and Your Library",
-        "From Home, its chips and Your Library",
+        "From Home, Search, top chips and Your Library",
+        "From Home, Search, top chips and Your Library",
         "Removes Messages from the profile menu; your messages stay"
     };
 
-    /** Section layout: Settings indices per section (the theme list sits at the top of Appearance). */
-    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 8, 9, 10, 11, 12}, CONTENT = {13, 14, 15}, MOTION = {1, 6};
+    /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
+    private static final String[] FEATURE_ICONS = {
+        "soundwave", "enhance", "album", "album", "now_playing", "play", "pause", "soundwave",
+        "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden"
+    };
+
+    /** Section layout: Settings indices per group. */
+    private static final int[] ARTWORK = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 8, 9, 10, 11, 12}, CONTENT = {13, 14, 15}, MOTION = {1, 6};
 
     private static final String[] THEME_TITLES = {
         "Lavender",
         "Gruvbox",
-        "Catppuccin Mocha",
+        "Catppuccin",
         "Rosé Pine",
         "Nord",
         "Tokyo Night",
         "Dracula"
     };
 
-    private static final String[] THEME_SUBTITLES = {
-        "Default • M3 Purple",
-        "Warm retro orange",
-        "Soft pastel mauve",
-        "Warm pine & iris",
-        "Arctic cold frost blue",
-        "Deep neon night blue",
-        "Vampire dark purple"
-    };
-
-    private static final int[] THEME_ACCENTS = {
-        0xFFD0BCFF, // Lavender
-        0xFFFE8019, // Gruvbox
-        0xFFCBA6F7, // Catppuccin Mocha
-        0xFFC4A7E7, // Rosé Pine
-        0xFF88C0D0, // Nord
-        0xFF7AA2F7, // Tokyo Night
-        0xFFBD93F9  // Dracula
-    };
-
     private static final int VIZ_THIN = 10, VIZ_FLOATING = 11;
+    private static final int STAGGERED = 8; // entrance animation covers what is on screen at first
+
+    private final int surface = Palette.color(0xff14121c), card = Palette.color(0xff1d1a2a), high = Palette.color(0xff2b2640),
+        text = Palette.color(0xfff3eeff), subdued = Palette.color(0xffbcb3dc), accent = Palette.color(0xffd0bcff);
     private final java.util.ArrayList<TextView> pillViews = new java.util.ArrayList<TextView>();
     private final View[] choiceRows = new View[Settings.CHOICES.length];
     private SpectrumPreview preview;
     private final java.util.ArrayList<View> homeRows = new java.util.ArrayList<View>();
     private final View backButton;
-    private View resetRow;
+    private final SettingsHero hero;
+    private final View barTitle;
+    private final LinearLayout content;
+    private View resetRow, homeToggle, homeChevron;
+    private LinearLayout homeList;
+    private TextView homeCount, themeNote;
     private boolean closing;
-    private final Switch[] featureSwitches = new Switch[FEATURE_TITLES.length];
+    private final M3Switch[] featureSwitches = new M3Switch[FEATURE_TITLES.length];
     private final View[] featureRows = new View[FEATURE_TITLES.length];
-    private final View[] themeMarks = new View[Palette.NAMES.length];
-    private final View[] themeDots = new View[Palette.NAMES.length];
     private final View[] themeRows = new View[Palette.NAMES.length];
     private final float density;
 
@@ -120,7 +113,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         super(context);
         density = context.getResources().getDisplayMetrics().density;
 
-        setBackgroundColor(0xff14121c);
+        setBackgroundColor(surface);
         setClickable(true);
         setFocusable(true);
         setFocusableInTouchMode(true);
@@ -132,13 +125,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         int navBarId = context.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
         int navBarHeight = navBarId > 0 ? context.getResources().getDimensionPixelSize(navBarId) : dp(16);
 
-        setPadding(0, statusBarHeight, 0, navBarHeight);
+        setPadding(0, statusBarHeight, 0, 0);
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
         addView(root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // Header bar (56dp height)
         LinearLayout header = new LinearLayout(context);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -147,145 +139,228 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         ImageView backBtn = new ImageView(context, null);
         try {
             backBtn.setImageResource(0x7f08008b); // abc_ic_ab_back_material
-            backBtn.setColorFilter(0xfff3eeff);
+            backBtn.setColorFilter(text);
             backBtn.setScaleType(ImageView.ScaleType.CENTER);
         } catch (Throwable ignored) {}
         backBtn.setContentDescription("Back");
         backBtn.setClickable(true);
         backBtn.setFocusable(true);
-        LinearLayout.LayoutParams backLp = new LinearLayout.LayoutParams(dp(48), dp(48));
-        header.addView(backBtn, backLp);
+        backBtn.setBackground(ripple(rounded(high, dp(24))));
+        header.addView(backBtn, new LinearLayout.LayoutParams(dp(48), dp(48)));
         backBtn.setOnClickListener(this);
         this.backButton = backBtn;
 
+        // Fades in once the hero's own title has scrolled away.
         TextView title = new TextView(context);
         title.setText("Spatch");
         title.setTextSize(20f);
-        title.setTextColor(0xfff3eeff);
+        title.setTextColor(text);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setPadding(dp(8), 0, 0, 0);
+        title.setPadding(dp(16), 0, 0, 0);
+        title.setAlpha(0f);
         header.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        barTitle = title;
 
-        root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
+        root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
 
-        // Header bottom divider line
-        View headerDivider = new View(context);
-        headerDivider.setBackgroundColor(0xff2b2640);
-        root.addView(headerDivider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
-
-        // Scrollable content
         ScrollView scroll = new ScrollView(context);
-        LinearLayout content = new LinearLayout(context);
+        scroll.setOnScrollChangeListener(this);
+        content = new LinearLayout(context);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, 0, 0, dp(32));
+        content.setPadding(dp(16), dp(4), dp(16), dp(32) + navBarHeight);
         scroll.addView(content, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        root.addView(scroll, scrollLp);
+        hero = new SettingsHero(context);
+        content.addView(hero, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(164)));
 
-        ColorStateList featureSwitchTint = createSwitchTint(Palette.color(0xFFD0BCFF));
         for (int i = 0; i < FEATURE_TITLES.length; i++) {
-            featureSwitches[i] = new Switch(context);
+            featureSwitches[i] = new M3Switch(context);
             featureSwitches[i].setChecked(Settings.get(i));
-            applySwitchTint(featureSwitches[i], featureSwitchTint);
-            featureSwitches[i].setClickable(false);
-            featureSwitches[i].setFocusable(false);
-            featureRows[i] = createSettingRow(context, null, FEATURE_TITLES[i], FEATURE_SUBTITLES[i], featureSwitches[i]);
+            featureRows[i] = createSettingRow(FEATURE_ICONS[i], FEATURE_TITLES[i], FEATURE_SUBTITLES[i], featureSwitches[i]);
             featureRows[i].setOnClickListener(this);
             describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
         }
 
-        addSectionHeader(content, "Appearance", dp(20));
-        addSectionSubtitle(content, "Theme applies after a restart; everything else applies straight away");
-        String activeTheme = Palette.requested();
-        for (int i = 0; i < Palette.NAMES.length; i++) {
-            // Radio mark like Spotify's own one-of-many pickers: a ring, plus a dot when selected.
-            FrameLayout mark = new FrameLayout(context);
-            themeDots[i] = new View(context);
-            mark.addView(themeDots[i], new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.CENTER));
-            themeMarks[i] = mark;
-            View swatch = new View(context);
-            GradientDrawable dot = new GradientDrawable();
-            dot.setColor(THEME_ACCENTS[i]);
-            dot.setCornerRadius(dp(10));
-            swatch.setBackground(dot);
-            themeRows[i] = createSettingRow(context, swatch, THEME_TITLES[i], themeSubtitle(i), themeMarks[i]);
-            themeRows[i].setOnClickListener(this);
-            content.addView(themeRows[i]);
+        addSectionHeader("Theme");
+        for (int row = 0; row < 2; row++) {
+            LinearLayout line = new LinearLayout(context);
+            line.setOrientation(LinearLayout.HORIZONTAL);
+            for (int i = row * 4; i < row * 4 + 4; i++) {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(112), 1f);
+                if (i >= themeRows.length) { // keeps the last row's swatches the same width
+                    line.addView(new View(context, null), lp);
+                    continue;
+                }
+                themeRows[i] = new ThemeSwatch(context, i, THEME_TITLES[i]);
+                themeRows[i].setOnClickListener(this);
+                line.addView(themeRows[i], lp);
+            }
+            content.addView(line);
         }
-        refreshThemes(activeTheme, false);
-        for (int i : APPEARANCE) content.addView(featureRows[i]);
+        themeNote = new TextView(context);
+        themeNote.setTextSize(13f);
+        themeNote.setTextColor(subdued);
+        themeNote.setPadding(dp(8), dp(6), dp(8), 0);
+        content.addView(themeNote);
+        refreshThemes(Palette.requested(), false);
 
-        addChoice(content, Settings.ART_OUTLINE, "Artwork outline", "On circular art in the player", new String[] {"Wavy", "Simple", "None"});
-        addChoice(content, Settings.ART_GLOW, "Artwork glow", null, new String[] {"Full", "Soft", "Off"});
-        addChoice(content, Settings.ART_SPECTRUM, "Artwork spectrum", "Real audio energy around the art; needs circular art in the player and the microphone permission", new String[] {"Off", "Bars", "Dots"});
+        addSectionHeader("Artwork");
+        LinearLayout artwork = addGroup();
+        for (int i : ARTWORK) artwork.addView(featureRows[i]);
+        addChoice(artwork, Settings.ART_OUTLINE, "Outline", "On circular art in the player", new String[] {"Wavy", "Simple", "None"});
+        addChoice(artwork, Settings.ART_GLOW, "Glow", null, new String[] {"Full", "Soft", "Off"});
+        addChoice(artwork, Settings.ART_SPECTRUM, "Spectrum", "Real audio around the art; uses the microphone permission", new String[] {"Off", "Bars", "Dots"});
+        finish(artwork);
 
-        addSectionHeader(content, "Player", dp(28));
-        for (int i : PLAYER) content.addView(featureRows[i]);
+        addSectionHeader("Player");
+        LinearLayout player = addGroup();
+        for (int i : PLAYER) player.addView(featureRows[i]);
+        finish(player);
 
-        addSectionHeader(content, "Visualizer", dp(28));
-        addSectionSubtitle(content, "The spectrum under the immersive player");
+        addSectionHeader("Visualizer");
+        LinearLayout visualizer = addGroup();
         preview = new SpectrumPreview(context);
-        content.addView(preview, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)));
-        addChoice(content, Settings.VIZ_SHAPE, "Shape", null, new String[] {"Bars", "Centre", "Contour", "Dots"});
-        addChoice(content, Settings.VIZ_TAPER, "Edge taper", "Eases the bars off toward the sides", new String[] {"Subtle", "None"});
-        for (int i : VISUALIZER) content.addView(featureRows[i]);
+        visualizer.addView(preview, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(88)));
+        addChoice(visualizer, Settings.VIZ_SHAPE, "Shape", null, new String[] {"Bars", "Centre", "Contour", "Dots"});
+        addChoice(visualizer, Settings.VIZ_TAPER, "Edge taper", "Eases the bars off toward the sides", new String[] {"Subtle", "None"});
+        for (int i : VISUALIZER) visualizer.addView(featureRows[i]);
+        finish(visualizer);
         refreshChoices();
 
-        addSectionHeader(content, "Content", dp(28));
-        addSectionSubtitle(content, "Only changes what is shown: nothing is deleted and links still open.");
-        for (int i : CONTENT) content.addView(featureRows[i]);
-        addSectionHeader(content, "Home sections", dp(20));
+        addSectionHeader("Content");
+        LinearLayout hiding = addGroup();
+        for (int i : CONTENT) hiding.addView(featureRows[i]);
         java.util.ArrayList<String[]> sections = Settings.sections();
-        addSectionSubtitle(content, sections.isEmpty() ? "Open Home once and its sections appear here" : "Turn on to hide a section. New ones appear as Home shows them.");
+        ImageView chevron = icon("chevron_right");
+        homeChevron = chevron;
+        homeToggle = createSettingRow("home", "Home sections", null, chevron);
+        homeCount = (TextView) ((ViewGroup) ((ViewGroup) homeToggle).getChildAt(1)).getChildAt(1);
+        homeToggle.setOnClickListener(this);
+        hiding.addView(homeToggle);
+        finish(hiding);
+
+        homeList = new LinearLayout(context);
+        homeList.setOrientation(LinearLayout.VERTICAL);
+        homeList.setVisibility(View.GONE);
+        LinearLayout.LayoutParams listLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        listLp.topMargin = dp(8);
+        content.addView(homeList, listLp);
         for (String[] section : sections) {
-            Switch s = new Switch(context);
-            s.setChecked(Settings.sectionHidden(section[0]));
-            applySwitchTint(s, featureSwitchTint);
-            s.setClickable(false);
-            s.setFocusable(false);
-            View row = createSettingRow(context, null, section[1], null, s);
-            row.setTag(new Object[] {section[0], s, section[1]});
+            M3Switch s = new M3Switch(context);
+            boolean hidden = false;
+            for (int i = 1; i < section.length; i++) hidden |= Settings.sectionHidden(section[i]);
+            s.setChecked(hidden);
+            View row = createSettingRow(null, section[0], null, s);
+            row.setTag(new Object[] {section, s, section[0]});
             row.setOnClickListener(this);
-            describe(row, section[1], s.isChecked() ? "Hidden" : "Shown");
+            describe(row, section[0], hidden ? "Hidden" : "Shown");
             homeRows.add(row);
-            content.addView(row);
+            homeList.addView(row);
         }
+        finish(homeList);
+        refreshHomeCount();
 
-        addSectionHeader(content, "Motion", dp(28));
-        addSectionSubtitle(content, "Android's own animation setting is respected too");
-        for (int i : MOTION) content.addView(featureRows[i]);
+        addSectionHeader("Motion");
+        LinearLayout motion = addGroup();
+        for (int i : MOTION) motion.addView(featureRows[i]);
+        finish(motion);
 
-        addSectionHeader(content, "About", dp(28));
-        addSectionSubtitle(content, "Spatch for Spotify 9.1.98.521. Built with the @THEME@ theme as its default.");
-        resetRow = createSettingRow(context, null, "Reset to defaults", "Turns every option above back to its default (keeps your theme)", null);
-        resetRow.setOnClickListener(this);
-        describe(resetRow, "Reset to defaults", "Button");
-        content.addView(resetRow);
+        TextView reset = new TextView(context);
+        reset.setText("Reset to defaults");
+        reset.setTextSize(14f);
+        reset.setTextColor(accent);
+        reset.setTypeface(Typeface.DEFAULT_BOLD);
+        reset.setGravity(Gravity.CENTER);
+        reset.setClickable(true);
+        reset.setFocusable(true);
+        reset.setBackground(ripple(rounded(high, dp(24))));
+        reset.setOnClickListener(this);
+        describe(reset, "Reset to defaults", "Button");
+        resetRow = reset;
+        LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        resetLp.topMargin = dp(28);
+        content.addView(reset, resetLp);
+
+        TextView about = new TextView(context);
+        about.setText("Keeps your theme. Theme changes apply after a restart; everything else straight away.");
+        about.setTextSize(12f);
+        about.setTextColor(subdued);
+        about.setGravity(Gravity.CENTER);
+        about.setPadding(dp(16), dp(10), dp(16), 0);
+        content.addView(about);
     }
 
-    /** A titled row of pills, one per stable option in Settings.CHOICES[setting]. */
+    private GradientDrawable rounded(int color, float radius) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(color);
+        bg.setCornerRadius(radius);
+        return bg;
+    }
+
+    private RippleDrawable ripple(GradientDrawable shape) {
+        return new RippleDrawable(ColorStateList.valueOf(text & 0x24ffffff), shape, null);
+    }
+
+    private ImageView icon(String name) {
+        ImageView image = new ImageView(getContext(), null);
+        image.setScaleType(ImageView.ScaleType.CENTER);
+        int id = getContext().getResources().getIdentifier("encore_icon_" + name + "_24", "drawable", getContext().getPackageName());
+        if (id != 0) {
+            image.setImageResource(id);
+            image.setColorFilter(accent);
+        }
+        return image;
+    }
+
+    private LinearLayout addGroup() {
+        LinearLayout group = new LinearLayout(getContext());
+        group.setOrientation(LinearLayout.VERTICAL);
+        content.addView(group);
+        return group;
+    }
+
+    /** Rows connect with a 2dp gap; only the group's outer corners are fully round. */
+    private void finish(LinearLayout group) {
+        int last = group.getChildCount() - 1;
+        for (int i = 0; i <= last; i++) {
+            View row = group.getChildAt(i);
+            float top = i == 0 ? dp(24) : dp(6), bottom = i == last ? dp(24) : dp(6);
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(card);
+            bg.setCornerRadii(new float[] {top, top, top, top, bottom, bottom, bottom, bottom});
+            row.setBackground(row.isClickable() ? ripple(bg) : bg);
+            if (i < last) {
+                ViewGroup.LayoutParams old = row.getLayoutParams();
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    old == null ? ViewGroup.LayoutParams.WRAP_CONTENT : old.height);
+                lp.bottomMargin = dp(2);
+                row.setLayoutParams(lp);
+            }
+        }
+    }
+
+    /** A titled connected button group, one button per stable option in Settings.CHOICES[setting]. */
     private void addChoice(LinearLayout parent, int setting, String title, String subtitle, String[] labels) {
         Context c = getContext();
         LinearLayout row = new LinearLayout(c);
         row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(16), dp(10), dp(16), dp(10));
+        row.setPadding(dp(16), dp(14), dp(16), dp(14));
         TextView t = new TextView(c);
         t.setText(title);
         t.setTextSize(16f);
-        t.setTextColor(0xfff3eeff);
-        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setTextColor(text);
         row.addView(t);
         if (subtitle != null) {
             TextView s = new TextView(c);
             s.setText(subtitle);
             s.setTextSize(13f);
-            s.setTextColor(0xffbcb3dc);
+            s.setTextColor(subdued);
             row.addView(s);
         }
         LinearLayout pills = new LinearLayout(c);
         pills.setOrientation(LinearLayout.HORIZONTAL);
-        pills.setPadding(0, dp(8), 0, 0);
+        pills.setPadding(0, dp(10), 0, 0);
         for (int i = 0; i < labels.length; i++) {
             TextView pill = new TextView(c);
             pill.setText(labels[i]);
@@ -296,7 +371,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             pill.setTag(new String[] {String.valueOf(setting), Settings.CHOICES[setting][i], title + ": " + labels[i]});
             pill.setOnClickListener(this);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
-            if (i > 0) lp.leftMargin = dp(8);
+            if (i > 0) lp.leftMargin = dp(3);
             pills.addView(pill, lp);
             pillViews.add(pill);
         }
@@ -305,16 +380,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         parent.addView(row);
     }
 
-    /** Selected pills, and rows and switches that do not apply to the current choices. */
+    /** Selected buttons, and rows and switches that do not apply to the current choices. */
     private void refreshChoices() {
         for (TextView pill : pillViews) {
             String[] tag = (String[]) pill.getTag();
             boolean selected = tag[1].equals(Settings.choice(Integer.parseInt(tag[0])));
-            GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(dp(24));
-            bg.setColor(selected ? 0xffd0bcff : 0xff2b2640);
-            pill.setBackground(bg);
-            pill.setTextColor(selected ? 0xff14121c : 0xfff3eeff);
+            pill.setBackground(ripple(rounded(selected ? accent : high, dp(selected ? 24 : 10))));
+            pill.setTextColor(selected ? surface : text);
+            pill.setTypeface(selected ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             pill.setContentDescription(tag[2] + (selected ? ", Selected" : ", Not selected"));
         }
         String shape = Settings.choice(Settings.VIZ_SHAPE);
@@ -331,43 +404,53 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         describe(row, FEATURE_TITLES[setting], off ? why : Settings.get(setting) ? "On" : "Off");
     }
 
-    /** Slides in from the right; called once the page is attached. */
+    /** Slides in from the right while the top of the page rises into place; called once attached. */
     void enter() {
         if (!Wave.animationsEnabled()) return;
         setAlpha(0f);
         setTranslationX(density * 48);
         animate().alpha(1f).translationX(0f).setDuration(240).start();
+        for (int i = 0; i < Math.min(STAGGERED, content.getChildCount()); i++) {
+            View child = content.getChildAt(i);
+            child.setAlpha(0f);
+            child.setTranslationY(density * 28);
+            child.animate().alpha(1f).translationY(0f).setDuration(340).setStartDelay(60 + i * 40).start();
+        }
     }
 
-    /** "Active" for the running palette; the saved-but-not-yet-applied one says so. */
-    private String themeSubtitle(int i) {
-        if (Palette.NAMES[i].equals(Palette.activeName())) return THEME_SUBTITLES[i] + " \u2022 Active";
-        if (Palette.NAMES[i].equals(Palette.requested())) return THEME_SUBTITLES[i] + " \u2022 Applies after restart";
-        return THEME_SUBTITLES[i];
+    /** The hero stops animating once it has scrolled away, and the bar takes over its title. */
+    public void onScrollChange(View v, int x, int y, int oldX, int oldY) {
+        float over = dp(164);
+        hero.setOffscreen(y >= over);
+        barTitle.setAlpha(Math.max(0f, Math.min(1f, (y - over * 0.45f) / (over * 0.3f))));
+    }
+
+    /** Tiny bounce for whatever was just chosen. */
+    private void pop(View v) {
+        if (!Wave.animationsEnabled()) return;
+        v.setScaleX(0.94f);
+        v.setScaleY(0.94f);
+        v.animate().scaleX(1f).scaleY(1f).setDuration(220).start();
     }
 
     private void refreshThemes(String selected, boolean animate) {
-        for (int i = 0; i < themeMarks.length; i++) {
+        for (int i = 0; i < themeRows.length; i++) {
             boolean on = Palette.NAMES[i].equals(selected);
-            boolean was = themeDots[i].getVisibility() == View.VISIBLE;
-            GradientDrawable ring = new GradientDrawable();
-            ring.setCornerRadius(dp(12));
-            ring.setStroke(dp(2), on ? THEME_ACCENTS[i] : 0xffbcb3dc);
-            themeMarks[i].setBackground(ring);
-            GradientDrawable dot = new GradientDrawable();
-            dot.setCornerRadius(dp(6));
-            dot.setColor(THEME_ACCENTS[i]);
-            themeDots[i].setBackground(dot);
-            themeDots[i].setVisibility(on ? View.VISIBLE : View.INVISIBLE);
-            if (on && !was && animate && Wave.animationsEnabled()) {
-                themeDots[i].setScaleX(0f);
-                themeDots[i].setScaleY(0f);
-                themeDots[i].animate().scaleX(1f).scaleY(1f).setDuration(220).start();
-            }
-            themeMarks[i].setLayoutParams(new LinearLayout.LayoutParams(dp(24), dp(24)));
+            boolean was = themeRows[i].isSelected();
             themeRows[i].setSelected(on);
+            if (on && !was && animate) pop(themeRows[i]);
             describe(themeRows[i], THEME_TITLES[i], on ? "Selected" : "Not selected");
         }
+        themeNote.setText(selected.equals(Palette.activeName()) ? "Applied" : "Applies after a restart");
+    }
+
+    private void refreshHomeCount() {
+        int hidden = 0;
+        for (View row : homeRows) if (((M3Switch) ((Object[]) row.getTag())[1]).isChecked()) hidden++;
+        String count = homeRows.isEmpty() ? "Open Home once and its sections appear here"
+            : hidden == 0 ? homeRows.size() + " sections shown" : hidden + " of " + homeRows.size() + " hidden";
+        homeCount.setText(count);
+        describe(homeToggle, "Home sections", count);
     }
 
     /** TalkBack reads the whole row as one control, including its state. */
@@ -400,38 +483,33 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             .show();
     }
 
-    private void addSectionHeader(LinearLayout parent, String title, int topPadding) {
+    private void addSectionHeader(String title) {
         TextView header = new TextView(getContext());
         header.setText(title);
         header.setTextSize(14f);
-        header.setTextColor(0xfff3eeff);
+        header.setTextColor(accent);
         header.setTypeface(Typeface.DEFAULT_BOLD);
-        header.setPadding(dp(16), topPadding, dp(16), dp(4));
-        parent.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        header.setPadding(dp(8), dp(24), dp(8), dp(10));
+        content.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
-    private void addSectionSubtitle(LinearLayout parent, String subtitle) {
-        TextView sub = new TextView(getContext());
-        sub.setText(subtitle);
-        sub.setTextSize(13f);
-        sub.setTextColor(0xffbcb3dc);
-        sub.setPadding(dp(16), 0, dp(16), dp(10));
-        parent.addView(sub, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-    }
-
-    private View createSettingRow(Context context, View leadingIcon, String titleText, String subtitleText, View switchWidget) {
+    /** Icon tile, title and subtitle, trailing control. refreshHomeCount relies on this child order. */
+    private View createSettingRow(String iconName, String titleText, String subtitleText, View trailing) {
+        Context context = getContext();
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(dp(60));
+        row.setMinimumHeight(dp(64));
         row.setPadding(dp(16), dp(12), dp(16), dp(12));
         row.setClickable(true);
         row.setFocusable(true);
 
-        if (leadingIcon != null) {
-            LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(20), dp(20));
-            iconLp.rightMargin = dp(16);
-            row.addView(leadingIcon, iconLp);
+        if (iconName != null) {
+            ImageView tile = icon(iconName);
+            tile.setBackground(rounded(high, dp(20)));
+            LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(40), dp(40));
+            iconLp.rightMargin = dp(14);
+            row.addView(tile, iconLp);
         }
 
         LinearLayout textLayout = new LinearLayout(context);
@@ -440,29 +518,23 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         TextView titleView = new TextView(context);
         titleView.setText(titleText);
         titleView.setTextSize(16f);
-        titleView.setTextColor(0xfff3eeff);
-        titleView.setTypeface(Typeface.DEFAULT_BOLD);
-        textLayout.addView(titleView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        titleView.setTextColor(text);
+        textLayout.addView(titleView);
 
-        if (subtitleText != null && !subtitleText.isEmpty()) {
+        if (subtitleText != null || trailing instanceof ImageView) {
             TextView subView = new TextView(context);
             subView.setText(subtitleText);
             subView.setTextSize(13f);
-            subView.setTextColor(0xffbcb3dc);
-            LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            subLp.topMargin = dp(2);
-            textLayout.addView(subView, subLp);
+            subView.setTextColor(subdued);
+            textLayout.addView(subView);
         }
 
-        LinearLayout.LayoutParams textLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        row.addView(textLayout, textLp);
+        row.addView(textLayout, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        if (switchWidget != null) { // a bare wrap_content View would take the whole row width
-            LinearLayout.LayoutParams switchLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            switchLp.leftMargin = dp(12);
-            row.addView(switchWidget, switchLp);
-        }
-
+        LinearLayout.LayoutParams trailingLp = trailing instanceof M3Switch
+            ? new LinearLayout.LayoutParams(dp(52), dp(32)) : new LinearLayout.LayoutParams(dp(24), dp(24));
+        trailingLp.leftMargin = dp(12);
+        row.addView(trailing, trailingLp);
         return row;
     }
 
@@ -470,33 +542,26 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         return (int) (value * density + 0.5f);
     }
 
-    private static ColorStateList createSwitchTint(int accentColor) {
-        int[][] states = new int[][] {
-            new int[] { 0x010100a0 }, // checked
-            new int[] { -0x010100a0 } // unchecked
-        };
-        int[] colors = new int[] { accentColor, 0xff2b2640 };
-        return new ColorStateList(states, colors);
-    }
-
-    private static void applySwitchTint(Switch s, ColorStateList tint) {
-        if (Build.VERSION.SDK_INT >= 23) {
-            s.setThumbTintList(tint);
-        }
-    }
-
     public void onClick(View v) {
         if (v == backButton) {
             close();
             return;
         }
+        if (v == homeToggle) {
+            boolean open = homeList.getVisibility() != View.VISIBLE;
+            homeList.setVisibility(open ? View.VISIBLE : View.GONE);
+            if (Wave.animationsEnabled()) homeChevron.animate().rotation(open ? 90f : 0f).setDuration(200).start();
+            else homeChevron.setRotation(open ? 90f : 0f);
+            return;
+        }
         if (v.getTag() instanceof Object[] && !(v.getTag() instanceof String[])) {
             Object[] tag = (Object[]) v.getTag();
-            Switch s = (Switch) tag[1];
-            boolean hide = !s.isChecked();
-            s.setChecked(hide);
-            Settings.hideSection((String) tag[0], hide);
-            describe(v, (String) tag[2], hide ? "Hidden" : "Shown");
+            M3Switch s = (M3Switch) tag[1];
+            String[] section = (String[]) tag[0];
+            s.toggle();
+            for (int i = 1; i < section.length; i++) Settings.hideSection(section[i], s.isChecked());
+            describe(v, (String) tag[2], s.isChecked() ? "Hidden" : "Shown");
+            refreshHomeCount();
             return;
         }
         if (v.getTag() instanceof String[]) {
@@ -508,26 +573,28 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 AudioSpectrum.requestPermission(getContext());
             }
             refreshChoices();
+            pop(v);
             return;
         }
         if (v == resetRow) {
             Settings.resetAll();
             for (int i = 0; i < featureRows.length; i++) {
-                featureSwitches[i].setChecked(Settings.get(i));
+                if (featureSwitches[i].isChecked() != Settings.get(i)) featureSwitches[i].toggle();
                 describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
             }
             refreshChoices();
             for (View row : homeRows) {
                 Object[] tag = (Object[]) row.getTag();
-                ((Switch) tag[1]).setChecked(false);
+                ((M3Switch) tag[1]).setChecked(false);
                 describe(row, (String) tag[2], "Shown");
             }
+            refreshHomeCount();
             return;
         }
         for (int i = 0; i < featureRows.length; i++) {
             if (v == featureRows[i]) {
-                boolean next = !featureSwitches[i].isChecked();
-                featureSwitches[i].setChecked(next);
+                featureSwitches[i].toggle();
+                boolean next = featureSwitches[i].isChecked();
                 Settings.set(i, next);
                 describe(featureRows[i], FEATURE_TITLES[i], next ? "On" : "Off");
                 refreshChoices();

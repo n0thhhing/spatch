@@ -6,6 +6,7 @@ public class ValueAnimator {
     public static ValueAnimator ofFloat(float... values) { throw new RuntimeException(); }
     public ValueAnimator setDuration(long duration) { throw new RuntimeException(); }
     public void addUpdateListener(AnimatorUpdateListener listener) { throw new RuntimeException(); }
+    public void setInterpolator(TimeInterpolator value) { throw new RuntimeException(); }
     public void start() { throw new RuntimeException(); }
     public void cancel() { throw new RuntimeException(); }
     public Object getAnimatedValue() { throw new RuntimeException(); }

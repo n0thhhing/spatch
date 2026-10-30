@@ -62,7 +62,7 @@ public final class Content {
             }
             q6k1 pair = (q6k1) o;
             String id = (String) pair.b;
-            Settings.seeSection(id, title(pair.a, id));
+            if (!showsOnly(pair.a, id)) Settings.seeSection(id, title(pair.a, id));
             Object kept = Settings.sectionHidden(id) ? null : filter(pair.a, id);
             if (kept == pair.a) {
                 out.add(o);
@@ -72,6 +72,24 @@ public final class Content {
             }
         }
         return changed ? out : list;
+    }
+
+    private static final java.util.HashMap<String, Boolean> SHOWS_ONLY = new java.util.HashMap<String, Boolean>();
+
+    /** Podcast and audiobook shelves: Hide podcasts covers them, so the section list leaves them out. */
+    private static synchronized boolean showsOnly(Object model, String id) {
+        Boolean known = SHOWS_ONLY.get(id);
+        if (known != null) return known.booleanValue();
+        String slug = slug(id);
+        boolean only = slug.contains("podcast") || audiobookShelf(slug);
+        if (!only) {
+            ArrayList<String> uris = new ArrayList<String>();
+            walk(model, 4, uris);
+            only = !uris.isEmpty();
+            for (String uri : uris) only &= uri.startsWith("spotify:show:") || uri.startsWith("spotify:episode:") || uri.startsWith("spotify:audiobook:");
+        }
+        SHOWS_ONLY.put(id, Boolean.valueOf(only));
+        return only;
     }
 
     private static boolean isSection(Object o) {
@@ -148,7 +166,10 @@ public final class Content {
     static String title(Object model, String id) {
         String found = heading(model, 4);
         if (found != null && !found.isEmpty() && !found.startsWith("spotify:")) return found.replaceAll("\\[\\d+\\]", "").trim();
-        String words = slug(id).replace('-', ' ');
+        String words = slug(id).replace('-', ' ').replaceAll("\\[\\d+\\]", "").replaceFirst("^musicfeed ", "").trim();
+        if (words.equals("pzn main feed")) return "Picked for you";
+        if (words.equals("idj entrypoint")) return "DJ";
+        if (words.equals("more like artist active") || words.startsWith("more like artist listens")) return "More like your artists";
         return words.isEmpty() ? "Home section" : Character.toUpperCase(words.charAt(0)) + words.substring(1);
     }
 

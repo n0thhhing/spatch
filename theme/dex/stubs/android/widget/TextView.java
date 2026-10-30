@@ -12,4 +12,5 @@ public class TextView extends android.view.View {
     public android.graphics.Typeface getTypeface() { return null; }
     public void setTypeface(android.graphics.Typeface tf, int style) {}
     public void setGravity(int g) {}
+    public void setLetterSpacing(float s) {}
 }

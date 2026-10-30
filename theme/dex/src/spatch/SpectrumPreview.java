@@ -23,10 +23,10 @@ final class SpectrumPreview extends View {
     protected void onDraw(Canvas c) {
         float dp = getResources().getDisplayMetrics().density, w = getWidth(), h = getHeight();
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(0xffd0bcff);
+        paint.setColor(Palette.color(0xffd0bcff));
         Spectrum.draw(c, paint, path, SAMPLE, Settings.choice(Settings.VIZ_SHAPE), 16 * dp, w - 16 * dp, h, h - 8 * dp,
             Settings.vizMirrored(), Settings.vizThin(), false, "subtle".equals(Settings.choice(Settings.VIZ_TAPER)), dp);
-        paint.setColor(0xffbcb3dc);
+        paint.setColor(Palette.color(0xffbcb3dc));
         paint.setTextSize(11 * dp);
         c.drawText("Sample", 18 * dp, 12 * dp, paint);
     }
