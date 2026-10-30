@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 52] = [
+pub const EDITS: [Edit; 59] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -186,6 +186,45 @@ pub const EDITS: [Edit; 52] = [
         file: "smali_classes2/p/psn0.smali",
         anchor: "    :goto_8\n    new-instance v11, Lp/jyd1;\n",
         replacement: "    :goto_8\n    invoke-static {v4, v8, v9}, Lspatch/Pill;->labelTint(Lp/psn0;J)J\n\n    move-result-wide v8\n\n    new-instance v11, Lp/jyd1;\n",
+    },
+    // p.jub.V0 (classes5): the Create tab's close disc takes the slot's top padding directly, so it
+    // gets Pill's icon offset too; p2 is put back because the method reuses it for k1u.d.
+    Edit {
+        file: "smali_classes5/p/jub.smali",
+        anchor: "    invoke-static/range {p0 .. p5}, Lp/cxn1;->G(Lp/rhm0;FFFFI)Lp/rhm0;\n\n    .line 537\n    .line 538\n    .line 539\n    move-result-object v0\n\n    .line 540\n    move-object v3, v1\n",
+        replacement: "    invoke-static/range {p2 .. p2}, Lspatch/Pill;->closeDiscTop(F)F\n\n    move-result p2\n\n    invoke-static/range {p0 .. p5}, Lp/cxn1;->G(Lp/rhm0;FFFFI)Lp/rhm0;\n\n    .line 537\n    .line 538\n    .line 539\n    move-result-object v0\n\n    move/from16 p2, v3\n\n    .line 540\n    move-object v3, v1\n",
+    },
+    // Create opening (p.jub.V0, classes5): Spotify's white disc, shrink and dark tint go; the disc
+    // becomes a tonal pill and Pill turns the + on its own centre (see Pill.closeAngle).
+    Edit {
+        file: "smali_classes5/p/jub.smali",
+        anchor: "    iget v11, v12, Lp/grg;->a:F\n\n    .line 545\n    .line 546\n    invoke-static {v0, v11}, Lp/n191;->r(Lp/rhm0;F)Lp/rhm0;\n",
+        replacement: "    iget v11, v12, Lp/grg;->c:F\n\n    .line 545\n    .line 546\n    invoke-static {v0, v11}, Lspatch/Pill;->closePill(Lp/rhm0;F)Lp/rhm0;\n",
+    },
+    Edit {
+        file: "smali_classes5/p/jub.smali",
+        anchor: "    iget-wide v13, v11, Lp/kxx;->a:J\n\n    .line 566\n",
+        replacement: "    invoke-static {}, Lspatch/Pill;->closeColor()J\n\n    move-result-wide v13\n\n    .line 566\n",
+    },
+    Edit {
+        file: "smali_classes5/p/jub.smali",
+        anchor: "    iget v7, v12, Lp/grg;->e:F\n\n    .line 607\n",
+        replacement: "    iget v7, v12, Lp/grg;->e:F\n\n    invoke-static {v7}, Lspatch/Pill;->closeAngle(F)F\n\n    move-result v7\n\n    .line 607\n",
+    },
+    Edit {
+        file: "smali_classes5/p/jub.smali",
+        anchor: "    iget v7, v12, Lp/grg;->b:F\n\n    .line 613\n",
+        replacement: "    const/high16 v7, 0x3f800000    # 1.0f\n\n    .line 613\n",
+    },
+    Edit {
+        file: "smali_classes5/p/jub.smali",
+        anchor: "    iget v7, v12, Lp/grg;->d:F\n\n    .line 627\n",
+        replacement: "    const/4 v7, 0x0\n\n    .line 627\n",
+    },
+    Edit {
+        file: "smali_classes5/p/jub.smali",
+        anchor: "    const v0, 0x21122c8\n",
+        replacement: "    const v0, 0x21122c8\n\n    invoke-static {}, Lspatch/Pill;->closeRest()V\n",
     },
     // p.lbg (classes3): per-instance bump count, 0 = original circle (p.o2a keeps that).
     Edit {
@@ -533,6 +572,10 @@ const HELPERS: [(&str, &str); 37] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    (
+        "ViewConfiguration.java",
+        include_str!("../theme/dex/stubs/android/view/ViewConfiguration.java"),
+    ),
     (
         "ViewOverlay.java",
         include_str!("../theme/dex/stubs/android/view/ViewOverlay.java"),
@@ -912,6 +955,7 @@ const STUBS: &[(&str, &str)] = &[
     ("mtg.java", include_str!("../theme/dex/stubs/p/mtg.java")),
     ("cxn1.java", include_str!("../theme/dex/stubs/p/cxn1.java")),
     ("n191.java", include_str!("../theme/dex/stubs/p/n191.java")),
+    ("fwq.java", include_str!("../theme/dex/stubs/p/fwq.java")),
 ];
 
 pub fn check_originals(base: &Path) -> Result<()> {

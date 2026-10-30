@@ -477,3 +477,9 @@ A temporary stack log in `p.yw9` (background), `p.dto1.e` (text) and `p.eqo1.f` 
 - Save: `AddToButtonView.a(kk1)`, tap flag `e`, `lk1.a` = not added. Spotify's own Lottie is the plus-to-check.
 
 Mini-player: `spatch.MiniBar` subclasses MotionLayout in `now_playing_bar.xml` (classes9 stays full); `cover_image` is replaced at runtime, so `MiniArt` no longer renders there. MotionLayout's onAttachedToWindow, onMeasure, onLayout, dispatchDraw and touch methods are final. `activity_main` children need ids because ConstraintSet clones them.
+
+## Nav bar drag (runtime-tested on Pixel 11 Pro)
+
+`spatch.NavIndicator` sits above `navigation_bar` with the same bounds, so its local coordinates match. It forwards touches to the bar until a sideways move passes the touch slop, cancels the forwarded press, then follows the finger. Release sends a synthetic DOWN and UP to the Compose bar at the target tab's centre, so Spotify's own tab handling runs. If selection doesn't land (Create opens a sheet) the pill returns after 700ms. TalkBack does not go through this path.
+
+Create tab opening: `p.jub.V0` (classes5) draws a close disc and rotates, shrinks and tints the icon. Edits keep the `+` at rest and turn the disc into a tonal pill (`Pill.closePill`, `closeColor`, `closeDiscTop`), neutralise scale and tint, and pass the angle to `Pill.a`, which rotates just the icon (`fwq.t`); the outer rotation pivoted on Pill's asymmetric padding. `closeRest` clears the angle when `jub` stops drawing. Assumes Create is the last tab. Landscape rail offset is not device-tested.

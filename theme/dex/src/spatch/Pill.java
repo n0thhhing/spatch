@@ -3,6 +3,7 @@ package spatch;
 import android.animation.ValueAnimator;
 import android.view.animation.OvershootInterpolator;
 import java.util.HashMap;
+import p.fwq;
 import p.cxn1;
 import p.hqr0;
 import p.mtg;
@@ -25,6 +26,8 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     private static final long MILLIS = 320;
     private static final float POP = 0.1f; // the selected icon sits this much larger
     private static final HashMap<Integer, Pill> TABS = new HashMap<Integer, Pill>();
+    private static final float CLOSE_PILL = 32f;
+    private static final hqr0 CLOSE_ANGLE = zpo.q(Float.valueOf(0f));
 
     private final hqr0 shown;
     private final int position;
@@ -91,7 +94,31 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         float scale = 1 + POP * spring;
         // graphicsLayer(scaleX, scaleY); the mask leaves every other parameter at its default.
         modifier = z341.q(cxn1.D(modifier, 20f * t, 4f), scale, scale, 0f, 0f, 0f, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, 1048572);
+        if (item.b == TABS.size() - 1) modifier = fwq.t(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create
         return n191.r(modifier, 24f); // n191.r = size(dp), the call this replaces
+    }
+
+    /** jub's Create-open disc becomes a tonal pill behind the icon; it tops out at the indicator's top. */
+    public static float closeDiscTop(float top) {
+        return top + (rail() ? 3f : TOP);
+    }
+
+    public static rhm0 closePill(rhm0 modifier, float open) {
+        return n191.s(modifier, CLOSE_PILL * (1 + open), CLOSE_PILL);
+    }
+
+    public static long closeColor() {
+        return (long) Palette.color(CONTAINER) << 32;
+    }
+
+    /** jub rotates the whole padded tab, off the icon's centre; a() turns just the icon instead. */
+    public static float closeAngle(float degrees) {
+        if (degrees != ((Float) CLOSE_ANGLE.getValue()).floatValue()) CLOSE_ANGLE.setValue(Float.valueOf(degrees));
+        return 0f;
+    }
+
+    public static void closeRest() {
+        closeAngle(0f);
     }
 
     /** Icon colour; also remembers the pair for the label, which composes right after the icon. */

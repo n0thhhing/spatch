@@ -1,6 +1,7 @@
 package android.view;
 // Compile-time stub only; never packaged (the device provides the real class).
 public class ViewGroup extends View implements ViewParent {
+    public void requestDisallowInterceptTouchEvent(boolean disallow) {}
     public static class LayoutParams {
         public static final int MATCH_PARENT = -1;
         public static final int WRAP_CONTENT = -2;

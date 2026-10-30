@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('public void setSelected(boolean selected) {}', 'private boolean selected; public void setSelected(boolean value) {selected=value;}').replace('isSelected() { return false; }', 'isSelected() { return selected; }')
             text = text.replace('postInvalidateDelayed(long delay) {}', 'postInvalidateDelayed(long delay) { nextDraw = delay; }')
         if source.name == 'MotionEvent.java':
-            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
+            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
         if source.name == 'Visualizer.java':
             text = text.replace('public class Visualizer {', 'public class Visualizer { public static int session,created,released; public static boolean fail;')
             text = text.replace('public Visualizer(int session) {}', 'public Visualizer(int id) {session=id;created++;}')
@@ -440,6 +440,9 @@ public class PlayerRuntimeTest {
         check(leg[1]-leg[0]>64,"indicator stretches while moving");
         float[] done=NavIndicator.edges(0,2,1,100,64);
         check(Math.abs(done[0]-218)<.01f&&Math.abs(done[1]-282)<.01f,"indicator settles around the destination");
+        check(NavIndicator.dragPosition(250,400,4,false)==2&&Math.round(NavIndicator.dragPosition(210,400,4,false))==2,"a drag reads the tab under the finger");
+        check(NavIndicator.dragPosition(-30,400,4,false)==0&&NavIndicator.dragPosition(430,400,4,false)==3,"a drag past the ends clamps to the outer tabs");
+        check(NavIndicator.dragPosition(50,400,4,true)==3,"an RTL drag mirrors the tabs");
         p.kk1 off=new p.kk1(),on=new p.kk1(); off.a=p.lk1.a; on.a=p.lk1.b;
         check(SaveBurst.celebrates(true,off,on),"a tapped save celebrates");
         check(!SaveBurst.celebrates(false,off,on)&&!SaveBurst.celebrates(true,on,off)&&!SaveBurst.celebrates(true,off,off)&&!SaveBurst.celebrates(true,null,on),"initial, unsave and failed states stay quiet");
