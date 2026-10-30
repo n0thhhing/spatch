@@ -3,11 +3,13 @@ package android.content;
 public interface SharedPreferences {
     interface Editor {
         Editor putString(String k,String v);
+        Editor putStringSet(String k,java.util.Set<String> v);
         Editor putBoolean(String k, boolean v);
         void apply();
         boolean commit();
     }
     String getString(String k,String fallback);
+    java.util.Set<String> getStringSet(String k,java.util.Set<String> fallback);
     boolean getBoolean(String k, boolean d);
     Editor edit();
 }

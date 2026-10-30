@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('public void release() {}', 'public void release() {released++;}')
         if source.name == 'Context.java':
             text = text.replace('getResources() { return null; }', 'getResources() { return new android.content.res.Resources(); }')
-            text = text.replace('getSharedPreferences(String name, int mode) { return null; }', 'getSharedPreferences(String name, int mode) { return new SharedPreferences() { public boolean getBoolean(String k, boolean d) { return d; } public String getString(String k,String d){return d;} public Editor edit() { return null; } }; }')
+            text = text.replace('getSharedPreferences(String name, int mode) { return null; }', 'getSharedPreferences(String name, int mode) { return new SharedPreferences() { public boolean getBoolean(String k, boolean d) { return d; } public String getString(String k,String d){return d;} public java.util.Set<String> getStringSet(String k,java.util.Set<String> d){return d;} public Editor edit() { return null; } }; }')
         if source.name == 'DisplayMetrics.java':
             text=text.replace('float density;', 'float density=1;').replace('int heightPixels;', 'int heightPixels=2000;')
         if source.name == 'SeekBar.java':
@@ -92,6 +92,8 @@ public class PlayerRuntimeTest {
         public Editor edit(){return this;}
         public Editor putString(String k,String v){data.put(k,v);return this;}
         public Editor putBoolean(String k,boolean v){booleans.put(k,v);return this;}
+        public java.util.Set<String> getStringSet(String k,java.util.Set<String> d){return d;}
+        public Editor putStringSet(String k,java.util.Set<String> v){return this;}
         public void apply(){} public boolean commit(){return true;}
     }
     static int clicks;
@@ -169,7 +171,7 @@ public class PlayerRuntimeTest {
         Field featField = SpatchSettings.class.getDeclaredField("featureSwitches");
         featField.setAccessible(true);
         android.widget.Switch[] featSwitches = (android.widget.Switch[]) featField.get(spatchPage);
-        check(featSwitches.length == 13, "must contain 13 feature switches");
+        check(featSwitches.length == Settings.KEYS.length, "must contain every feature switch");
         for (int i = 0; i < 5; i++) {
             check(featSwitches[i].isChecked() == Settings.get(i), "feature switch " + i + " must reflect Settings.get");
         }
@@ -381,6 +383,56 @@ public class PlayerRuntimeTest {
         for(int i=0;i<200;i++){PlayerArt.spring(s,1,16); peak=Math.max(peak,s[0]);}
         check(peak>1 && Math.abs(s[0]-1)<0.001, "spring must rebound and settle");
         System.out.println("PASS artwork spring rebound");
+
+        // Spectrum: varied from the first valid frame, silence stays quiet, a new session starts over.
+        Spectrum.reset();
+        float[] typical=new float[Spectrum.BANDS];
+        for(int i=0;i<typical.length;i++)typical[i]=0.7f+Spectrum.prior(i)+(i%2==0?0.05f:-0.05f);
+        Spectrum.step(typical,1,1000,true,false);
+        check(Spectrum.seeded, "valid audio must seed the gain at once");
+        float bass=0,treble=0,even=0,odd=0; int third=typical.length/3;
+        for(int i=0;i<third;i++){bass+=Spectrum.bands[i];treble+=Spectrum.bands[typical.length-1-i];}
+        for(int i=0;i<typical.length;i++){if(i%2==0)even+=Spectrum.bands[i];else odd+=Spectrum.bands[i];}
+        check(Math.abs(bass-treble)/third<0.25f, "first frame must not be a dome: "+bass/third+" vs "+treble/third);
+        check((even-odd)/typical.length*2>0.1f, "first frame must keep band variety");
+        Spectrum.reset();
+        float[] quiet=new float[Spectrum.BANDS]; java.util.Arrays.fill(quiet,0.01f);
+        for(int i=0;i<120;i++)Spectrum.step(quiet,2,1000+i*16,true,false);
+        check(!Spectrum.seeded, "silence must not seed the gain");
+        for(float v:Spectrum.bands)check(v<0.1f,"silence must stay quiet");
+        check(Spectrum.taper(0,false)==1, "taper None must not shape edges");
+        System.out.println("PASS spectrum startup");
+
+        // Choices: unknown stored values fall back, reset restores defaults.
+        Field prefsField=Settings.class.getDeclaredField("prefs"); prefsField.setAccessible(true); prefsField.set(null,new Prefs());
+        for(int i=0;i<Settings.CHOICES.length;i++){
+            Settings.setChoice(i,"from-a-newer-build");
+            check(Settings.choice(i).equals(Settings.CHOICES[i][0]),"invalid choice must fall back");
+            Settings.setChoice(i,Settings.CHOICES[i][Settings.CHOICES[i].length-1]);
+        }
+        Settings.set(13,true); Settings.hideSection("a",true);
+        check(Settings.sectionHidden("a"),"section must hide");
+        Settings.resetAll();
+        check(Settings.choice(Settings.ART_SPECTRUM).equals("off")&&!Settings.hidePodcasts()&&!Settings.sectionHidden("a"),"reset must clear choices and hides");
+        System.out.println("PASS choices and reset");
+
+        // Content: identity comes from URIs and types; mixed shelves keep music.
+        java.util.ArrayList lib=new java.util.ArrayList();
+        p.ndy[] types={p.ndy.b,p.ndy.Y,p.ndy.a,p.ndy.g,new p.ndy()};
+        for(p.ndy t:types){p.dsm1 d=new p.dsm1(); d.e=t; lib.add(d);}
+        check(Content.library(lib)==lib,"filters off must pass the list through");
+        Settings.set(13,true);
+        check(Content.library(lib).size()==3,"podcasts hidden: shows and new episodes go");
+        check(!Content.blocked("spotify:album:x","mixed")&&Content.blocked("spotify:show:x","mixed"),"mixed shelf keeps music");
+        check(!Content.blocked("spotify:show:x","popular-audiobooks"),"podcast filter must leave audiobook shelves");
+        java.util.ArrayList chips=new java.util.ArrayList(java.util.Arrays.asList(new p.e5c0(),new p.l4c0(),new p.u4c0(),new p.r4c0(),"music"));
+        check(Content.libraryChips(chips).size()==3,"podcast chips go");
+        Settings.set(14,true);
+        check(Content.library(lib).size()==1&&Content.libraryChips(chips).size()==1,"both hidden: only music stays");
+        check(Content.blocked("spotify:show:x","popular-audiobooks"),"audiobook filter covers its shelves");
+        Settings.resetAll();
+        check(Content.slug("spotify:section:0abc|made-for-you").equals("made-for-you"),"slug");
+        System.out.println("PASS content filters");
     }
 }
 ''')

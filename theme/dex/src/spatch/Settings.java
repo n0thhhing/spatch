@@ -14,6 +14,7 @@ import p.eg81;
 import p.fg81;
 import p.ft01;
 import p.jg81;
+import p.upf;
 import p.vtz;
 import p.zsx;
 
@@ -24,8 +25,8 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin"};
-    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
     static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4;
@@ -49,6 +50,9 @@ public final class Settings implements jg81 {
 
     public static List rows(List rows) {
         ArrayList out = new ArrayList(rows);
+        for (int i = out.size() - 1; i >= 0; i--) {
+            if (out.get(i) instanceof upf && hideMessages()) out.remove(i); // the drawer's Messages block
+        }
         for (int i = 0; i < out.size(); i++) {
             Object row = out.get(i);
             if (row instanceof ft01 && ((ft01) row).a == 1) {
@@ -120,6 +124,7 @@ public final class Settings implements jg81 {
         prefs = c.getSharedPreferences("spatch", 0);
         for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], DEFAULTS[i]);
         for (int i = 0; i < CHOICES.length; i++) chosen[i] = valid(i, prefs.getString(CHOICE_KEYS[i], null));
+        loadSections();
     }
 
     /** Unknown stored values (older or newer builds) fall back to the default. */
@@ -205,8 +210,61 @@ public final class Settings implements jg81 {
         return on[12];
     }
 
+    static boolean hidePodcasts() {
+        return on[13];
+    }
+
+    static boolean hideAudiobooks() {
+        return on[14];
+    }
+
+    static boolean hideMessages() {
+        return on[15];
+    }
+
+    /** Home sections seen so far (id -> title) and those the user hid; ids are stable, titles labels. */
+    private static final java.util.TreeMap<String, String> seen = new java.util.TreeMap<String, String>();
+    private static final java.util.HashSet<String> hidden = new java.util.HashSet<String>();
+    private static final char SEP = 0x1f;
+
+    static synchronized void seeSection(String id, String title) {
+        if (title.equals(seen.put(id, title)) || prefs == null) return;
+        java.util.HashSet<String> stored = new java.util.HashSet<String>();
+        for (java.util.Map.Entry<String, String> e : seen.entrySet()) stored.add(e.getKey() + SEP + e.getValue());
+        prefs.edit().putStringSet("home_seen", stored).apply();
+    }
+
+    static synchronized boolean sectionHidden(String id) {
+        return hidden.contains(id);
+    }
+
+    static synchronized void hideSection(String id, boolean hide) {
+        if (hide) hidden.add(id);
+        else hidden.remove(id);
+        if (prefs != null) prefs.edit().putStringSet("home_hidden", new java.util.HashSet<String>(hidden)).apply();
+    }
+
+    /** Sections by title, for the settings list. */
+    static synchronized java.util.ArrayList<String[]> sections() {
+        java.util.ArrayList<String[]> out = new java.util.ArrayList<String[]>();
+        for (java.util.Map.Entry<String, String> e : seen.entrySet()) out.add(new String[] {e.getKey(), e.getValue()});
+        java.util.Collections.sort(out, BY_TITLE);
+        return out;
+    }
+
+    private static final java.util.Comparator<String[]> BY_TITLE = new SectionOrder();
+
+    private static synchronized void loadSections() {
+        for (String row : prefs.getStringSet("home_seen", new java.util.HashSet<String>())) {
+            int at = row.indexOf(SEP);
+            if (at > 0) seen.put(row.substring(0, at), row.substring(at + 1));
+        }
+        hidden.addAll(prefs.getStringSet("home_hidden", new java.util.HashSet<String>()));
+    }
+
     static void resetAll() {
         for (int i = 0; i < KEYS.length; i++) set(i, DEFAULTS[i]);
         for (int i = 0; i < CHOICES.length; i++) setChoice(i, CHOICES[i][0]);
+        for (String id : new java.util.ArrayList<String>(hidden)) hideSection(id, false);
     }
 }

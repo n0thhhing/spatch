@@ -28,7 +28,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     Back back;
 
     // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer,
-    // viz_mirrored, viz_smooth, viz_thin, viz_floating, viz_side_margin.
+    // viz_mirrored, viz_smooth, viz_thin, viz_floating, viz_side_margin, hide_podcasts, hide_audiobooks,
+    // hide_messages.
     private static final String[] FEATURE_TITLES = {
         "Wavy progress",
         "Button animations",
@@ -42,7 +43,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Smooth motion",
         "Thin bars",
         "Floating bars",
-        "Side margin"
+        "Side margin",
+        "Hide podcasts",
+        "Hide audiobooks",
+        "Hide Messages"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -58,11 +62,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Softer, slower bars; off is snappy",
         "48 slim bars instead of 24 thick ones",
         "Lift the bars off the bottom edge; quiet bars rest as dots",
-        "A small gap at the left and right; off runs edge to edge"
+        "A small gap at the left and right; off runs edge to edge",
+        "From Home, its chips and Your Library",
+        "From Home, its chips and Your Library",
+        "Removes Messages from the profile menu; your messages stay"
     };
 
     /** Section layout: Settings indices per section (the theme list sits at the top of Appearance). */
-    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 8, 9, 10, 11, 12}, MOTION = {1, 6};
+    private static final int[] APPEARANCE = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 8, 9, 10, 11, 12}, CONTENT = {13, 14, 15}, MOTION = {1, 6};
 
     private static final String[] THEME_TITLES = {
         "Lavender",
@@ -98,6 +105,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private final java.util.ArrayList<TextView> pillViews = new java.util.ArrayList<TextView>();
     private final View[] choiceRows = new View[Settings.CHOICES.length];
     private SpectrumPreview preview;
+    private final java.util.ArrayList<View> homeRows = new java.util.ArrayList<View>();
     private final View backButton;
     private View resetRow;
     private boolean closing;
@@ -223,6 +231,26 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addChoice(content, Settings.VIZ_TAPER, "Edge taper", "Eases the bars off toward the sides", new String[] {"Subtle", "None"});
         for (int i : VISUALIZER) content.addView(featureRows[i]);
         refreshChoices();
+
+        addSectionHeader(content, "Content", dp(28));
+        addSectionSubtitle(content, "Only changes what is shown: nothing is deleted and links still open. Pull down on Home to apply.");
+        for (int i : CONTENT) content.addView(featureRows[i]);
+        addSectionHeader(content, "Home sections", dp(20));
+        java.util.ArrayList<String[]> sections = Settings.sections();
+        addSectionSubtitle(content, sections.isEmpty() ? "Open Home once and its sections appear here" : "Turn on to hide a section. New ones appear as Home shows them.");
+        for (String[] section : sections) {
+            Switch s = new Switch(context);
+            s.setChecked(Settings.sectionHidden(section[0]));
+            applySwitchTint(s, featureSwitchTint);
+            s.setClickable(false);
+            s.setFocusable(false);
+            View row = createSettingRow(context, null, section[1], null, s);
+            row.setTag(new Object[] {section[0], s, section[1]});
+            row.setOnClickListener(this);
+            describe(row, section[1], s.isChecked() ? "Hidden" : "Shown");
+            homeRows.add(row);
+            content.addView(row);
+        }
 
         addSectionHeader(content, "Motion", dp(28));
         addSectionSubtitle(content, "Android's own animation setting is respected too");
@@ -452,6 +480,15 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             close();
             return;
         }
+        if (v.getTag() instanceof Object[] && !(v.getTag() instanceof String[])) {
+            Object[] tag = (Object[]) v.getTag();
+            Switch s = (Switch) tag[1];
+            boolean hide = !s.isChecked();
+            s.setChecked(hide);
+            Settings.hideSection((String) tag[0], hide);
+            describe(v, (String) tag[2], hide ? "Hidden" : "Shown");
+            return;
+        }
         if (v.getTag() instanceof String[]) {
             String[] tag = (String[]) v.getTag();
             int setting = Integer.parseInt(tag[0]);
@@ -470,6 +507,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
             }
             refreshChoices();
+            for (View row : homeRows) {
+                Object[] tag = (Object[]) row.getTag();
+                ((Switch) tag[1]).setChecked(false);
+                describe(row, (String) tag[2], "Shown");
+            }
             return;
         }
         for (int i = 0; i < featureRows.length; i++) {

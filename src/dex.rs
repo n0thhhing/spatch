@@ -12,7 +12,15 @@ use std::fs;
 use std::path::Path;
 
 /// Original DEX entries that get reassembled, with their pinned SHA-256.
-pub const DEX_TARGETS: [(&str, &str); 8] = [
+pub const DEX_TARGETS: [(&str, &str); 10] = [
+    (
+        "classes5.dex",
+        "a26cf01d4128da9d07d952b8608c5c764af46566b359ffc95e9aa19a66fa6cb9",
+    ),
+    (
+        "classes7.dex",
+        "70a11db74157abea0b986fdde6329d11967b29279e9c9743da205f7ac36312b0",
+    ),
     (
         "classes12.dex",
         "7b4424837bf4395e524dfe63c43bdc390756c3f8154a7fe3bc424edf0aab666d",
@@ -56,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 36] = [
+pub const EDITS: [Edit; 41] = [
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -268,11 +276,40 @@ pub const EDITS: [Edit; 36] = [
         anchor: "    invoke-direct {v0, p0, p1, v1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n",
         replacement: "    invoke-direct {v0, p0, p1, v1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n\n    invoke-static {v0}, Lspatch/SpatchWidget;->attach(Landroid/media/session/MediaSession;)V\n",
     },
+    // Home: every model update passes through dgm0's constructor; spatch.Content filters its list.
+    Edit {
+        file: "smali_classes2/p/xmc0.smali",
+        anchor: "    iput-object p2, p0, Lp/xmc0;->b:Ljava/util/List;\n",
+        replacement: "    invoke-static {p2}, Lspatch/Content;->home(Ljava/util/List;)Ljava/util/List;\n\n    move-result-object p2\n\n    iput-object p2, p0, Lp/xmc0;->b:Ljava/util/List;\n",
+    },
+    // Home chips (p.sdy, classes7): the fetched feed list goes through spatch.Content.feeds.
+    Edit {
+        file: "smali_classes7/p/sdy.smali",
+        anchor: "Lp/aj00;->a(Ljava/util/List;)Ljava/util/ArrayList;",
+        replacement: "Lspatch/Content;->feeds(Ljava/util/List;)Ljava/util/ArrayList;",
+    },
+    // Search tiles (p.s8e, classes5): filtered before the row layout so the rest reflow.
+    Edit {
+        file: "smali_classes5/p/s8e.smali",
+        anchor: "    iput-object p3, p0, Lp/s8e;->c:Ljava/util/ArrayList;\n",
+        replacement: "    invoke-static {p3}, Lspatch/Content;->tiles(Ljava/util/ArrayList;)Ljava/util/ArrayList;\n\n    move-result-object p3\n\n    iput-object p3, p0, Lp/s8e;->c:Ljava/util/ArrayList;\n",
+    },
+    // Your Library (classes12 items, classes4 filter chips): hidden types never reach the list.
+    Edit {
+        file: "smali_classes12/p/zzo1.smali",
+        anchor: "    .line 710\n    .line 711\n    :cond_16\n    return-object v0\n",
+        replacement: "    .line 710\n    .line 711\n    :cond_16\n    invoke-static {v0}, Lspatch/Content;->library(Ljava/util/ArrayList;)Ljava/util/ArrayList;\n\n    move-result-object v0\n\n    return-object v0\n",
+    },
+    Edit {
+        file: "smali_classes4/p/oxo1.smali",
+        anchor: "    invoke-static {v2, v1}, Lp/gpo1;->l(Ljava/lang/String;Ljava/util/List;)Lp/i5c0;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    return-object v0\n",
+        replacement: "    invoke-static {v2, v1}, Lp/gpo1;->l(Ljava/lang/String;Ljava/util/List;)Lp/i5c0;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    invoke-static {v0}, Lspatch/Content;->libraryChips(Ljava/util/ArrayList;)Ljava/util/ArrayList;\n\n    move-result-object v0\n\n    return-object v0\n",
+    },
 ];
 
 /// Original classes moved into `HELPER_DEX` (smali folder, file, original DEX, descriptor) because
 /// their own DEX has no room for the references their edits add; behaviour and names are unchanged.
-const RELOCATED: [(&str, &str, &str, &str); 4] = [
+const RELOCATED: [(&str, &str, &str, &str); 5] = [
     (
         "smali_classes2",
         "com/spotify/playbacknative/AudioEffectsListener.smali",
@@ -283,10 +320,19 @@ const RELOCATED: [(&str, &str, &str, &str); 4] = [
     // Widget hooks: Glance's RemoteViews hand-off and an outlined MediaSession constructor.
     ("smali", "p/rx5.smali", "classes.dex", "Lp/rx5;"),
     ("smali", "p/bxh0.smali", "classes.dex", "Lp/bxh0;"),
+    ("smali_classes2", "p/xmc0.smali", "classes2.dex", "Lp/xmc0;"),
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 22] = [
+const HELPERS: [(&str, &str); 24] = [
+    (
+        "SectionOrder",
+        include_str!("../theme/dex/src/spatch/SectionOrder.java"),
+    ),
+    (
+        "Content",
+        include_str!("../theme/dex/src/spatch/Content.java"),
+    ),
     (
         "Spectrum",
         include_str!("../theme/dex/src/spatch/Spectrum.java"),
@@ -368,6 +414,28 @@ const HELPERS: [(&str, &str); 22] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    ("upf.java", include_str!("../theme/dex/stubs/p/upf.java")),
+    ("e5c0.java", include_str!("../theme/dex/stubs/p/e5c0.java")),
+    ("l4c0.java", include_str!("../theme/dex/stubs/p/l4c0.java")),
+    ("u4c0.java", include_str!("../theme/dex/stubs/p/u4c0.java")),
+    ("r4c0.java", include_str!("../theme/dex/stubs/p/r4c0.java")),
+    ("ndy.java", include_str!("../theme/dex/stubs/p/ndy.java")),
+    ("dsm1.java", include_str!("../theme/dex/stubs/p/dsm1.java")),
+    ("s6e.java", include_str!("../theme/dex/stubs/p/s6e.java")),
+    ("j360.java", include_str!("../theme/dex/stubs/p/j360.java")),
+    ("w0x.java", include_str!("../theme/dex/stubs/p/w0x.java")),
+    ("bp80.java", include_str!("../theme/dex/stubs/p/bp80.java")),
+    ("tu70.java", include_str!("../theme/dex/stubs/p/tu70.java")),
+    ("cu70.java", include_str!("../theme/dex/stubs/p/cu70.java")),
+    ("tz71.java", include_str!("../theme/dex/stubs/p/tz71.java")),
+    ("uz71.java", include_str!("../theme/dex/stubs/p/uz71.java")),
+    ("oz71.java", include_str!("../theme/dex/stubs/p/oz71.java")),
+    ("ifi0.java", include_str!("../theme/dex/stubs/p/ifi0.java")),
+    ("jfi0.java", include_str!("../theme/dex/stubs/p/jfi0.java")),
+    ("bfi0.java", include_str!("../theme/dex/stubs/p/bfi0.java")),
+    ("np10.java", include_str!("../theme/dex/stubs/p/np10.java")),
+    ("aj00.java", include_str!("../theme/dex/stubs/p/aj00.java")),
+    ("q6k1.java", include_str!("../theme/dex/stubs/p/q6k1.java")),
     (
         "Editable.java",
         include_str!("../theme/dex/stubs/android/text/Editable.java"),
@@ -764,6 +832,8 @@ pub fn build(
             && name != "smali_classes2"
             && name != "smali_classes3"
             && name != "smali_classes4"
+            && name != "smali_classes5"
+            && name != "smali_classes7"
             && name != "smali_classes8"
             && name != "smali_classes9"
             && name != "smali_classes11"
