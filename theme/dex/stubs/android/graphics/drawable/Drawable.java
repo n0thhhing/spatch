@@ -5,6 +5,7 @@ public abstract class Drawable {
     public Callback getCallback(){return null;}
     public final void setCallback(Callback c){}
     public final boolean setLevel(int level){return false;}
+    public final int getLevel(){return 0;}
     public void setBounds(int l,int t,int r,int b){}
     public void setBounds(android.graphics.Rect r){}
     public boolean isVisible(){return true;}

@@ -391,7 +391,7 @@ const RELOCATED: [(&str, &str, &str, &str); 8] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 36] = [
+const HELPERS: [(&str, &str); 37] = [
     (
         "Expansion",
         include_str!("../theme/dex/src/spatch/Expansion.java"),
@@ -407,6 +407,10 @@ const HELPERS: [(&str, &str); 36] = [
     (
         "Surfaces",
         include_str!("../theme/dex/src/spatch/Surfaces.java"),
+    ),
+    (
+        "MiniRing",
+        include_str!("../theme/dex/src/spatch/MiniRing.java"),
     ),
     (
         "MiniSurface",

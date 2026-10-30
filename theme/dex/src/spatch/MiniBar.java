@@ -2,12 +2,14 @@ package spatch;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.drawable.GradientDrawable;
 import android.media.MediaMetadata;
 import android.media.session.PlaybackState;
 import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.ProgressBar;
 import androidx.constraintlayout.motion.widget.MotionLayout;
 import java.lang.ref.WeakReference;
 
@@ -25,6 +27,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
     private static long expandAt;
     private MiniSkip previous, next;
     private MiniEq eq;
+    private View shapedCover;
     private volatile boolean playing;
     private volatile long actions = 48;
 
@@ -34,10 +37,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
 
     protected void onFinishInflate() {
         super.onFinishInflate();
-        MiniSurface surface = new MiniSurface();
-        surface.setColor(Palette.color(0xff2b2640));
-        surface.setCornerRadius(20 * getResources().getDisplayMetrics().density);
-        setBackground(surface);
+        setBackground(new MiniSurface(Palette.color(0xff2b2640), 28 * getResources().getDisplayMetrics().density));
         for (int i = 0; i < getChildCount(); i++) adopt(getChildAt(i));
         bar = new WeakReference<MiniBar>(this);
         SpatchWidget.refreshMini();
@@ -54,6 +54,8 @@ public final class MiniBar extends MotionLayout implements Runnable {
             else previous = (MiniSkip) child;
         } else if (child instanceof MiniEq) {
             eq = (MiniEq) child;
+        } else if (child.getId() == id("progress_bar")) {
+            ((ProgressBar) child).setProgressDrawable(new MiniRing(Palette.color(0xffd0bcff), getResources().getDisplayMetrics().density));
         } else if (child.getId() == id("connect_destination_button")) {
             // Device picking stays in the full player: no pixels, touch or focus here.
             child.setAlpha(0f);
@@ -68,7 +70,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
 
     /** A tap on the artwork or metadata opens the player; remember where the cover was. */
     public boolean dispatchTouchEvent(MotionEvent e) {
-        if (e.getActionMasked() == MotionEvent.ACTION_UP && previous != null && e.getX() < previous.getLeft()) {
+        if (e.getActionMasked() == MotionEvent.ACTION_UP && previous != null && e.getX() < findViewById(id("tracks_carousel_view")).getRight()) {
             View cover = findViewById(id("cover_image"));
             if (cover != null && cover.getWidth() > 0) {
                 int[] at = new int[2];
@@ -87,7 +89,20 @@ public final class MiniBar extends MotionLayout implements Runnable {
         return from != null && SystemClock.uptimeMillis() - expandAt < EXPAND_WINDOW && Wave.animationsEnabled() ? from : null;
     }
 
+    /** m1p0 swaps the cover view after inflation; a circle sits concentric in the pill's end. */
+    private void roundCover() {
+        View cover = findViewById(id("cover_image"));
+        if (cover == null || cover == shapedCover) return;
+        shapedCover = cover;
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(Palette.color(0xff1d1a2a));
+        cover.setBackground(circle);
+        cover.setClipToOutline(true);
+    }
+
     public void run() {
+        roundCover();
         if (previous != null) previous.allow(actions);
         if (next != null) next.allow(actions);
         ClickHaptic.attach(findViewById(id("play_pause_button")));

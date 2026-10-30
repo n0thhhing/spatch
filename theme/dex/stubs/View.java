@@ -52,6 +52,8 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public boolean isAttachedToWindow() { return true; }
     public int getLayoutDirection() { return 0; }
     public void setImportantForAccessibility(int m) {}
+    public void setClipToOutline(boolean clip) {}
+    public boolean getClipToOutline() { return false; }
     public int getLeft() { return 0; } public int getRight() { return 0; } public int getTop() { return 0; } public int getBottom() { return 0; }
     public boolean isClickable() { return false; }
     public void setClickable(boolean c) {}
