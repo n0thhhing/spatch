@@ -287,7 +287,7 @@ pub const EDITS: [Edit; 45] = [
         anchor: "    invoke-direct {v0, p0, p1, v1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n",
         replacement: "    invoke-direct {v0, p0, p1, v1}, Landroid/media/session/MediaSession;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/os/Bundle;)V\n\n    invoke-static {v0}, Lspatch/SpatchWidget;->attach(Landroid/media/session/MediaSession;)V\n",
     },
-    // Home: every model update passes through dgm0's constructor; spatch.Content filters its list.
+    // Home: every model update passes through xmc0's constructor; spatch.Content filters its list.
     Edit {
         file: "smali_classes2/p/xmc0.smali",
         anchor: "    iput-object p2, p0, Lp/xmc0;->b:Ljava/util/List;\n",
