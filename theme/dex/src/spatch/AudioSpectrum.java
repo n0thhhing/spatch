@@ -21,6 +21,26 @@ public final class AudioSpectrum {
         if (!paused && sessions.contains(id)) current = id;
     }
 
+    /** Renderers of the one shared capture: it runs while any of them is visible and playing. */
+    static final int BOTTOM = 1, RADIAL = 2;
+    static final AudioSpectrum SHARED = new AudioSpectrum();
+    private static int consumers;
+
+    static void request(Context context, int consumer, boolean active) {
+        consumers = active ? consumers | consumer : consumers & ~consumer;
+        SHARED.update(context, consumers != 0);
+    }
+
+    /** A renderer went away (hidden, closed, backgrounded); no context is needed to stop capture. */
+    static void drop(int consumer) {
+        consumers &= ~consumer;
+        if (consumers == 0) SHARED.release();
+    }
+
+    static int session() {
+        return current;
+    }
+
     private Visualizer visualizer;
     private int attempted;
     private byte[] fft;

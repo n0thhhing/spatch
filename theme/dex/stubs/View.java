@@ -9,6 +9,7 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public void setOnClickListener(OnClickListener l) {}
     public android.window.OnBackInvokedDispatcher findOnBackInvokedDispatcher() { return null; }
     public void setPadding(int l, int t, int r, int b) {}
+    private Object tag; public void setTag(Object t) { tag = t; } public Object getTag() { return tag; }
     public void setLayoutParams(ViewGroup.LayoutParams p) {}
     public void setMinimumHeight(int h) {}
     public View(android.content.Context c) {}

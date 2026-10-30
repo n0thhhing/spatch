@@ -27,6 +27,17 @@ public final class Settings implements jg81 {
     static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin"};
     static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
+    /** Multi-choice settings: stable stored values, first is the default (today's look). */
+    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4;
+    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum"};
+    static final String[][] CHOICES = {
+        {"bars", "centre", "contour", "dots"},
+        {"subtle", "none"},
+        {"wavy", "simple", "none"},
+        {"current", "soft", "off"},
+        {"off", "bars", "dots"},
+    };
+    private static final String[] chosen = new String[CHOICES.length];
     private static final boolean[] on = DEFAULTS.clone();
     private static SharedPreferences prefs;
     private static WeakReference<View> drawer;
@@ -108,6 +119,22 @@ public final class Settings implements jg81 {
         if (prefs != null || c == null) return;
         prefs = c.getSharedPreferences("spatch", 0);
         for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], DEFAULTS[i]);
+        for (int i = 0; i < CHOICES.length; i++) chosen[i] = valid(i, prefs.getString(CHOICE_KEYS[i], null));
+    }
+
+    /** Unknown stored values (older or newer builds) fall back to the default. */
+    private static String valid(int i, String value) {
+        for (String option : CHOICES[i]) if (option.equals(value)) return value;
+        return CHOICES[i][0];
+    }
+
+    static String choice(int i) {
+        return chosen[i] == null ? CHOICES[i][0] : chosen[i];
+    }
+
+    static void setChoice(int i, String value) {
+        chosen[i] = valid(i, value);
+        if (prefs != null) prefs.edit().putString(CHOICE_KEYS[i], chosen[i]).apply();
     }
 
     static boolean get(int i) {
@@ -180,5 +207,6 @@ public final class Settings implements jg81 {
 
     static void resetAll() {
         for (int i = 0; i < KEYS.length; i++) set(i, DEFAULTS[i]);
+        for (int i = 0; i < CHOICES.length; i++) setChoice(i, CHOICES[i][0]);
     }
 }

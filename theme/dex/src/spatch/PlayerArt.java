@@ -90,7 +90,7 @@ public final class PlayerArt extends ImageView {
             if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(250);
             return;
         }
-        if(ids==null) ids=new int[]{id("overlay_controls_layout"),id("playback_controls_container"),id("track_info_view_title"),id("track_info_view_subtitle")};
+        if(ids==null) ids=new int[]{id("overlay_controls_layout"),id("playback_controls_container"),id("track_info_view_title"),id("track_info_view_subtitle"),id("nowplaying_elements_playpause_button")};
         if(background==null || now-lastSetup>750) {
             background=getRootView().findViewById(ids[0]);
         }
@@ -154,9 +154,52 @@ public final class PlayerArt extends ImageView {
         }
         canvas.restoreToCount(save);
         drawRing(canvas);
+        drawRadial(canvas, cx, cy, radius);
+    }
+
+    /** Real audio energy around the circular art, from the shared capture. Centred page only. */
+    private void drawRadial(Canvas canvas, float cx, float cy, float radius) {
+        String style = Settings.choice(Settings.ART_SPECTRUM);
+        if ("off".equals(style) || heroHidden || !Wave.animationsEnabled() || !isCurrentPage() || !hasWindowFocus()) {
+            AudioSpectrum.drop(AudioSpectrum.RADIAL);
+            return;
+        }
+        AudioSpectrum.request(getContext(), AudioSpectrum.RADIAL, playing());
+        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), SystemClock.uptimeMillis(), true, Settings.vizSmooth());
+        if (Spectrum.alpha < 0.01f) return;
+        float dp = getResources().getDisplayMetrics().density;
+        // Fits inside the view's 12% margin, past the outline; nothing is clipped or covers controls.
+        float gap = "none".equals(Settings.choice(Settings.ART_OUTLINE)) ? radius * 0.03f : radius * 0.07f;
+        ink.setShader(null);
+        ink.setColor(0xffd0bcff);
+        ink.setAlpha(Math.round(255 * Spectrum.alpha));
+        Spectrum.drawRadial(canvas, ink, outline, Spectrum.bands, "dots".equals(style), cx, cy, radius, gap, radius * 0.05f, 0, dp);
+    }
+
+    private boolean playing() {
+        View button=ids==null?null:getRootView().findViewById(ids[4]);
+        CharSequence d=button==null?null:button.getContentDescription();
+        return d!=null && d.toString().toLowerCase(java.util.Locale.ROOT).contains("pause");
+    }
+
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        if (visibility != 0) AudioSpectrum.drop(AudioSpectrum.RADIAL);
+    }
+
+    public void onWindowFocusChanged(boolean focus) {
+        super.onWindowFocusChanged(focus);
+        if (!focus) AudioSpectrum.drop(AudioSpectrum.RADIAL);
+    }
+
+    protected void onDetachedFromWindow() {
+        AudioSpectrum.drop(AudioSpectrum.RADIAL);
+        super.onDetachedFromWindow();
     }
 
     private void drawGlow(Canvas canvas) {
+        if ("off".equals(Settings.choice(Settings.ART_GLOW))) return;
+        ink.setAlpha("soft".equals(Settings.choice(Settings.ART_GLOW)) ? 128 : 255);
         float cx = getWidth()/2f, cy = getHeight()/2f;
         float radius = Math.min(cx,cy)*0.88f;
         if(glow==null || glowSize!=radius) {
@@ -171,6 +214,8 @@ public final class PlayerArt extends ImageView {
     private void drawRing(Canvas canvas) {
         float cx = getWidth()/2f, cy = getHeight()/2f;
         float radius = Math.min(cx,cy)*0.88f;
+        String style = Settings.choice(Settings.ART_OUTLINE);
+        if ("none".equals(style)) return;
         long now = SystemClock.uptimeMillis();
         float phase = Wave.animationsEnabled() ? (now%18000)/18000f*6.283185f : 0;
         ink.setStyle(Paint.Style.STROKE);
@@ -188,6 +233,10 @@ public final class PlayerArt extends ImageView {
                 if(i==0) ring.moveTo(x,y); else ring.lineTo(x,y);
             }
             ring.close();
+        }
+        if ("simple".equals(style)) {
+            canvas.drawCircle(cx,cy,radius*1.045f,ink);
+            return;
         }
         int save=canvas.save();
         canvas.rotate((float)Math.toDegrees(phase/24),cx,cy);

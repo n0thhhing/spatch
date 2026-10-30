@@ -72,20 +72,14 @@ public final class Immersive extends View implements Runnable {
     // Spotify's own Encore icons (spoticon glyphs), built once the width is known.
     private Drawable icClose, icShuffle, icPrev, icNext, icRepeat, icVolume, icPlay, icPause;
 
-    private final AudioSpectrum spectrum = new AudioSpectrum();
     private boolean windowActive = true;
 
-    // Real frequency spectrum from Spotify's AudioTrack session.
-    private Shader shade, spectrumShade;
-    private float shadeH, spectrumTop;
+    private Shader shade;
+    private float shadeH;
     private final Path spectrumPath = new Path();
-    private float gainLo, gainHi = 1, spectrumAlpha;
-    private long spectrumFrame, titleChangedAt = -1000;
+    private long titleChangedAt = -1000;
     private String shownTitle;
     private boolean shadeFloating;
-    private final float[] shownLevels = new float[24]; // AudioSpectrum.levels, eased per frame
-    private final float[] bandLo = new float[24], bandHi = new float[24], shownBands = new float[24]; // per band
-    private static final float KNEE = 1 - (float) Math.exp(-1.8f); // level 1 at the tracked peak
 
     public Immersive(Context context, PlayerArt art) {
         super(context, null);
@@ -135,7 +129,7 @@ public final class Immersive extends View implements Runnable {
         closeCx = drawnCx; closeCy = drawnCy; closeSize = drawnSize; closeRadius = drawnRadius;
         playerArt.settlePress();
         closing = true;
-        spectrum.release();
+        AudioSpectrum.drop(AudioSpectrum.BOTTOM);
         if (back != null) { ((Back) back).unregister(); back = null; }
         measureFrom();
         closeTime = SystemClock.uptimeMillis();
@@ -150,7 +144,7 @@ public final class Immersive extends View implements Runnable {
             return;
         }
         removeCallbacks(this);
-        spectrum.release();
+        AudioSpectrum.drop(AudioSpectrum.BOTTOM);
         playerArt.hideForHero(false);
         ViewParent p = getParent();
         if (p instanceof ViewGroup) {
@@ -347,12 +341,16 @@ public final class Immersive extends View implements Runnable {
 
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, false);
         // Soft depth instead of a hard border: an accent glow, then a dark drop shadow under the art.
-        paint.setColor(0xff14121c);
-        paint.setShadowLayer(36 * dp, 0, 0, (Math.round(uiAlpha * 0.45f) << 24) | 0xd0bcff);
-        canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
-        paint.setShadowLayer(20 * dp, 0, 10 * dp, Math.round(bgAlpha * 0.55f) << 24);
-        canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
-        paint.clearShadowLayer();
+        String glowChoice = Settings.choice(Settings.ART_GLOW);
+        if (!"off".equals(glowChoice)) {
+            float strength = "soft".equals(glowChoice) ? 0.22f : 0.45f;
+            paint.setColor(0xff14121c);
+            paint.setShadowLayer(36 * dp, 0, 0, (Math.round(uiAlpha * strength) << 24) | 0xd0bcff);
+            canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
+            paint.setShadowLayer(20 * dp, 0, 10 * dp, Math.round(bgAlpha * 0.55f) << 24);
+            canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
+            paint.clearShadowLayer();
+        }
         int save = canvas.save();
         path.reset();
         path.addRoundRect(left, top, left + size, top + size, radius, radius, Path.Direction.CW);
@@ -366,6 +364,7 @@ public final class Immersive extends View implements Runnable {
         canvas.restoreToCount(save);
 
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, true);
+        drawRadial(canvas, cxArt, cyArt, size, Math.round(uiAlpha * clamp01(visualProgress)), now);
 
         // 3. Everything else fades in once the artwork is most of the way there.
         if (uiAlpha > 0) {
@@ -513,115 +512,66 @@ public final class Immersive extends View implements Runnable {
         d.draw(canvas);
     }
 
-    /**
-     * Spectrum as thick rounded bars, mirrored (bass at the centre) across the full width and rising
-     * from the bottom edge, filled with the accent fading toward the floor. Auto-gain follows the music's own range so quiet and
-     * loud passages both move; it fades out when there is nothing to show.
-     */
-    private void drawSpectrum(Canvas canvas, float w, float h, boolean playing, long now) {
-        if (!Settings.visualizer()) {
-            spectrum.update(getContext(), false); // hidden: release any capture
+    /** Artwork spectrum on immersive's rounded-square art, from the same capture as the bottom bars. */
+    private void drawRadial(Canvas canvas, float cx, float cy, float size, int alpha, long now) {
+        String style = Settings.choice(Settings.ART_SPECTRUM);
+        if ("off".equals(style) || !Wave.animationsEnabled() || closing) {
+            AudioSpectrum.drop(AudioSpectrum.RADIAL);
             return;
         }
-        spectrum.update(getContext(), playing && windowActive && !closing);
-        if (spectrum.status != null) {
+        AudioSpectrum.request(getContext(), AudioSpectrum.RADIAL, isPlaying() && windowActive);
+        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), now, true, Settings.vizSmooth());
+        if (Spectrum.alpha < 0.01f || alpha <= 0) return;
+        paint.setColor(0xffd0bcff);
+        paint.setAlpha(Math.round(alpha * Spectrum.alpha));
+        Spectrum.drawRadial(canvas, paint, spectrumPath, Spectrum.bands, "dots".equals(style), cx, cy, size / 2, 8 * dp,
+            Math.min(16 * dp, size * 0.05f), 8f, dp);
+        paint.setAlpha(255);
+    }
+
+    /** Bottom spectrum in the selected shape; gain state and rendering live in Spectrum. */
+    private void drawSpectrum(Canvas canvas, float w, float h, boolean playing, long now) {
+        if (!Settings.visualizer()) {
+            AudioSpectrum.drop(AudioSpectrum.BOTTOM);
+            return;
+        }
+        AudioSpectrum.request(getContext(), AudioSpectrum.BOTTOM, playing && windowActive && !closing);
+        if (AudioSpectrum.SHARED.status != null) {
             paint.setStyle(Paint.Style.FILL);
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setTextSize(13 * dp);
             paint.setColor(0xffbcb3dc);
-            canvas.drawText(spectrum.status, w / 2, h - 64 * dp, paint);
+            canvas.drawText(AudioSpectrum.SHARED.status, w / 2, h - 64 * dp, paint);
             return;
         }
-        boolean motion = Wave.animationsEnabled();
-        // Capture arrives often but unevenly; glide every frame toward it (time-based, so the same
-        // feel at 60 or 120 Hz). Snappy by default; "Smooth motion" uses longer constants.
-        float dt = Math.min(64, Math.max(1, now - spectrumFrame));
-        spectrumFrame = now;
-        boolean smooth = Settings.vizSmooth();
-        float rise = motion ? 1 - (float) Math.exp(-dt / (smooth ? 70f : 15f)) : 1;
-        float fall = motion ? 1 - (float) Math.exp(-dt / (smooth ? 260f : 60f)) : 1;
-        float[] levels = shownLevels;
-        int n = levels.length;
-        float lo = 1, hi = 0, sum = 0;
-        for (int i = 0; i < n; i++) {
-            float target = spectrum.levels[i];
-            levels[i] += (target - levels[i]) * (target > levels[i] ? rise : fall);
-            lo = Math.min(lo, levels[i]); hi = Math.max(hi, levels[i]); sum += levels[i];
-        }
-        float k = motion ? 1 - (float) Math.exp(-dt / 1500f) : 1; // shared gain drifts over ~1.5s
-        gainLo += (lo - gainLo) * k;
-        gainHi += (hi - gainHi) * k;
-        float range = Math.max(0.12f, gainHi - gainLo);
-        // Per-band gain: each band learns its own recent range (~2.5s), so the bass-heavy tilt of most
-        // music does not always make a dome; blended with the shared gain so quiet treble can't twitch.
-        float kBand = motion ? 1 - (float) Math.exp(-dt / 2500f) : 1;
-        for (int i = 0; i < n; i++) {
-            float v = levels[i];
-            bandLo[i] += (v - bandLo[i]) * (v < bandLo[i] ? 0.5f : kBand); // new low: follow fast
-            bandHi[i] += (v - bandHi[i]) * (v > bandHi[i] ? 0.5f : kBand); // new peak: follow fast
-            float own = (v - bandLo[i]) / Math.max(0.15f, bandHi[i] - bandLo[i]);
-            float x = Math.max(0, 0.65f * own + 0.35f * (v - gainLo) / range);
-            // Soft knee instead of a hard clip: peaks above the tracked range stay rounded, not flat.
-            shownBands[i] = Math.min(1.12f, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
-        }
-        float present = clamp01(sum / n * 4); // silence or pause: settle and fade out
-        spectrumAlpha = motion ? spectrumAlpha + (present - spectrumAlpha) * (1 - (float) Math.exp(-dt / 200f)) : present;
-
+        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), now, Wave.animationsEnabled(), Settings.vizSmooth());
         // Optional side margin; "Floating bars" also lifts them off the bottom edge (clearing the gesture bar).
         boolean floating = Settings.vizFloating();
         float margin = Settings.vizSideMargin() ? 16 * dp : 0, base = floating ? h - 32 * dp : h;
         float maxH = Math.max(0, Math.min(150 * dp, base - volY - 40 * dp));
-        if (spectrumAlpha < 0.01f || maxH <= 0) return;
-
-        // Rounded bars; floating ones rest as dots (height = width), grounded ones rise from the edge. Mirrored: bass at the centre, treble
-        // at both sides; otherwise bass on the left to treble on the right. Bars sample the bands by
-        // position, so any bar count works.
-        boolean mirrored = Settings.vizMirrored();
-        int bars = Settings.vizThin() ? 48 : 24;
-        float step = (w - 2 * margin) / bars, barW = step * 0.62f;
-        spectrumPath.reset();
-        for (int i = 0; i < bars; i++) {
-            float pos = (i + 0.5f) / bars;
-            float t = mirrored ? Math.abs(pos * 2 - 1) : pos; // 0 = bass, 1 = treble
-            float f = t * (n - 1);
-            int b0 = (int) f, b1 = Math.min(n - 1, b0 + 1);
-            float level = shownBands[b0] + (shownBands[b1] - shownBands[b0]) * (f - b0);
-            float edge = (float) Math.sin(Math.PI * pos); // ease off slightly toward the sides
-            float barH = Math.max(barW, maxH * level * (0.8f + 0.2f * edge));
-            float left = margin + i * step + (step - barW) / 2;
-            float bottom = floating ? base : base + barW; // grounded: run past the edge so only the top is round
-            spectrumPath.addRoundRect(left, base - barH, left + barW, bottom, barW / 2, barW / 2, Path.Direction.CW);
-        }
-
-        if (spectrumShade == null || spectrumTop != base - maxH || shadeFloating != floating) {
-            spectrumTop = base - maxH;
-            shadeFloating = floating;
-            spectrumShade = new LinearGradient(0, spectrumTop, 0, base, new int[] {0xe6d0bcff, floating ? 0x4dd0bcff : 0x1ad0bcff}, null, Shader.TileMode.CLAMP);
-        }
-        int alpha = Math.round(255 * spectrumAlpha);
+        if (Spectrum.alpha < 0.01f || maxH <= 0) return;
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(0xffd0bcff);
-        paint.setShader(spectrumShade);
-        paint.setAlpha(alpha);
-        canvas.drawPath(spectrumPath, paint);
-        paint.setShader(null);
+        paint.setAlpha(Math.round(255 * Spectrum.alpha));
+        Spectrum.draw(canvas, paint, spectrumPath, Spectrum.bands, Settings.choice(Settings.VIZ_SHAPE), margin, w - margin,
+            base, maxH, Settings.vizMirrored(), Settings.vizThin(), floating, "subtle".equals(Settings.choice(Settings.VIZ_TAPER)), dp);
         paint.setAlpha(255);
     }
 
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
         windowActive = visibility == 0;
-        if (!windowActive && spectrum != null) spectrum.release();
+        if (!windowActive) AudioSpectrum.drop(AudioSpectrum.BOTTOM);
     }
 
     public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);
         windowActive = focus;
-        if (!focus) spectrum.release();
+        if (!focus) AudioSpectrum.drop(AudioSpectrum.BOTTOM);
     }
 
     protected void onDetachedFromWindow() {
-        spectrum.release();
+        AudioSpectrum.drop(AudioSpectrum.BOTTOM);
         removeCallbacks(this);
         playerArt.hideForHero(false);
         if (back != null) { ((Back)back).unregister(); back = null; }

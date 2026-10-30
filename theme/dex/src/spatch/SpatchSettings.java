@@ -94,6 +94,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         0xFFBD93F9  // Dracula
     };
 
+    private static final int VIZ_THIN = 10, VIZ_FLOATING = 11;
+    private final java.util.ArrayList<TextView> pillViews = new java.util.ArrayList<TextView>();
+    private final View[] choiceRows = new View[Settings.CHOICES.length];
+    private SpectrumPreview preview;
     private final View backButton;
     private View resetRow;
     private boolean closing;
@@ -204,12 +208,21 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         refreshThemes(activeTheme, false);
         for (int i : APPEARANCE) content.addView(featureRows[i]);
 
+        addChoice(content, Settings.ART_OUTLINE, "Artwork outline", "On circular art in the player", new String[] {"Wavy", "Simple", "None"});
+        addChoice(content, Settings.ART_GLOW, "Artwork glow", null, new String[] {"Full", "Soft", "Off"});
+        addChoice(content, Settings.ART_SPECTRUM, "Artwork spectrum", "Real audio energy around the art; needs circular art in the player and the microphone permission", new String[] {"Off", "Bars", "Dots"});
+
         addSectionHeader(content, "Player", dp(28));
         for (int i : PLAYER) content.addView(featureRows[i]);
 
         addSectionHeader(content, "Visualizer", dp(28));
         addSectionSubtitle(content, "The spectrum under the immersive player");
+        preview = new SpectrumPreview(context);
+        content.addView(preview, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)));
+        addChoice(content, Settings.VIZ_SHAPE, "Shape", null, new String[] {"Bars", "Centre", "Contour", "Dots"});
+        addChoice(content, Settings.VIZ_TAPER, "Edge taper", "Eases the bars off toward the sides", new String[] {"Subtle", "None"});
         for (int i : VISUALIZER) content.addView(featureRows[i]);
+        refreshChoices();
 
         addSectionHeader(content, "Motion", dp(28));
         addSectionSubtitle(content, "Android's own animation setting is respected too");
@@ -221,6 +234,73 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         resetRow.setOnClickListener(this);
         describe(resetRow, "Reset to defaults", "Button");
         content.addView(resetRow);
+    }
+
+    /** A titled row of pills, one per stable option in Settings.CHOICES[setting]. */
+    private void addChoice(LinearLayout parent, int setting, String title, String subtitle, String[] labels) {
+        Context c = getContext();
+        LinearLayout row = new LinearLayout(c);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(16), dp(10), dp(16), dp(10));
+        TextView t = new TextView(c);
+        t.setText(title);
+        t.setTextSize(16f);
+        t.setTextColor(0xfff3eeff);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        row.addView(t);
+        if (subtitle != null) {
+            TextView s = new TextView(c);
+            s.setText(subtitle);
+            s.setTextSize(13f);
+            s.setTextColor(0xffbcb3dc);
+            row.addView(s);
+        }
+        LinearLayout pills = new LinearLayout(c);
+        pills.setOrientation(LinearLayout.HORIZONTAL);
+        pills.setPadding(0, dp(8), 0, 0);
+        for (int i = 0; i < labels.length; i++) {
+            TextView pill = new TextView(c);
+            pill.setText(labels[i]);
+            pill.setTextSize(14f);
+            pill.setGravity(Gravity.CENTER);
+            pill.setClickable(true);
+            pill.setFocusable(true);
+            pill.setTag(new String[] {String.valueOf(setting), Settings.CHOICES[setting][i], title + ": " + labels[i]});
+            pill.setOnClickListener(this);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            if (i > 0) lp.leftMargin = dp(8);
+            pills.addView(pill, lp);
+            pillViews.add(pill);
+        }
+        row.addView(pills);
+        choiceRows[setting] = row;
+        parent.addView(row);
+    }
+
+    /** Selected pills, and rows and switches that do not apply to the current choices. */
+    private void refreshChoices() {
+        for (TextView pill : pillViews) {
+            String[] tag = (String[]) pill.getTag();
+            boolean selected = tag[1].equals(Settings.choice(Integer.parseInt(tag[0])));
+            GradientDrawable bg = new GradientDrawable();
+            bg.setCornerRadius(dp(24));
+            bg.setColor(selected ? 0xffd0bcff : 0xff2b2640);
+            pill.setBackground(bg);
+            pill.setTextColor(selected ? 0xff14121c : 0xfff3eeff);
+            pill.setContentDescription(tag[2] + (selected ? ", Selected" : ", Not selected"));
+        }
+        String shape = Settings.choice(Settings.VIZ_SHAPE);
+        dim(featureRows[VIZ_THIN], "contour".equals(shape), 10, "Not used by Contour");
+        dim(featureRows[VIZ_FLOATING], "centre".equals(shape), 11, "Not used by Centre: it sits on a middle line");
+        boolean round = Settings.roundArt();
+        choiceRows[Settings.ART_OUTLINE].setAlpha(round ? 1f : 0.5f);
+        preview.invalidate();
+    }
+
+    private void dim(View row, boolean off, int setting, String why) {
+        row.setAlpha(off ? 0.5f : 1f);
+        row.setEnabled(!off);
+        describe(row, FEATURE_TITLES[setting], off ? why : Settings.get(setting) ? "On" : "Off");
     }
 
     /** Slides in from the right; called once the page is attached. */
@@ -372,12 +452,24 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             close();
             return;
         }
+        if (v.getTag() instanceof String[]) {
+            String[] tag = (String[]) v.getTag();
+            int setting = Integer.parseInt(tag[0]);
+            Settings.setChoice(setting, tag[1]);
+            if (setting == Settings.ART_SPECTRUM && !"off".equals(tag[1])
+                && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) {
+                AudioSpectrum.requestPermission(getContext());
+            }
+            refreshChoices();
+            return;
+        }
         if (v == resetRow) {
             Settings.resetAll();
             for (int i = 0; i < featureRows.length; i++) {
                 featureSwitches[i].setChecked(Settings.get(i));
                 describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
             }
+            refreshChoices();
             return;
         }
         for (int i = 0; i < featureRows.length; i++) {
@@ -386,6 +478,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 featureSwitches[i].setChecked(next);
                 Settings.set(i, next);
                 describe(featureRows[i], FEATURE_TITLES[i], next ? "On" : "Off");
+                refreshChoices();
                 return;
             }
         }

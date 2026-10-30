@@ -286,7 +286,15 @@ const RELOCATED: [(&str, &str, &str, &str); 4] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 20] = [
+const HELPERS: [(&str, &str); 22] = [
+    (
+        "Spectrum",
+        include_str!("../theme/dex/src/spatch/Spectrum.java"),
+    ),
+    (
+        "SpectrumPreview",
+        include_str!("../theme/dex/src/spatch/SpectrumPreview.java"),
+    ),
     (
         "TextSlide",
         include_str!("../theme/dex/src/spatch/TextSlide.java"),
