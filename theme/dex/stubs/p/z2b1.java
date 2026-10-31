@@ -1,3 +1,4 @@
+// p.z2b1: Encore icon enum.
 package p;
 // Compile-time stub of an obfuscated app class; never packaged (resolved against the app at runtime).
 /** Encore icon enum; obfuscated constant names mapped from z2b1.<clinit> name strings. */

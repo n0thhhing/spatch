@@ -1,3 +1,4 @@
+// p.w2b1: Encore icon drawable.
 package p;
 // Compile-time stub of an obfuscated app class; never packaged (resolved against the app at runtime).
 /** Spotify's Encore icon drawable (renders the spoticon font glyph for a z2b1 icon). */

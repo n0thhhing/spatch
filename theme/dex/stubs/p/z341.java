@@ -1,3 +1,4 @@
+// p.z341: Compose graphicsLayer modifier: q(modifier, scaleX, scaleY, alpha, ...); mask marks defaulted arguments.
 package p;
 // Compile-time stub of an app class; never packaged.
 public abstract class z341 {

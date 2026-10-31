@@ -1,3 +1,4 @@
+// p.cxn1: Compose padding modifiers: D = padding(horizontal, vertical); G = padding per side with a default mask.
 package p;
 // Compile-time stub of an obfuscated app class; never packaged (resolved against the app at runtime).
 public abstract class cxn1 {

@@ -1,3 +1,4 @@
+// p.cg81: Drawer row content: icon, title resource, URI, badge, log spec (e), trailing slot. Settings reads e to reuse Spotify's logging.
 package p;
 // Compile-time stub only; never packaged (the device provides the real class).
 public final class cg81 implements dg81 {

@@ -1,3 +1,4 @@
+// p.n191: Compose size modifiers: r = size(dp), s = size(width, height).
 package p;
 // Compile-time stub of an obfuscated app class; never packaged (resolved against the app at runtime).
 public abstract class n191 {

@@ -1,3 +1,4 @@
+// p.fg81: Drawer row wrapper with defaults; its a field is the row content (cg81).
 package p;
 // Compile-time stub only; never packaged (the device provides the real class).
 public final class fg81 {

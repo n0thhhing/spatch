@@ -1,3 +1,4 @@
+// p.ft01: Drawer row provider: kind 0 Recents, 1 Settings and privacy, 2 Company Information.
 package p;
 // Compile-time stub only; never packaged (the device provides the real class).
 public final class ft01 implements jg81 { public final byte a; public ft01(byte b) { a = b; } // no initializer: javac would inline a constant
