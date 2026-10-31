@@ -123,9 +123,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
     private static final String[] FEATURE_ICONS = {
-        "soundwave", "enhance", "album", "album", "now_playing", "play", "pause", "soundwave",
-        "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden", "soundwave", "notifications_active", "play", "home", "filter", "hidden", "hidden", "hidden", "hidden", "hidden", "hidden",
-        "enhance", "filter", "enhance", "filter", "enhance", "filter", "enhance", "filter", "check", "play", "enhance", "enhance", "library", "enhance", "filter", "enhance"
+        "soundwave", "enhance", "image", "album", "fullscreen", "star", "pause", "soundwave",
+        "repeat", "time", "list_view", "arrow_up", "minimize", "podcasts", "audiobook", "group", "now_playing", "notifications_active", "play", "home", "filter", "time", "sort", "gem", "notification_new", "heart", "information_alt",
+        "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist"
     };
 
     /** Section layout: Settings indices per group. */
