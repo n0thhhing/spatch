@@ -49,6 +49,10 @@ public final class Surfaces {
         return Settings.libraryCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row;
     }
 
+    public static rhm0 trackRow(rhm0 row) {
+        return Settings.playlistCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row;
+    }
+
     private static rhm0 card(rhm0 row, float sides, float ends, int color) {
         vp31 shape = xp31.b(20f);
         rhm0 inset = cxn1.D(row, sides, ends);

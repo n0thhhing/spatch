@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 77] = [
+pub const EDITS: [Edit; 78] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -400,6 +400,12 @@ pub const EDITS: [Edit; 77] = [
         file: "smali_classes8/p/n0k0.smali",
         anchor: ".method public static final c(ZLp/wt30;Lp/bex;Lp/wdx;Lp/bv61;Lp/x9x;ZLp/lcn0;Lp/r980;Lp/rhm0;Lp/z1i;Lp/pzj;I)V\n    .locals 29\n",
         replacement: ".method public static final c(ZLp/wt30;Lp/bex;Lp/wdx;Lp/bv61;Lp/x9x;ZLp/lcn0;Lp/r980;Lp/rhm0;Lp/z1i;Lp/pzj;I)V\n    .locals 29\n\n    move/from16 v0, p0\n\n    move-object/from16 v1, p4\n\n    invoke-static {v1, v0}, Lspatch/Surfaces;->chipShape(Lp/bv61;Z)Lp/bv61;\n\n    move-result-object v1\n\n    move-object/from16 p4, v1\n",
+    },
+    // Playlist track rows (eeb1, via kro1.d): spatch.Surfaces lays each on a card.
+    Edit {
+        file: "smali_classes8/p/eeb1.smali",
+        anchor: "    move v10, v4\n",
+        replacement: "    move v10, v4\n\n    invoke-static {v9}, Lspatch/Surfaces;->trackRow(Lp/rhm0;)Lp/rhm0;\n\n    move-result-object v9\n\n",
     },
     // Home chips (p.sdy, classes7): the fetched feed list goes through spatch.Content.feeds.
     Edit {
