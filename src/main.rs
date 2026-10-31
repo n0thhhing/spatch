@@ -16,11 +16,14 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const USAGE: &str = "\
 usage:
   spatch inspect <input.apkm>
-  spatch patch <input.apkm> --out <new-dir> [--theme <name>] --dry-run
-  spatch patch <input.apkm> --out <new-dir> [--theme <name>] --keystore <file> --alias <name> --ks-pass-env <VAR>
+  spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --dry-run
+  spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --keystore <file> --alias <name> --ks-pass-env <VAR>
 
 Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula,
 gruvbox-material-dark.
+
+--debug adds Developer options to Spatch settings: on-device tests, logs and inspection tools.
+Other builds contain none of that code.
 
 The input is never modified. The keystore password is read by apksigner from the named
 environment variable; spatch never reads or prints it.";
@@ -41,6 +44,7 @@ fn run(args: Vec<String>) -> Result<()> {
         Some("patch") if args.len() >= 2 => {
             let mut out = None;
             let (mut keystore, mut alias, mut pass_env, mut dry_run) = (None, None, None, false);
+            let mut debug = false;
             let mut theme = theme::by_name("lavender")?;
             let mut it = args[2..].iter();
             while let Some(flag) = it.next() {
@@ -51,6 +55,7 @@ fn run(args: Vec<String>) -> Result<()> {
                     "--alias" => alias = Some(value()?),
                     "--ks-pass-env" => pass_env = Some(value()?),
                     "--dry-run" => dry_run = true,
+                    "--debug" => debug = true,
                     "--theme" => theme = theme::by_name(&value()?)?,
                     _ => return Err(format!("unknown argument {flag}\n{USAGE}").into()),
                 }
@@ -76,6 +81,7 @@ fn run(args: Vec<String>) -> Result<()> {
                 signing.as_ref(),
                 &tools,
                 theme,
+                debug,
             )
         }
         _ => Err(USAGE.into()),

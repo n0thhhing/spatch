@@ -29,7 +29,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer,
     // viz_mirrored, viz_smooth, viz_thin, viz_floating, viz_side_margin, hide_podcasts, hide_audiobooks,
     // hide_messages, mini_visualizer, haptics..., hide_recents to hide_company_info.
-    private static final String[] FEATURE_TITLES = {
+    static final String[] FEATURE_TITLES = {
         "Wavy progress",
         "Button animations",
         "Album art backdrop",
@@ -96,7 +96,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Pill slide"
     };
 
-    private static final String[] FEATURE_SUBTITLES = {
+    static final String[] FEATURE_SUBTITLES = {
         "The played part of the progress bar waves while music plays",
         "Bounce and nudge feedback on the player controls",
         "Blurred album art behind Now Playing",
@@ -164,7 +164,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
-    private static final String[] FEATURE_ICONS = {
+    static final String[] FEATURE_ICONS = {
         "soundwave", "enhance", "image", "album", "fullscreen", "star", "pause", "soundwave",
         "repeat", "time", "list_view", "arrow_up", "minimize", "podcasts", "audiobook", "group", "now_playing", "notifications_active", "play", "home", "filter", "time", "sort", "gem", "notification_new", "heart", "information_alt",
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
@@ -553,6 +553,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         finish(sideMenu);
         resetFor(concat(CONTENT, SIDE_MENU), new int[0]);
         finishCategory(contentPage);
+        Settings.dev("install", new Class<?>[] {SpatchSettings.class, LinearLayout.class}, this, categories);
         finish(categories);
 
         content = home;
@@ -614,7 +615,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     }
 
     /** Adds a category row to the root list and starts its page. */
-    private View category(LinearLayout list, String iconName, String title, String subtitle, String pageTitle) {
+    View category(LinearLayout list, String iconName, String title, String subtitle, String pageTitle) {
         LinearLayout page = addPage(pageTitle, null);
         link(list, iconName, title, subtitle, page);
         return page;
@@ -633,7 +634,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         content = (LinearLayout) page;
     }
 
-    private void finishCategory(View page) {
+    LinearLayout currentPage() {
+        return content;
+    }
+
+    void finishCategory(View page) {
         content = null;
     }
 
@@ -963,7 +968,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             .show();
     }
 
-    private void addSectionHeader(String title) {
+    void addSectionHeader(String title) {
         TextView header = new TextView(getContext());
         header.setText(title);
         header.setTextSize(14f);

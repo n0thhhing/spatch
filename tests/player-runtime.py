@@ -98,6 +98,7 @@ public class PlayerRuntimeTest {
         public boolean getBoolean(String k,boolean d){return booleans.getOrDefault(k,d);}
         public Editor edit(){return this;}
         public Editor putString(String k,String v){data.put(k,v);return this;}
+        public Editor remove(String k){data.remove(k);booleans.remove(k);return this;}
         public Editor putBoolean(String k,boolean v){booleans.put(k,v);return this;}
         public java.util.Set<String> getStringSet(String k,java.util.Set<String> d){return d;}
         public Editor putStringSet(String k,java.util.Set<String> v){return this;}
@@ -646,6 +647,23 @@ public class PlayerRuntimeTest {
         Settings.set(50,false);new Springy(still).onTouch(still,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,0,0,0));
         check(!((Boolean)runningOf(still)),"off must not start a spring");Settings.set(50,true);
         System.out.println("PASS springy press");
+
+        // Developer options: every test reports, and a broken test can't hide the others.
+        java.util.List<DevTests.Result> outcome=DevTests.run(new android.content.Context(),null);
+        check(outcome.size()>=17,"self tests must all report, got "+outcome.size());
+        check(DevTests.summary(outcome).contains(" passed, "),"summary");
+        for(DevTests.Result r:outcome) if(r.name.equals("Settings tables match")||r.name.equals("Stored choices are valid")||r.name.equals("Spring settles")||r.name.equals("Album colour stays visible")||r.name.equals("Audio ring fits its view")) check(!r.failed(),r.toString());
+        for(DevTests.Result r:outcome) if(r.name.equals("Navigation bar is attached")) check(!r.failed() && r.toString().startsWith("SKIP"),"no window must skip, not fail");
+        Settings.resetAll();
+        check(DevOptions.changedSettings().equals("All defaults\n"),"defaults must read as such");
+        Settings.set(6,true); Settings.setChoice(Settings.ART_SKIP,"spin");
+        String changed=DevOptions.changedSettings();
+        check(changed.contains("reduce_motion = true")&&changed.contains("art_skip = spin")&&!changed.contains("wave ="),"report lists only changes: "+changed);
+        Settings.resetAll();
+        check(DevOptions.trace(Thread.currentThread(),new IllegalStateException("boom")).contains("boom"),"crash record keeps the message");
+        collect(full,"Run all tests",resets=new java.util.ArrayList<TextView>());
+        check(!resets.isEmpty(),"Developer options must be on the page in a debug helper set");
+        System.out.println("PASS developer options");
     }
 }
 ''')

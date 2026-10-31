@@ -5,6 +5,7 @@ public interface SharedPreferences {
         Editor putString(String k,String v);
         Editor putStringSet(String k,java.util.Set<String> v);
         Editor putBoolean(String k, boolean v);
+        Editor remove(String k);
         void apply();
         boolean commit();
     }

@@ -230,6 +230,7 @@ pub fn run(
     signing: Option<&Signing>,
     tools: &Tools,
     theme: &Theme,
+    debug: bool,
 ) -> Result<()> {
     if out.exists() {
         return Err(format!(
@@ -258,7 +259,7 @@ pub fn run(
     let base = apks.join("base.apk");
     check_targets(&base)?;
     let (mut compiled, new_entries) = compile_targets(&base, &staging.path, tools, theme)?;
-    let mut dexes = dex::build(&base, &staging.path, tools, theme)?;
+    let mut dexes = dex::build(&base, &staging.path, tools, theme, debug)?;
     let helper = dexes.pop().expect("dex::build returns the helper last");
     compiled.append(&mut dexes);
     compiled.extend(lottie::patch_all(&base, theme)?);
@@ -868,6 +869,7 @@ mod tests {
             None,
             &tools,
             &crate::theme::THEMES[0],
+            false,
         )
         .unwrap_err()
         .to_string();
@@ -891,6 +893,7 @@ mod tests {
             None,
             &Tools::discover().unwrap(),
             crate::theme::by_name("gruvbox").unwrap(),
+            false,
         )
         .unwrap();
         assert!(!out.exists());

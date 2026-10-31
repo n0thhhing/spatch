@@ -167,6 +167,17 @@ public final class Settings implements jg81 {
         }
     }
 
+    /** DevOptions exists only in --debug builds; other builds find nothing here and carry no developer code. */
+    static void dev(String method, Class<?>[] types, Object... args) {
+        try {
+            Class.forName("spatch.DevOptions").getMethod(method, types).invoke(null, args);
+        } catch (ClassNotFoundException release) {
+            return;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** The application (load() runs from Application.attachBaseContext); used by SpatchWidget. */
     static Context app;
 
@@ -176,6 +187,7 @@ public final class Settings implements jg81 {
         Fonts.load(c);
         if (prefs != null || c == null) return;
         prefs = c.getSharedPreferences("spatch", 0);
+        dev("start", new Class<?>[] {Context.class}, c);
         for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], DEFAULTS[i]);
         for (int i = 0; i < CHOICES.length; i++) chosen[i] = valid(i, prefs.getString(CHOICE_KEYS[i], null));
         loadSections();

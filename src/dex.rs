@@ -718,6 +718,37 @@ const HELPERS: [(&str, &str); 47] = [
         include_str!("../theme/dex/src/spatch/Immersive.java"),
     ),
 ];
+/// Added by `--debug` only, and found by name at runtime, so other builds contain none of this code.
+const DEBUG_HELPERS: [(&str, &str); 3] = [
+    (
+        "DevOptions",
+        include_str!("../theme/dex/src/spatch/DevOptions.java"),
+    ),
+    (
+        "DevTests",
+        include_str!("../theme/dex/src/spatch/DevTests.java"),
+    ),
+    (
+        "DevOverlay",
+        include_str!("../theme/dex/src/spatch/DevOverlay.java"),
+    ),
+];
+
+fn helpers(debug: bool) -> Vec<(&'static str, &'static str)> {
+    let extra: &[(&str, &str)] = if debug { &DEBUG_HELPERS } else { &[] };
+    HELPERS.iter().chain(extra).copied().collect()
+}
+
+/// Every obfuscated class the helpers compile against, for the on-device binding test.
+fn obfuscated_classes() -> String {
+    let names: Vec<_> = STUBS
+        .iter()
+        .filter(|(_, source)| source.contains("package p;"))
+        .map(|(name, _)| format!("p.{}", name.trim_end_matches(".java")))
+        .collect();
+    names.join(",")
+}
+
 const STUBS: &[(&str, &str)] = &[
     (
         "Font.java",
@@ -811,6 +842,18 @@ const STUBS: &[(&str, &str)] = &[
     (
         "SweepGradient.java",
         include_str!("../theme/dex/stubs/android/graphics/SweepGradient.java"),
+    ),
+    (
+        "Choreographer.java",
+        include_str!("../theme/dex/stubs/android/view/Choreographer.java"),
+    ),
+    (
+        "ClipboardManager.java",
+        include_str!("../theme/dex/stubs/android/content/ClipboardManager.java"),
+    ),
+    (
+        "Process.java",
+        include_str!("../theme/dex/stubs/android/os/Process.java"),
     ),
     (
         "ComposeShader.java",
@@ -1260,6 +1303,7 @@ pub fn build(
     staging: &Path,
     tools: &Tools,
     theme: &Theme,
+    debug: bool,
 ) -> Result<Vec<(&'static str, Vec<u8>)>> {
     let fw = staging.join("framework");
     let smali = staging.join("smali");
@@ -1343,7 +1387,7 @@ pub fn build(
     fs::write(&relocated_dex, input::read_entry(&built, HELPER_DEX)?)?;
     out.push((
         HELPER_DEX,
-        compile_helper(staging, tools, theme, &relocated_dex)?,
+        compile_helper(staging, tools, theme, &relocated_dex, debug)?,
     ));
     Ok(out)
 }
@@ -1401,8 +1445,10 @@ fn compile_helper(
     tools: &Tools,
     theme: &Theme,
     listener_dex: &Path,
+    debug: bool,
 ) -> Result<Vec<u8>> {
     let root = staging.join("helper");
+    let helpers = helpers(debug);
     let (stub_src, stub_cls, cls, dex) = (
         root.join("stubs-src"),
         root.join("stubs"),
@@ -1433,12 +1479,15 @@ fn compile_helper(
         OsStr::new("-d"),
         cls.as_os_str(),
     ];
-    let helper_paths: Vec<_> = HELPERS
+    let helper_paths: Vec<_> = helpers
         .iter()
         .map(|(n, _)| root.join(format!("{n}.java")))
         .collect();
-    for ((_, src), p) in HELPERS.iter().zip(&helper_paths) {
-        fs::write(p, helper_source(src, theme).replace("@THEME@", theme.name))?;
+    for ((_, src), p) in helpers.iter().zip(&helper_paths) {
+        let source = helper_source(src, theme)
+            .replace("@THEME@", theme.name)
+            .replace("@OBFUSCATED@", &obfuscated_classes());
+        fs::write(p, source)?;
         javac_helpers.push(p.as_os_str());
     }
     tools.run(&javac, &javac_helpers)?;
@@ -1471,14 +1520,14 @@ fn compile_helper(
     tools.run(&tools.d8, &d8)?;
     let out = dex.join("classes.dex");
     let classes = tools.run(&tools.dexdump, &[OsStr::new("-f"), out.as_os_str()])?;
-    let all_present = HELPERS
+    let all_present = helpers
         .iter()
         .all(|(n, _)| classes.contains(&format!("'Lspatch/{n};'")));
     let nested = class_paths
         .iter()
         .filter(|p| p.to_string_lossy().contains('$'))
         .count();
-    if classes.matches("Class descriptor").count() != HELPERS.len() + nested + RELOCATED.len()
+    if classes.matches("Class descriptor").count() != helpers.len() + nested + RELOCATED.len()
         || !all_present
         || !RELOCATED
             .iter()
@@ -1586,6 +1635,22 @@ mod tests {
         assert!(source.contains("{0x14121c,0x1d1a2a"));
         assert!(source.contains("{0x282828,0x3c3836"));
         assert!(source.contains("BASE={0x282828"));
+    }
+
+    #[test]
+    fn only_debug_builds_contain_developer_code() {
+        let names = |debug| -> Vec<&str> { helpers(debug).iter().map(|(n, _)| *n).collect() };
+        assert!(!names(false).iter().any(|n| n.starts_with("Dev")));
+        for (name, _) in DEBUG_HELPERS {
+            assert!(names(true).contains(&name));
+        }
+        // Normal helpers may only reach it by name: a compile-time reference would fail without --debug.
+        for (name, source) in HELPERS {
+            for class in ["DevOptions.", "DevTests.", "DevOverlay."] {
+                assert!(!source.contains(class), "{name} refers to {class}");
+            }
+        }
+        assert!(obfuscated_classes().contains("p.x7v"));
     }
 
     #[test]

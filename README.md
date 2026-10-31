@@ -52,6 +52,9 @@ Build a signed set. The password is read by `apksigner` from the environment var
 ./target/release/spatch patch <input.apkm> --out <new-dir> --theme gruvbox --keystore <file> --alias <name> --ks-pass-env SPATCH_KS_PASS
 ```
 
+Add `--debug` for a Developer options page in Spatch settings: on-device self tests, a frame monitor,
+a touch inspector, a crash record and log reading. Other builds contain none of that code.
+
 Install every split together. Update in place: uninstalling loses the app's data, and the signer must
 match any Spatch build already on the phone.
 
