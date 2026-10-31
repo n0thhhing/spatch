@@ -1,5 +1,6 @@
 package spatch;
 
+import p.bv61;
 import p.cxn1;
 import p.evx;
 import p.mtg;
@@ -40,11 +41,24 @@ public final class Surfaces {
     /** Side drawer rows (x571): tonal rounded surfaces; the clip keeps the row's ripple inside. */
     public static rhm0 drawerRow(rhm0 row) {
         if (!Settings.sideCards()) return row;
+        return card(row, 12f, 3f, 0xff2b2640);
+    }
+
+    /** Your Library rows on their own rounded cards. */
+    public static rhm0 libraryRow(rhm0 row) {
+        return Settings.libraryCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row;
+    }
+
+    private static rhm0 card(rhm0 row, float sides, float ends, int color) {
         vp31 shape = xp31.b(20f);
-        rhm0 inset = cxn1.D(row, 12f, 3f);
-        // graphicsLayer(shape, clip = true): mask bits 11 and 12 are those two arguments.
+        rhm0 inset = cxn1.D(row, sides, ends);
         rhm0 clipped = z341.q(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
-        return mtg.n(clipped, (long) Palette.color(0xff2b2640) << 32, shape);
+        return mtg.n(clipped, (long) Palette.color(color) << 32, shape);
+    }
+
+    /** Selected toggle chips are full pills, like the Home filters; Compose eases the colour between them. */
+    public static bv61 chipShape(bv61 shape, boolean selected) {
+        return selected && Settings.libraryChips() ? xp31.a : shape;
     }
 
     /** evx.a with mask 47 replaces only the outer padding. */

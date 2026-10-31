@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 75] = [
+pub const EDITS: [Edit; 77] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -388,6 +388,18 @@ pub const EDITS: [Edit; 75] = [
         file: "smali_classes12/p/bn31.smali",
         anchor: "    invoke-static {v2, v5, v6, v12, v14}, Lp/mtg;->m(Lp/rhm0;Landroidx/compose/ui/graphics/Brush;Lp/bv61;FI)Lp/rhm0;\n",
         replacement: "    invoke-static {v5, v0}, Lspatch/ProfileBanner;->brush(Landroidx/compose/ui/graphics/Brush;Lp/l6x0;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object v5\n\n    invoke-static {v2, v5, v6, v12, v14}, Lp/mtg;->m(Lp/rhm0;Landroidx/compose/ui/graphics/Brush;Lp/bv61;FI)Lp/rhm0;\n",
+    },
+    // Your Library rows (r0a1.d): spatch.Surfaces lays each on a card.
+    Edit {
+        file: "smali_classes12/p/r0a1.smali",
+        anchor: "    :goto_b\n    invoke-interface {v2, v4}, Lp/rhm0;->then(Lp/rhm0;)Lp/rhm0;\n\n    .line 365\n    .line 366\n    .line 367\n    move-result-object v2\n",
+        replacement: "    :goto_b\n    invoke-interface {v2, v4}, Lp/rhm0;->then(Lp/rhm0;)Lp/rhm0;\n\n    .line 365\n    .line 366\n    .line 367\n    move-result-object v2\n\n    invoke-static {v2}, Lspatch/Surfaces;->libraryRow(Lp/rhm0;)Lp/rhm0;\n\n    move-result-object v2\n",
+    },
+    // Toggle chips (n0k0.c, Library filters among them): the selected chip turns into a pill.
+    Edit {
+        file: "smali_classes8/p/n0k0.smali",
+        anchor: ".method public static final c(ZLp/wt30;Lp/bex;Lp/wdx;Lp/bv61;Lp/x9x;ZLp/lcn0;Lp/r980;Lp/rhm0;Lp/z1i;Lp/pzj;I)V\n    .locals 29\n",
+        replacement: ".method public static final c(ZLp/wt30;Lp/bex;Lp/wdx;Lp/bv61;Lp/x9x;ZLp/lcn0;Lp/r980;Lp/rhm0;Lp/z1i;Lp/pzj;I)V\n    .locals 29\n\n    move/from16 v0, p0\n\n    move-object/from16 v1, p4\n\n    invoke-static {v1, v0}, Lspatch/Surfaces;->chipShape(Lp/bv61;Z)Lp/bv61;\n\n    move-result-object v1\n\n    move-object/from16 p4, v1\n",
     },
     // Home chips (p.sdy, classes7): the fetched feed list goes through spatch.Content.feeds.
     Edit {

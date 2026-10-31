@@ -68,7 +68,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Theme-coloured press",
         "Living play button",
         "Profile header",
-        "Theme-coloured fallback"
+        "Theme-coloured fallback",
+        "Your Library style",
+        "Row cards",
+        "Pill filter chips"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -110,14 +113,17 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Held rows use a theme tone instead of black",
         "The playlist button morphs and turns while playing",
         "Your own profile only. Only visible in Spatch.",
-        "With no banner, your profile uses the theme instead of Spotify's colour"
+        "With no banner, your profile uses the theme instead of Spotify's colour",
+        "Cards and filter chips in Your Library",
+        "Each item sits on its own rounded card",
+        "The selected chip turns into a pill"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
     private static final String[] FEATURE_ICONS = {
         "soundwave", "enhance", "album", "album", "now_playing", "play", "pause", "soundwave",
         "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden", "soundwave", "notifications_active", "play", "home", "filter", "hidden", "hidden", "hidden", "hidden", "hidden", "hidden",
-        "enhance", "filter", "enhance", "filter", "enhance", "filter", "enhance", "filter", "check", "play", "enhance", "enhance"
+        "enhance", "filter", "enhance", "filter", "enhance", "filter", "enhance", "filter", "check", "play", "enhance", "enhance", "library", "enhance", "filter"
     };
 
     /** Section layout: Settings indices per group. */
@@ -357,8 +363,15 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             }
         };
         resetFor(new int[] {37, 38}, new int[] {Settings.PROFILE_POSITION});
+        LinearLayout libraryPage = subPage("Your Library style");
+        LinearLayout libraryRows = addGroup();
+        libraryRows.addView(featureRows[40]);
+        libraryRows.addView(featureRows[41]);
+        finish(libraryRows);
+        resetFor(new int[] {39, 40, 41}, new int[0]);
         inside(screens);
         LinearLayout screenRows = addGroup();
+        screenRows.addView(master(39, libraryPage));
         screenRows.addView(master(37, profilePage));
         screenRows.addView(master(FILTERS, filterPage));
         screenRows.addView(master(SIDE_STYLE, sidePage));
