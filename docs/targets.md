@@ -518,3 +518,7 @@ Tab press feedback: `k1u.c` (classes12) gets a null indication, so Compose draws
 - **Held rows:** `tbx.e` in `p.ggx`'s base set was opaque black; `Surfaces.pressed` replaces that slot.
 - **Back:** `Back` unregisters when it fires, so `SpatchSettings.close` registers again after popping a sub-page.
 - **Gruvbox Material Dark:** palette from github.com/sainnhe/gruvbox-material (MIT, Copyright (c) 2020 sainnhe), dark medium background. Internal name `gruvbox-material-dark`; `theme_assets::PATHS` is sized by `THEMES.len()`, so a missing overlay path is a compile error.
+
+- **Filter chips:** `FilterRow.resize` changes chip width with the pill; removing a chip at once clipped the pill at the shrunken row's edge.
+- **Your Library rows:** `p.r0a1.d`. Selected toggle chips: `p.n0k0.c`.
+- **Playlist track rows:** `p.eeb1` through `p.kro1.d` (a list-item variant that does not pass through `sqo1.m`). Edit-playlist rows are `p.kt31`, also through `kro1.d`, and are left alone.
