@@ -39,7 +39,7 @@ macro_rules! target {
 /// Now Playing slice. Ownership: p.jcs inflates revised_template_page_layout (which includes
 /// revised_template_overlay); p.u1o inflates track_info_nowplaying_view; the seekbar drawables are
 /// reached only through the NowPlayingSeekBar style and p.ews.
-pub const TARGETS: [Target; 16] = [
+pub const TARGETS: [Target; 19] = [
     // Mini-player surface (also its live-room and hat variants): adds a faint outline.
     target!(
         "res/drawable/floating_layout_bg.xml",
@@ -92,6 +92,20 @@ pub const TARGETS: [Target; 16] = [
     target!(
         "res/layout/now_playing_bar_track_info_view.xml",
         "b12f9503969c41ebb1996f6343e17b0bc1498276543f71c8c5f67fea71b4938c"
+    ),
+    // Library's add rows (gra0): the icon tile matched the page, so it showed on a held row.
+    target!(
+        "res/drawable/library_compose_onboarding_card_default_background.xml",
+        "435338e090e72b314587cc1ae7ad718ea09d445ee6adec8bfa4e3659af0f042f"
+    ),
+    target!(
+        "res/drawable/library_onboarding_card_circular_background.xml",
+        "0abe5c33408e437abe9d5f36c0808e069038efe408b150555173ec0258d9ee1c"
+    ),
+    // Page changes (tvn0.r): the fade Spotify already uses gains a small rise.
+    target!(
+        "res/anim/fade_in_hard.xml",
+        "ff21800118ac677bf8ad53c60bb34a3786baadd6fdfdbb7ae2ac38b371ec966b"
     ),
     // Phone-portrait main layout (MainLayout, app:mode="vertical"): navigation_bar container and bottom
     // gradients. horizontal_main / large_main (landscape, tablets) are not patched.
@@ -256,6 +270,11 @@ pub fn run(
     let mut added = vec![helper];
     added.extend(new_entries);
     added.extend(crate::theme_assets::build(&base, &compiled, theme)?);
+    added.extend(
+        crate::fonts::FILES
+            .iter()
+            .map(|(name, bytes)| (*name, bytes.to_vec())),
+    );
     let Some(signing) = signing else {
         println!(
             "dry run: input, targets, resource compilation and DEX reassembly verified; no output written"
@@ -589,7 +608,12 @@ pub fn rewrite_apk(
         }
     }
     for (name, bytes) in add {
-        zout.start_file(*name, deflated())?;
+        let opts = if crate::fonts::stored(name) {
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored)
+        } else {
+            deflated()
+        };
+        zout.start_file(*name, opts)?;
         std::io::Write::write_all(&mut zout, bytes)?;
     }
     zout.finish()?;

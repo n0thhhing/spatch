@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 59] = [
+pub const EDITS: [Edit; 73] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -124,6 +124,12 @@ pub const EDITS: [Edit; 59] = [
         file: "smali/p/ggx.smali",
         anchor: "    const-wide v2, 0xff121212L\n",
         replacement: "    const-wide v2, 0xff14121cL\n",
+    },
+    // base press: the only black here that paints a surface (v13 stays for text on accents)
+    Edit {
+        file: "smali/p/ggx.smali",
+        anchor: "    const-wide v13, 0xff000000L\n\n    .line 22\n    .line 23\n    .line 24\n    .line 25\n    .line 26\n    invoke-static {v13, v14}, Lp/y2p1;->f(J)J\n\n    .line 27\n    .line 28\n    .line 29\n    move-result-wide v11\n",
+        replacement: "    const-wide v13, 0xff000000L\n\n    .line 22\n    .line 23\n    .line 24\n    .line 25\n    .line 26\n    invoke-static {}, Lspatch/Surfaces;->pressed()J\n\n    .line 27\n    .line 28\n    .line 29\n    move-result-wide v11\n",
     },
     // elevated base
     Edit {
@@ -333,7 +339,7 @@ pub const EDITS: [Edit; 59] = [
     Edit {
         file: "smali_classes4/p/f1p1.smali",
         anchor: "    sget-object v5, Lp/xp31;->a:Lp/vp31;\n",
-        replacement: "    sget-object v5, Lspatch/ScallopShape;->PLAY:Lspatch/ScallopShape;\n",
+        replacement: "    invoke-static/range {p1 .. p1}, Lspatch/ScallopShape;->live(I)Lp/bv61;\n\n    move-result-object v5\n",
     },
     // Widget: Glance's hand-off of the rendered RemoteViews (p.rx5, classes.dex) asks
     // spatch.SpatchWidget first; it returns Spatch's views only for the Now Playing widget.
@@ -364,6 +370,12 @@ pub const EDITS: [Edit; 59] = [
         file: "smali_classes2/p/xmc0.smali",
         anchor: "    iput-object p2, p0, Lp/xmc0;->b:Ljava/util/List;\n",
         replacement: "    invoke-static {p2}, Lspatch/Content;->home(Ljava/util/List;)Ljava/util/List;\n\n    move-result-object p2\n\n    iput-object p2, p0, Lp/xmc0;->b:Ljava/util/List;\n",
+    },
+    // Home's list: spatch.Content keeps it so Review on Home can resubmit the model.
+    Edit {
+        file: "smali_classes2/p/t0d0.smali",
+        anchor: ".method public final b(Lp/xmc0;)V\n    .locals 6\n",
+        replacement: ".method public final b(Lp/xmc0;)V\n    .locals 6\n\n    invoke-static {p0, p1}, Lspatch/Content;->submit(Lp/t0d0;Lp/xmc0;)V\n",
     },
     // Home chips (p.sdy, classes7): the fetched feed list goes through spatch.Content.feeds.
     Edit {
@@ -407,11 +419,82 @@ pub const EDITS: [Edit; 59] = [
         anchor: "    .line 242\n    const/4 v12, 0x0\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
         replacement: "    .line 242\n    const/4 v12, 0x0\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
     },
+
+    // Typography: the three Spotify Mix loaders ask spatch.Fonts first (docs/targets.md).
+    Edit {
+        file: "smali/p/jw21.smali",
+        anchor: ".method public static c(Landroid/content/Context;ILandroid/util/TypedValue;ILp/e82;ZZ)Landroid/graphics/Typeface;\n    .locals 11\n",
+        replacement: ".method public static c(Landroid/content/Context;ILandroid/util/TypedValue;ILp/e82;ZZ)Landroid/graphics/Typeface;\n    .locals 11\n\n    invoke-static {p1}, Lspatch/Fonts;->resource(I)Landroid/graphics/Typeface;\n\n    move-result-object v0\n\n    if-eqz v0, :spatch_stock\n\n    if-eqz p4, :spatch_done\n\n    invoke-virtual {p4, v0}, Lp/e82;->o(Landroid/graphics/Typeface;)V\n\n    :spatch_done\n    return-object v0\n\n    :spatch_stock\n",
+    },
+    Edit {
+        file: "smali_classes3/p/n74.smali",
+        anchor: ".method public static K(Landroid/content/Context;II)Landroid/graphics/Typeface;\n    .locals 3\n",
+        replacement: ".method public static K(Landroid/content/Context;II)Landroid/graphics/Typeface;\n    .locals 3\n\n    invoke-static {p1}, Lspatch/Fonts;->resource(I)Landroid/graphics/Typeface;\n\n    move-result-object v0\n\n    if-eqz v0, :spatch_stock\n\n    return-object v0\n\n    :spatch_stock\n",
+    },
+    Edit {
+        file: "smali_classes3/p/h4b1.smali",
+        anchor: ".method public static final a(Landroid/content/Context;)Landroid/graphics/Typeface;\n    .locals 3\n",
+        replacement: ".method public static final a(Landroid/content/Context;)Landroid/graphics/Typeface;\n    .locals 3\n\n    const v0, 0x7f090015\n\n    invoke-static {v0}, Lspatch/Fonts;->resource(I)Landroid/graphics/Typeface;\n\n    move-result-object v0\n\n    if-eqz v0, :spatch_stock\n\n    return-object v0\n\n    :spatch_stock\n",
+    },
+    Edit {
+        file: "smali_classes3/p/b0h1.smali",
+        anchor: ".method public static a(Landroid/graphics/Typeface;Lp/v930;Landroid/content/Context;)Landroid/graphics/Typeface;\n    .locals 11\n",
+        replacement: ".method public static a(Landroid/graphics/Typeface;Lp/v930;Landroid/content/Context;)Landroid/graphics/Typeface;\n    .locals 11\n\n    invoke-static {p0}, Lspatch/Fonts;->owned(Landroid/graphics/Typeface;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_stock\n\n    return-object p0\n\n    :spatch_stock\n",
+    },
+    Edit {
+        file: "smali_classes2/p/tzb.smali",
+        anchor: "    new-instance p0, Lp/rv21;\n\n    .line 12\n    .line 13\n    const v0, 0x7f090002\n",
+        replacement: "    new-instance p0, Lp/rv21;\n\n    .line 12\n    .line 13\n    iget v0, p1, Landroidx/compose/ui/text/font/FontWeight;->a:I\n\n    invoke-static {v0}, Lspatch/Fonts;->variable(I)I\n\n    move-result v0\n",
+    },
+    // Home filter row: my50.b hands the same model to the native chips (spatch.FilterRow).
+    Edit {
+        file: "smali_classes2/p/my50.smali",
+        anchor: "    invoke-virtual {p2, v1}, Lp/hqr0;->setValue(Ljava/lang/Object;)V\n",
+        replacement: "    invoke-virtual {p2, v1}, Lp/hqr0;->setValue(Ljava/lang/Object;)V\n\n    iget-object p2, v1, Lp/nn60;->a:Lp/b9;\n\n    iget-object v1, v1, Lp/nn60;->b:Lp/mn60;\n\n    iget-object v2, p0, Lp/my50;->Z:Landroid/view/View;\n\n    iget-object v3, p0, Lp/my50;->a:Lp/wt30;\n\n    invoke-static {v2, p2, v1, v3}, Lspatch/FilterRow;->bind(Landroid/view/View;Ljava/util/List;Ljava/lang/Object;Ljava/lang/Object;)V\n",
+    },
+    // Every page change takes the animation Spotify otherwise uses for only a few of them.
+    Edit {
+        file: "smali_classes2/p/tvn0.smali",
+        anchor: "    move-object p4, v1\n\n    .line 18\n    :cond_2\n",
+        replacement: "    move-object p4, v1\n\n    .line 18\n    :cond_2\n    invoke-static {}, Lspatch/Settings;->pageMotionEnabled()Z\n\n    move-result p3\n",
+    },
+    // The default press overlay (tsr) is black, which shows on any surface lighter than black.
+    Edit {
+        file: "smali_classes8/p/tsr.smali",
+        anchor: "    sget-wide v2, Lp/i7h;->b:J\n",
+        replacement: "    invoke-static {}, Lspatch/Surfaces;->pressTint()J\n\n    move-result-wide v2\n",
+    },
+    Edit {
+        file: "smali_classes8/p/tsr.smali",
+        anchor: "    sget-wide v1, Lp/i7h;->b:J\n",
+        replacement: "    invoke-static {}, Lspatch/Surfaces;->pressTint()J\n\n    move-result-wide v1\n",
+    },
+    Edit {
+        file: "smali_classes8/p/tsr.smali",
+        anchor: "    const v4, 0x3e99999a    # 0.3f\n",
+        replacement: "    const v4, 0x3e23d70a    # 0.16f\n",
+    },
+    // Side drawer link rows: no outer padding, so the held highlight fills the rounded row.
+    Edit {
+        file: "smali_classes11/p/x571.smali",
+        anchor: "    invoke-static {v0, v13, v1, v3, v2}, Lp/evx;->b(Lp/evx;ILp/dvx;Lp/b3v;I)Lp/evx;\n\n    .line 168\n    .line 169\n    .line 170\n    move-result-object v15\n",
+        replacement: "    invoke-static {v0, v13, v1, v3, v2}, Lp/evx;->b(Lp/evx;ILp/dvx;Lp/b3v;I)Lp/evx;\n\n    .line 168\n    .line 169\n    .line 170\n    move-result-object v15\n\n    invoke-static {v15}, Lspatch/Surfaces;->drawerItem(Lp/evx;)Lp/evx;\n\n    move-result-object v15\n",
+    },
+    // Side drawer link rows (x571, classes11): tonal rounded surfaces.
+    Edit {
+        file: "smali_classes11/p/x571.smali",
+        anchor: "    invoke-static {v0, v1}, Lp/n191;->f(Lp/rhm0;F)Lp/rhm0;\n\n    .line 110\n    .line 111\n    .line 112\n    move-result-object v14\n\n    .line 113\n    check-cast v8, Lp/l340;\n",
+        replacement: "    invoke-static {v0, v1}, Lp/n191;->f(Lp/rhm0;F)Lp/rhm0;\n\n    .line 110\n    .line 111\n    .line 112\n    move-result-object v14\n\n    invoke-static {v14}, Lspatch/Surfaces;->drawerRow(Lp/rhm0;)Lp/rhm0;\n\n    move-result-object v14\n\n    .line 113\n    check-cast v8, Lp/l340;\n",
+    },
 ];
 
 /// Original classes moved into `HELPER_DEX` (smali folder, file, original DEX, descriptor) because
 /// their own DEX has no room for the references their edits add; behaviour and names are unchanged.
-const RELOCATED: [(&str, &str, &str, &str); 8] = [
+const RELOCATED: [(&str, &str, &str, &str); 11] = [
+    // Typography and the Home filter row: these DEX tables are full too.
+    ("smali", "p/jw21.smali", "classes.dex", "Lp/jw21;"),
+    ("smali_classes2", "p/tzb.smali", "classes2.dex", "Lp/tzb;"),
+    ("smali_classes2", "p/my50.smali", "classes2.dex", "Lp/my50;"),
     // Compose surface and shape policy (spatch.Surfaces): both DEX tables are full.
     ("smali", "p/yw9.smali", "classes.dex", "Lp/yw9;"),
     ("smali", "p/xp31.smali", "classes.dex", "Lp/xp31;"),
@@ -430,7 +513,28 @@ const RELOCATED: [(&str, &str, &str, &str); 8] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 37] = [
+const HELPERS: [(&str, &str); 43] = [
+    ("Fonts", include_str!("../theme/dex/src/spatch/Fonts.java")),
+    (
+        "FontFile",
+        include_str!("../theme/dex/src/spatch/FontFile.java"),
+    ),
+    (
+        "FontImport",
+        include_str!("../theme/dex/src/spatch/FontImport.java"),
+    ),
+    (
+        "Typography",
+        include_str!("../theme/dex/src/spatch/Typography.java"),
+    ),
+    (
+        "HomeReview",
+        include_str!("../theme/dex/src/spatch/HomeReview.java"),
+    ),
+    (
+        "FilterRow",
+        include_str!("../theme/dex/src/spatch/FilterRow.java"),
+    ),
     (
         "Expansion",
         include_str!("../theme/dex/src/spatch/Expansion.java"),
@@ -572,6 +676,96 @@ const HELPERS: [(&str, &str); 37] = [
     ),
 ];
 const STUBS: &[(&str, &str)] = &[
+    (
+        "Font.java",
+        include_str!("../theme/dex/stubs/android/graphics/fonts/Font.java"),
+    ),
+    (
+        "FontFamily.java",
+        include_str!("../theme/dex/stubs/android/graphics/fonts/FontFamily.java"),
+    ),
+    (
+        "FontStyle.java",
+        include_str!("../theme/dex/stubs/android/graphics/fonts/FontStyle.java"),
+    ),
+    (
+        "Uri.java",
+        include_str!("../theme/dex/stubs/android/net/Uri.java"),
+    ),
+    (
+        "ContentResolver.java",
+        include_str!("../theme/dex/stubs/android/content/ContentResolver.java"),
+    ),
+    (
+        "ClipData.java",
+        include_str!("../theme/dex/stubs/android/content/ClipData.java"),
+    ),
+    (
+        "AssetFileDescriptor.java",
+        include_str!("../theme/dex/stubs/android/content/res/AssetFileDescriptor.java"),
+    ),
+    (
+        "InsetDrawable.java",
+        include_str!("../theme/dex/stubs/android/graphics/drawable/InsetDrawable.java"),
+    ),
+    (
+        "HorizontalScrollView.java",
+        include_str!("../theme/dex/stubs/android/widget/HorizontalScrollView.java"),
+    ),
+    (
+        "Button.java",
+        include_str!("../theme/dex/stubs/android/widget/Button.java"),
+    ),
+    (
+        "EditText.java",
+        include_str!("../theme/dex/stubs/android/widget/EditText.java"),
+    ),
+    (
+        "Fragment.java",
+        include_str!("../theme/dex/stubs/android/app/Fragment.java"),
+    ),
+    (
+        "FragmentManager.java",
+        include_str!("../theme/dex/stubs/android/app/FragmentManager.java"),
+    ),
+    (
+        "FragmentTransaction.java",
+        include_str!("../theme/dex/stubs/android/app/FragmentTransaction.java"),
+    ),
+    (
+        "Bundle.java",
+        include_str!("../theme/dex/stubs/android/os/Bundle.java"),
+    ),
+    (
+        "RecyclerView.java",
+        include_str!("../theme/dex/stubs/androidx/recyclerview/widget/RecyclerView.java"),
+    ),
+    (
+        "a.java",
+        include_str!("../theme/dex/stubs/androidx/recyclerview/widget/a.java"),
+    ),
+    (
+        "LinearLayoutManager.java",
+        include_str!("../theme/dex/stubs/androidx/recyclerview/widget/LinearLayoutManager.java"),
+    ),
+    ("r411.java", include_str!("../theme/dex/stubs/p/r411.java")),
+    ("evx.java", include_str!("../theme/dex/stubs/p/evx.java")),
+    ("zyq0.java", include_str!("../theme/dex/stubs/p/zyq0.java")),
+    ("vyq0.java", include_str!("../theme/dex/stubs/p/vyq0.java")),
+    ("zfx.java", include_str!("../theme/dex/stubs/p/zfx.java")),
+    ("dvx.java", include_str!("../theme/dex/stubs/p/dvx.java")),
+    ("t0d0.java", include_str!("../theme/dex/stubs/p/t0d0.java")),
+    ("x7v.java", include_str!("../theme/dex/stubs/p/x7v.java")),
+    ("xmc0.java", include_str!("../theme/dex/stubs/p/xmc0.java")),
+    ("ey50.java", include_str!("../theme/dex/stubs/p/ey50.java")),
+    ("in60.java", include_str!("../theme/dex/stubs/p/in60.java")),
+    ("jn60.java", include_str!("../theme/dex/stubs/p/jn60.java")),
+    ("ln60.java", include_str!("../theme/dex/stubs/p/ln60.java")),
+    ("wt30.java", include_str!("../theme/dex/stubs/p/wt30.java")),
+    ("vse1.java", include_str!("../theme/dex/stubs/p/vse1.java")),
+    ("wwm1.java", include_str!("../theme/dex/stubs/p/wwm1.java")),
+    ("ptd1.java", include_str!("../theme/dex/stubs/p/ptd1.java")),
+    ("nbd0.java", include_str!("../theme/dex/stubs/p/nbd0.java")),
     (
         "ViewConfiguration.java",
         include_str!("../theme/dex/stubs/android/view/ViewConfiguration.java"),
@@ -1185,10 +1379,10 @@ fn compile_helper(
             OsStr::new("."),
         ],
     )?;
-    let class_paths: Vec<_> = HELPERS
-        .iter()
-        .map(|(n, _)| cls.join(format!("spatch/{n}.class")))
-        .collect();
+    // Each helper plus its nested classes (Name$Inner.class).
+    let class_paths: Vec<_> = fs::read_dir(cls.join("spatch"))?
+        .map(|e| Ok(e?.path()))
+        .collect::<Result<_>>()?;
     let mut d8 = vec![
         OsStr::new("--release"),
         OsStr::new("--min-api"),
@@ -1206,7 +1400,11 @@ fn compile_helper(
     let all_present = HELPERS
         .iter()
         .all(|(n, _)| classes.contains(&format!("'Lspatch/{n};'")));
-    if classes.matches("Class descriptor").count() != HELPERS.len() + RELOCATED.len()
+    let nested = class_paths
+        .iter()
+        .filter(|p| p.to_string_lossy().contains('$'))
+        .count();
+    if classes.matches("Class descriptor").count() != HELPERS.len() + nested + RELOCATED.len()
         || !all_present
         || !RELOCATED
             .iter()

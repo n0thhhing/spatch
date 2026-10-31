@@ -17,11 +17,22 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     protected void onDraw(android.graphics.Canvas c) {}
     public int getWidth() { return 0; }
     public int getHeight() { return 0; }
+    public int getScrollY() { return 0; }
     public int getPaddingLeft() { return 0; }
     public int getPaddingRight() { return 0; }
     public android.content.Context getContext() { return null; }
     public View getRootView() { return null; }
     public View findViewById(int id) { return null; }
+    public interface OnTouchListener { boolean onTouch(View v, MotionEvent e); }
+    public void setOnTouchListener(OnTouchListener l) {}
+    public void setPaddingRelative(int s, int t, int e, int b) {}
+    public static final int OVER_SCROLL_ALWAYS = 0, OVER_SCROLL_NEVER = 2;
+    public void setWillNotDraw(boolean w) {}
+    public void announceForAccessibility(CharSequence c) {}
+    public void setOverScrollMode(int m) {}
+    public int getScrollX() { return 0; }
+    public void scrollTo(int x, int y) {}
+    public void setHorizontalScrollBarEnabled(boolean e) {}
     public void setBackground(android.graphics.drawable.Drawable d) {}
     public void setBackgroundColor(int color) {}
     public void setBackgroundResource(int resid) {}

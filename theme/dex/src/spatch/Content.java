@@ -2,6 +2,7 @@ package spatch;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import p.aj00;
@@ -16,6 +17,8 @@ import p.ndy;
 import p.np10;
 import p.oz71;
 import p.q6k1;
+import p.t0d0;
+import p.xmc0;
 import p.r4c0;
 import p.s6e;
 import p.tu70;
@@ -31,6 +34,10 @@ import p.uz71;
  */
 public final class Content {
     private static final String SECTION = "spotify:section:";
+    private static volatile List<String> onHome = new ArrayList<String>();
+    private static volatile List homeSource; // before filtering, so a section can come back
+    private static WeakReference<t0d0> homeList;
+    private static int homeModel;
 
     private Content() {}
 
@@ -53,6 +60,7 @@ public final class Content {
     /** xmc0's list. Anything that is not a Home section pair passes untouched. */
     public static List home(List list) {
         if (list.isEmpty() || !isSection(list.get(0))) return list;
+        homeSource = list;
         ArrayList out = new ArrayList(list.size());
         boolean changed = false;
         for (Object o : list) {
@@ -71,7 +79,29 @@ public final class Content {
                 if (kept != null) out.add(new q6k1(kept, id));
             }
         }
+        ArrayList<String> ids = new ArrayList<String>();
+        for (Object o : out) if (isSection(o)) ids.add((String) ((q6k1) o).b);
+        onHome = ids;
         return changed ? out : list;
+    }
+
+    /** t0d0.b, the list Home's model is submitted to. */
+    public static void submit(t0d0 list, xmc0 model) {
+        if (model.b.isEmpty() || !isSection(model.b.get(0))) return;
+        homeList = new WeakReference<t0d0>(list);
+        homeModel = model.a;
+        FilterRow.arrived();
+    }
+
+    /** Filters the same model again, so Home follows a hidden section without a restart. */
+    static void refresh() {
+        t0d0 list = homeList == null ? null : homeList.get();
+        if (list != null && homeSource != null) list.b(new xmc0(homeModel, homeSource));
+    }
+
+    /** Section ids in the order of the latest Home list, hidden ones already gone. */
+    static List<String> onHome() {
+        return onHome;
     }
 
     private static final java.util.HashMap<String, Boolean> SHOWS_ONLY = new java.util.HashMap<String, Boolean>();

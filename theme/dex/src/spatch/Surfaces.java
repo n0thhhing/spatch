@@ -1,5 +1,14 @@
 package spatch;
 
+import p.cxn1;
+import p.evx;
+import p.mtg;
+import p.rhm0;
+import p.vp31;
+import p.xp31;
+import p.z341;
+import p.zyq0;
+
 /**
  * Compose surface policy, called from yw9 (every background modifier), xp31.b (rounded shapes) and the
  * Search category tile o6e. Compose colours here are sRGB ARGB in the high 32 bits.
@@ -26,6 +35,34 @@ public final class Surfaces {
     public static long tile(long c) {
         if (!plain(c)) return c;
         return (long) Pill.blend(Palette.color(0xff2b2640), (int) (c >>> 32) | 0xff000000, 0.3f) << 32;
+    }
+
+    /** Side drawer rows (x571): tonal rounded surfaces; the clip keeps the row's ripple inside. */
+    public static rhm0 drawerRow(rhm0 row) {
+        if (!Settings.sideCards()) return row;
+        vp31 shape = xp31.b(20f);
+        rhm0 inset = cxn1.D(row, 12f, 3f);
+        // graphicsLayer(shape, clip = true): mask bits 11 and 12 are those two arguments.
+        rhm0 clipped = z341.q(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
+        return mtg.n(clipped, (long) Palette.color(0xff2b2640) << 32, shape);
+    }
+
+    /** evx.a with mask 47 replaces only the outer padding. */
+    public static evx drawerItem(evx item) {
+        if (!Settings.sideCards()) return item;
+        return evx.a(item, null, 0, null, new zyq0(0f, 0f, 0f, 0f), null, 47);
+    }
+
+    /** tsr, Compose's default press overlay: a light veil that reads on any theme surface. */
+    public static long pressTint() {
+        if (!Settings.softPress()) return 0xff00000000000000L;
+        return (long) Palette.color(0xfff3eeff) << 32;
+    }
+
+    /** Encore's held-row colour, opaque black in stock: a step above the rows it can sit on. */
+    public static long pressed() {
+        if (!Settings.softPress()) return 0xff00000000000000L;
+        return (long) Pill.blend(Palette.color(0xff2b2640), Palette.color(0xfff3eeff), 0.14f) << 32;
     }
 
     /** Material 3 corner scale for Encore's small radii; 0 and pills are left alone. */

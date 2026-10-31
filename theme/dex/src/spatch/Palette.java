@@ -5,7 +5,7 @@ import android.content.SharedPreferences;
 
 /** Theme chosen in Spatch settings; apply on the next app launch so Compose and XML agree. */
 public final class Palette {
-    static final String[] NAMES={"lavender","gruvbox","catppuccin-mocha","rose-pine","nord","tokyo-night","dracula"};
+    static final String[] NAMES={"lavender","gruvbox","catppuccin-mocha","rose-pine","nord","tokyo-night","dracula","gruvbox-material-dark"};
     private static final int[] BASE={0x14121c,0x1d1a2a,0x2b2640,0xf3eeff,0xc6b8ff,0xbcb3dc,0xd0bcff,0xe0d2ff,0xb7a3ee};
     private static final int[][] COLOURS={@PALETTES@};
     private static SharedPreferences preferences;

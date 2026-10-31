@@ -2,6 +2,7 @@ package spatch;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -14,8 +15,12 @@ import p.eg81;
 import p.fg81;
 import p.ft01;
 import p.jg81;
+import p.nbd0;
+import p.ptd1;
 import p.upf;
+import p.vse1;
 import p.vtz;
+import p.wwm1;
 import p.zsx;
 
 /**
@@ -25,8 +30,8 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders"};
-    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
     static final int MINI_VISUALIZER = 16, HAPTICS = 17;
@@ -52,7 +57,7 @@ public final class Settings implements jg81 {
     public static List rows(List rows) {
         ArrayList out = new ArrayList(rows);
         for (int i = out.size() - 1; i >= 0; i--) {
-            if (out.get(i) instanceof upf && hideMessages()) out.remove(i); // the drawer's Messages block
+            if (hidden(out.get(i))) out.remove(i);
         }
         for (int i = 0; i < out.size(); i++) {
             Object row = out.get(i);
@@ -61,7 +66,17 @@ public final class Settings implements jg81 {
                 return out;
             }
         }
-        return rows;
+        return out;
+    }
+
+    /** The provider behind each optional drawer row; Settings and privacy and the profile card stay. */
+    private static boolean hidden(Object row) {
+        if (row instanceof upf) return hideMessages();
+        if (row instanceof nbd0) return ((nbd0) row).a == 0 ? hideMessages() : on[24]; // chat list; Your Updates
+        if (row instanceof ft01) return ((ft01) row).a == 0 ? on[21] : ((ft01) row).a == 2 && on[26]; // Recents; Company Information
+        if (row instanceof vse1) return on[22];
+        if (row instanceof wwm1) return on[23];
+        return row instanceof ptd1 && on[25];
     }
 
     /** Same row shape as Settings and privacy, with Spatch's icon, title and URI. */
@@ -81,7 +96,34 @@ public final class Settings implements jg81 {
 
     public static void attach(View drawerView) {
         drawer = new WeakReference<View>(drawerView);
+        drawerView.setBackgroundColor(Palette.color(0xff14121c));
         load(drawerView.getContext());
+        final View view = drawerView;
+        view.post(new Runnable() { // the panel only exists once this view is attached
+            public void run() {
+                styleDrawer(view);
+            }
+        });
+    }
+
+    /** A rounded panel with an accent wash at the top, over a scrim in the theme's colour. */
+    private static void styleDrawer(View view) {
+        if (!on[29]) return;
+        View panel = view;
+        ViewParent up = view.getParent();
+        while (up instanceof View && !(up instanceof p.x7v)) {
+            panel = (View) up;
+            up = up.getParent();
+        }
+        if (!(up instanceof p.x7v)) return;
+        int surface = Palette.color(0xff14121c);
+        float r = 28 * view.getResources().getDisplayMetrics().density;
+        GradientDrawable fill = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {on[31] ? Pill.blend(surface, Palette.color(0xffd0bcff), 0.16f) : surface, surface, surface});
+        fill.setCornerRadii(view.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? new float[] {r, r, 0, 0, 0, 0, r, r} : new float[] {0, 0, r, r, r, r, 0, 0});
+        panel.setBackground(fill);
+        panel.setClipToOutline(true);
+        view.setBackgroundColor(0);
+        ((p.x7v) up).setScrimColor(surface & 0xffffff | 0xb3000000);
     }
 
     /** Called with every drawer row's URI before Spotify navigates; true = handled here. */
@@ -91,17 +133,6 @@ public final class Settings implements jg81 {
         if (v == null) return false;
         View root = v.getRootView();
         if (!(root instanceof ViewGroup)) return false;
-
-        ViewParent p = v.getParent();
-        while (p != null) {
-            if (p.getClass().getName().contains("DrawerLayout")) {
-                try {
-                    p.getClass().getMethod("closeDrawers").invoke(p);
-                } catch (Throwable ignored) {}
-                break;
-            }
-            p = p.getParent();
-        }
 
         SpatchSettings page = new SpatchSettings(v.getContext());
         ((ViewGroup) root).addView(page, new ViewGroup.LayoutParams(
@@ -115,12 +146,24 @@ public final class Settings implements jg81 {
         return true;
     }
 
+    /** x7v is the renamed DrawerLayout; c(false) is its closeDrawers. */
+    static void closeDrawer() {
+        View v = drawer == null ? null : drawer.get();
+        for (ViewParent p = v == null ? null : v.getParent(); p != null; p = p.getParent()) {
+            if (p instanceof p.x7v) {
+                ((p.x7v) p).c(false);
+                return;
+            }
+        }
+    }
+
     /** The application (load() runs from Application.attachBaseContext); used by SpatchWidget. */
     static Context app;
 
     public static void load(Context c) {
         if (app == null) app = c;
         Palette.load(c);
+        Fonts.load(c);
         if (prefs != null || c == null) return;
         prefs = c.getSharedPreferences("spatch", 0);
         for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], DEFAULTS[i]);
@@ -209,6 +252,42 @@ public final class Settings implements jg81 {
     /** 16dp gap at the left and right; off = edge to edge. */
     static boolean vizSideMargin() {
         return on[12];
+    }
+
+    static boolean pageMotion() {
+        return on[27] && Wave.animationsEnabled();
+    }
+
+    public static boolean pageMotionEnabled() {
+        return pageMotion();
+    }
+
+    static boolean filterSlide() {
+        return on[28] && Wave.animationsEnabled();
+    }
+
+    static boolean sideCards() {
+        return on[29] && on[30];
+    }
+
+    static boolean filtersCustom() {
+        return on[32];
+    }
+
+    static boolean filterGlow() {
+        return on[33];
+    }
+
+    static boolean filterDrag() {
+        return on[34];
+    }
+
+    static boolean softPress() {
+        return on[35];
+    }
+
+    static boolean playlistMotion() {
+        return on[36] && Wave.animationsEnabled();
     }
 
     static boolean hidePodcasts() {

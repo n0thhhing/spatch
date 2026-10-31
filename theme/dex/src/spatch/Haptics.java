@@ -9,7 +9,7 @@ import android.view.View;
  */
 final class Haptics {
     static final int PLAYBACK = 18, NAVIGATION = 19, SLIDERS = 20;
-    private static final int KEYBOARD_TAP = 3, CLOCK_TICK = 4, CONFIRM = 16;
+    private static final int KEYBOARD_TAP = 3, CLOCK_TICK = 4, GESTURE_END = 13, CONFIRM = 16;
     private static final int TOGGLE_ON = 21, TOGGLE_OFF = 22, SEGMENT_TICK = 27, SEGMENT_FREQUENT_TICK = 28;
 
     private Haptics() {}
@@ -33,6 +33,11 @@ final class Haptics {
     /** A sparse slider detent, never one per pixel. */
     static void detent(View v) {
         if (allowed(SLIDERS)) v.performHapticFeedback(Build.VERSION.SDK_INT >= 34 ? SEGMENT_FREQUENT_TICK : CLOCK_TICK);
+    }
+
+    /** One light end to a finished seek. */
+    static void seekDone(View v) {
+        if (allowed(SLIDERS)) v.performHapticFeedback(Build.VERSION.SDK_INT >= 30 ? GESTURE_END : CLOCK_TICK);
     }
 
     static void toggle(View v, boolean on) {

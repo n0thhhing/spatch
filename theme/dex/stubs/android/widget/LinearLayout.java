@@ -10,6 +10,8 @@ public class LinearLayout extends android.view.ViewGroup {
         public int leftMargin, topMargin, rightMargin, bottomMargin;
         public LayoutParams(int w, int h) { super(w, h); }
         public LayoutParams(int w, int h, float weight) { super(w, h); this.weight = weight; }
+        public void setMarginStart(int m) {}
+        public void setMarginEnd(int m) {}
         public void setMargins(int l, int t, int r, int b) { leftMargin = l; topMargin = t; rightMargin = r; bottomMargin = b; }
     }
 

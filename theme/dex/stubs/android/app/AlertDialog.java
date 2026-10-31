@@ -1,6 +1,10 @@
 package android.app;
 
-public class AlertDialog {
+public class AlertDialog implements android.content.DialogInterface {
+    public android.widget.Button getButton(int which) { return null; }
+    public void setCancelable(boolean c) {}
+    public void show() {}
+    public void dismiss() {}
     public static class Builder {
         public static CharSequence lastTitle;
         public static CharSequence lastMessage;
@@ -31,6 +35,9 @@ public class AlertDialog {
             return this;
         }
 
+        public Builder setView(android.view.View v) { return this; }
+        public Builder setNeutralButton(CharSequence s, android.content.DialogInterface.OnClickListener l) { return this; }
+        public AlertDialog create() { return new AlertDialog(); }
         public AlertDialog show() {
             shown = true;
             return new AlertDialog();

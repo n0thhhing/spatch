@@ -452,7 +452,7 @@ Theme application and automatic relaunch still require live phone verification.
 **Choices.** `Settings.CHOICE_KEYS` hold stable strings; an unknown stored value falls back to the first (today's look). `viz_shape`, `viz_taper`, `art_outline`, `art_glow`, `art_spectrum`. In immersive the art is a rounded square, so the radial follows that contour (exponent 8) rather than drawing a circle over it.
 
 **Content (`Content.java`).** Presentation only, nothing deleted.
-- Home: `p.xmc0` constructor (`classes2`, relocated to the helper DEX) receives `q6k1` pairs of model and `spotify:section:<id>|<slug>`. The section URI is identity and the title is a label. Models: `cu70`, `oz71`, `bfi0` filter item by item; others (`udi0`, `dp01`, `zw80`) drop only if every content URI is blocked. The `casita` HomeStructure and `dgm0` paths never fired on the test account.
+- Home: `p.xmc0` constructor (`classes2`, relocated to the helper DEX) receives `q6k1` pairs of model and `spotify:section:<id>|<slug>`. The section URI is identity and the title is a label. Models: `cu70`, `oz71`, `bfi0` filter item by item; others (`udi0`, `dp01`, `zw80`) drop only if every content URI is blocked. The `casita` HomeStructure and `dgm0` paths never fired on the test account. `spatch.HomeReview` steps through these sections on Home: position = index in `Content.onHome` + `r411.e()` (getItemCount) - section count; `LinearLayoutManager.w1` is scrollToPositionWithOffset (phone verification pending).
 - Home chips: `p.sdy` (`classes7`) maps feeds via `aj00.a`; live ids `client-native:default|music|podcasts|audiobooks`. Fetched once at startup, so a toggle offers a restart, which also returns to All.
 - Search: `p.s8e` constructor (`classes5`), `s6e.a` page URIs `spotify:page:0JQ5DArNBzkmxXHCqFLx2J` (Podcasts), `spotify:page:0JQ5DAqbMKFETqK4t8f1n3` (Audiobooks).
 - Library: items `zzo1.D` (`classes12`) by `dsm1.e` (`ndy.b` SHOW, `Y` NEW_EPISODES, `a` BOOK, `g` AUTHOR); chips `oxo1.q` (`classes4`), classes `e5c0`/`u4c0` (podcasts, downloaded) and `l4c0`/`r4c0` (books, downloaded).
@@ -485,3 +485,27 @@ Mini-player: `spatch.MiniBar` subclasses MotionLayout in `now_playing_bar.xml` (
 Create tab opening: `p.jub.V0` (classes5) draws a close disc and rotates, shrinks and tints the icon. Edits keep the `+` at rest and turn the disc into a tonal pill (`Pill.closePill`, `closeColor`, `closeDiscTop`), neutralise scale and tint, and pass the angle to `Pill.a`, which rotates just the icon (`fwq.t`); the outer rotation pivoted on Pill's asymmetric padding. `closeRest` clears the angle when `jub` stops drawing. Assumes Create is the last tab. Landscape rail offset is not device-tested.
 
 Tab press feedback: `k1u.c` (classes12) gets a null indication, so Compose draws no press overlay. `NavIndicator` draws a tonal pill on the held tab and brightens the selected pill. The landscape rail has none.
+
+## Typography (traced; phone verification pending)
+
+- `res/font`: `spoticon` (0x7f090001, never replaced), `spotify_mix` (0x7f090002, variable, API 29+), mono (0x7f090003), then `spotify_mix_ui_*` and script fallbacks up to 0x7f09001b.
+- View: `EncoreTextView`, `EncoreButton`, `StateListAnimatorButton`, `SuppressLayoutTextView` and `p.vgx` go through `p.p930.a/b` to `p.n74.K`. AppCompat and direct users (`p.d96`, `p.nsg`, `p.tf10`, `p.mix`, `p.wqa1`, VideoSurfaceView) go through `p.jw21.b/c` (ResourcesCompat).
+- Compose: `p.sqt.c` to `p.kix.a` (static cache by resource) to `n74.K`; `p.tzb.a/b` make `p.rv21` resource fonts loaded by `p.o641` through `p.io71.u/v` to `jw21`; `p.cxo1.t` to `p.b0h1.a` applies variation axes; `p.h4b1.a` is the 'wdth' 150 display face.
+- Edits: Fonts.resource at `jw21.c` and `n74.K` and `h4b1.a`; `tzb.a` picks a role by weight; `b0h1.a` skips Spatch faces so Spotify's width axis cannot widen monospace. `jw21`, `tzb`, `my50` relocated to the helper DEX (classes.dex and classes2 are full).
+- Unsupported by design: Android text using `sans-serif*` families from Material styles, `spoticon`, Rive text, WebViews, notifications and the home-screen widget (RemoteViews cannot take a custom Typeface), and `ac01`, the audiobook reader's own font menu.
+
+## Home filter row (traced; phone verification pending)
+
+`p.my50` inflates `layout/funkis_filter_chips_header`: profile image plus ComposeView `filter_chips_container` running `p.kpo1.e` (test tag HomeFilterRow, LazyRow) with `p.go60.a/b/c` chips. Model `nn60(list of in60, mn60)`; `ln60.a/b` are the selected parent and child. Chip taps become `dn60/en60/fn60/gn60`, and `qe50` maps every one to `ey50(id)` on `my50.a`. `spatch.FilterRow` is added above the ComposeView from `my50.b`, which goes INVISIBLE only after a successful bind. `oj20.k` drops a parent tapped while its child is selected, so the reducer falls back to the first chip (All); FilterRow sends the child's id instead, which keeps the parent selected. Not reproduced: promotional `in60.j` highlight, the Wrapped chip's Rive treatment and tooltip anchoring.
+
+## Side drawer (traced; phone verification pending)
+
+`p.hf81` creates ComposeView `gf81`; `p.uf81` lays out rows through element factories. Link rows render in `p.x571` (group 0x1c2f65b9, `sqo1.m` list item); background comes from `ag81` with `sidedrawer_background`. Rows gain `Surfaces.drawerRow`; `Settings.attach` paints the drawer view with the theme surface.
+
+## Seek haptics
+
+`Wave` is the player seekbar's progress drawable. Detents come from `onLevelChange` while pressed. `Wave` installs itself as the host's touch listener at first press (nothing else sets one; the listener returns false) and confirms on ACTION_UP with a changed level.
+
+## Side menu rows (traced; phone verification pending)
+
+`iiq` builds the provider list in this order: `yh81`, `upf` Messages, `vse1` Listening stats or Your Sound Capsule, `wwm1` Your plan or Your Premium, `ft01(0)` Recents, `ae2` conditional custom row (not identified), `ft01(1)` Settings and privacy, `ptd1` Taste Profile, `nbd0(1)` Your Updates, `ft01(2)` Company Information (KR), `f7`, `nbd0(0)` DM/Following/Group chat list. Types and Spatch's mapping are in `Settings.hidden`.

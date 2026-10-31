@@ -22,7 +22,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
     private static WeakReference<MiniBar> bar;
     private static Bitmap accentSource;
     private static int accent;
-    private static final long EXPAND_WINDOW = 900;
+    private static final long EXPAND_WINDOW = 1800; // the player can take a while to open on a track with lyrics
     private static float[] expandFrom;
     private static long expandAt;
     private MiniSkip previous, next;

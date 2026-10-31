@@ -10,7 +10,7 @@ use std::{
 };
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-pub const PATHS: [&str; 7] = [
+pub const PATHS: [&str; THEMES.len()] = [
     "assets/spatch-themes/lavender.apk",
     "assets/spatch-themes/gruvbox.apk",
     "assets/spatch-themes/catppuccin-mocha.apk",
@@ -18,6 +18,7 @@ pub const PATHS: [&str; 7] = [
     "assets/spatch-themes/nord.apk",
     "assets/spatch-themes/tokyo-night.apk",
     "assets/spatch-themes/dracula.apk",
+    "assets/spatch-themes/gruvbox-material-dark.apk",
 ];
 fn u16at(b: &[u8], p: usize) -> Result<u16> {
     Ok(u16::from_le_bytes(

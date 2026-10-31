@@ -4,7 +4,6 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
@@ -29,7 +28,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer,
     // viz_mirrored, viz_smooth, viz_thin, viz_floating, viz_side_margin, hide_podcasts, hide_audiobooks,
-    // hide_messages.
+    // hide_messages, mini_visualizer, haptics..., hide_recents to hide_company_info.
     private static final String[] FEATURE_TITLES = {
         "Wavy progress",
         "Button animations",
@@ -51,7 +50,23 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Haptics",
         "Playback controls",
         "Navigation & filters",
-        "Sliders & switches"
+        "Sliders & switches",
+        "Hide Recents",
+        "Hide Listening stats",
+        "Hide Your plan",
+        "Hide Your Updates",
+        "Hide Taste Profile",
+        "Hide Company Information",
+        "Page transitions",
+        "Slide between filters",
+        "Side panel style",
+        "Row cards",
+        "Accent glow",
+        "Expressive filters",
+        "Pill glow",
+        "Drag between filters",
+        "Theme-coloured press",
+        "Living play button"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -70,22 +85,43 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "A small gap at the left and right; off runs edge to edge",
         "From Home, Search, top chips and Your Library",
         "From Home, Search, top chips and Your Library",
-        "Removes Messages from the profile menu; your messages stay",
+        "Removes Messages and the chat list; your messages stay",
         "Tiny real-audio bars on the mini-player artwork",
         "Follows Android's touch feedback setting",
         "Play, pause, skip and save",
         "Tab changes",
-        "Toggles here and slider steps"
+        "Toggles here and slider steps",
+        "Your history stays",
+        "Also covers Your Sound Capsule",
+        "Your plan or Your Premium",
+        "From the profile menu",
+        "From the profile menu",
+        "Only shown in some countries",
+        "New pages fade in with a small rise",
+        "Sections slide in from the chosen filter's side",
+        "Rounded panel in the theme's colours",
+        "Each row sits on its own rounded card",
+        "A soft wash of colour at the top of the panel",
+        "The sliding pill row on Home",
+        "A soft halo around the selected filter",
+        "Hold the selected filter and drag it to another",
+        "Held rows use a theme tone instead of black",
+        "The playlist button morphs and turns while playing"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
     private static final String[] FEATURE_ICONS = {
         "soundwave", "enhance", "album", "album", "now_playing", "play", "pause", "soundwave",
-        "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden", "soundwave", "notifications_active", "play", "home", "filter"
+        "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden", "soundwave", "notifications_active", "play", "home", "filter", "hidden", "hidden", "hidden", "hidden", "hidden", "hidden",
+        "enhance", "filter", "enhance", "filter", "enhance", "filter", "enhance", "filter", "check", "play"
     };
 
     /** Section layout: Settings indices per group. */
-    private static final int[] ARTWORK = {3, 2, 5}, PLAYER = {0, 4}, VISUALIZER = {7, 16, 8, 9, 10, 11, 12}, CONTENT = {13, 14, 15}, MOTION = {1, 6};
+    private static final int[] ARTWORK = {2, 5}, PLAYER = {0, 4, 36}, VISUALIZER = {8, 9, 10, 11, 12}, CONTENT = {13, 14}, SIDE_MENU = {15, 21, 22, 23, 24, 25, 26}, MOTION = {1, 27, 28, 35, 6};
+    private static final int ROUND_ART = 3, FULL_VISUALIZER = 7, MINI_VISUALIZER = 16, SIDE_STYLE = 29, FILTERS = 32;
+    private static final int[] SIDE_PARTS = {30, 31}, FILTER_PARTS = {33, 34};
+    /** Changes read once per process: chips and drawer rows at startup, press colours by the palette. */
+    private static final int[] NEEDS_RESTART = {13, 14, 15, 21, 22, 23, 24, 25, 26, 29, 30, 31, 35};
 
     private static final String[] THEME_TITLES = {
         "Lavender",
@@ -94,13 +130,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Rosé Pine",
         "Nord",
         "Tokyo Night",
-        "Dracula"
+        "Dracula",
+        "Gruvbox Material"
     };
 
     private static final int VIZ_THIN = 10, VIZ_FLOATING = 11;
     private static final int STAGGERED = 8; // entrance animation covers what is on screen at first
 
-    private final int surface = Palette.color(0xff14121c), card = Palette.color(0xff1d1a2a), high = Palette.color(0xff2b2640),
+    final int surface = Palette.color(0xff14121c), card = Palette.color(0xff1d1a2a), high = Palette.color(0xff2b2640),
         text = Palette.color(0xfff3eeff), subdued = Palette.color(0xffbcb3dc), accent = Palette.color(0xffd0bcff);
     private final java.util.ArrayList<TextView> pillViews = new java.util.ArrayList<TextView>();
     private final View[] choiceRows = new View[Settings.CHOICES.length];
@@ -109,9 +146,16 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private final View backButton;
     private final SettingsHero hero;
     private final View barTitle;
-    private final LinearLayout content;
-    private View resetRow, homeToggle, homeChevron;
+    private LinearLayout content;
+    private View resetRow, homeToggle, reviewRow;
     private LinearLayout homeList;
+    private static final float INACTIVE = 0.5f;
+    private static final long SWAP = 220;
+    private final FrameLayout pages;
+    private final int bottom;
+    private final java.util.ArrayList<View> stack = new java.util.ArrayList<View>();
+    private final java.util.ArrayList<View> masters = new java.util.ArrayList<View>();
+    private final java.util.HashMap<Integer, LinearLayout> masterPages = new java.util.HashMap<Integer, LinearLayout>();
     private TextView homeCount, themeNote;
     private boolean closing;
     private final M3Switch[] featureSwitches = new M3Switch[FEATURE_TITLES.length];
@@ -167,7 +211,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         title.setText("Spatch");
         title.setTextSize(20f);
         title.setTextColor(text);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTypeface(Fonts.settings(700));
         title.setPadding(dp(16), 0, 0, 0);
         title.setAlpha(0f);
         header.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -175,16 +219,16 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
 
-        ScrollView scroll = new ScrollView(context);
-        scroll.setOnScrollChangeListener(this);
-        content = new LinearLayout(context);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(16), dp(4), dp(16), dp(32) + navBarHeight);
-        scroll.addView(content, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        pages = new FrameLayout(context);
+        root.addView(pages, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        bottom = dp(32) + navBarHeight;
+        LinearLayout home = addPage(null, null);
+        LinearLayout categories = new LinearLayout(context);
+        categories.setOrientation(LinearLayout.VERTICAL);
 
         hero = new SettingsHero(context);
-        content.addView(hero, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(164)));
+        home.addView(hero, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(164)));
+        home.addView(categories);
 
         for (int i = 0; i < FEATURE_TITLES.length; i++) {
             featureSwitches[i] = new M3Switch(context);
@@ -194,8 +238,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
         }
 
+        View appearance = category(categories, "enhance", "Appearance", "Themes and typography", "Appearance");
         addSectionHeader("Theme");
-        for (int row = 0; row < 2; row++) {
+        for (int row = 0; row < 3; row++) { // Palette.NAMES fills the first rows, blanks keep widths even
             LinearLayout line = new LinearLayout(context);
             line.setOrientation(LinearLayout.HORIZONTAL);
             for (int i = row * 4; i < row * 4 + 4; i++) {
@@ -217,20 +262,34 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         content.addView(themeNote);
         refreshThemes(Palette.requested(), false);
 
-        addSectionHeader("Artwork");
-        LinearLayout artwork = addGroup();
-        for (int i : ARTWORK) artwork.addView(featureRows[i]);
-        addChoice(artwork, Settings.ART_OUTLINE, "Outline", "On circular art in the player", new String[] {"Wavy", "Simple", "None"});
-        addChoice(artwork, Settings.ART_GLOW, "Glow", null, new String[] {"Full", "Soft", "Off"});
-        addChoice(artwork, Settings.ART_SPECTRUM, "Spectrum", "Real audio around the art; uses the microphone permission", new String[] {"Off", "Fine", "Bars", "Dots"});
-        finish(artwork);
+        addSectionHeader("Typography");
+        new Typography(this, content);
 
-        addSectionHeader("Player");
+        finishCategory(appearance);
+
+        View playerPage = category(categories, "now_playing", "Player", "Full player, artwork and controls", "Player");
+        LinearLayout artworkPage = subPage("Artwork");
+        addSectionHeader("Shape");
+        LinearLayout artwork = addGroup();
+        addChoice(artwork, Settings.ART_OUTLINE, "Outline", "The ring around the artwork", new String[] {"Wavy", "Simple", "None"});
+        addChoice(artwork, Settings.ART_GLOW, "Glow", null, new String[] {"Full", "Soft", "Off"});
+        finish(artwork);
+        resetFor(new int[] {ROUND_ART}, new int[] {Settings.ART_OUTLINE, Settings.ART_GLOW});
+        inside(playerPage);
+        addSectionHeader("Artwork");
+        LinearLayout artRows = addGroup();
+        artRows.addView(master(ROUND_ART, artworkPage));
+        for (int i : ARTWORK) artRows.addView(featureRows[i]);
+        finish(artRows);
+        addSectionHeader("Controls");
         LinearLayout player = addGroup();
         for (int i : PLAYER) player.addView(featureRows[i]);
         finish(player);
+        resetFor(new int[] {2, 5, 0, 4, 36}, new int[0]);
+        finishCategory(playerPage);
 
-        addSectionHeader("Visualizer");
+        View visualizers = category(categories, "soundwave", "Visualizers", "Spectrum styles and where they show", "Visualizers");
+        LinearLayout barsPage = subPage("Full-screen visualizer");
         LinearLayout visualizer = addGroup();
         preview = new SpectrumPreview(context);
         visualizer.addView(preview, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(88)));
@@ -238,27 +297,58 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addChoice(visualizer, Settings.VIZ_TAPER, "Edge taper", "Eases the bars off toward the sides", new String[] {"Subtle", "None"});
         for (int i : VISUALIZER) visualizer.addView(featureRows[i]);
         finish(visualizer);
+        resetFor(concat(new int[] {FULL_VISUALIZER}, VISUALIZER), new int[] {Settings.VIZ_SHAPE, Settings.VIZ_TAPER});
+        inside(visualizers);
+        LinearLayout places = addGroup();
+        places.addView(master(FULL_VISUALIZER, barsPage));
+        places.addView(featureRows[MINI_VISUALIZER]);
+        addChoice(places, Settings.ART_SPECTRUM, "Around the artwork", "Real audio around circular art; uses the microphone permission", new String[] {"Off", "Fine", "Bars", "Dots"});
+        finish(places);
         refreshChoices();
+        resetFor(new int[] {MINI_VISUALIZER}, new int[] {Settings.ART_SPECTRUM});
+        finishCategory(visualizers);
 
-        addSectionHeader("Content");
-        LinearLayout hiding = addGroup();
-        for (int i : CONTENT) hiding.addView(featureRows[i]);
-        java.util.ArrayList<String[]> sections = Settings.sections();
-        ImageView chevron = icon("chevron_right");
-        homeChevron = chevron;
-        homeToggle = createSettingRow("home", "Home sections", null, chevron);
-        homeCount = (TextView) ((ViewGroup) ((ViewGroup) homeToggle).getChildAt(1)).getChildAt(1);
-        homeToggle.setOnClickListener(this);
-        hiding.addView(homeToggle);
-        finish(hiding);
+        View screens = category(categories, "home", "Screens", "Home filters and the side panel", "Screens");
+        LinearLayout filterPage = subPage("Expressive filters");
+        LinearLayout filterRows = addGroup();
+        for (int i : FILTER_PARTS) filterRows.addView(featureRows[i]);
+        finish(filterRows);
+        resetFor(concat(new int[] {FILTERS}, FILTER_PARTS), new int[0]);
+        LinearLayout sidePage = subPage("Side panel style");
+        LinearLayout sideRows = addGroup();
+        for (int i : SIDE_PARTS) sideRows.addView(featureRows[i]);
+        finish(sideRows);
+        resetFor(concat(new int[] {SIDE_STYLE}, SIDE_PARTS), new int[0]);
+        inside(screens);
+        LinearLayout screenRows = addGroup();
+        screenRows.addView(master(FILTERS, filterPage));
+        screenRows.addView(master(SIDE_STYLE, sidePage));
+        finish(screenRows);
+        finishCategory(screens);
 
-        homeList = new LinearLayout(context);
-        homeList.setOrientation(LinearLayout.VERTICAL);
-        homeList.setVisibility(View.GONE);
-        LinearLayout.LayoutParams listLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        listLp.topMargin = dp(8);
-        content.addView(homeList, listLp);
-        for (String[] section : sections) {
+        View navigation = category(categories, "filter", "Navigation & interactions", "Motion and haptics", "Navigation & interactions");
+        addSectionHeader("Motion");
+        LinearLayout motion = addGroup();
+        for (int i : MOTION) motion.addView(featureRows[i]);
+        finish(motion);
+        addSectionHeader("Haptics");
+        LinearLayout haptics = addGroup();
+        for (int i : HAPTICS) haptics.addView(featureRows[i]);
+        tryHaptics = createSettingRow("check", "Try feedback", "One sample tap", icon("chevron_right"));
+        tryHaptics.setOnClickListener(this);
+        haptics.addView(tryHaptics);
+        finish(haptics);
+        resetFor(concat(MOTION, HAPTICS), new int[0]);
+        finishCategory(navigation);
+
+        View contentPage = category(categories, "hidden", "Content", "Hidden sections, podcasts and the side menu", "Content");
+        LinearLayout sectionsPage = subPage("Home sections");
+        homeList = addGroup();
+        reviewRow = createSettingRow("hidden", "Review on Home", "Swipe away sections right on Home", icon("chevron_right"));
+        reviewRow.setOnClickListener(this);
+        describe(reviewRow, "Review on Home", "Swipe away sections right on Home");
+        homeList.addView(reviewRow);
+        for (String[] section : Settings.sections()) {
             M3Switch s = new M3Switch(context);
             boolean hidden = false;
             for (int i = 1; i < section.length; i++) hidden |= Settings.sectionHidden(section[i]);
@@ -271,47 +361,210 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             homeList.addView(row);
         }
         finish(homeList);
+        inside(contentPage);
+        LinearLayout hiding = addGroup();
+        for (int i : CONTENT) hiding.addView(featureRows[i]);
+        homeToggle = createSettingRow("home", "Home sections", null, icon("chevron_right"));
+        homeToggle.setTag(sectionsPage);
+        homeCount = (TextView) ((ViewGroup) ((ViewGroup) homeToggle).getChildAt(1)).getChildAt(1);
+        homeToggle.setOnClickListener(this);
+        hiding.addView(homeToggle);
+        finish(hiding);
         refreshHomeCount();
+        addSectionHeader("Side menu");
+        LinearLayout sideMenu = addGroup();
+        for (int i : SIDE_MENU) sideMenu.addView(featureRows[i]);
+        finish(sideMenu);
+        resetFor(concat(CONTENT, SIDE_MENU), new int[0]);
+        finishCategory(contentPage);
+        finish(categories);
 
-        addSectionHeader("Motion");
-        LinearLayout motion = addGroup();
-        for (int i : MOTION) motion.addView(featureRows[i]);
-        finish(motion);
-
-        addSectionHeader("Haptics");
-        LinearLayout haptics = addGroup();
-        for (int i : HAPTICS) haptics.addView(featureRows[i]);
-        tryHaptics = createSettingRow("check", "Try feedback", "One sample tap", icon("chevron_right"));
-        tryHaptics.setOnClickListener(this);
-        haptics.addView(tryHaptics);
-        finish(haptics);
-
+        content = home;
         TextView reset = new TextView(context);
-        reset.setText("Reset to defaults");
+        reset.setText("Reset everything");
         reset.setTextSize(14f);
         reset.setTextColor(accent);
-        reset.setTypeface(Typeface.DEFAULT_BOLD);
+        reset.setTypeface(Fonts.settings(700));
         reset.setGravity(Gravity.CENTER);
         reset.setClickable(true);
         reset.setFocusable(true);
         reset.setBackground(ripple(rounded(high, dp(24))));
         reset.setOnClickListener(this);
-        describe(reset, "Reset to defaults", "Button");
+        describe(reset, "Reset everything", "Button");
         resetRow = reset;
         LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
         resetLp.topMargin = dp(28);
         content.addView(reset, resetLp);
 
         TextView about = new TextView(context);
-        about.setText("Keeps your theme. Theme changes apply after a restart; everything else straight away.");
+        about.setText("Keeps your theme and font. Theme and font changes apply after a restart; everything else straight away.");
         about.setTextSize(12f);
         about.setTextColor(subdued);
         about.setGravity(Gravity.CENTER);
         about.setPadding(dp(16), dp(10), dp(16), 0);
         content.addView(about);
+        Fonts.restyle(this);
     }
 
-    private GradientDrawable rounded(int color, float radius) {
+    /** A scrolling page, hidden until opened; rows added next land on it. Pages keep their scroll. */
+    private LinearLayout addPage(String title, View opener) {
+        ScrollView scroll = new ScrollView(getContext());
+        LinearLayout page = new LinearLayout(getContext());
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(16), dp(4), dp(16), bottom);
+        scroll.addView(page, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        page.setTag(title);
+        pages.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (title == null) {
+            scroll.setOnScrollChangeListener(this);
+            stack.add(scroll);
+        } else {
+            scroll.setVisibility(View.GONE);
+        }
+        content = page;
+        return page;
+    }
+
+    private LinearLayout subPage(String title) {
+        return addPage(title, null);
+    }
+
+    /** Adds a category row to the root list and starts its page. */
+    private View category(LinearLayout list, String iconName, String title, String subtitle, String pageTitle) {
+        LinearLayout page = addPage(pageTitle, null);
+        View row = createSettingRow(iconName, title, subtitle, icon("chevron_right"));
+        row.setTag(page);
+        row.setOnClickListener(this);
+        describe(row, title, subtitle);
+        list.addView(row);
+        return page;
+    }
+
+    private void inside(View page) {
+        content = (LinearLayout) page;
+    }
+
+    private void finishCategory(View page) {
+        content = null;
+    }
+
+    private static int[] concat(int[] a, int[] b) {
+        int[] out = java.util.Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
+
+    /** Title and text open the submenu; the switch is its own target and keeps children's values. */
+    private View master(int setting, LinearLayout page) {
+        Context c = getContext();
+        LinearLayout row = (LinearLayout) createSettingRow(FEATURE_ICONS[setting], FEATURE_TITLES[setting], FEATURE_SUBTITLES[setting], icon("chevron_right"));
+        row.setTag(page);
+        row.setOnClickListener(this);
+        row.setPadding(dp(16), dp(12), 0, dp(12));
+        describe(row, FEATURE_TITLES[setting], "Open");
+        View divider = new View(c, null);
+        divider.setBackgroundColor(text & 0x33ffffff);
+        LinearLayout.LayoutParams line = new LinearLayout.LayoutParams(dp(1), dp(32));
+        line.leftMargin = dp(8);
+        row.addView(divider, line);
+        FrameLayout box = new FrameLayout(c);
+        box.setClickable(true);
+        box.setFocusable(true);
+        box.setOnClickListener(this);
+        box.setTag(Integer.valueOf(setting));
+        ViewGroup old = (ViewGroup) featureSwitches[setting].getParent();
+        if (old != null) old.removeView(featureSwitches[setting]);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(52), dp(32), Gravity.CENTER);
+        box.addView(featureSwitches[setting], lp);
+        box.setContentDescription(FEATURE_TITLES[setting] + ", " + (Settings.get(setting) ? "On" : "Off"));
+        row.addView(box, new LinearLayout.LayoutParams(dp(76), dp(56)));
+        masterPages.put(Integer.valueOf(setting), page);
+        masters.add(box);
+        page.setAlpha(Settings.get(setting) ? 1f : INACTIVE);
+        return row;
+    }
+
+    /** One reset per page, covering just what the page shows. */
+    private void resetFor(final int[] features, final int[] choices) {
+        TextView reset = new TextView(getContext());
+        reset.setText("Reset this page");
+        reset.setTextSize(14f);
+        reset.setTextColor(accent);
+        reset.setTypeface(Fonts.settings(700));
+        reset.setGravity(Gravity.CENTER);
+        reset.setClickable(true);
+        reset.setFocusable(true);
+        reset.setBackground(ripple(rounded(high, dp(24))));
+        reset.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                for (int i : features) Settings.set(i, Settings.DEFAULTS[i]);
+                for (int i : choices) Settings.setChoice(i, Settings.CHOICES[i][0]);
+                syncFeatures();
+                MiniBar.settingsChanged();
+                Haptics.toggle(v, true);
+            }
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        lp.topMargin = dp(20);
+        content.addView(reset, lp);
+    }
+
+    private void syncFeatures() {
+        for (int i = 0; i < featureRows.length; i++) {
+            if (featureSwitches[i].isChecked() != Settings.get(i)) featureSwitches[i].toggle();
+            describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
+        }
+        for (java.util.Map.Entry<Integer, LinearLayout> e : masterPages.entrySet()) e.getValue().setAlpha(Settings.get(e.getKey().intValue()) ? 1f : INACTIVE);
+        for (View box : masters) {
+            int i = ((Integer) box.getTag()).intValue();
+            box.setContentDescription(FEATURE_TITLES[i] + ", " + (Settings.get(i) ? "On" : "Off"));
+        }
+        refreshChoices();
+    }
+
+    private void open(LinearLayout page) {
+        final View to = (View) page.getParent(), from = stack.get(stack.size() - 1);
+        stack.add(to);
+        barTitle.setAlpha(1f);
+        ((TextView) barTitle).setText((String) page.getTag());
+        hero.setOffscreen(true);
+        swap(from, to, 1);
+    }
+
+    private void swap(final View from, View to, int direction) {
+        to.setVisibility(View.VISIBLE);
+        if (!Wave.animationsEnabled()) {
+            from.setVisibility(View.GONE);
+            return;
+        }
+        to.setAlpha(0f);
+        to.setTranslationX(direction * density * 40);
+        to.animate().alpha(1f).translationX(0f).setDuration(SWAP).start();
+        from.animate().alpha(0f).translationX(-direction * density * 24).setDuration(SWAP).start();
+        postDelayed(new Runnable() {
+            public void run() {
+                from.setVisibility(View.GONE);
+                from.setAlpha(1f);
+                from.setTranslationX(0f);
+            }
+        }, SWAP);
+    }
+
+    private boolean popPage() {
+        if (stack.size() < 2) return false;
+        View from = stack.remove(stack.size() - 1), to = stack.get(stack.size() - 1);
+        Object title = ((ViewGroup) to).getChildAt(0).getTag();
+        if (title == null) {
+            ((TextView) barTitle).setText("Spatch");
+            onScrollChange(to, 0, ((ScrollView) to).getScrollY(), 0, 0);
+        } else {
+            ((TextView) barTitle).setText((String) title);
+        }
+        swap(from, to, -1);
+        return true;
+    }
+
+    GradientDrawable rounded(int color, float radius) {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(color);
         bg.setCornerRadius(radius);
@@ -322,7 +575,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         return new RippleDrawable(ColorStateList.valueOf(text & 0x24ffffff), shape, null);
     }
 
-    private ImageView icon(String name) {
+    ImageView icon(String name) {
         ImageView image = new ImageView(getContext(), null);
         image.setScaleType(ImageView.ScaleType.CENTER);
         int id = getContext().getResources().getIdentifier("encore_icon_" + name + "_24", "drawable", getContext().getPackageName());
@@ -333,7 +586,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         return image;
     }
 
-    private LinearLayout addGroup() {
+    LinearLayout addGroup() {
         LinearLayout group = new LinearLayout(getContext());
         group.setOrientation(LinearLayout.VERTICAL);
         content.addView(group);
@@ -341,7 +594,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     }
 
     /** Rows connect with a 2dp gap; only the group's outer corners are fully round. */
-    private void finish(LinearLayout group) {
+    void finish(LinearLayout group) {
         int last = group.getChildCount() - 1;
         for (int i = 0; i <= last; i++) {
             View row = group.getChildAt(i);
@@ -407,7 +660,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             boolean selected = tag[1].equals(Settings.choice(Integer.parseInt(tag[0])));
             pill.setBackground(ripple(rounded(selected ? accent : high, dp(selected ? 24 : 10))));
             pill.setTextColor(selected ? surface : text);
-            pill.setTypeface(selected ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            pill.setTypeface(Fonts.settings(selected ? 700 : 400));
             pill.setContentDescription(tag[2] + (selected ? ", Selected" : ", Not selected"));
         }
         String shape = Settings.choice(Settings.VIZ_SHAPE);
@@ -430,7 +683,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         setAlpha(0f);
         setTranslationX(density * 48);
         animate().alpha(1f).translationX(0f).setDuration(240).start();
-        for (int i = 0; i < Math.min(STAGGERED, content.getChildCount()); i++) {
+        for (int i = 0; i < Math.min(STAGGERED, content.getChildCount()); i++) { // the root list
             View child = content.getChildAt(i);
             child.setAlpha(0f);
             child.setTranslationY(density * 28);
@@ -440,6 +693,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     /** The hero stops animating once it has scrolled away, and the bar takes over its title. */
     public void onScrollChange(View v, int x, int y, int oldX, int oldY) {
+        if (stack.size() > 1) return;
         float over = dp(164);
         hero.setOffscreen(y >= over);
         barTitle.setAlpha(Math.max(0f, Math.min(1f, (y - over * 0.45f) / (over * 0.3f))));
@@ -480,9 +734,13 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     /** Chips and drawer rows are read at startup, and a restart also leaves a hidden chip selected safely. */
     private void askRestart() {
+        askRestart("Restart to apply everywhere?", "Spotify restarts on All, with the top chips and profile menu updated. Later applies on the next start.");
+    }
+
+    void askRestart(String title, String message) {
         new AlertDialog.Builder(getContext(), 0x010302d1)
-            .setTitle("Restart to apply everywhere?")
-            .setMessage("Spotify restarts on All, with the top chips and profile menu updated. Later applies on the next start.")
+            .setTitle(title)
+            .setMessage(message)
             .setPositiveButton("Restart now", this)
             .setNegativeButton("Later", this)
             .show();
@@ -508,13 +766,13 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         header.setText(title);
         header.setTextSize(14f);
         header.setTextColor(accent);
-        header.setTypeface(Typeface.DEFAULT_BOLD);
+        header.setTypeface(Fonts.settings(700));
         header.setPadding(dp(8), dp(24), dp(8), dp(10));
         content.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
     /** Icon tile, title and subtitle, trailing control. refreshHomeCount relies on this child order. */
-    private View createSettingRow(String iconName, String titleText, String subtitleText, View trailing) {
+    View createSettingRow(String iconName, String titleText, String subtitleText, View trailing) {
         Context context = getContext();
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -558,7 +816,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         return row;
     }
 
-    private int dp(int value) {
+    int dp(int value) {
         return (int) (value * density + 0.5f);
     }
 
@@ -567,11 +825,20 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             close();
             return;
         }
-        if (v == homeToggle) {
-            boolean open = homeList.getVisibility() != View.VISIBLE;
-            homeList.setVisibility(open ? View.VISIBLE : View.GONE);
-            if (Wave.animationsEnabled()) homeChevron.animate().rotation(open ? 90f : 0f).setDuration(200).start();
-            else homeChevron.setRotation(open ? 90f : 0f);
+        if (v.getTag() instanceof LinearLayout) {
+            open((LinearLayout) v.getTag());
+            return;
+        }
+        if (v.getTag() instanceof Integer) {
+            int i = ((Integer) v.getTag()).intValue();
+            featureSwitches[i].toggle();
+            changed(i, featureSwitches[i].isChecked(), v);
+            syncFeatures();
+            return;
+        }
+        if (v == reviewRow) {
+            if (HomeReview.start((ViewGroup) getParent())) close();
+            else new AlertDialog.Builder(getContext(), 0x010302d1).setTitle("Open Home first").setMessage("Review works on the Home tab, once its sections have loaded.").setPositiveButton("OK", null).show();
             return;
         }
         if (v.getTag() instanceof Object[] && !(v.getTag() instanceof String[])) {
@@ -598,11 +865,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         }
         if (v == resetRow) {
             Settings.resetAll();
-            for (int i = 0; i < featureRows.length; i++) {
-                if (featureSwitches[i].isChecked() != Settings.get(i)) featureSwitches[i].toggle();
-                describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
-            }
-            refreshChoices();
+            syncFeatures();
             for (View row : homeRows) {
                 Object[] tag = (Object[]) row.getTag();
                 ((M3Switch) tag[1]).setChecked(false);
@@ -618,13 +881,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         for (int i = 0; i < featureRows.length; i++) {
             if (v == featureRows[i]) {
                 featureSwitches[i].toggle();
-                boolean next = featureSwitches[i].isChecked();
-                Settings.set(i, next);
-                Haptics.toggle(v, next);
-                MiniBar.settingsChanged();
-                describe(featureRows[i], FEATURE_TITLES[i], next ? "On" : "Off");
+                changed(i, featureSwitches[i].isChecked(), v);
+                describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
                 refreshChoices();
-                for (int content : CONTENT) if (i == content) askRestart();
                 return;
             }
         }
@@ -634,6 +893,13 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 return;
             }
         }
+    }
+
+    private void changed(int setting, boolean value, View v) {
+        Settings.set(setting, value);
+        Haptics.toggle(v, value);
+        MiniBar.settingsChanged();
+        for (int i : NEEDS_RESTART) if (i == setting) askRestart();
     }
 
     public void onClick(DialogInterface dialog, int which) {
@@ -651,6 +917,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     /** Slides out, then detaches (a second call, from the delayed run(), detaches at once). */
     public void close() {
+        if (popPage()) {
+            if (back != null) back.unregister();
+            if (android.os.Build.VERSION.SDK_INT >= 33) back = Back.register(this, this); // a Back gesture spends its callback
+            return;
+        }
         if (back != null) {
             back.unregister();
             back = null;

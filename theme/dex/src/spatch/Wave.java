@@ -9,6 +9,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
+import android.view.MotionEvent;
 import android.view.View;
 import android.os.Build;
 import android.os.SystemClock;
@@ -20,8 +21,9 @@ import android.os.SystemClock;
  * played part). While the seekbar is held the played line is thicker; it keeps waving if playback
  * was running when the press began (Spotify pauses position updates while dragging).
  */
-public final class Wave extends Drawable implements Runnable {
-    private int detent = -1;
+public final class Wave extends Drawable implements Runnable, View.OnTouchListener {
+    private int detent = -1, pressLevel;
+    private boolean watching;
     private static final int ACCENT = 0xd0bcff; // theme accent token, substituted at patch time
     private static final long ACTIVE_MS = 1200;
     private static final long PERIOD_MS = 1600;
@@ -59,9 +61,21 @@ public final class Wave extends Drawable implements Runnable {
         int step = level / 1000;
         if (step == detent) return;
         detent = step;
+        View host = host();
+        if (host != null && host.isPressed()) Haptics.detent(host);
+    }
+
+    private View host() {
         Object cb = getCallback();
         if (cb instanceof Drawable) cb = ((Drawable) cb).getCallback();
-        if (cb instanceof View && ((View) cb).isPressed()) Haptics.detent((View) cb);
+        return cb instanceof View ? (View) cb : null;
+    }
+
+    /** ACTION_UP, unlike the pressed state, means a seek landed; a cancelled gesture stays silent. */
+    @Override
+    public boolean onTouch(View v, MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_UP && level != pressLevel) Haptics.seekDone(v);
+        return false;
     }
 
     @Override
@@ -91,7 +105,15 @@ public final class Wave extends Drawable implements Runnable {
         }
         long t = SystemClock.uptimeMillis();
         if (now != pressed) {
-            if (now) playingAtPress = t - lastAdvance < ACTIVE_MS;
+            if (now) {
+                playingAtPress = t - lastAdvance < ACTIVE_MS;
+                pressLevel = level;
+                View host = host();
+                if (host != null && !watching) {
+                    watching = true;
+                    host.setOnTouchListener(this);
+                }
+            }
             else if (playingAtPress) lastAdvance = t; // bridge until playback position updates resume
         }
         pressed = now;

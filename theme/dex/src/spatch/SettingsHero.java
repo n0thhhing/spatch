@@ -6,7 +6,6 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Shader;
-import android.graphics.Typeface;
 import android.os.SystemClock;
 import android.view.View;
 
@@ -65,10 +64,10 @@ final class SettingsHero extends View {
 
         paint.setColor(ink);
         paint.setAlpha(255);
-        paint.setTypeface(Typeface.DEFAULT_BOLD);
+        paint.setTypeface(Fonts.settings(700));
         paint.setTextSize(38 * dp);
         c.drawText("Spatch", 22 * dp, 58 * dp, paint);
-        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTypeface(Fonts.settings(400));
         paint.setTextSize(13 * dp);
         paint.setAlpha(190);
         c.drawText("for Spotify 9.1.98.521", 23 * dp, 80 * dp, paint);

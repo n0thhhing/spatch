@@ -13,5 +13,6 @@ public final class MotionEvent {
     public static MotionEvent obtain(long downTime, long eventTime, int action, float x, float y, int metaState) { throw new RuntimeException(); }
     public static MotionEvent obtain(MotionEvent e) { throw new RuntimeException(); }
     public void setAction(int action) { throw new RuntimeException(); }
+    public void offsetLocation(float x, float y) { throw new RuntimeException(); }
     public void recycle() { throw new RuntimeException(); }
 }

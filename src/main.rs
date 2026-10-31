@@ -1,5 +1,6 @@
 mod arsc;
 mod dex;
+mod fonts;
 mod input;
 mod lottie;
 mod patch;
@@ -18,7 +19,8 @@ usage:
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] --dry-run
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] --keystore <file> --alias <name> --ks-pass-env <VAR>
 
-Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula.
+Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula,
+gruvbox-material-dark.
 
 The input is never modified. The keystore password is read by apksigner from the named
 environment variable; spatch never reads or prints it.";

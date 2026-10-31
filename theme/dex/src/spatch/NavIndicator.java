@@ -234,7 +234,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         return new float[] {a, b};
     }
 
-    private static float settleCurve(float t) {
+    static float settleCurve(float t) {
         return 1 - (1 - t) * (1 - t) * (1 - t);
     }
 

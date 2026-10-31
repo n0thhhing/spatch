@@ -16,7 +16,7 @@ const TOKENS: [u32; 9] = THEMES[0].rgb;
 
 /// Public palette values; secondary/subdued text pairs are checked for >= 4.5:1 contrast
 /// (Dracula's subdued text is its comment colour lightened halfway to its foreground for that reason).
-pub const THEMES: [Theme; 7] = [
+pub const THEMES: [Theme; 8] = [
     theme(
         "lavender",
         [
@@ -64,6 +64,15 @@ pub const THEMES: [Theme; 7] = [
         [
             0x282a36, 0x343746, 0x44475a, 0xf8f8f2, 0xff79c6, 0xadb5cb, 0xbd93f9, 0xceaefa,
             0xa17dd4,
+        ],
+    ),
+    // Gruvbox Material (github.com/sainnhe/gruvbox-material, MIT, dark medium): bg0, bg1, bg3, fg1,
+    // fg0, grey2, green, then green mixed like the other themes' accent roles.
+    theme(
+        "gruvbox-material-dark",
+        [
+            0x282828, 0x32302f, 0x45403d, 0xddc7a1, 0xd4be98, 0xa89984, 0xa9b665, 0xbec88b,
+            0x8f9a55,
         ],
     ),
 ];
@@ -132,6 +141,32 @@ mod tests {
         assert_eq!(g.map(0x12345678), 0x12345678);
         assert_eq!(by_name("lavender").unwrap().apply("#ff14121c"), "#ff14121c");
         assert!(by_name("nope").is_err());
+    }
+
+    fn luminance(rgb: u32) -> f64 {
+        let channel = |shift: u32| {
+            let v = ((rgb >> shift) & 255) as f64 / 255.0;
+            if v <= 0.03928 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
+    }
+
+    fn contrast(a: u32, b: u32) -> f64 {
+        let (a, b) = (luminance(a), luminance(b));
+        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    }
+
+    #[test]
+    fn home_filter_chips_are_readable_in_every_theme() {
+        for t in &THEMES {
+            let [surface, _, high, text, _, _, accent, ..] = t.rgb;
+            assert!(contrast(text, high) >= 4.5, "{} unselected", t.name);
+            assert!(contrast(surface, accent) >= 4.5, "{} selected", t.name);
+        }
     }
 
     #[test]

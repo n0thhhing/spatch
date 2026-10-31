@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('public void setSelected(boolean selected) {}', 'private boolean selected; public void setSelected(boolean value) {selected=value;}').replace('isSelected() { return false; }', 'isSelected() { return selected; }')
             text = text.replace('postInvalidateDelayed(long delay) {}', 'postInvalidateDelayed(long delay) { nextDraw = delay; }')
         if source.name == 'MotionEvent.java':
-            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
+            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public void offsetLocation(float dx,float dy){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
         if source.name == 'Visualizer.java':
             text = text.replace('public class Visualizer {', 'public class Visualizer { public static int session,created,released; public static boolean fail;')
             text = text.replace('public Visualizer(int session) {}', 'public Visualizer(int id) {session=id;created++;}')
@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
         if source.name == 'Palette.java':
             rows = re.findall(r'theme\(\s*"[^"]+",\s*\[([^]]+)\]', (ROOT / 'src/theme.rs').read_text())
             palette = ','.join('{'+','.join(re.findall(r'0x[0-9a-f]+', row))+'}' for row in rows)
-            assert len(rows) == 7
+            assert len(rows) == 8
             target=out/source.name
             target.write_text(source.read_text().replace('@PALETTES@',palette).replace('@THEME@','lavender'))
             sources.append(str(target))
@@ -191,7 +191,7 @@ public class PlayerRuntimeTest {
         Field themeField = SpatchSettings.class.getDeclaredField("themeRows");
         themeField.setAccessible(true);
         View[] thmSwitches = (View[]) themeField.get(spatchPage);
-        check(thmSwitches.length == 7, "must contain 7 theme rows");
+        check(thmSwitches.length == Palette.NAMES.length, "one swatch per theme");
 
         // Initial active theme: lavender (index 0)
         check(thmSwitches[0].isSelected(), "initial active theme (lavender) must be checked");
@@ -439,6 +439,22 @@ public class PlayerRuntimeTest {
         float[] leg=NavIndicator.edges(0,2,0.4f,100,64);
         check(leg[1]-leg[0]>64,"indicator stretches while moving");
         float[] done=NavIndicator.edges(0,2,1,100,64);
+        check("following".equals(FilterRow.event("music","music","following")),"open parent returns to itself, not All");
+        check("music".equals(FilterRow.event("music","music",null)),"parent without a child keeps its own tap");
+        check("podcasts".equals(FilterRow.event("podcasts","music","following")),"other chips keep their own tap");
+        check(Expansion.landing(1000,true)==880&&Expansion.landing(1000,false)==1000,"mini player flight lands on the art's resting size");
+        java.util.List<String> reviewHome=java.util.Arrays.asList("a","c");
+        check(HomeReview.section(0,1,reviewHome)==null,"the chip header is not a section");
+        check("a".equals(HomeReview.section(1,1,reviewHome)),"the header shifts positions by one");
+        check("c".equals(HomeReview.section(1,0,reviewHome)),"no header, no shift");
+        check(HomeReview.section(2,0,reviewHome)==null,"nothing past the last section");
+        check(HomeReview.commits(-400,1000)&&HomeReview.commits(400,1000),"a swipe either way hides");
+        check(!HomeReview.commits(300,1000),"a short swipe springs back");
+        float[] mid=FilterRow.blob(0,60,100,180,0.4f), landed=FilterRow.blob(0,60,100,180,1f), back=FilterRow.blob(100,180,0,60,0.4f);
+        check(mid[1]-mid[0]>80,"filter pill stretches between chips");
+        check(back[1]-back[0]>80&&back[0]<50,"filter pill leads going backwards too");
+        check(Math.abs(landed[0]-100)<.01f&&Math.abs(landed[1]-180)<.01f,"filter pill lands on the chip");
+        check(FilterRow.nudge(0.25f)>0&&FilterRow.nudge(0.75f)<0&&Math.abs(FilterRow.nudge(1f))<.0001f,"filter nudge rebounds and rests");
         check(Math.abs(done[0]-218)<.01f&&Math.abs(done[1]-282)<.01f,"indicator settles around the destination");
         check(NavIndicator.dragPosition(250,400,4,false)==2&&Math.round(NavIndicator.dragPosition(210,400,4,false))==2,"a drag reads the tab under the finger");
         check(NavIndicator.dragPosition(-30,400,4,false)==0&&NavIndicator.dragPosition(430,400,4,false)==3,"a drag past the ends clamps to the outer tabs");
@@ -458,8 +474,64 @@ public class PlayerRuntimeTest {
         check(Pill.mix(black,white,0.5f)==(0xff808080L<<32),"mix middle");
         check(Pill.mix(black,white|1,0.5f)==(white|1),"non-sRGB colours switch");
         System.out.println("PASS navigation colours");
+
+        // Fonts: every bundled file parses, and malformed files are rejected with a message.
+        for (java.io.File file : new java.io.File(System.getProperty("fonts")).listFiles()) {
+            if (!file.getName().endsWith(".ttf")) continue;
+            byte[] font = java.nio.file.Files.readAllBytes(file.toPath());
+            FontFile info = FontFile.parse(font);
+            check(info.family != null, file.getName() + " has a family name");
+            check(info.variable == !file.getName().startsWith("atkinson"), file.getName() + " axes");
+            for (int cut : new int[] {0, 5, 11, 12, 40, 200, font.length / 2}) {
+                try {
+                    FontFile.parse(java.util.Arrays.copyOf(font, cut));
+                    check(false, "truncated at " + cut + " was accepted");
+                } catch (IllegalArgumentException e) {
+                    check(e.getMessage() != null, "truncation has a message");
+                }
+            }
+            byte[] broken = font.clone();
+            broken[12 + 8] = 0x7f; // first table's offset, far past the end
+            boolean rejected = false;
+            try { FontFile.parse(broken); } catch (IllegalArgumentException e) { rejected = true; }
+            check(rejected, "out of range table is rejected");
+        }
+        FontFile monaspace = FontFile.parse(java.nio.file.Files.readAllBytes(new java.io.File(System.getProperty("fonts"), "monaspace-neon.ttf").toPath()));
+        check(monaspace.minWeight == 200 && monaspace.maxWeight == 800, "wght axis range");
+        for (String magic : new String[] {"wOFF", "wOF2", "ttcf", "PK34", "<svg"}) {
+            byte[] other = java.util.Arrays.copyOf(magic.getBytes("ISO-8859-1"), 64);
+            boolean rejected = false;
+            try { FontFile.parse(other); } catch (IllegalArgumentException e) { rejected = true; }
+            check(rejected, magic + " is rejected");
+        }
+        boolean big = false;
+        try { FontFile.parse(new byte[FontFile.MAX_BYTES + 1]); } catch (IllegalArgumentException e) { big = e.getMessage().contains("25 MB"); }
+        check(big, "oversized files are rejected");
+        check(FontFile.cleanName("  ../../evil\n ").equals("../../evil"), "names lose controls and stay display text");
+        check(FontFile.cleanName(" \t ") == null, "blank names are refused");
+        check(FontFile.cleanName("x".repeat(99)).length() == 48, "names are capped");
+        check(Fonts.weight(0x7f09000d) == 400 && Fonts.weight(0x7f090006) == 700 && Fonts.weight(0x7f090012) == 700 && Fonts.weight(0x7f090015) == 800, "Spotify roles keep their weights");
+        check(Fonts.weight(0x7f090001) == 0 && Fonts.weight(0x7f09001c) == 0, "the icon font is never replaced");
+        check(Fonts.resource(0x7f09000d) == null, "Default leaves Spotify's fonts alone");
+        check(Fonts.variable(800) == 0x7f090002, "Default keeps the variable font");
+        System.out.println("PASS fonts");
+
+        // Side menu: hidden providers leave, Settings and privacy stays and the Spatch row sits above it.
+        java.util.ArrayList menu = new java.util.ArrayList();
+        p.ft01 recents = new p.ft01((byte) 0), settings = new p.ft01((byte) 1);
+        p.nbd0 chats = new p.nbd0((byte) 0), updates = new p.nbd0((byte) 1);
+        p.vse1 stats = new p.vse1();
+        menu.add(recents); menu.add(stats); menu.add(chats); menu.add(updates); menu.add(settings);
+        check(Settings.rows(menu).size() == 6, "nothing is hidden by default");
+        Settings.set(21, true); Settings.set(22, true); Settings.set(15, true);
+        java.util.List shown = Settings.rows(menu);
+        check(!shown.contains(recents) && !shown.contains(stats) && !shown.contains(chats), "hidden rows leave");
+        check(shown.contains(updates) && shown.contains(settings) && shown.size() == 3, "other rows stay");
+        Settings.resetAll();
+        check(Settings.rows(menu).size() == 6, "reset restores the rows");
+        System.out.println("PASS side menu");
     }
 }
 ''')
     subprocess.run([str(JAVA / 'javac'), '-d', str(out / 'classes'), *sources, str(harness)], check=True)
-    subprocess.run([str(JAVA / 'java'), '-cp', str(out / 'classes'), 'spatch.PlayerRuntimeTest'], check=True)
+    subprocess.run([str(JAVA / 'java'), '-Dfonts=' + str(ROOT / 'theme/fonts'), '-cp', str(out / 'classes'), 'spatch.PlayerRuntimeTest'], check=True)
