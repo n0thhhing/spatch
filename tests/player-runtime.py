@@ -443,6 +443,7 @@ public class PlayerRuntimeTest {
         check("music".equals(FilterRow.event("music","music",null)),"parent without a child keeps its own tap");
         check("podcasts".equals(FilterRow.event("podcasts","music","following")),"other chips keep their own tap");
         check(Expansion.landing(1000,true)==880&&Expansion.landing(1000,false)==1000,"mini player flight lands on the art's resting size");
+        check(BannerImport.sample(1600,1600)==1&&BannerImport.sample(6400,1600)==4&&BannerImport.sample(1000,1600)==1,"banner decode size bound");
         java.util.List<String> reviewHome=java.util.Arrays.asList("a","c");
         check(HomeReview.section(0,1,reviewHome)==null,"the chip header is not a section");
         check("a".equals(HomeReview.section(1,1,reviewHome)),"the header shifts positions by one");

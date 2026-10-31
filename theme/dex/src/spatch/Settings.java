@@ -30,19 +30,20 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion"};
-    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion", "profile_banner", "profile_theme_header"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
     static final int MINI_VISUALIZER = 16, HAPTICS = 17;
-    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4;
-    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum"};
+    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5;
+    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position"};
     static final String[][] CHOICES = {
         {"bars", "centre", "contour", "dots"},
         {"subtle", "none"},
         {"wavy", "simple", "none"},
         {"current", "soft", "off"},
         {"off", "fine", "bars", "dots"},
+        {"centre", "top", "bottom"},
     };
     private static final String[] chosen = new String[CHOICES.length];
     private static final boolean[] on = DEFAULTS.clone();
@@ -288,6 +289,20 @@ public final class Settings implements jg81 {
 
     static boolean playlistMotion() {
         return on[36] && Wave.animationsEnabled();
+    }
+
+    static boolean profileBanner() {
+        return on[37];
+    }
+
+    static boolean profileThemeHeader() {
+        return on[38];
+    }
+
+    /** Where the banner's crop sits, 0 top to 1 bottom. */
+    static float profilePosition() {
+        String position = choice(PROFILE_POSITION);
+        return "top".equals(position) ? 0f : "bottom".equals(position) ? 1f : 0.5f;
     }
 
     static boolean hidePodcasts() {

@@ -1,6 +1,7 @@
 package android.graphics;
 // Compile-time stub only; never packaged (the device provides the real class).
 public class Paint {
+    public static final int FILTER_BITMAP_FLAG = 2;
     public Shader setShader(Shader s){return null;}
     public static final int ANTI_ALIAS_FLAG = 1;
     public enum Style { FILL, STROKE, FILL_AND_STROKE }

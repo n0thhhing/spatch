@@ -66,7 +66,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Pill glow",
         "Drag between filters",
         "Theme-coloured press",
-        "Living play button"
+        "Living play button",
+        "Profile header",
+        "Theme-coloured fallback"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -106,14 +108,16 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "A soft halo around the selected filter",
         "Hold the selected filter and drag it to another",
         "Held rows use a theme tone instead of black",
-        "The playlist button morphs and turns while playing"
+        "The playlist button morphs and turns while playing",
+        "Your own profile only. Only visible in Spatch.",
+        "With no banner, your profile uses the theme instead of Spotify's colour"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
     private static final String[] FEATURE_ICONS = {
         "soundwave", "enhance", "album", "album", "now_playing", "play", "pause", "soundwave",
         "repeat", "volume", "filter", "soundwave", "filter", "podcasts", "audiobook", "hidden", "soundwave", "notifications_active", "play", "home", "filter", "hidden", "hidden", "hidden", "hidden", "hidden", "hidden",
-        "enhance", "filter", "enhance", "filter", "enhance", "filter", "enhance", "filter", "check", "play"
+        "enhance", "filter", "enhance", "filter", "enhance", "filter", "enhance", "filter", "check", "play", "enhance", "enhance"
     };
 
     /** Section layout: Settings indices per group. */
@@ -149,6 +153,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private LinearLayout content;
     private View resetRow, homeToggle, reviewRow;
     private LinearLayout homeList;
+    private ImageView bannerPreview;
+    private View chooseBanner, removeBanner;
     private static final float INACTIVE = 0.5f;
     private static final long SWAP = 220;
     private final FrameLayout pages;
@@ -319,8 +325,41 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         for (int i : SIDE_PARTS) sideRows.addView(featureRows[i]);
         finish(sideRows);
         resetFor(concat(new int[] {SIDE_STYLE}, SIDE_PARTS), new int[0]);
+        LinearLayout profilePage = subPage("Profile header");
+        TextView local = new TextView(context);
+        local.setText("Only visible in Spatch. Your banner stays on this phone and never changes your public profile.");
+        local.setTextSize(13f);
+        local.setTextColor(subdued);
+        local.setPadding(dp(8), dp(8), dp(8), dp(12));
+        content.addView(local);
+        bannerPreview = new ImageView(context, null);
+        bannerPreview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        bannerPreview.setBackground(rounded(card, dp(24)));
+        bannerPreview.setClipToOutline(true);
+        bannerPreview.setContentDescription("Banner preview");
+        content.addView(bannerPreview, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(140)));
+        addSectionHeader("Banner");
+        LinearLayout bannerRows = addGroup();
+        chooseBanner = createSettingRow("plus", "Choose image", "From your files, up to 30 MB", icon("chevron_right"));
+        removeBanner = createSettingRow("hidden", "Remove banner", "Goes back to the fallback header", icon("chevron_right"));
+        chooseBanner.setOnClickListener(this);
+        removeBanner.setOnClickListener(this);
+        bannerRows.addView(chooseBanner);
+        bannerRows.addView(removeBanner);
+        addChoice(bannerRows, Settings.PROFILE_POSITION, "Position", "Which part of a tall image shows", new String[] {"Centre", "Top", "Bottom"});
+        bannerRows.addView(featureRows[38]);
+        finish(bannerRows);
+        refreshChoices();
+        refreshBanner();
+        BannerImport.done = new Runnable() {
+            public void run() {
+                refreshBanner();
+            }
+        };
+        resetFor(new int[] {37, 38}, new int[] {Settings.PROFILE_POSITION});
         inside(screens);
         LinearLayout screenRows = addGroup();
+        screenRows.addView(master(37, profilePage));
         screenRows.addView(master(FILTERS, filterPage));
         screenRows.addView(master(SIDE_STYLE, sidePage));
         finish(screenRows);
@@ -836,6 +875,16 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             syncFeatures();
             return;
         }
+        if (v == chooseBanner) {
+            BannerImport.start(getContext());
+            return;
+        }
+        if (v == removeBanner) {
+            ProfileBanner.file().delete();
+            ProfileBanner.changed();
+            refreshBanner();
+            return;
+        }
         if (v == reviewRow) {
             if (HomeReview.start((ViewGroup) getParent())) close();
             else new AlertDialog.Builder(getContext(), 0x010302d1).setTitle("Open Home first").setMessage("Review works on the Home tab, once its sections have loaded.").setPositiveButton("OK", null).show();
@@ -913,6 +962,13 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     /** Back callback and the end of the exit animation. */
     public void run() {
         close();
+    }
+
+    private void refreshBanner() {
+        android.graphics.Bitmap banner = ProfileBanner.banner();
+        bannerPreview.setImageBitmap(banner);
+        removeBanner.setEnabled(banner != null);
+        removeBanner.setAlpha(banner != null ? 1f : INACTIVE);
     }
 
     /** Slides out, then detaches (a second call, from the delayed run(), detaches at once). */

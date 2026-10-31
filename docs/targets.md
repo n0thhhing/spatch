@@ -509,3 +509,12 @@ Tab press feedback: `k1u.c` (classes12) gets a null indication, so Compose draws
 ## Side menu rows (traced; phone verification pending)
 
 `iiq` builds the provider list in this order: `yh81`, `upf` Messages, `vse1` Listening stats or Your Sound Capsule, `wwm1` Your plan or Your Premium, `ft01(0)` Recents, `ae2` conditional custom row (not identified), `ft01(1)` Settings and privacy, `ptd1` Taste Profile, `nbd0(1)` Your Updates, `ft01(2)` Company Information (KR), `f7`, `nbd0(0)` DM/Following/Group chat list. Types and Spatch's mapping are in `Settings.hidden`.
+
+
+## Overnight redesign (2026-10-31)
+
+- **Playlist play button:** `p.f1p1.m` (classes4). `ScallopShape.live(state)` takes Spotify's own state (1 = pause glyph shown) and is read during composition; a tick continues only while something composes it, so it stops offscreen and in the background.
+- **Profile (Compose, not `y5x0`/`jis`):** `p.r7j` -> `p.bn31.i` -> `p.bn31.h`. `h` paints `l6x0.k` plus a vertical gradient; `j` paints the top bar. `l6x0.m` is false on a `PREVIEW_CURRENT_USER` profile, so own-profile detection uses the `e6x0` Edit action in `l6x0.f`. `ProfileBanner` extends `tu61` (ShaderBrush).
+- **Held rows:** `tbx.e` in `p.ggx`'s base set was opaque black; `Surfaces.pressed` replaces that slot.
+- **Back:** `Back` unregisters when it fires, so `SpatchSettings.close` registers again after popping a sub-page.
+- **Gruvbox Material Dark:** palette from github.com/sainnhe/gruvbox-material (MIT, Copyright (c) 2020 sainnhe), dark medium background. Internal name `gruvbox-material-dark`; `theme_assets::PATHS` is sized by `THEMES.len()`, so a missing overlay path is a compile error.

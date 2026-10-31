@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 73] = [
+pub const EDITS: [Edit; 75] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -377,6 +377,18 @@ pub const EDITS: [Edit; 73] = [
         anchor: ".method public final b(Lp/xmc0;)V\n    .locals 6\n",
         replacement: ".method public final b(Lp/xmc0;)V\n    .locals 6\n\n    invoke-static {p0, p1}, Lspatch/Content;->submit(Lp/t0d0;Lp/xmc0;)V\n",
     },
+    // Own profile top bar (bn31.i): the same banner setting picks its colour.
+    Edit {
+        file: "smali_classes12/p/bn31.smali",
+        anchor: "    iget v0, v14, Lp/l6x0;->k:I\n\n    .line 272\n    .line 273\n    invoke-static {v0}, Lp/y2p1;->d(I)J\n\n    .line 274\n    .line 275\n    .line 276\n    move-result-wide v0\n",
+        replacement: "    iget v0, v14, Lp/l6x0;->k:I\n\n    .line 272\n    .line 273\n    invoke-static {v0}, Lp/y2p1;->d(I)J\n\n    .line 274\n    .line 275\n    .line 276\n    move-result-wide v0\n\n    invoke-static {v0, v1, v14}, Lspatch/ProfileBanner;->bar(JLp/l6x0;)J\n\n    move-result-wide v0\n",
+    },
+    // Own profile header (bn31.h): spatch.ProfileBanner may replace the brush over Spotify's colour.
+    Edit {
+        file: "smali_classes12/p/bn31.smali",
+        anchor: "    invoke-static {v2, v5, v6, v12, v14}, Lp/mtg;->m(Lp/rhm0;Landroidx/compose/ui/graphics/Brush;Lp/bv61;FI)Lp/rhm0;\n",
+        replacement: "    invoke-static {v5, v0}, Lspatch/ProfileBanner;->brush(Landroidx/compose/ui/graphics/Brush;Lp/l6x0;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object v5\n\n    invoke-static {v2, v5, v6, v12, v14}, Lp/mtg;->m(Lp/rhm0;Landroidx/compose/ui/graphics/Brush;Lp/bv61;FI)Lp/rhm0;\n",
+    },
     // Home chips (p.sdy, classes7): the fetched feed list goes through spatch.Content.feeds.
     Edit {
         file: "smali_classes7/p/sdy.smali",
@@ -513,7 +525,7 @@ const RELOCATED: [(&str, &str, &str, &str); 11] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 43] = [
+const HELPERS: [(&str, &str); 45] = [
     ("Fonts", include_str!("../theme/dex/src/spatch/Fonts.java")),
     (
         "FontFile",
@@ -530,6 +542,14 @@ const HELPERS: [(&str, &str); 43] = [
     (
         "HomeReview",
         include_str!("../theme/dex/src/spatch/HomeReview.java"),
+    ),
+    (
+        "ProfileBanner",
+        include_str!("../theme/dex/src/spatch/ProfileBanner.java"),
+    ),
+    (
+        "BannerImport",
+        include_str!("../theme/dex/src/spatch/BannerImport.java"),
     ),
     (
         "FilterRow",
@@ -754,6 +774,33 @@ const STUBS: &[(&str, &str)] = &[
     ("vyq0.java", include_str!("../theme/dex/stubs/p/vyq0.java")),
     ("zfx.java", include_str!("../theme/dex/stubs/p/zfx.java")),
     ("dvx.java", include_str!("../theme/dex/stubs/p/dvx.java")),
+    ("e6x0.java", include_str!("../theme/dex/stubs/p/e6x0.java")),
+    ("l6x0.java", include_str!("../theme/dex/stubs/p/l6x0.java")),
+    ("tu61.java", include_str!("../theme/dex/stubs/p/tu61.java")),
+    (
+        "Brush.java",
+        include_str!("../theme/dex/stubs/androidx/compose/ui/graphics/Brush.java"),
+    ),
+    (
+        "BitmapShader.java",
+        include_str!("../theme/dex/stubs/android/graphics/BitmapShader.java"),
+    ),
+    (
+        "ComposeShader.java",
+        include_str!("../theme/dex/stubs/android/graphics/ComposeShader.java"),
+    ),
+    (
+        "Matrix.java",
+        include_str!("../theme/dex/stubs/android/graphics/Matrix.java"),
+    ),
+    (
+        "PorterDuff.java",
+        include_str!("../theme/dex/stubs/android/graphics/PorterDuff.java"),
+    ),
+    (
+        "BitmapFactory.java",
+        include_str!("../theme/dex/stubs/android/graphics/BitmapFactory.java"),
+    ),
     ("t0d0.java", include_str!("../theme/dex/stubs/p/t0d0.java")),
     ("x7v.java", include_str!("../theme/dex/stubs/p/x7v.java")),
     ("xmc0.java", include_str!("../theme/dex/stubs/p/xmc0.java")),
