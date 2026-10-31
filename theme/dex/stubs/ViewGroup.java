@@ -11,6 +11,7 @@ public class ViewGroup extends View implements ViewParent {
     public ViewGroup(android.content.Context c, android.util.AttributeSet a) { super(c, a); }
     public int getChildCount() { return 0; }
     public View getChildAt(int i) { return null; }
+    public void removeViewAt(int i) {}
     public void setClipChildren(boolean c) {}
     public void setClipToPadding(boolean c) {}
     public void addView(View v) {}

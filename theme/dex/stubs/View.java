@@ -15,6 +15,12 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public View(android.content.Context c) {}
     public View(android.content.Context c, android.util.AttributeSet a) {}
     protected void onDraw(android.graphics.Canvas c) {}
+    public static final int IMPORTANT_FOR_ACCESSIBILITY_YES = 1;
+    protected final void setMeasuredDimension(int w, int h) {}
+    public final int getMeasuredWidth() { return 0; }
+    public final int getMeasuredHeight() { return 0; }
+    protected void onMeasure(int w, int h) {}
+    public void requestLayout() {}
     public int getWidth() { return 0; }
     public int getHeight() { return 0; }
     public int getScrollY() { return 0; }

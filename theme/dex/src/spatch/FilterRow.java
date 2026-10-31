@@ -60,6 +60,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
     private Chip shown;
     private String openParent, openChild;
     private boolean revealAnimated, grabbing;
+    private ValueAnimator resizing;
     private float downX, downY;
 
     private FilterRow(Context context) {
@@ -68,6 +69,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         setHorizontalScrollBarEnabled(false);
         setOverScrollMode(View.OVER_SCROLL_ALWAYS);
         setClipToPadding(false);
+        setClipChildren(false); // the pill's overshoot and glow pass the row's edges
         setFillViewport(false);
         chips = new Track(context);
         chips.setOrientation(LinearLayout.HORIZONTAL);
@@ -131,13 +133,23 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         boolean same = order.size() == chips.getChildCount();
         for (int i = 0; same && i < order.size(); i++) same = chips.getChildAt(i) == order.get(i);
         if (!same) {
-            chips.removeAllViews();
-            for (int i = 0; i < order.size(); i++) {
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48));
-                lp.setMarginStart(i == 0 ? 0 : dp(8));
-                chips.addView(order.get(i), lp);
+            ArrayList<Chip> merged = new ArrayList<Chip>(order);
+            boolean motion = animate && Wave.animationsEnabled();
+            for (int i = 0; motion && i < chips.getChildCount(); i++) { // a chip on its way out stays next to its neighbour
+                Chip old = (Chip) chips.getChildAt(i);
+                if (!merged.contains(old)) merged.add(i == 0 ? 0 : merged.indexOf(chips.getChildAt(i - 1)) + 1, old);
             }
-            byId.keySet().retainAll(keys(rows));
+            ArrayList<Chip> present = new ArrayList<Chip>();
+            for (int i = 0; i < chips.getChildCount(); i++) present.add((Chip) chips.getChildAt(i));
+            chips.removeAllViews();
+            for (int i = 0; i < merged.size(); i++) {
+                Chip chip = merged.get(i);
+                boolean stays = order.contains(chip);
+                chip.settleFrom(present.contains(chip) || !motion ? chip.open : 0f, stays ? 1f : 0f);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48));
+                chips.addView(chip, lp);
+            }
+            resize(motion, keys(rows));
         }
         if (chips.dragging && chips.hover.getParent() != chips) chips.release(true);
         if (selected != shown) {
@@ -149,6 +161,45 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
             removeCallbacks(this);
             post(this);
         }
+    }
+
+    /** Chips open and close with the pill, so the row never loses width under a pill still crossing it. */
+    private void resize(boolean motion, final ArrayList<String> live) {
+        if (resizing != null) resizing.cancel();
+        if (!motion) {
+            openChips(1f);
+            finishResize(live);
+            return;
+        }
+        resizing = ValueAnimator.ofFloat(0f, 1f);
+        resizing.setDuration(SELECT_MILLIS);
+        resizing.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            public void onAnimationUpdate(ValueAnimator a) {
+                float t = ((Float) a.getAnimatedValue()).floatValue();
+                openChips(t);
+                if (t >= 1) finishResize(live);
+            }
+        });
+        resizing.start();
+        openChips(0f);
+    }
+
+    private void openChips(float t) {
+        float eased = NavIndicator.settleCurve(t);
+        for (int i = 0; i < chips.getChildCount(); i++) {
+            Chip chip = (Chip) chips.getChildAt(i);
+            chip.open = chip.openFrom + (chip.openTo - chip.openFrom) * eased;
+            chip.setAlpha(chip.open);
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) chip.getLayoutParams();
+            lp.setMarginStart(i == 0 ? 0 : Math.round(dp(8) * chip.open));
+            chip.requestLayout();
+        }
+    }
+
+    private void finishResize(ArrayList<String> live) {
+        resizing = null;
+        for (int i = chips.getChildCount() - 1; i >= 0; i--) if (((Chip) chips.getChildAt(i)).openTo == 0) chips.removeViewAt(i);
+        byId.keySet().retainAll(live);
     }
 
     /** {id, label}: top-level chips, with the open chip's children straight after it. */
@@ -332,7 +383,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
             for (int i = 0; i < getChildCount(); i++) {
                 Chip chip = (Chip) getChildAt(i);
                 float d = Math.abs((chip.getLeft() + chip.getRight()) / 2f - x);
-                if (d < distance) {
+                if (d < distance && chip.openTo > 0) {
                     distance = d;
                     best = chip;
                 }
@@ -476,7 +527,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
     private final class Chip extends TextView implements ValueAnimator.AnimatorUpdateListener {
         private final GradientDrawable shape = new GradientDrawable();
         private ValueAnimator press;
-        float ink = -1;
+        float ink = -1, open = 1, openFrom = 1, openTo = 1;
         String id;
 
         Chip(Context context) {
@@ -494,6 +545,19 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
             RippleDrawable ripple = new RippleDrawable(ColorStateList.valueOf(selected & 0xffffff | 0x33000000), null, shape);
             setBackground(new InsetDrawable(ripple, 0, dp(4), 0, dp(4)));
             ink(0f);
+        }
+
+        void settleFrom(float from, float to) {
+            openFrom = from;
+            openTo = to;
+            setEnabled(to > 0);
+            setImportantForAccessibility(to > 0 ? View.IMPORTANT_FOR_ACCESSIBILITY_YES : View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+
+        @Override
+        protected void onMeasure(int width, int height) {
+            super.onMeasure(width, height);
+            if (open < 1) setMeasuredDimension(Math.round(getMeasuredWidth() * open), getMeasuredHeight());
         }
 
         void bind(String id, String label, boolean on) {
