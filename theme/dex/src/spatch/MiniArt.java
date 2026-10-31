@@ -24,7 +24,7 @@ public final class MiniArt extends ImageView {
         super.setImageDrawable(art);
         long now = SystemClock.uptimeMillis();
         // Placeholder-then-image loads arrive in quick succession; pop once per track change.
-        if (old != null && art != null && old != art && now - popAt > POP_MS && Wave.animationsEnabled()) {
+        if (old != null && art != null && old != art && now - popAt > POP_MS && Wave.animationsEnabled() && Settings.miniPop()) {
             popAt = now;
             invalidate();
         }

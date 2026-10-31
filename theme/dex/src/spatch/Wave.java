@@ -134,14 +134,16 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         boolean playing = pressed ? playingAtPress || musicActive(now)
             : now - lastAdvance < ACTIVE_MS || musicActive(now);
         amp = motion && Settings.wave() ? approach(amp, playing ? 1f : 0f) : 0f;
-        thick = motion ? approach(thick, pressed || hovered ? 1f : 0f) : (pressed ? 1f : 0f);
+        thick = !Settings.waveThick() ? 0f : motion ? approach(thick, pressed || hovered ? 1f : 0f) : (pressed ? 1f : 0f);
 
         // Proportions of the drawable height so the seekbar and the mini-player share one drawable.
         float stroke = h / 3f + (h * 0.6f - h / 3f) * thick;
         float restStroke = h / 5f;
         float a = Math.max(0f, (h - stroke) / 2f) * amp;
         float wl = h * 2.5f;
-        float phase = (now % PERIOD_MS) / (float) PERIOD_MS * wl;
+        String speed = Settings.choice(Settings.WAVE_SPEED);
+        long period = "slow".equals(speed) ? PERIOD_MS * 2 : "fast".equals(speed) ? PERIOD_MS / 2 : PERIOD_MS;
+        float phase = (now % period) / (float) period * wl;
         float cy = (b.top + b.bottom) / 2f;
         float x0 = b.left + stroke / 2f;
         float x1 = b.right - restStroke / 2f;

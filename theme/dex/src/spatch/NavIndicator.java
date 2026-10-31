@@ -43,10 +43,15 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
 
     public NavIndicator(Context c, AttributeSet a) {
         super(c, a);
-        paint.setColor(Palette.color(0x40d0bcff));
         view = new WeakReference<NavIndicator>(this);
         from = to = selected;
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    }
+
+    /** A setting changed while the bar sits behind the settings page. */
+    static void refresh() {
+        NavIndicator v = view == null ? null : view.get();
+        if (v != null) v.invalidate();
     }
 
     static void tabs(int total) {
@@ -113,7 +118,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         int action = e.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
             nav = ((View) getParent()).findViewById(getResources().getIdentifier("navigation_bar", "id", getContext().getPackageName()));
-            if (nav == null || selected < 0 || rail()) return false;
+            if (nav == null || selected < 0 || rail() || !Settings.navStyle()) return false;
             downX = e.getX();
             downY = e.getY();
             dragging = false;
@@ -130,7 +135,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         }
         if (action == MotionEvent.ACTION_MOVE && !dragging) {
             float dx = Math.abs(e.getX() - downX), dy = Math.abs(e.getY() - downY);
-            if (dx <= ViewConfiguration.get(getContext()).getScaledTouchSlop() || dx <= dy) {
+            if (dx <= ViewConfiguration.get(getContext()).getScaledTouchSlop() || dx <= dy || !Settings.navDrag()) {
                 forward(e, action);
                 return true;
             }
@@ -169,7 +174,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     }
 
     private void scaleBar(float scale) {
-        if (calm()) return;
+        if (calm() || !Settings.navLift()) return;
         nav.animate().scaleX(scale).scaleY(scale).setDuration(180).start();
         animate().scaleX(scale).scaleY(scale).setDuration(180).start();
     }
@@ -234,12 +239,19 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         return new float[] {a, b};
     }
 
+    /** Keeps the pill's width: both edges follow the centre at tab position at. */
+    private static float[] edges(float from, float to, float t, float cell, float width, float at) {
+        float centre = (at + .5f) * cell;
+        return new float[] {centre - width / 2, centre + width / 2};
+    }
+
     static float settleCurve(float t) {
         return 1 - (1 - t) * (1 - t) * (1 - t);
     }
 
     protected void onDraw(Canvas canvas) {
-        if (selected < 0 || rail()) return; // landscape rail: Pill draws it
+        if (selected < 0 || rail() || !Settings.navStyle()) return; // landscape rail: Pill draws it
+        paint.setColor(Tint.color(Settings.NAV_COLOR));
         float d = getResources().getDisplayMetrics().density, cell = getWidth() / (float) count;
         boolean rtl = rtl();
         long now = SystemClock.uptimeMillis();
@@ -255,15 +267,16 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             right = centre + WIDTH * d / 2 + (lag > 0 ? stretch * STRETCH * d : 0);
             if (Math.abs(finger - shown) > .002f) invalidate();
         } else {
-            float[] edge = edges(from, to, settle.getInterpolation(t), cell, WIDTH * d);
+            float eased = settle.getInterpolation(t);
+            float[] edge = Settings.navStretch() ? edges(from, to, eased, cell, WIDTH * d) : edges(from, to, 1, cell, WIDTH * d, from + (to - from) * eased);
             left = rtl ? getWidth() - edge[1] : edge[0];
             right = rtl ? getWidth() - edge[0] : edge[1];
         }
-        float aim = dragging && !calm ? 1 : 0;
+        float aim = dragging && !calm && Settings.navLift() ? 1 : 0;
         lift += (aim - lift) * (1 - (float) Math.exp(-dt / 70f));
         if (Math.abs(aim - lift) > .01f) invalidate();
         else lift = aim;
-        float pressAim = pressing ? 1 : 0;
+        float pressAim = pressing && Settings.navPress() ? 1 : 0;
         press = calm ? pressAim : press + (pressAim - press) * (1 - (float) Math.exp(-dt / 60f));
         if (Math.abs(pressAim - press) > .01f) invalidate();
         else press = pressAim;

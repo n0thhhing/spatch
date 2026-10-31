@@ -32,7 +32,7 @@ public final class Transport extends Drawable implements Runnable {
     private float opFrom, scFrom, opacity, shapeScale=.35f;
     private void drawSkip(Canvas c, Rect b, float cx, float cy) {
         long now=SystemClock.uptimeMillis();
-        boolean motion=Settings.buttons();
+        boolean motion=Settings.buttons() && Settings.skipNudge();
         boolean pressed=owner.isEnabled() && owner.isPressed();
         if(wasPressed && !pressed)nudgeAt=now;
         wasPressed=pressed;

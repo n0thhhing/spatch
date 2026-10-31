@@ -20,6 +20,8 @@ final class SettingsHero extends View {
     SettingsHero(Context c) {
         super(c, null);
         setContentDescription("Spatch for Spotify 9.1.98.521");
+        setClickable(true); // a press needs its release for the spring
+        Springy.attach(this);
     }
 
     /** Scrolled out of view: stops the frame loop until it returns. */

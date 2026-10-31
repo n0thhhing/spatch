@@ -31,7 +31,7 @@ public final class TapBounce {
         if(!view.isClickable())return;
         Drawable bg=view.getBackground();
         if(isScallop(bg))return;
-        boolean bounces=bg instanceof Transport && ((Transport)bg).bounces();
+        boolean bounces=bg instanceof Transport && ((Transport)bg).bounces() && Settings.buttonBounce();
         if(!bounces || !Settings.buttons() || !view.isEnabled()){
             if(view.getScaleX()!=1f){view.setScaleX(1);view.setScaleY(1);}
             return;

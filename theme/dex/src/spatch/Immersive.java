@@ -284,7 +284,7 @@ public final class Immersive extends View implements Runnable {
         boolean motion = Wave.animationsEnabled();
         layout(w, h);
         if (now-controlsAt>750) {findViews();controlsAt=now;}
-        float p = progress(now, motion);
+        float p = progress(now, motion && Settings.immersiveFlight());
         float visualProgress = closing ? closeProgress * p : clamp01(p);
         int bgAlpha = Math.round(visualProgress * 255);
         int uiAlpha = Math.round(clamp01((visualProgress - 0.5f) / 0.5f) * 255);
@@ -294,6 +294,7 @@ public final class Immersive extends View implements Runnable {
         if (art != lastArt) {
             if (art != null) atmosphere.capture(art); // follow track changes, not just the opening track
             if (lastArt != null && art != null && motion) popAt = now;
+            Tint.follow(art);
             lastArt = art;
         }
 
@@ -317,10 +318,12 @@ public final class Immersive extends View implements Runnable {
         canvas.restoreToCount(layer);
 
         // 2. Artwork: flies between the player and its spot; squishes on press; pops on a new song.
-        if (motion) PlayerArt.spring(squish, squishTarget, now - lastFrame);
+        if (motion && Settings.artPress()) PlayerArt.spring(squish, squishTarget, now - lastFrame);
         else { squish[0] = 1; squish[1] = 0; }
         lastFrame = now;
-        float pop = motion && now - popAt < 640 ? 0.9f + 0.1f * outBack((now - popAt) / 640f, 2f) : 1f;
+        String change = Settings.choice(Settings.IMM_CHANGE);
+        boolean changing = motion && now - popAt < 640;
+        float pop = changing && "pop".equals(change) ? 0.9f + 0.1f * outBack((now - popAt) / 640f, 2f) : 1f;
         float toCx = artX + artSize / 2f, toCy = artY + artSize / 2f;
         float sCx = fromSize > 0 ? fromCx : toCx, sCy = fromSize > 0 ? fromCy : toCy;
         float sSize = fromSize > 0 ? fromSize : artSize * 0.85f;
@@ -339,13 +342,18 @@ public final class Immersive extends View implements Runnable {
         drawnCx = cxArt; drawnCy = cyArt; drawnSize = size; drawnRadius = radius;
         float left = cxArt - size / 2f, top = cyArt - size / 2f;
 
+        int turned = canvas.save();
+        if (changing && "spin".equals(change)) canvas.rotate(360f * Transport.outCubic((now - popAt) / 640f), cxArt, cyArt);
+        int artLayer = changing && "fade".equals(change) ? canvas.saveLayerAlpha(0, 0, w, h, Math.round(255 * clamp01((now - popAt) / 420f))) : canvas.save();
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, false);
         // Soft depth instead of a hard border: an accent glow, then a dark drop shadow under the art.
         String glowChoice = Settings.choice(Settings.ART_GLOW);
         if (!"off".equals(glowChoice)) {
+            String glowStyle = Settings.choice(Settings.GLOW_STYLE);
             float strength = "soft".equals(glowChoice) ? 0.22f : 0.45f;
+            if ("fade".equals(glowStyle) && motion) strength *= 0.55f + 0.45f * (float) Math.sin(now / 700.0);
             paint.setColor(0xff14121c);
-            paint.setShadowLayer(36 * dp, 0, 0, (Math.round(uiAlpha * strength) << 24) | 0xd0bcff);
+            paint.setShadowLayer(("wide".equals(glowStyle) ? 60 : 36) * dp, 0, 0, (Math.round(uiAlpha * strength) << 24) | Tint.color(Settings.GLOW_COLOR) & 0xffffff);
             canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
             paint.setShadowLayer(20 * dp, 0, 10 * dp, Math.round(bgAlpha * 0.55f) << 24);
             canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
@@ -364,6 +372,8 @@ public final class Immersive extends View implements Runnable {
         canvas.restoreToCount(save);
 
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, true);
+        canvas.restoreToCount(artLayer);
+        canvas.restoreToCount(turned);
         drawRadial(canvas, cxArt, cyArt, size, Math.round(uiAlpha * clamp01(visualProgress)), now);
 
         // 3. Everything else fades in once the artwork is most of the way there.
@@ -406,7 +416,7 @@ public final class Immersive extends View implements Runnable {
         paint.setTextSize(w * 0.058f);
         String title = titleView != null && titleView.getText() != null ? titleView.getText().toString() : "Spotify";
         if (!title.equals(shownTitle)) {
-            if (shownTitle != null && Wave.animationsEnabled()) titleChangedAt = now;
+            if (shownTitle != null && Wave.animationsEnabled() && Settings.immersiveTitles()) titleChangedAt = now;
             shownTitle = title;
         }
         // A new song's title and artist ease in: fade up while sliding 6dp into place.

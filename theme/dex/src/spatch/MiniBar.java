@@ -28,6 +28,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
     private MiniSkip previous, next;
     private MiniEq eq;
     private View shapedCover;
+    private Springy coverSpring;
     private volatile boolean playing;
     private volatile long actions = 48;
 
@@ -70,6 +71,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
 
     /** A tap on the artwork or metadata opens the player; remember where the cover was. */
     public boolean dispatchTouchEvent(MotionEvent e) {
+        if (coverSpring != null && (e.getActionMasked() != MotionEvent.ACTION_DOWN || previous != null && e.getX() < findViewById(id("tracks_carousel_view")).getRight())) coverSpring.onTouch(shapedCover, e);
         if (e.getActionMasked() == MotionEvent.ACTION_UP && previous != null && e.getX() < findViewById(id("tracks_carousel_view")).getRight()) {
             View cover = findViewById(id("cover_image"));
             if (cover != null && cover.getWidth() > 0) {
@@ -94,6 +96,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
         View cover = findViewById(id("cover_image"));
         if (cover == null || cover == shapedCover) return;
         shapedCover = cover;
+        coverSpring = new Springy(cover);
         GradientDrawable circle = new GradientDrawable();
         circle.setShape(GradientDrawable.OVAL);
         circle.setColor(Palette.color(0xff1d1a2a));

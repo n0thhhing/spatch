@@ -30,20 +30,29 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion", "profile_banner", "profile_theme_header", "library_style", "library_cards", "library_chips", "playlist_cards"};
-    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion", "profile_banner", "profile_theme_header", "library_style", "library_cards", "library_chips", "playlist_cards", "nav_style", "nav_drag", "nav_stretch", "nav_lift", "nav_press", "nav_pop", "art_press", "spring_press", "wave_thick", "buttons_bounce", "skip_nudge", "play_spin", "play_morph", "imm_titles", "imm_flight", "side_round", "side_scrim", "mini_pop", "mini_flight", "art_drift", "filter_anim"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
     static final int MINI_VISUALIZER = 16, HAPTICS = 17;
-    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5;
-    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position"};
+    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5, ART_SKIP = 6, IMM_CHANGE = 7, RING_COLOR = 8, GLOW_COLOR = 9, GLOW_STYLE = 10, RING_WIDTH = 11, RING_SPEED = 12, WAVE_SPEED = 13, NAV_COLOR = 14;
+    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position", "art_skip", "imm_change", "ring_color", "glow_color", "glow_style", "ring_width", "ring_speed", "wave_speed", "nav_color"};
     static final String[][] CHOICES = {
         {"bars", "centre", "contour", "dots"},
         {"subtle", "none"},
-        {"wavy", "simple", "none"},
+        {"wavy", "simple", "none", "audio"},
         {"current", "soft", "off"},
         {"off", "fine", "bars", "dots"},
         {"centre", "top", "bottom"},
+        {"slide", "spin", "shrink", "fade"},
+        {"pop", "spin", "fade", "none"},
+        Tint.NAMES,
+        Tint.NAMES,
+        {"halo", "wide", "fade", "sweep"},
+        {"normal", "thin", "bold"},
+        {"normal", "slow", "fast", "still"},
+        {"normal", "slow", "fast"},
+        Tint.NAMES,
     };
     private static final String[] chosen = new String[CHOICES.length];
     private static final boolean[] on = DEFAULTS.clone();
@@ -118,13 +127,13 @@ public final class Settings implements jg81 {
         }
         if (!(up instanceof p.x7v)) return;
         int surface = Palette.color(0xff14121c);
-        float r = 28 * view.getResources().getDisplayMetrics().density;
+        float r = on[58] ? 28 * view.getResources().getDisplayMetrics().density : 0;
         GradientDrawable fill = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {on[31] ? Pill.blend(surface, Palette.color(0xffd0bcff), 0.16f) : surface, surface, surface});
         fill.setCornerRadii(view.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? new float[] {r, r, 0, 0, 0, 0, r, r} : new float[] {0, 0, r, r, r, r, 0, 0});
         panel.setBackground(fill);
         panel.setClipToOutline(true);
         view.setBackgroundColor(0);
-        ((p.x7v) up).setScrimColor(surface & 0xffffff | 0xb3000000);
+        if (on[59]) ((p.x7v) up).setScrimColor(surface & 0xffffff | 0xb3000000);
     }
 
     /** Called with every drawer row's URI before Spotify navigates; true = handled here. */
@@ -302,6 +311,26 @@ public final class Settings implements jg81 {
     static boolean playlistCards() {
         return on[42];
     }
+
+    static boolean navStyle() { return on[43]; }
+    static boolean navDrag() { return on[43] && on[44]; }
+    static boolean navStretch() { return on[45]; }
+    static boolean navLift() { return on[46]; }
+    static boolean navPress() { return on[47]; }
+    static boolean navPop() { return on[48]; }
+    static boolean artPress() { return on[49]; }
+    static boolean springPress() { return on[50] && Wave.animationsEnabled(); }
+    static boolean waveThick() { return on[51]; }
+    static boolean buttonBounce() { return on[52]; }
+    static boolean skipNudge() { return on[53]; }
+    static boolean playSpin() { return on[54]; }
+    static boolean playMorph() { return on[55]; }
+    static boolean immersiveTitles() { return on[56]; }
+    static boolean immersiveFlight() { return on[57]; }
+    static boolean miniPop() { return on[60]; }
+    static boolean miniFlight() { return on[61]; }
+    static boolean artDrift() { return on[62]; }
+    static boolean filterAnimated() { return on[63]; }
 
     static boolean profileBanner() {
         return on[37];

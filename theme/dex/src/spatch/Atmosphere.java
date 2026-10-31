@@ -27,7 +27,7 @@ public final class Atmosphere extends Drawable implements Runnable {
         Rect b=getBounds();
         c.drawColor(0xff14121c);
         float w=b.width(),h=b.height();
-        float phase=Wave.animationsEnabled()?(SystemClock.uptimeMillis()%30000)/30000f*6.283185f:0;
+        float phase=Wave.animationsEnabled()&&Settings.artDrift()?(SystemClock.uptimeMillis()%30000)/30000f*6.283185f:0;
         // Very low resolution art, enlarged with bilinear filtering, forms the blurred base.
         float blend=blend();
         paint.setShader(null); paint.setAlpha((int)(65*(1-blend)));
@@ -44,7 +44,7 @@ public final class Atmosphere extends Drawable implements Runnable {
         }
         paint.setShader(null); paint.setColor(0x5514121c);
         c.drawRect(b.left,b.top,b.right,b.bottom,paint);
-        if(Wave.animationsEnabled() && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+66);
+        if(Wave.animationsEnabled() && Settings.artDrift() && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+66);
     }
     public void run(){invalidateSelf();}
     private float blend(){

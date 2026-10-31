@@ -355,6 +355,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         }
 
         void move(Chip to, boolean animate) {
+            animate &= Settings.filterAnimated();
             aim = to;
             removeCallbacks(this);
             if (animator != null) animator.cancel();
@@ -540,6 +541,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
             setClickable(true);
             setFocusable(true);
             setOnClickListener(FilterRow.this);
+            Springy.attach(this);
             // 40dp pill in a 48dp target; the ripple starts at the touch and stays inside the pill.
             shape.setColor(0xffffffff);
             RippleDrawable ripple = new RippleDrawable(ColorStateList.valueOf(selected & 0xffffff | 0x33000000), null, shape);

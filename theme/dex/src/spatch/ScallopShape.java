@@ -59,12 +59,12 @@ public final class ScallopShape implements bv61 {
             changedAt = now;
         }
         boolean motion = Settings.playlistMotion();
-        float progress = motion ? Math.min(1f, (now - changedAt) / MORPH_MILLIS) : 1;
+        float progress = motion && Settings.playMorph() ? Math.min(1f, (now - changedAt) / MORPH_MILLIS) : 1;
         shown = morph(from, target, progress);
-        if (motion && wanted == 1 && lastFrame != 0) spin = (spin + Math.min(80, now - lastFrame) * Math.PI * 2 / TURN_MILLIS) % (Math.PI * 2);
+        if (motion && wanted == 1 && lastFrame != 0 && Settings.playSpin()) spin = (spin + Math.min(80, now - lastFrame) * Math.PI * 2 / TURN_MILLIS) % (Math.PI * 2);
         lastFrame = now;
         composedAt = now;
-        if (motion && (wanted == 1 || progress < 1) && !ticking) {
+        if (motion && (wanted == 1 && Settings.playSpin() || progress < 1) && !ticking) {
             ticking = true;
             MAIN.postDelayed(FRAMES, FRAME);
         }

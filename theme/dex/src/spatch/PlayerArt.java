@@ -24,6 +24,9 @@ public final class PlayerArt extends ImageView {
     private long lastSetup;
     private float glowSize;
     private Shader glow;
+    private int glowTint;
+    private String glowStyle;
+    private boolean faded;
     private Drawable previousArt;
     private long revealStart;
     private long tapAt = -1000;
@@ -42,16 +45,16 @@ public final class PlayerArt extends ImageView {
     public boolean dispatchTouchEvent(MotionEvent e) {
         float slop = Math.max(36, getWidth() * 0.08f);
         int action = e.getActionMasked();
-        if (action == MotionEvent.ACTION_DOWN) squishTarget = PRESSED;
+        if (action == MotionEvent.ACTION_DOWN && Settings.artPress()) squishTarget = PRESSED;
         else if (action == MotionEvent.ACTION_UP) {
-            release(squish);
+            if (Settings.artPress()) release(squish);
             squishTarget = 1;
         } else if (action == MotionEvent.ACTION_CANCEL) { squishTarget = 1; tapAt = -1000; }
         if (action == MotionEvent.ACTION_DOWN) {
             long t = SystemClock.uptimeMillis();
             if (Settings.immersive() && t - tapAt > 40 && t - tapAt < 500 && Math.abs(e.getX() - tapX) < slop * 4 && Math.abs(e.getY() - tapY) < slop * 4) {
                 tapAt = -1000;
-                release(squish);
+                if (Settings.artPress()) release(squish);
                 squishTarget = 1; // the overlay may consume the second tap's UP
                 Immersive.toggle(this);
             } else {
@@ -80,6 +83,10 @@ public final class PlayerArt extends ImageView {
         squishAt = now;
         int scaled = canvas.save();
         canvas.scale(squish[0], squish[0], getWidth()/2f, getHeight()/2f);
+        String skip = Settings.choice(Settings.ART_SKIP);
+        boolean skipMotion = !"slide".equals(skip) && Wave.animationsEnabled();
+        float offset = skipMotion ? pageOffset() : 0;
+        turnPage(canvas, skip, offset);
         if (!heroHidden) {
             if (Settings.roundArt()) drawRound(canvas); else super.onDraw(canvas);
         }
@@ -88,11 +95,12 @@ public final class PlayerArt extends ImageView {
         // redraw slowly, just enough to notice when they become the centred page.
         boolean current=isCurrentPage();
         if(!current) {
-            if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(250);
+            // Spin and fade follow the slide, so a page crossing the screen draws every frame.
+            if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(skipMotion && Math.abs(offset) < 1.1f ? 16 : 250);
             return;
         }
         float[] from=MiniBar.claimExpansion();
-        if(from!=null) expansion=Expansion.start(this,from);
+        if(from!=null && Settings.miniFlight()) expansion=Expansion.start(this,from);
         if(ids==null) ids=new int[]{id("overlay_controls_layout"),id("playback_controls_container"),id("track_info_view_title"),id("track_info_view_subtitle"),id("nowplaying_elements_playpause_button")};
         if(background==null || now-lastSetup>750) {
             background=getRootView().findViewById(ids[0]);
@@ -100,6 +108,7 @@ public final class PlayerArt extends ImageView {
         // The artwork carousel keeps the previous and next tracks' pages alive off-screen; only the
         // page centred on screen may set the blurred backdrop, or a neighbour's art wins.
         Drawable art=getDrawable();
+        Tint.follow(art);
         if(background!=null && !Settings.backdrop()) {
             if(background.getBackground() instanceof Atmosphere) background.setBackground(original);
         } else if(background!=null && art!=null) {
@@ -135,6 +144,27 @@ public final class PlayerArt extends ImageView {
         if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(16);
     }
 
+    /** How far this carousel page sits from the screen's centre, in screen widths; signed. */
+    private float pageOffset() {
+        getLocationOnScreen(loc);
+        return (loc[0] + getWidth() / 2f - getRootView().getWidth() / 2f) / getRootView().getWidth();
+    }
+
+    /** Skip animation: the page rolls like a record as it crosses, shrinks or fades on the way. */
+    private void turnPage(Canvas canvas, String skip, float offset) {
+        boolean fade = "fade".equals(skip) && Wave.animationsEnabled();
+        if (fade || faded) {
+            setAlpha(fade ? 1 - Math.min(1, Math.abs(offset) * 1.4f) : 1f);
+            faded = fade;
+        }
+        if ("slide".equals(skip) || fade || offset == 0) return;
+        canvas.rotate(offset * 200f, getWidth() / 2f, getHeight() / 2f);
+        if ("shrink".equals(skip)) {
+            float scale = 1 - 0.35f * Math.min(1, Math.abs(offset));
+            canvas.scale(scale, scale, getWidth() / 2f, getHeight() / 2f);
+        }
+    }
+
     /** Circular art with a soft glow and a slowly turning scalloped ring. */
     private void drawRound(Canvas canvas) {
         float cx = getWidth()/2f, cy = getHeight()/2f;
@@ -164,7 +194,8 @@ public final class PlayerArt extends ImageView {
     /** Real audio energy around the circular art, from the shared capture. Centred page only. */
     private void drawRadial(Canvas canvas, float cx, float cy, float radius) {
         String style = Settings.choice(Settings.ART_SPECTRUM);
-        if ("off".equals(style) || heroHidden || !Wave.animationsEnabled() || !isCurrentPage() || !hasWindowFocus()) {
+        boolean bars = !"off".equals(style), reactive = "audio".equals(Settings.choice(Settings.ART_OUTLINE));
+        if (!bars && !reactive || heroHidden || !Wave.animationsEnabled() || !isCurrentPage() || !hasWindowFocus()) {
             // Neighbour carousel pages redraw too: only the page that asked may release the capture.
             if (radialOn) AudioSpectrum.drop(AudioSpectrum.RADIAL);
             radialOn = false;
@@ -173,7 +204,7 @@ public final class PlayerArt extends ImageView {
         radialOn = true;
         AudioSpectrum.request(getContext(), AudioSpectrum.RADIAL, playing());
         Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), SystemClock.uptimeMillis(), Wave.animationsEnabled(), Settings.vizSmooth());
-        if (Spectrum.alpha < 0.01f) return;
+        if (!bars || Spectrum.alpha < 0.01f) return;
         float dp = getResources().getDisplayMetrics().density;
         // Fits inside the view's 12% margin, past the outline; nothing is clipped or covers controls.
         float gap = "none".equals(Settings.choice(Settings.ART_OUTLINE)) ? radius * 0.03f : radius * 0.07f;
@@ -213,15 +244,33 @@ public final class PlayerArt extends ImageView {
 
     private void drawGlow(Canvas canvas) {
         if ("off".equals(Settings.choice(Settings.ART_GLOW))) return;
-        ink.setAlpha("soft".equals(Settings.choice(Settings.ART_GLOW)) ? 128 : 255);
-        float cx = getWidth()/2f, cy = getHeight()/2f;
-        float radius = Math.min(cx,cy)*0.88f;
-        if(glow==null || glowSize!=radius) {
-            glowSize=radius;
-            glow=new RadialGradient(cx,cy,Math.min(cx,cy),new int[]{0x00d0bcff,0x55d0bcff,0x00d0bcff},new float[]{0,.86f,1},Shader.TileMode.CLAMP);
+        float cx = getWidth()/2f, cy = getHeight()/2f, edge = Math.min(cx,cy);
+        float radius = edge*0.88f;
+        String style = Settings.choice(Settings.GLOW_STYLE);
+        int tint = Tint.color(Settings.GLOW_COLOR) & 0xffffff;
+        boolean motion = Wave.animationsEnabled();
+        long now = SystemClock.uptimeMillis();
+        float strength = "soft".equals(Settings.choice(Settings.ART_GLOW)) ? 0.5f : 1f;
+        if ("fade".equals(style) && motion) strength *= 0.55f + 0.45f * (float) Math.sin(now / 700.0);
+        if(glow==null || glowSize!=radius || glowTint!=tint || !style.equals(glowStyle)) {
+            glowSize=radius; glowTint=tint; glowStyle=style;
+            int on = 0x55000000 | tint, off = tint;
+            if ("sweep".equals(style)) {
+                int second = 0x77000000 | Pill.blend(tint, 0xffffff, 0.45f) & 0xffffff;
+                glow=new ComposeShader(new RadialGradient(cx,cy,edge,new int[]{0,0xff000000,0},new float[]{0,.86f,1},Shader.TileMode.CLAMP),
+                    new SweepGradient(cx,cy,new int[]{on,off,second,off,on},null),PorterDuff.Mode.SRC_IN);
+            } else if ("wide".equals(style)) {
+                glow=new RadialGradient(cx,cy,edge,new int[]{off,on,0x33000000|tint,off},new float[]{0,.8f,.92f,1},Shader.TileMode.CLAMP);
+            } else {
+                glow=new RadialGradient(cx,cy,edge,new int[]{off,on,off},new float[]{0,.86f,1},Shader.TileMode.CLAMP);
+            }
         }
+        ink.setAlpha(Math.round(255 * strength));
         ink.setStyle(Paint.Style.FILL); ink.setShader(glow);
-        canvas.drawRect(0,0,getWidth(),getHeight(),ink);
+        int save = canvas.save();
+        if ("sweep".equals(style) && motion) canvas.rotate((now % 6000) * 0.06f, cx, cy);
+        canvas.drawCircle(cx, cy, edge, ink);
+        canvas.restoreToCount(save);
         ink.setShader(null);
     }
 
@@ -231,10 +280,23 @@ public final class PlayerArt extends ImageView {
         String style = Settings.choice(Settings.ART_OUTLINE);
         if ("none".equals(style)) return;
         long now = SystemClock.uptimeMillis();
-        float phase = Wave.animationsEnabled() ? (now%18000)/18000f*6.283185f : 0;
+        String speed = Settings.choice(Settings.RING_SPEED);
+        long period = "slow".equals(speed) ? 36000 : "fast".equals(speed) ? 7000 : 18000;
+        float phase = Wave.animationsEnabled() && !"still".equals(speed) ? (now%period)/(float)period*6.283185f : 0;
+        String width = Settings.choice(Settings.RING_WIDTH);
+        ink.setShader(null);
         ink.setStyle(Paint.Style.STROKE);
-        ink.setStrokeWidth(Math.max(2, radius*.012f));
-        ink.setColor(0xffd0bcff);
+        ink.setStrokeWidth(Math.max(2, radius*.012f) * ("thin".equals(width) ? .6f : "bold".equals(width) ? 1.8f : 1f));
+        ink.setColor(Tint.color(Settings.RING_COLOR));
+        if ("audio".equals(style)) {
+            traceAudioRing(cx, cy, radius);
+            ringRadius = 0; // the resting shape is rebuilt when the style changes back
+            int save=canvas.save();
+            canvas.rotate((float)Math.toDegrees(phase/24),cx,cy);
+            canvas.drawPath(ring,ink);
+            canvas.restoreToCount(save);
+            return;
+        }
         if(ringRadius!=radius || ringCx!=cx || ringCy!=cy) {
             // Built once per size; the motion is a rotation, since sin(24a - phase) is the same curve
             // turned by phase/24.
@@ -256,6 +318,22 @@ public final class PlayerArt extends ImageView {
         canvas.rotate((float)Math.toDegrees(phase/24),cx,cy);
         canvas.drawPath(ring,ink);
         canvas.restoreToCount(save);
+    }
+
+    /** The wavy ring with each angle pushed out by its band: bass at the top, mirrored like the bars. */
+    private void traceAudioRing(float cx, float cy, float radius) {
+        ring.reset();
+        for(int i=0;i<=360;i++) {
+            float at=(i<=180?i:360-i)/180f*(Spectrum.BANDS-1);
+            int low=Math.min(Spectrum.BANDS-2,(int)at);
+            float level=Spectrum.bands[low]+(Spectrum.bands[low+1]-Spectrum.bands[low])*(at-low);
+            double angle=i*Math.PI/180;
+            // Stays inside the view's 12% margin at the loudest level, 1.12.
+            float r=radius*1.045f+(float)Math.sin(angle*24)*radius*.012f+level*Spectrum.alpha*radius*.07f;
+            float x=cx+(float)Math.sin(angle)*r, y=cy-(float)Math.cos(angle)*r;
+            if(i==0) ring.moveTo(x,y); else ring.lineTo(x,y);
+        }
+        ring.close();
     }
 
     private int id(String name) {

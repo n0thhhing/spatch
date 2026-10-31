@@ -416,6 +416,14 @@ public class PlayerRuntimeTest {
         check(Settings.choice(Settings.ART_SPECTRUM).equals("off")&&!Settings.hidePodcasts()&&!Settings.sectionHidden("a"),"reset must clear choices and hides");
         System.out.println("PASS choices and reset");
 
+        // New settings keep today's look for anyone upgrading, and album colours stay readable.
+        check(Settings.KEYS.length==Settings.DEFAULTS.length,"every key needs a default");
+        for(int i=43;i<Settings.KEYS.length;i++) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        check(Settings.choice(Settings.ART_SKIP).equals("slide")&&Settings.choice(Settings.ART_OUTLINE).equals("wavy")&&Settings.choice(Settings.IMM_CHANGE).equals("pop")&&Settings.choice(Settings.GLOW_COLOR).equals("accent"),"defaults must match the existing look");
+        check(Tint.vivid(new int[] {0xff202020,0xff400808,0xff101010})==(0xff000000|220<<16|28<<8|28),"the most colourful pixel wins and is lifted");
+        check(Tint.vivid(new int[] {0xffffffff})==0xffffffff,"a bright pixel is not darkened");
+        System.out.println("PASS new setting defaults and album colour");
+
         // Content: identity comes from URIs and types; mixed shelves keep music.
         java.util.ArrayList lib=new java.util.ArrayList();
         p.ndy[] types={p.ndy.b,p.ndy.Y,p.ndy.a,p.ndy.g,new p.ndy()};

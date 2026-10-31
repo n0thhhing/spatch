@@ -1,0 +1,62 @@
+package spatch;
+
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
+import android.os.SystemClock;
+
+/** The colours a user can pick for decorations: the theme's accent, the artwork's, or a fixed one. */
+final class Tint {
+    static final String[] NAMES = {"accent", "album", "rose", "amber", "mint", "sky", "white"};
+    static final int[] SWATCHES = {0, 0, 0xfff2a1b8, 0xffffc777, 0xff8ee6c4, 0xff8fc7ff, 0xfff3eeff};
+    private static final float FADE_MILLIS = 900f;
+    private static final Bitmap SAMPLE = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888);
+    private static Drawable source;
+    private static int from = 0xffd0bcff, to = 0xffd0bcff;
+    private static long changedAt;
+
+    private Tint() {}
+
+    /** Called with the centred page's artwork each frame; samples once per new image. */
+    static void follow(Drawable art) {
+        if (art == null || art == source) return;
+        source = art;
+        SAMPLE.eraseColor(0xff14121c);
+        PlayerArt.drawArtwork(new Canvas(SAMPLE), art, 0, 0, 12, 12);
+        int[] pixels = new int[144];
+        SAMPLE.getPixels(pixels, 0, 12, 0, 0, 12, 12);
+        from = album();
+        to = vivid(pixels);
+        changedAt = SystemClock.uptimeMillis();
+    }
+
+    /** The artwork's colour, fading from the last song's. */
+    private static int album() {
+        float t = Wave.animationsEnabled() ? Math.min(1f, (SystemClock.uptimeMillis() - changedAt) / FADE_MILLIS) : 1;
+        return Pill.blend(from, to, t * t * (3 - 2 * t));
+    }
+
+    /** The most colourful pixel, lifted so it reads on a dark surface; a grey cover gives pale grey. */
+    static int vivid(int[] pixels) {
+        int best = pixels[0], chroma = -1;
+        for (int pixel : pixels) {
+            int r = pixel >> 16 & 255, g = pixel >> 8 & 255, b = pixel & 255;
+            int c = Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+            if (c > chroma) {
+                chroma = c;
+                best = pixel;
+            }
+        }
+        int r = best >> 16 & 255, g = best >> 8 & 255, b = best & 255, top = Math.max(1, Math.max(r, Math.max(g, b)));
+        float lift = Math.max(1f, 220f / top);
+        return 0xff000000 | Math.min(255, Math.round(r * lift)) << 16 | Math.min(255, Math.round(g * lift)) << 8 | Math.min(255, Math.round(b * lift));
+    }
+
+    /** The colour picked in a choice made of NAMES. */
+    static int color(int choice) {
+        String name = Settings.choice(choice);
+        if ("album".equals(name)) return album();
+        for (int i = 2; i < NAMES.length; i++) if (NAMES[i].equals(name)) return SWATCHES[i];
+        return Palette.color(0xffd0bcff);
+    }
+}

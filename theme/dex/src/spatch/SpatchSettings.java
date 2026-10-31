@@ -72,7 +72,28 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Your Library style",
         "Row cards",
         "Pill filter chips",
-        "Playlist track cards"
+        "Playlist track cards",
+        "Navigation bar",
+        "Hold and drag",
+        "Stretch animation",
+        "Lift while dragging",
+        "Press highlight",
+        "Icon pop",
+        "Springy press",
+        "Springy press",
+        "Thicken on touch",
+        "Shuffle and repeat bounce",
+        "Skip arrow nudge",
+        "Turn while playing",
+        "Morph on play and pause",
+        "Title ease",
+        "Opening flight",
+        "Rounded corners",
+        "Theme-coloured dim",
+        "New song pop",
+        "Artwork flight",
+        "Drifting colours",
+        "Pill slide"
     };
 
     private static final String[] FEATURE_SUBTITLES = {
@@ -118,22 +139,44 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Cards and filter chips in Your Library",
         "Each item sits on its own rounded card",
         "The selected chip turns into a pill",
-        "Each track sits on its own rounded card"
+        "Each track sits on its own rounded card",
+        "The sliding pill behind the selected tab",
+        "Drag along the bar to switch tabs",
+        "The pill stretches toward the new tab",
+        "The bar grows a little under your finger",
+        "A soft pill on the tab you press",
+        "The selected icon sits a little larger",
+        "The artwork squishes and bounces when held",
+        "Hero card, settings rows, filter chips and mini-player art bounce when pressed",
+        "The bar grows while you drag it",
+        "They pop on tap",
+        "A soft arrow slides on next and previous",
+        "The button slowly rotates",
+        "Five bumps paused, nine playing",
+        "A new song's title fades and slides in",
+        "Artwork flies between the player and immersive",
+        "The panel's right corners",
+        "Dims the page behind the panel in the theme's colour",
+        "The cover pops in on a new track",
+        "The cover flies into the full player",
+        "The backdrop slowly moves",
+        "The pill slides between filters"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
     private static final String[] FEATURE_ICONS = {
         "soundwave", "enhance", "image", "album", "fullscreen", "star", "pause", "soundwave",
         "repeat", "time", "list_view", "arrow_up", "minimize", "podcasts", "audiobook", "group", "now_playing", "notifications_active", "play", "home", "filter", "time", "sort", "gem", "notification_new", "heart", "information_alt",
-        "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist"
+        "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
+        "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left"
     };
 
     /** Section layout: Settings indices per group. */
-    private static final int[] ARTWORK = {2, 5}, PLAYER = {0, 4, 36}, VISUALIZER = {8, 9, 10, 11, 12}, CONTENT = {13, 14}, SIDE_MENU = {15, 21, 22, 23, 24, 25, 26}, MOTION = {1, 27, 28, 35, 6};
-    private static final int ROUND_ART = 3, FULL_VISUALIZER = 7, MINI_VISUALIZER = 16, SIDE_STYLE = 29, FILTERS = 32;
-    private static final int[] SIDE_PARTS = {30, 31}, FILTER_PARTS = {33, 34};
+    private static final int[] ARTWORK = {2, 5}, VISUALIZER = {8, 9, 10, 11, 12}, CONTENT = {13, 14}, SIDE_MENU = {15, 21, 22, 23, 24, 25, 26}, MOTION = {27, 35, 50, 6};
+    private static final int ROUND_ART = 3, NAV_STYLE = 43, FULL_VISUALIZER = 7, MINI_VISUALIZER = 16, SIDE_STYLE = 29, FILTERS = 32;
+    private static final int[] SIDE_PARTS = {30, 31, 58, 59}, FILTER_PARTS = {33, 34, 63, 28}, NAV_PARTS = {44, 45, 46, 47, 48};
     /** Changes read once per process: chips and drawer rows at startup, press colours by the palette. */
-    private static final int[] NEEDS_RESTART = {13, 14, 15, 21, 22, 23, 24, 25, 26, 29, 30, 31, 35};
+    private static final int[] NEEDS_RESTART = {13, 14, 15, 21, 22, 23, 24, 25, 26, 29, 30, 31, 35, 58, 59};
 
     private static final String[] THEME_TITLES = {
         "Lavender",
@@ -234,6 +277,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
 
         pages = new FrameLayout(context);
+        pages.setClipChildren(false);
         root.addView(pages, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         bottom = dp(32) + navBarHeight;
         LinearLayout home = addPage(null, null);
@@ -241,7 +285,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         categories.setOrientation(LinearLayout.VERTICAL);
 
         hero = new SettingsHero(context);
-        home.addView(hero, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(164)));
+        LinearLayout.LayoutParams heroLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(164));
+        heroLp.bottomMargin = dp(16);
+        home.addView(hero, heroLp);
+        unclip(categories);
         home.addView(categories);
 
         for (int i = 0; i < FEATURE_TITLES.length; i++) {
@@ -254,7 +301,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         View appearance = category(categories, "enhance", "Appearance", "Themes and typography", "Appearance");
         addSectionHeader("Theme");
-        for (int row = 0; row < 3; row++) { // Palette.NAMES fills the first rows, blanks keep widths even
+        for (int row = 0; row < (themeRows.length + 3) / 4; row++) { // blanks keep the last row's widths even
             LinearLayout line = new LinearLayout(context);
             line.setOrientation(LinearLayout.HORIZONTAL);
             for (int i = row * 4; i < row * 4 + 4; i++) {
@@ -265,6 +312,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 }
                 themeRows[i] = new ThemeSwatch(context, i, THEME_TITLES[i]);
                 themeRows[i].setOnClickListener(this);
+                Springy.attach(themeRows[i]);
                 line.addView(themeRows[i], lp);
             }
             content.addView(line);
@@ -281,25 +329,75 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         finishCategory(appearance);
 
-        View playerPage = category(categories, "now_playing", "Player", "Full player, artwork and controls", "Player");
+        View playerPage = category(categories, "now_playing", "Player", "Artwork, ring, glow, controls and immersive", "Player");
         LinearLayout artworkPage = subPage("Artwork");
-        addSectionHeader("Shape");
-        LinearLayout artwork = addGroup();
-        addChoice(artwork, Settings.ART_OUTLINE, "Outline", "The ring around the artwork", new String[] {"Wavy", "Simple", "None"});
-        addChoice(artwork, Settings.ART_GLOW, "Glow", null, new String[] {"Full", "Soft", "Off"});
-        finish(artwork);
-        resetFor(new int[] {ROUND_ART}, new int[] {Settings.ART_OUTLINE, Settings.ART_GLOW});
+        addSectionHeader("Ring");
+        LinearLayout ringRows = addGroup();
+        addChoice(ringRows, Settings.ART_OUTLINE, "Style", "Audio moves the ring with the music; uses the microphone permission", new String[] {"Wavy", "Simple", "None", "Audio"});
+        addColors(ringRows, Settings.RING_COLOR, "Colour");
+        addChoice(ringRows, Settings.RING_WIDTH, "Thickness", null, new String[] {"Normal", "Thin", "Bold"});
+        addChoice(ringRows, Settings.RING_SPEED, "Turning speed", null, new String[] {"Normal", "Slow", "Fast", "Still"});
+        finish(ringRows);
+        addSectionHeader("Glow");
+        LinearLayout glowRows = addGroup();
+        addChoice(glowRows, Settings.ART_GLOW, "Strength", null, new String[] {"Full", "Soft", "Off"});
+        addChoice(glowRows, Settings.GLOW_STYLE, "Style", "Fade breathes in and out; Sweep circles the artwork", new String[] {"Halo", "Wide", "Fade", "Sweep"});
+        addColors(glowRows, Settings.GLOW_COLOR, "Colour");
+        finish(glowRows);
+        addSectionHeader("Feel");
+        LinearLayout artFeel = addGroup();
+        artFeel.addView(featureRows[49]);
+        finish(artFeel);
+        resetFor(new int[] {ROUND_ART, 49}, new int[] {Settings.ART_OUTLINE, Settings.RING_COLOR, Settings.RING_WIDTH, Settings.RING_SPEED, Settings.ART_GLOW, Settings.GLOW_STYLE, Settings.GLOW_COLOR});
+        LinearLayout backdropPage = subPage("Album art backdrop");
+        LinearLayout backdropRows = addGroup();
+        backdropRows.addView(featureRows[62]);
+        finish(backdropRows);
+        resetFor(new int[] {2, 62}, new int[0]);
+        LinearLayout wavePage = subPage("Wavy progress");
+        LinearLayout waveRows = addGroup();
+        addChoice(waveRows, Settings.WAVE_SPEED, "Speed", null, new String[] {"Normal", "Slow", "Fast"});
+        waveRows.addView(featureRows[51]);
+        finish(waveRows);
+        resetFor(new int[] {0, 51}, new int[] {Settings.WAVE_SPEED});
+        LinearLayout buttonPage = subPage("Button animations");
+        LinearLayout buttonRows = addGroup();
+        buttonRows.addView(featureRows[52]);
+        buttonRows.addView(featureRows[53]);
+        finish(buttonRows);
+        resetFor(new int[] {1, 52, 53}, new int[0]);
+        LinearLayout immersivePage = subPage("Double-tap for immersive");
+        LinearLayout immersiveRows = addGroup();
+        addChoice(immersiveRows, Settings.IMM_CHANGE, "New song", "How the artwork changes", new String[] {"Pop", "Spin", "Fade", "None"});
+        immersiveRows.addView(featureRows[56]);
+        immersiveRows.addView(featureRows[57]);
+        finish(immersiveRows);
+        resetFor(new int[] {4, 56, 57}, new int[] {Settings.IMM_CHANGE});
+        LinearLayout miniPage = subPage("Mini player");
+        LinearLayout miniRows = addGroup();
+        miniRows.addView(featureRows[60]);
+        miniRows.addView(featureRows[61]);
+        finish(miniRows);
+        resetFor(new int[] {60, 61}, new int[0]);
         inside(playerPage);
         addSectionHeader("Artwork");
         LinearLayout artRows = addGroup();
         artRows.addView(master(ROUND_ART, artworkPage));
-        for (int i : ARTWORK) artRows.addView(featureRows[i]);
+        artRows.addView(master(2, backdropPage));
+        addChoice(artRows, Settings.ART_SKIP, "Skip animation", "Spin rolls the artwork over like a record", new String[] {"Slide", "Spin", "Shrink", "Fade"});
         finish(artRows);
         addSectionHeader("Controls");
         LinearLayout player = addGroup();
-        for (int i : PLAYER) player.addView(featureRows[i]);
+        player.addView(master(0, wavePage));
+        player.addView(master(1, buttonPage));
+        player.addView(featureRows[5]);
         finish(player);
-        resetFor(new int[] {2, 5, 0, 4, 36}, new int[0]);
+        addSectionHeader("Other players");
+        LinearLayout others = addGroup();
+        others.addView(master(4, immersivePage));
+        link(others, "device_mobile", "Mini player", "New song pop and artwork flight", miniPage);
+        finish(others);
+        resetFor(new int[] {5}, new int[] {Settings.ART_SKIP});
         finishCategory(playerPage);
 
         View visualizers = category(categories, "soundwave", "Visualizers", "Spectrum styles and where they show", "Visualizers");
@@ -322,7 +420,13 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         resetFor(new int[] {MINI_VISUALIZER}, new int[] {Settings.ART_SPECTRUM});
         finishCategory(visualizers);
 
-        View screens = category(categories, "home", "Screens", "Home filters and the side panel", "Screens");
+        View screens = category(categories, "home", "Screens", "Bars, side panel, Library, playlists and profile", "Screens");
+        LinearLayout navPage = subPage("Navigation bar");
+        LinearLayout navRows = addGroup();
+        for (int i : NAV_PARTS) navRows.addView(featureRows[i]);
+        addColors(navRows, Settings.NAV_COLOR, "Pill colour");
+        finish(navRows);
+        resetFor(concat(new int[] {NAV_STYLE}, NAV_PARTS), new int[] {Settings.NAV_COLOR});
         LinearLayout filterPage = subPage("Expressive filters");
         LinearLayout filterRows = addGroup();
         for (int i : FILTER_PARTS) filterRows.addView(featureRows[i]);
@@ -371,17 +475,34 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         libraryRows.addView(featureRows[41]);
         finish(libraryRows);
         resetFor(new int[] {39, 40, 41}, new int[0]);
+        LinearLayout playPage = subPage("Living play button");
+        LinearLayout playRows = addGroup();
+        playRows.addView(featureRows[54]);
+        playRows.addView(featureRows[55]);
+        finish(playRows);
+        resetFor(new int[] {36, 54, 55}, new int[0]);
+        LinearLayout playlistPage = subPage("Playlists");
+        LinearLayout playlistRows = addGroup();
+        playlistRows.addView(featureRows[42]);
+        playlistRows.addView(master(36, playPage));
+        finish(playlistRows);
+        resetFor(new int[] {42}, new int[0]);
         inside(screens);
+        addSectionHeader("Bars and panels");
+        LinearLayout barRows = addGroup();
+        barRows.addView(master(NAV_STYLE, navPage));
+        barRows.addView(master(FILTERS, filterPage));
+        barRows.addView(master(SIDE_STYLE, sidePage));
+        finish(barRows);
+        addSectionHeader("Pages");
         LinearLayout screenRows = addGroup();
         screenRows.addView(master(39, libraryPage));
-        screenRows.addView(featureRows[42]);
+        link(screenRows, "playlist", "Playlists", "Track cards and the play button", playlistPage);
         screenRows.addView(master(37, profilePage));
-        screenRows.addView(master(FILTERS, filterPage));
-        screenRows.addView(master(SIDE_STYLE, sidePage));
         finish(screenRows);
         finishCategory(screens);
 
-        View navigation = category(categories, "filter", "Navigation & interactions", "Motion and haptics", "Navigation & interactions");
+        View navigation = category(categories, "notifications_active", "Motion & haptics", "Transitions, springs and feedback", "Motion & haptics");
         addSectionHeader("Motion");
         LinearLayout motion = addGroup();
         for (int i : MOTION) motion.addView(featureRows[i]);
@@ -467,6 +588,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout page = new LinearLayout(getContext());
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(dp(16), dp(4), dp(16), bottom);
+        unclip(page);
+        scroll.setClipChildren(false);
         scroll.addView(page, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         page.setTag(title);
         pages.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -480,6 +603,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         return page;
     }
 
+    /** Springy rows overshoot their bounds; a parent must not cut that off. */
+    private static void unclip(ViewGroup group) {
+        group.setClipChildren(false);
+        group.setClipToPadding(false);
+    }
+
     private LinearLayout subPage(String title) {
         return addPage(title, null);
     }
@@ -487,12 +616,17 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     /** Adds a category row to the root list and starts its page. */
     private View category(LinearLayout list, String iconName, String title, String subtitle, String pageTitle) {
         LinearLayout page = addPage(pageTitle, null);
+        link(list, iconName, title, subtitle, page);
+        return page;
+    }
+
+    /** A row that opens a page. */
+    private void link(LinearLayout list, String iconName, String title, String subtitle, LinearLayout page) {
         View row = createSettingRow(iconName, title, subtitle, icon("chevron_right"));
         row.setTag(page);
         row.setOnClickListener(this);
         describe(row, title, subtitle);
         list.addView(row);
-        return page;
     }
 
     private void inside(View page) {
@@ -644,6 +778,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     LinearLayout addGroup() {
         LinearLayout group = new LinearLayout(getContext());
         group.setOrientation(LinearLayout.VERTICAL);
+        unclip(group);
         content.addView(group);
         return group;
     }
@@ -708,13 +843,25 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         parent.addView(row);
     }
 
+    /** Tint.NAMES as swatches: only Album keeps a word, the rest show their colour. */
+    private void addColors(LinearLayout parent, int setting, String title) {
+        addChoice(parent, setting, title, null, new String[] {"Theme", "Art", "Rose", "Amber", "Mint", "Sky", "White"});
+        for (int i = 0; i < Tint.NAMES.length; i++) {
+            if (i == 1) continue;
+            TextView pill = pillViews.get(pillViews.size() - Tint.NAMES.length + i);
+            String[] tag = (String[]) pill.getTag();
+            pill.setTag(new String[] {tag[0], tag[1], tag[2], String.valueOf(i == 0 ? accent : Tint.SWATCHES[i])});
+        }
+    }
+
     /** Selected buttons, and rows and switches that do not apply to the current choices. */
     private void refreshChoices() {
         for (TextView pill : pillViews) {
             String[] tag = (String[]) pill.getTag();
             boolean selected = tag[1].equals(Settings.choice(Integer.parseInt(tag[0])));
-            pill.setBackground(ripple(rounded(selected ? accent : high, dp(selected ? 24 : 10))));
+            pill.setBackground(ripple(rounded(tag.length > 3 ? Integer.parseInt(tag[3]) : selected ? accent : high, dp(selected ? 24 : 10))));
             pill.setTextColor(selected ? surface : text);
+            if (tag.length > 3) pill.setText(selected ? "\u2713" : "");
             pill.setTypeface(Fonts.settings(selected ? 700 : 400));
             pill.setContentDescription(tag[2] + (selected ? ", Selected" : ", Not selected"));
         }
@@ -836,6 +983,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         row.setPadding(dp(16), dp(12), dp(16), dp(12));
         row.setClickable(true);
         row.setFocusable(true);
+        Springy.attach(row);
 
         if (iconName != null) {
             ImageView tile = icon(iconName);
@@ -920,10 +1068,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             String[] tag = (String[]) v.getTag();
             int setting = Integer.parseInt(tag[0]);
             Settings.setChoice(setting, tag[1]);
-            if (setting == Settings.ART_SPECTRUM && !"off".equals(tag[1])
+            if ((setting == Settings.ART_SPECTRUM && !"off".equals(tag[1]) || setting == Settings.ART_OUTLINE && "audio".equals(tag[1]))
                 && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) {
                 AudioSpectrum.requestPermission(getContext());
             }
+            NavIndicator.refresh();
             refreshChoices();
             pop(v);
             return;
@@ -964,6 +1113,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         Settings.set(setting, value);
         Haptics.toggle(v, value);
         MiniBar.settingsChanged();
+        NavIndicator.refresh();
         for (int i : NEEDS_RESTART) if (i == setting) askRestart();
     }
 

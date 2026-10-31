@@ -91,7 +91,7 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
             long color = (long) (alpha << 24 | CONTAINER & 0xffffff) << 32; // Compose Color: sRGB ARGB, high 32 bits
             modifier = mtg.n(modifier, color, xp31.a); // background(color, pill shape)
         }
-        float scale = 1 + POP * spring;
+        float scale = Settings.navPop() ? 1 + POP * spring : 1;
         // graphicsLayer(scaleX, scaleY); the mask leaves every other parameter at its default.
         modifier = z341.q(cxn1.D(modifier, 20f * t, 4f), scale, scale, 0f, 0f, 0f, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, 1048572);
         if (item.b == TABS.size() - 1) modifier = fwq.t(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create
