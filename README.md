@@ -90,6 +90,15 @@ python3 tests/player-runtime.py
 
 The runtime tests run helper logic on JVM doubles. They do not replace testing on a device.
 
+With a phone connected and Spotify open on Home, this checks every icon name against the APK, then
+flips every switch and option on the settings pages and restores each one:
+
+```bash
+python3 tests/device-settings.py <base.apk>
+```
+
+Add `--static-only` to run just the icon check without a phone.
+
 ## License
 
 MIT, as declared in `Cargo.toml`. Spotify is a trademark of Spotify AB, and this project is not

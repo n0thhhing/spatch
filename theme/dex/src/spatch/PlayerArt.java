@@ -286,7 +286,7 @@ public final class PlayerArt extends ImageView {
         String width = Settings.choice(Settings.RING_WIDTH);
         ink.setShader(null);
         ink.setStyle(Paint.Style.STROKE);
-        ink.setStrokeWidth(Math.max(2, radius*.012f) * ("thin".equals(width) ? .6f : "bold".equals(width) ? 1.8f : 1f));
+        ink.setStrokeWidth(Math.max(2, radius*.012f) * ("thin".equals(width) ? .6f : "bold".equals(width) ? BOLD : 1f));
         ink.setColor(Tint.color(Settings.RING_COLOR));
         if ("audio".equals(style)) {
             traceAudioRing(cx, cy, radius);
@@ -320,16 +320,19 @@ public final class PlayerArt extends ImageView {
         canvas.restoreToCount(save);
     }
 
+    /** The band under a ring angle, bass at 0 degrees and treble at 180, mirrored down the other side. */
+    static float audioLevel(int degrees, float[] bands) {
+        float at=(degrees<=180?degrees:360-degrees)/180f*(bands.length-1);
+        int low=Math.min(bands.length-2,(int)at);
+        return bands[low]+(bands[low+1]-bands[low])*(at-low);
+    }
+
     /** The wavy ring with each angle pushed out by its band: bass at the top, mirrored like the bars. */
     private void traceAudioRing(float cx, float cy, float radius) {
         ring.reset();
         for(int i=0;i<=360;i++) {
-            float at=(i<=180?i:360-i)/180f*(Spectrum.BANDS-1);
-            int low=Math.min(Spectrum.BANDS-2,(int)at);
-            float level=Spectrum.bands[low]+(Spectrum.bands[low+1]-Spectrum.bands[low])*(at-low);
             double angle=i*Math.PI/180;
-            // Stays inside the view's 12% margin at the loudest level, 1.12.
-            float r=radius*1.045f+(float)Math.sin(angle*24)*radius*.012f+level*Spectrum.alpha*radius*.07f;
+            float r=radius*1.045f+(float)Math.sin(angle*24)*radius*.012f+audioLevel(i,Spectrum.bands)*Spectrum.alpha*radius*AUDIO_REACH;
             float x=cx+(float)Math.sin(angle)*r, y=cy-(float)Math.cos(angle)*r;
             if(i==0) ring.moveTo(x,y); else ring.lineTo(x,y);
         }
@@ -380,6 +383,8 @@ public final class PlayerArt extends ImageView {
     }
 
     static final float PRESSED = 0.94f;
+    /** Ring push at level 1, in radii, and the Bold stroke: both must fit the view's margin at the loudest level. */
+    static final float AUDIO_REACH = 0.055f, BOLD = 1.8f;
 
     static void release(float[] state) {
         // A quick DOWN/UP can land between frames; ensure it still starts a visible rebound.

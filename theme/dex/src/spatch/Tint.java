@@ -36,7 +36,7 @@ final class Tint {
         return Pill.blend(from, to, t * t * (3 - 2 * t));
     }
 
-    /** The most colourful pixel, lifted so it reads on a dark surface; a grey cover gives pale grey. */
+    /** The most colourful pixel, lifted so it reads on a dark surface; a grey or black cover gives pale grey. */
     static int vivid(int[] pixels) {
         int best = pixels[0], chroma = -1;
         for (int pixel : pixels) {
@@ -47,7 +47,8 @@ final class Tint {
                 best = pixel;
             }
         }
-        int r = best >> 16 & 255, g = best >> 8 & 255, b = best & 255, top = Math.max(1, Math.max(r, Math.max(g, b)));
+        int r = best >> 16 & 255, g = best >> 8 & 255, b = best & 255, top = Math.max(r, Math.max(g, b));
+        if (top == 0) return 0xffdcdcdc; // an all-black cover would give an invisible glow
         float lift = Math.max(1f, 220f / top);
         return 0xff000000 | Math.min(255, Math.round(r * lift)) << 16 | Math.min(255, Math.round(g * lift)) << 8 | Math.min(255, Math.round(b * lift));
     }

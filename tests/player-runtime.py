@@ -28,6 +28,12 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('getLocationOnScreen(int[] out) {}', 'getLocationOnScreen(int[] out) {out[0]=screenX;}')
             text = text.replace('public void setSelected(boolean selected) {}', 'private boolean selected; public void setSelected(boolean value) {selected=value;}').replace('isSelected() { return false; }', 'isSelected() { return selected; }')
             text = text.replace('postInvalidateDelayed(long delay) {}', 'postInvalidateDelayed(long delay) { nextDraw = delay; }')
+            text = text.replace('public void setAlpha(float a) {}', 'public float testAlpha=1; public void setAlpha(float a) {testAlpha=a;}')
+            text = text.replace('public void setScaleX(float s) {}', 'public float testScale=1; public void setScaleX(float s) {testScale=s;}')
+            text = text.replace('public void setOnClickListener(OnClickListener l) {}', 'private OnClickListener click; public void setOnClickListener(OnClickListener l) {click=l;}')
+            text = text.replace('public boolean performClick() { return false; }', 'public boolean performClick() { if (click == null) return false; click.onClick(this); return true; }')
+        if source.name == 'TextView.java':
+            text = text.replace('public CharSequence getText() { return null; }', 'private CharSequence shown; public CharSequence getText() { return shown; }').replace('public void setText(CharSequence t) {}', 'public void setText(CharSequence t) {shown=t;}')
         if source.name == 'MotionEvent.java':
             text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public void offsetLocation(float dx,float dy){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
         if source.name == 'Visualizer.java':
@@ -82,6 +88,7 @@ package spatch;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
 import android.view.*;
+import android.widget.TextView;
 import java.lang.reflect.*;
 public class PlayerRuntimeTest {
     static class Prefs implements android.content.SharedPreferences, android.content.SharedPreferences.Editor {
@@ -97,6 +104,16 @@ public class PlayerRuntimeTest {
         public void apply(){} public boolean commit(){return true;}
     }
     static int clicks;
+    static class Recording extends Canvas {
+        float degrees, scale=1;
+        public void rotate(float d,float x,float y){degrees=d;}
+        public void scale(float x,float y,float a,float b){scale=x;}
+    }
+    static void collect(View view,String text,java.util.List<TextView> out){
+        if(view instanceof TextView && text.equals(String.valueOf(((TextView)view).getText()))) out.add((TextView)view);
+        if(view instanceof ViewGroup) for(int i=0;i<((ViewGroup)view).getChildCount();i++) collect(((ViewGroup)view).getChildAt(i),text,out);
+    }
+    static Object runningOf(View view){return Boolean.valueOf(view.testScale!=1);}
     static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); }
     static class TraceCanvas extends Canvas {
         float sx=1, sy=1, tx=0, ty=0; int draws; float drawnScale, drawnX, drawnY; int layerAlpha=-1;
@@ -539,6 +556,96 @@ public class PlayerRuntimeTest {
         Settings.resetAll();
         check(Settings.rows(menu).size() == 6, "reset restores the rows");
         System.out.println("PASS side menu");
+
+        // Tables stay in step, and every setting can be reached and reset from some page.
+        check(new java.util.HashSet<String>(java.util.Arrays.asList(Settings.KEYS)).size()==Settings.KEYS.length,"stored keys must be unique");
+        check(new java.util.HashSet<String>(java.util.Arrays.asList(Settings.CHOICE_KEYS)).size()==Settings.CHOICES.length && Settings.CHOICE_KEYS.length==Settings.CHOICES.length,"choice keys must be unique and complete");
+        for(String name:new String[] {"FEATURE_TITLES","FEATURE_SUBTITLES","FEATURE_ICONS"}) {
+            Field table=SpatchSettings.class.getDeclaredField(name); table.setAccessible(true);
+            check(((String[])table.get(null)).length==Settings.KEYS.length,name+" must have one entry per setting");
+        }
+        Settings.resetAll();
+        SpatchSettings full=new SpatchSettings(new android.content.Context());
+        View[] rowsByFeature=(View[])field(full,"featureRows");
+        java.util.Map masters=(java.util.Map)field(full,"masterPages");
+        for(int i=0;i<rowsByFeature.length;i++) check(masters.containsKey(Integer.valueOf(i)) || rowsByFeature[i].getParent()!=null,"no page shows setting "+Settings.KEYS[i]);
+        View[] choices=(View[])field(full,"choiceRows");
+        for(int i=0;i<choices.length;i++) check(choices[i]!=null,"no page shows choice "+Settings.CHOICE_KEYS[i]);
+        System.out.println("PASS every setting and choice is on a page");
+        for(int i=0;i<Settings.KEYS.length;i++) Settings.set(i,!Settings.DEFAULTS[i]);
+        for(int i=0;i<Settings.CHOICES.length;i++) Settings.setChoice(i,Settings.CHOICES[i][Settings.CHOICES[i].length-1]);
+        java.util.ArrayList<TextView> resets=new java.util.ArrayList<TextView>();
+        collect(full,"Reset this page",resets);
+        check(resets.size()>10,"pages must offer scoped resets");
+        for(TextView reset:resets) check(reset.performClick(),"reset must have a handler");
+        for(int i=0;i<Settings.KEYS.length;i++) check(Settings.get(i)==Settings.DEFAULTS[i],"no page resets "+Settings.KEYS[i]);
+        for(int i=0;i<Settings.CHOICES.length;i++) check(Settings.choice(i).equals(Settings.CHOICES[i][0]),"no page resets "+Settings.CHOICE_KEYS[i]);
+        System.out.println("PASS every setting has a scoped reset");
+
+        android.os.Build.VERSION.SDK_INT=0; // an earlier test left system animations off
+        // Fine-tuning switches depend on their main switch only where the feature needs it.
+        Settings.set(43,false); check(!Settings.navDrag(),"no pill, no drag"); Settings.set(43,true); check(Settings.navDrag(),"drag returns with the pill");
+        check(Settings.buttons()==Wave.animationsEnabled(),"button motion follows system animations");
+        Settings.set(6,true); check(!Settings.springPress(),"reduce motion stops springs"); Settings.set(6,false); check(Settings.springPress(),"springs return");
+        float[] flat=new float[Spectrum.BANDS]; flat[0]=.3f; flat[Spectrum.BANDS-1]=.9f; flat[12]=.5f;
+        check(PlayerArt.audioLevel(0,flat)==.3f && Math.abs(PlayerArt.audioLevel(180,flat)-.9f)<.0001f,"bass at the top, treble at the bottom");
+        for(int d=0;d<=180;d++) check(PlayerArt.audioLevel(d,flat)==PlayerArt.audioLevel((360-d)%360,flat) || d==0,"ring must be mirrored at "+d);
+        float loudest=1.045f+.012f+1.12f*PlayerArt.AUDIO_REACH+.012f*PlayerArt.BOLD/2;
+        check(loudest<1/.88f,"loudest bold ring must stay inside the view, reached "+loudest);
+        System.out.println("PASS fine-tuning dependencies and audio ring");
+
+        // Skip animation on a carousel page, half a page from centre.
+        View.root=null;
+        PlayerArt carousel=new PlayerArt(new android.content.Context(),null);
+        carousel.setImageDrawable(new Art());
+        carousel.screenX=500;
+        Recording canvas=new Recording();
+        Settings.setChoice(Settings.ART_OUTLINE,"none"); // the ring has its own rotation
+        Settings.setChoice(Settings.ART_SKIP,"slide"); View.nextDraw=0; carousel.onDraw(canvas);
+        check(canvas.degrees==0 && View.nextDraw==250,"Slide must leave Spotify's slide alone and idle neighbours: "+canvas.degrees+" "+View.nextDraw+" "+carousel.isCurrentPage());
+        Settings.setChoice(Settings.ART_SKIP,"spin"); View.nextDraw=0; carousel.onDraw(canvas);
+        check(Math.abs(canvas.degrees-100)<.01f && View.nextDraw==16,"Spin must roll with the offset, every frame, got "+canvas.degrees);
+        carousel.screenX=-500; carousel.onDraw(canvas); check(Math.abs(canvas.degrees+100)<.01f,"the other side must roll the other way");
+        carousel.screenX=500; Settings.setChoice(Settings.ART_SKIP,"shrink"); carousel.onDraw(canvas);
+        check(Math.abs(canvas.scale-.825f)<.001f,"Shrink must scale with the offset, got "+canvas.scale);
+        Settings.setChoice(Settings.ART_SKIP,"fade"); canvas.degrees=0; carousel.screenX=250; carousel.onDraw(canvas);
+        check(Math.abs(carousel.testAlpha-.65f)<.001f && canvas.degrees==0,"Fade must fade without turning, got "+carousel.testAlpha);
+        Settings.setChoice(Settings.ART_SKIP,"slide"); carousel.onDraw(canvas);
+        check(carousel.testAlpha==1,"leaving Fade must restore full opacity");
+        Settings.setChoice(Settings.ART_SKIP,"spin"); Settings.set(6,true); canvas.degrees=0; carousel.screenX=500; carousel.onDraw(canvas);
+        check(canvas.degrees==0,"reduce motion must stop Spin"); Settings.set(6,false); Settings.setChoice(Settings.ART_SKIP,"slide");
+        Settings.setChoice(Settings.ART_OUTLINE,"wavy");
+        System.out.println("PASS skip animations");
+
+        // Decoration colours.
+        Settings.setChoice(Settings.GLOW_COLOR,"accent"); check(Tint.color(Settings.GLOW_COLOR)==Palette.color(0xffd0bcff),"Theme must be the theme's accent");
+        for(int i=2;i<Tint.NAMES.length;i++){Settings.setChoice(Settings.GLOW_COLOR,Tint.NAMES[i]);check(Tint.color(Settings.GLOW_COLOR)==Tint.SWATCHES[i],"swatch "+Tint.NAMES[i]);}
+        check(Tint.vivid(new int[] {0xff000000})==0xffdcdcdc,"a black cover must keep a visible glow");
+        check(Tint.vivid(new int[] {0xff808080})==0xffdcdcdc,"grey stays grey and readable");
+        Field fromTint=Tint.class.getDeclaredField("from"),toTint=Tint.class.getDeclaredField("to"),atTint=Tint.class.getDeclaredField("changedAt");
+        fromTint.setAccessible(true);toTint.setAccessible(true);atTint.setAccessible(true);
+        fromTint.setInt(null,0xff000000);toTint.setInt(null,0xffffffff);
+        Settings.setChoice(Settings.GLOW_COLOR,"album");
+        atTint.setLong(null,android.os.SystemClock.uptimeMillis()-450); int midTone=Tint.color(Settings.GLOW_COLOR)&255;
+        atTint.setLong(null,android.os.SystemClock.uptimeMillis()-5000); int endTone=Tint.color(Settings.GLOW_COLOR)&255;
+        check(midTone>60 && midTone<200 && endTone==255,"album colour must fade between songs, mid "+midTone+" end "+endTone);
+        Settings.setChoice(Settings.GLOW_COLOR,"accent");
+        System.out.println("PASS decoration colours");
+
+        // Spring: bounces past rest, settles exactly, and leaves the view alone when off.
+        View springy=new View(new android.content.Context());
+        Springy spring2=new Springy(springy);
+        spring2.onTouch(springy,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,0,0,0));
+        spring2.onTouch(springy,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,0,0,0));
+        Field drawnAt=Springy.class.getDeclaredField("drawn"),runningNow=Springy.class.getDeclaredField("running");drawnAt.setAccessible(true);runningNow.setAccessible(true);
+        float highest=0;int frames=0;
+        do{drawnAt.setLong(spring2,android.os.SystemClock.uptimeMillis()-16);spring2.run();highest=Math.max(highest,springy.testScale);}while(runningNow.getBoolean(spring2)&&++frames<400);
+        check(frames<400 && springy.testScale==1,"spring must settle at exactly 1");
+        check(highest>1 && highest<1.03f,"spring must overshoot a little, reached "+highest);
+        View still=new View(new android.content.Context());
+        Settings.set(50,false);new Springy(still).onTouch(still,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,0,0,0));
+        check(!((Boolean)runningOf(still)),"off must not start a spring");Settings.set(50,true);
+        System.out.println("PASS springy press");
     }
 }
 ''')
