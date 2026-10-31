@@ -664,6 +664,35 @@ public class PlayerRuntimeTest {
         collect(full,"Run all tests",resets=new java.util.ArrayList<TextView>());
         check(!resets.isEmpty(),"Developer options must be on the page in a debug helper set");
         System.out.println("PASS developer options");
+
+        // Burst: options change what is thrown, pieces leave and vanish, and each burst cleans up.
+        check(Confetti.count("few")<Confetti.count("normal") && Confetti.count("normal")<Confetti.count("lots"),"amount");
+        check(Confetti.scale("small")<1 && Confetti.scale("big")>1,"size");
+        for(String shape:Settings.CHOICES[Settings.BURST_SHAPE]) check(Confetti.shapes(shape).length>0,"no shapes for "+shape);
+        check(Confetti.shapes("hearts").length==1 && Confetti.shapes("mixed").length==6,"shape sets");
+        check(Confetti.place(0,1,0,100,50)[0]==0 && Confetti.place(1,1,0,100,50)[0]==100,"pieces travel their reach");
+        check(Confetti.place(1,0,0,100,50)[1]==50,"pieces fall");
+        check(Confetti.place(.5f,1,0,100,0)[0]>50,"pieces start fast");
+        check(Confetti.pieceScale(0)==0 && Confetti.pieceScale(.15f)==1 && Confetti.pieceScale(1)==.5f,"pieces pop in");
+        check(Confetti.pieceAlpha(.5f)==1 && Confetti.pieceAlpha(1)<.001f,"pieces are gone at the end");
+        Field liveBursts=Confetti.class.getDeclaredField("live"); liveBursts.setAccessible(true);
+        View host=new View(new android.content.Context());
+        int before=liveBursts.getInt(null);
+        Settings.set(Settings.BURST,false); Confetti.wanted(host,0,0,true,Settings.BURST_PLAYER);
+        check(liveBursts.getInt(null)==before,"main switch off must not burst"); Settings.set(Settings.BURST,true);
+        Settings.set(Settings.BURST_MINI,false); Confetti.wanted(host,0,0,true,Settings.BURST_MINI);
+        check(liveBursts.getInt(null)==before,"a place's switch off must not burst"); Settings.set(Settings.BURST_MINI,true);
+        Settings.setChoice(Settings.BURST_WHEN,"play"); Confetti.wanted(host,0,0,false,Settings.BURST_PLAYER);
+        check(liveBursts.getInt(null)==before,"Play only must skip pause"); Settings.setChoice(Settings.BURST_WHEN,"both");
+        Settings.set(6,true); Confetti.at(host,0,0); check(liveBursts.getInt(null)==before,"reduce motion must stop bursts"); Settings.set(6,false);
+        System.out.println("PASS play button burst");
+
+        // Library and playlists: rows arrive in turn and end exactly in place; the ring meets long press.
+        check(Flourish.rise(0,0)[0]==0 && Flourish.rise(0,0)[1]==1,"a row starts hidden and low");
+        check(Flourish.rise(5000,9)[0]==1 && Flourish.rise(5000,9)[1]==0,"every row ends in place");
+        check(Flourish.rise(100,0)[0]>Flourish.rise(100,3)[0],"later rows wait their turn");
+        check(Flourish.holdProgress(0)==0 && Flourish.holdProgress(400)==1 && Flourish.holdProgress(5000)==1,"ring fills by long press");
+        System.out.println("PASS row cascade and hold ring");
     }
 }
 ''')

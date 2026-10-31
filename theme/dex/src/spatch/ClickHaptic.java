@@ -12,8 +12,21 @@ final class ClickHaptic extends View.AccessibilityDelegate {
     private static final ClickHaptic ONE = new ClickHaptic();
 
     public void sendAccessibilityEvent(View host, int type) {
-        if (type == CLICKED) Haptics.playback(host);
+        if (type == CLICKED) {
+            Haptics.playback(host);
+            burst(host);
+        }
         super.sendAccessibilityEvent(host, type);
+    }
+
+    /** The label still names what the click does: "Pause" means it was playing. */
+    private static void burst(View host) {
+        String name = host.getId() > 0 ? host.getResources().getResourceEntryName(host.getId()) : "";
+        boolean player = name.equals("nowplaying_elements_playpause_button");
+        if (!player && !name.equals("play_pause_button")) return;
+        CharSequence label = host.getContentDescription();
+        boolean wasPlaying = label != null && label.toString().toLowerCase(java.util.Locale.ROOT).contains("pause");
+        Confetti.clicked(host, wasPlaying, player ? Settings.BURST_PLAYER : Settings.BURST_MINI);
     }
 
     /** Every clickable view under root, skipping save buttons (SaveBurst owns their feedback). */

@@ -93,7 +93,18 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "New song pop",
         "Artwork flight",
         "Drifting colours",
-        "Pill slide"
+        "Pill slide",
+        "Rise in",
+        "Hold ring",
+        "Touch glow",
+        "Rise in",
+        "Hold ring",
+        "Touch glow",
+        "Play button burst",
+        "Full player",
+        "Mini player",
+        "Immersive player",
+        "Playlists"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -160,7 +171,18 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "The cover pops in on a new track",
         "The cover flies into the full player",
         "The backdrop slowly moves",
-        "The pill slides between filters"
+        "The pill slides between filters",
+        "Rows arrive one after another when the page opens",
+        "A ring charges around your finger and pops as the menu opens",
+        "A soft light follows your finger while you scroll",
+        "Tracks arrive one after another when the page opens",
+        "A ring charges around your finger and pops as the menu opens",
+        "A soft light follows your finger while you scroll",
+        "Shapes pop out when you press play or pause",
+        "The play button in Now Playing",
+        "The play button on the bar",
+        "The double-tap full-screen player",
+        "The big play button on playlist pages"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
@@ -168,13 +190,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "soundwave", "enhance", "image", "album", "fullscreen", "star", "pause", "soundwave",
         "repeat", "time", "list_view", "arrow_up", "minimize", "podcasts", "audiobook", "group", "now_playing", "notifications_active", "play", "home", "filter", "time", "sort", "gem", "notification_new", "heart", "information_alt",
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
-        "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left"
+        "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
+        "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist"
     };
 
     /** Section layout: Settings indices per group. */
     private static final int[] ARTWORK = {2, 5}, VISUALIZER = {8, 9, 10, 11, 12}, CONTENT = {13, 14}, SIDE_MENU = {15, 21, 22, 23, 24, 25, 26}, MOTION = {27, 35, 50, 6};
     private static final int ROUND_ART = 3, NAV_STYLE = 43, FULL_VISUALIZER = 7, MINI_VISUALIZER = 16, SIDE_STYLE = 29, FILTERS = 32;
-    private static final int[] SIDE_PARTS = {30, 31, 58, 59}, FILTER_PARTS = {33, 34, 63, 28}, NAV_PARTS = {44, 45, 46, 47, 48};
+    private static final int[] SIDE_PARTS = {30, 31, 58, 59}, FILTER_PARTS = {33, 34, 63, 28}, NAV_PARTS = {44, 45, 46, 47, 48}, BURST_PLACES = {71, 72, 73, 74};
     /** Changes read once per process: chips and drawer rows at startup, press colours by the palette. */
     private static final int[] NEEDS_RESTART = {13, 14, 15, 21, 22, 23, 24, 25, 26, 29, 30, 31, 35, 58, 59};
 
@@ -217,7 +240,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private boolean closing;
     private final M3Switch[] featureSwitches = new M3Switch[FEATURE_TITLES.length];
     private static final int[] HAPTICS = {17, 18, 19, 20};
-    private View tryHaptics;
+    private View tryHaptics, tryBurst;
     private final View[] featureRows = new View[FEATURE_TITLES.length];
     private final View[] themeRows = new View[Palette.NAMES.length];
     private final float density;
@@ -373,6 +396,23 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         immersiveRows.addView(featureRows[57]);
         finish(immersiveRows);
         resetFor(new int[] {4, 56, 57}, new int[] {Settings.IMM_CHANGE});
+        LinearLayout burstPage = subPage("Play button burst");
+        LinearLayout burstLook = addGroup();
+        tryBurst = createSettingRow("star", "Try it", "Throws a burst from this row", icon("chevron_right"));
+        tryBurst.setOnClickListener(this);
+        burstLook.addView(tryBurst);
+        addChoice(burstLook, Settings.BURST_SHAPE, "Shapes", null, new String[] {"Cookies", "Hearts", "Stars", "Dots", "All"});
+        addChoice(burstLook, Settings.BURST_AMOUNT, "Amount", null, new String[] {"Normal", "Few", "Lots"});
+        addChoice(burstLook, Settings.BURST_SIZE, "Size", null, new String[] {"Normal", "Small", "Big"});
+        addChoice(burstLook, Settings.BURST_TONES, "Colours", "Mix uses shades of the colour below", new String[] {"Mix", "One", "Rainbow"});
+        addColors(burstLook, Settings.BURST_COLOR, "Colour");
+        addChoice(burstLook, Settings.BURST_WHEN, "When", null, new String[] {"Play and pause", "Play only"});
+        finish(burstLook);
+        addSectionHeader("Where");
+        LinearLayout burstWhere = addGroup();
+        for (int i : BURST_PLACES) burstWhere.addView(featureRows[i]);
+        finish(burstWhere);
+        resetFor(concat(new int[] {Settings.BURST}, BURST_PLACES), new int[] {Settings.BURST_SHAPE, Settings.BURST_AMOUNT, Settings.BURST_SIZE, Settings.BURST_TONES, Settings.BURST_COLOR, Settings.BURST_WHEN});
         LinearLayout miniPage = subPage("Mini player");
         LinearLayout miniRows = addGroup();
         miniRows.addView(featureRows[60]);
@@ -394,6 +434,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         finish(player);
         addSectionHeader("Other players");
         LinearLayout others = addGroup();
+        others.addView(master(Settings.BURST, burstPage));
         others.addView(master(4, immersivePage));
         link(others, "device_mobile", "Mini player", "New song pop and artwork flight", miniPage);
         finish(others);
@@ -473,8 +514,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout libraryRows = addGroup();
         libraryRows.addView(featureRows[40]);
         libraryRows.addView(featureRows[41]);
+        libraryRows.addView(featureRows[Settings.LIBRARY_CASCADE]);
+        libraryRows.addView(featureRows[Settings.LIBRARY_HOLD]);
+        libraryRows.addView(featureRows[Settings.LIBRARY_GLOW]);
         finish(libraryRows);
-        resetFor(new int[] {39, 40, 41}, new int[0]);
+        resetFor(new int[] {39, 40, 41, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW}, new int[0]);
         LinearLayout playPage = subPage("Living play button");
         LinearLayout playRows = addGroup();
         playRows.addView(featureRows[54]);
@@ -484,9 +528,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout playlistPage = subPage("Playlists");
         LinearLayout playlistRows = addGroup();
         playlistRows.addView(featureRows[42]);
+        playlistRows.addView(featureRows[Settings.PLAYLIST_CASCADE]);
+        playlistRows.addView(featureRows[Settings.PLAYLIST_HOLD]);
+        playlistRows.addView(featureRows[Settings.PLAYLIST_GLOW]);
         playlistRows.addView(master(36, playPage));
         finish(playlistRows);
-        resetFor(new int[] {42}, new int[0]);
+        resetFor(new int[] {42, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW}, new int[0]);
         inside(screens);
         addSectionHeader("Bars and panels");
         LinearLayout barRows = addGroup();
@@ -1091,6 +1138,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 describe(row, (String) tag[2], "Shown");
             }
             refreshHomeCount();
+            return;
+        }
+        if (v == tryBurst) {
+            int[] at = new int[2];
+            v.getLocationOnScreen(at);
+            Confetti.at(v, at[0] + v.getWidth() / 2f, at[1] + v.getHeight() / 2f);
             return;
         }
         if (v == tryHaptics) {

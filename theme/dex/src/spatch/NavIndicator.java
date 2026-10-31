@@ -62,6 +62,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     static void select(int tab) {
         int was = selected;
         selected = tab;
+        Flourish.tab(tab);
         NavIndicator v = view == null ? null : view.get();
         if (v == null || v.dragging) return;
         if (v.animator != null && v.animator.isRunning() && v.to == tab) return; // a drag's release already moved there
@@ -216,6 +217,15 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     public void onAnimationUpdate(ValueAnimator a) {
         t = ((Float) a.getAnimatedValue()).floatValue();
         invalidate();
+    }
+
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        Flourish.attach(this);
+    }
+
+    static int tab() {
+        return selected;
     }
 
     protected void onDetachedFromWindow() {

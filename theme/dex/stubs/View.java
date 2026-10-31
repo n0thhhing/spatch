@@ -108,4 +108,5 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public void onWindowFocusChanged(boolean focus) {}
     protected void onDetachedFromWindow() {}
     public boolean post(Runnable r) { return false; }
+    protected void onAttachedToWindow() {}
 }

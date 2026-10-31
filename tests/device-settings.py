@@ -20,7 +20,7 @@ PACKAGE = 'com.spotify.music'
 # Pages reached from each page, by the title on the row that opens them.
 TREE = {
     'Player': {'Circular album art': {}, 'Album art backdrop': {}, 'Wavy progress': {}, 'Button animations': {},
-               'Double-tap for immersive': {}, 'Mini player': {}},
+               'Double-tap for immersive': {}, 'Mini player': {}, 'Play button burst': {}},
     'Visualizers': {'Full-screen visualizer': {}},
     'Screens': {'Navigation bar': {}, 'Expressive filters': {}, 'Side panel style': {}, 'Your Library style': {},
                 'Playlists': {'Living play button': {}}, 'Profile header': {}},

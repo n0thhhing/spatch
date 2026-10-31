@@ -218,6 +218,12 @@ final class DevTests {
                 return "";
             }
         });
+        test("Touch layer is attached", new Test() {
+            public String run() {
+                check(Flourish.attached(), "hold ring, touch glow and playlist bursts need it");
+                return "page " + Flourish.page();
+            }
+        });
         test("Home sections are tracked", new Test() {
             public String run() {
                 if (Content.onHome().isEmpty()) throw new Skip("open Home first");

@@ -46,11 +46,11 @@ public final class Surfaces {
 
     /** Your Library rows on their own rounded cards. */
     public static rhm0 libraryRow(rhm0 row) {
-        return Settings.libraryCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row;
+        return Flourish.libraryRow(Settings.libraryCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row);
     }
 
     public static rhm0 trackRow(rhm0 row) {
-        return Settings.playlistCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row;
+        return Flourish.trackRow(Settings.playlistCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row);
     }
 
     private static rhm0 card(rhm0 row, float sides, float ends, int color) {

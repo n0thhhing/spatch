@@ -647,6 +647,7 @@ public final class Immersive extends View implements Runnable {
                 pressedButton=-1;
                 updateButtonFeedback(false);
                 if (click) {
+                    if (clicked==3) Confetti.wanted(this, getWidth() / 2f, ctrlY, !isPlaying(), Settings.BURST_IMMERSIVE);
                     if (clicked==0) dismiss(); else { Haptics.playback(this); buttons[clicked].click(); }
                     return true;
                 }

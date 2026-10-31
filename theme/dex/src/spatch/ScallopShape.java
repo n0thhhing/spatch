@@ -54,6 +54,7 @@ public final class ScallopShape implements bv61 {
         float wanted = state == PLAYING ? 1 : 0;
         if (shown < 0) shown = from = target = wanted;
         if (wanted != target) {
+            Flourish.played(wanted == 1);
             from = shown;
             target = wanted;
             changedAt = now;

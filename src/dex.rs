@@ -543,7 +543,7 @@ const RELOCATED: [(&str, &str, &str, &str); 11] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 47] = [
+const HELPERS: [(&str, &str); 49] = [
     ("Fonts", include_str!("../theme/dex/src/spatch/Fonts.java")),
     (
         "FontFile",
@@ -683,6 +683,14 @@ const HELPERS: [(&str, &str); 47] = [
     ),
     ("Back", include_str!("../theme/dex/src/spatch/Back.java")),
     ("Tint", include_str!("../theme/dex/src/spatch/Tint.java")),
+    (
+        "Confetti",
+        include_str!("../theme/dex/src/spatch/Confetti.java"),
+    ),
+    (
+        "Flourish",
+        include_str!("../theme/dex/src/spatch/Flourish.java"),
+    ),
     (
         "Springy",
         include_str!("../theme/dex/src/spatch/Springy.java"),
@@ -842,6 +850,10 @@ const STUBS: &[(&str, &str)] = &[
     (
         "SweepGradient.java",
         include_str!("../theme/dex/stubs/android/graphics/SweepGradient.java"),
+    ),
+    (
+        "Window.java",
+        include_str!("../theme/dex/stubs/android/view/Window.java"),
     ),
     (
         "Choreographer.java",
