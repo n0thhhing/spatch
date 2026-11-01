@@ -41,12 +41,14 @@ public final class PlayerArt extends ImageView {
     private float squishTarget = 1;
     private long squishAt;
     private boolean heroHidden, radialOn;
+    private final ArtMotion motion = new ArtMotion(this);
     private Expansion expansion;
     private static Drawable original; // controls background before any page's backdrop replaced it
     public PlayerArt(Context c, AttributeSet a) { super(c, a); Settings.load(c); }
 
     public boolean dispatchTouchEvent(MotionEvent e) {
         float slop = Math.max(36, getWidth() * 0.08f);
+        motion.touch(e);
         int action = e.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN && Settings.artPress()) squishTarget = PRESSED;
         else if (action == MotionEvent.ACTION_UP) {
@@ -95,6 +97,7 @@ public final class PlayerArt extends ImageView {
         turn = skipMotion ? Math.max(settle(turn, Math.abs(offset), now - turnAt), centredAt > songAt ? arriving(now - songAt) : 0) : 0;
         turnAt = now;
         turnPage(canvas, skip, offset);
+        if (Wave.animationsEnabled()) motion.apply(canvas, now);
         if (!heroHidden) {
             if (Settings.roundArt()) drawRound(canvas); else super.onDraw(canvas);
         }
@@ -209,9 +212,11 @@ public final class PlayerArt extends ImageView {
             previousArt=null;
             super.onDraw(canvas);
         }
+        motion.sheen(canvas, radius);
         canvas.restoreToCount(save);
         drawRing(canvas);
         drawRadial(canvas, cx, cy, radius);
+        if (motion.scratching) motion.readout(canvas, getResources().getDisplayMetrics().density);
     }
 
     /** Real audio energy around the circular art, from the shared capture. Centred page only. */
@@ -487,7 +492,10 @@ public final class PlayerArt extends ImageView {
                 String s=description.toString().toLowerCase(java.util.Locale.ROOT);
                 // English descriptions; "Choose a Listening Mode" is the shuffle button in some contexts.
                 int kind=s.contains("shuffle")||s.contains("listening mode")?4:s.contains("repeat")?6:s.equals("next")?3:s.equals("previous")?-3:0;
-                if(kind!=0 && !(v.getBackground() instanceof Transport)) v.setBackground(new Transport(v,kind,v.getBackground()));
+                if(kind!=0 && !(v.getBackground() instanceof Transport)) {
+                    v.setBackground(new Transport(v,kind,v.getBackground()));
+                    if(kind==3||kind==-3) v.setOnTouchListener(new HoldSeek(v,kind==3));
+                }
             }
         }
     }

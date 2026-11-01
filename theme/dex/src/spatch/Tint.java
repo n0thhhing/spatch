@@ -31,7 +31,7 @@ final class Tint {
     }
 
     /** The artwork's colour, fading from the last song's. */
-    private static int album() {
+    static int album() {
         float t = Wave.animationsEnabled() ? Math.min(1f, (SystemClock.uptimeMillis() - changedAt) / FADE_MILLIS) : 1;
         return Pill.blend(from, to, t * t * (3 - 2 * t));
     }

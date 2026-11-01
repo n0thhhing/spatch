@@ -848,6 +848,15 @@ final class DevTests {
                 new SpatchSettings(context);
             }
         });
+        test("Scratch and hold seek stay inside the song", new Test() {
+            public String run() {
+                check(ArtMotion.angleStep(170, -170) == 20, "crossing the seam must be a small step");
+                check(ArtMotion.scrubbed(1000, -3600, 60000) == 0 && ArtMotion.scrubbed(59000, 3600, 60000) == 60000, "scrub past the ends");
+                check(HoldSeek.landing(5000, -10000, 60000) == 0 && HoldSeek.landing(58000, 10000, 60000) == 59000, "hold seek past the ends");
+                check(SeekBubble.time(61000).equals("1:01") && SeekBubble.time(-5).equals("0:00"), "time text");
+                return "";
+            }
+        });
         test("Tests left settings alone", new Test() {
             public String run() {
                 for (int i = 0; i < switches.length; i++) check(Settings.get(i) == switches[i], Settings.KEYS[i]);
@@ -888,7 +897,8 @@ final class DevTests {
         if (view.getVisibility() == View.GONE) return;
         float dp = context.getResources().getDisplayMetrics().density;
         String name = label(view);
-        if (view.getParent() instanceof View && !(view.getParent() instanceof HorizontalScrollView) && view.getRight() > ((View) view.getParent()).getWidth() + dp) {
+        View parent = view.getParent() instanceof View ? (View) view.getParent() : null;
+        if (parent != null && parent.getWidth() > 0 && !(parent instanceof HorizontalScrollView) && view.getRight() > parent.getWidth() + dp) {
             problems.add("past its parent: " + name);
         }
         if (view.isClickable()) {
@@ -1011,6 +1021,14 @@ final class DevTests {
 
     private List<Timed> timedTests() {
         ArrayList<Timed> tests = new ArrayList<Timed>();
+        tests.add(new Timed("Earlier bursts finish", 3500) {
+            void start() {}
+
+            String finish() {
+                check(Confetti.live == 0, Confetti.live + " still playing");
+                return "";
+            }
+        });
         tests.add(new Timed("Idle screen stops drawing", 1500) {
             private final int[] draws = {0};
             private final ViewTreeObserver.OnDrawListener counter = new ViewTreeObserver.OnDrawListener() {

@@ -104,7 +104,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Full player",
         "Mini player",
         "Immersive player",
-        "Playlists"
+        "Playlists",
+        "Artwork tilt",
+        "Scratch the record",
+        "Hold to seek",
+        "Seek time bubble",
+        "Album colour bar",
+        "Tap ripples",
+        "Playful banner"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -182,7 +189,14 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "The play button in Now Playing",
         "The play button on the bar",
         "The double-tap full-screen player",
-        "The big play button on playlist pages"
+        "The big play button on playlist pages",
+        "Soft glare under your finger",
+        "Hold the art, then spin it to seek",
+        "Hold Next or Previous to run through the song",
+        "Shows the time above your finger",
+        "Takes on a little of the cover's colour",
+        "A soft ring wherever you tap",
+        "Drag the shape on the Spatch banner"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
@@ -191,7 +205,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "repeat", "time", "list_view", "arrow_up", "minimize", "podcasts", "audiobook", "group", "now_playing", "notifications_active", "play", "home", "filter", "time", "sort", "gem", "notification_new", "heart", "information_alt",
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
-        "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist"
+        "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance"
     };
 
     /** Section layout: Settings indices per group. */
@@ -417,20 +432,25 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout miniRows = addGroup();
         miniRows.addView(featureRows[60]);
         miniRows.addView(featureRows[61]);
+        miniRows.addView(featureRows[Settings.MINI_ALBUM]);
         finish(miniRows);
-        resetFor(new int[] {60, 61}, new int[0]);
+        resetFor(new int[] {60, 61, Settings.MINI_ALBUM}, new int[0]);
         inside(playerPage);
         addSectionHeader("Artwork");
         LinearLayout artRows = addGroup();
         artRows.addView(master(ROUND_ART, artworkPage));
         artRows.addView(master(2, backdropPage));
         addChoice(artRows, Settings.ART_SKIP, "Skip animation", "Spin rolls the artwork over like a record", new String[] {"Slide", "Spin", "Shrink", "Fade"});
+        artRows.addView(featureRows[Settings.ART_TILT]);
+        artRows.addView(featureRows[Settings.ART_SCRATCH]);
         finish(artRows);
         addSectionHeader("Controls");
         LinearLayout player = addGroup();
         player.addView(master(0, wavePage));
         player.addView(master(1, buttonPage));
         player.addView(featureRows[5]);
+        player.addView(featureRows[Settings.HOLD_SEEK]);
+        player.addView(featureRows[Settings.SEEK_BUBBLE]);
         finish(player);
         addSectionHeader("Other players");
         LinearLayout others = addGroup();
@@ -438,7 +458,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         others.addView(master(4, immersivePage));
         link(others, "device_mobile", "Mini player", "New song pop and artwork flight", miniPage);
         finish(others);
-        resetFor(new int[] {5}, new int[] {Settings.ART_SKIP});
+        resetFor(new int[] {5, Settings.ART_TILT, Settings.ART_SCRATCH, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE}, new int[] {Settings.ART_SKIP});
         finishCategory(playerPage);
 
         View visualizers = category(categories, "soundwave", "Visualizers", "Spectrum styles and where they show", "Visualizers");
@@ -553,6 +573,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addSectionHeader("Motion");
         LinearLayout motion = addGroup();
         for (int i : MOTION) motion.addView(featureRows[i]);
+        motion.addView(featureRows[Settings.TAP_RIPPLE]);
+        motion.addView(featureRows[Settings.HERO_TOUCH]);
         finish(motion);
         addSectionHeader("Haptics");
         LinearLayout haptics = addGroup();
@@ -561,7 +583,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         tryHaptics.setOnClickListener(this);
         haptics.addView(tryHaptics);
         finish(haptics);
-        resetFor(concat(MOTION, HAPTICS), new int[0]);
+        resetFor(concat(concat(MOTION, HAPTICS), new int[] {Settings.TAP_RIPPLE, Settings.HERO_TOUCH}), new int[0]);
         finishCategory(navigation);
 
         View contentPage = category(categories, "hidden", "Content", "Hidden sections, podcasts and the side menu", "Content");

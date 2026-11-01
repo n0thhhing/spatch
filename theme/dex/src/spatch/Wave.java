@@ -74,6 +74,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     /** ACTION_UP, unlike the pressed state, means a seek landed; a cancelled gesture stays silent. */
     @Override
     public boolean onTouch(View v, MotionEvent e) {
+        SeekBubble.touch(v, e);
         if (e.getActionMasked() == MotionEvent.ACTION_UP && level != pressLevel) Haptics.seekDone(v);
         return false;
     }

@@ -14,4 +14,5 @@ public class Canvas {
  public void drawBitmap(Bitmap b,Rect src,RectF dst,Paint p){}
  public void drawCircle(float cx, float cy, float radius, Paint p) {}
  public void drawLine(float startX, float startY, float stopX, float stopY, Paint p) {}
+ public void concat(Matrix m) {}
 }

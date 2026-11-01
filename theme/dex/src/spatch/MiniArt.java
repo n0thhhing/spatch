@@ -20,6 +20,7 @@ public final class MiniArt extends ImageView {
     }
 
     public void setImageDrawable(Drawable art) {
+        if (Settings.get(Settings.MINI_ALBUM)) Tint.follow(art);
         Drawable old = getDrawable();
         super.setImageDrawable(art);
         long now = SystemClock.uptimeMillis();

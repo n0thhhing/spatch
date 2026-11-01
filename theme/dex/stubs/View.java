@@ -24,6 +24,7 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public int getHeight() { return 0; }
     public int getScrollY() { return 0; }
     public int getPaddingLeft() { return 0; }
+    public void getLocationInWindow(int[] out) {}
     public int getPaddingRight() { return 0; }
     public android.content.Context getContext() { return null; }
     public View getRootView() { return null; }

@@ -644,6 +644,10 @@ public class PlayerRuntimeTest {
         Settings.setChoice(Settings.ART_SKIP,"spin"); Settings.set(6,true); canvas.degrees=0; carousel.screenX=500; carousel.onDraw(canvas);
         check(canvas.degrees==0,"reduce motion must stop Spin"); Settings.set(6,false); Settings.setChoice(Settings.ART_SKIP,"slide");
         Settings.setChoice(Settings.ART_OUTLINE,"wavy");
+        check(ArtMotion.angleStep(170,-170)==20&&ArtMotion.angleStep(-170,170)==-20,"a turn across the seam is a small step");
+        check(ArtMotion.scrubbed(1000,-3600,60000)==0&&ArtMotion.scrubbed(59000,3600,60000)==60000&&ArtMotion.scrubbed(0,360,60000)==30000,"one turn is 30 seconds, kept inside the song");
+        check(HoldSeek.landing(5000,-10000,60000)==0&&HoldSeek.landing(58000,10000,60000)==59000&&HoldSeek.landing(5000,10000,0)==15000,"hold seek stops before the ends");
+        check(SeekBubble.time(61000).equals("1:01")&&SeekBubble.time(600000).equals("10:00")&&SeekBubble.time(-5).equals("0:00"),"time label");
         System.out.println("PASS skip animations");
 
         // Decoration colours.

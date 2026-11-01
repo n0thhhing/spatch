@@ -33,7 +33,7 @@ import p.zpo;
 public final class Flourish extends Drawable implements InvocationHandler, Runnable {
     static final int NONE = 0, LIBRARY = 1, PLAYLIST = 2;
     private static final int LIBRARY_TAB = 2;
-    private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500; // ms
+    private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500, RIPPLE_MILLIS = 340; // ms
     private static final float GLOW = 120, RING = 34, RING_WIDTH = 4, FOLLOW = 0.3f; // dp
     private static final float CASCADE_MILLIS = 340, CASCADE_STAGGER = 45, CASCADE_RISE = 26; // ms, dp
     private static final int CASCADE_ROWS = 10, CASCADE_MASK = 0xfffeb; // alpha and translationY only
@@ -62,7 +62,8 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     private final Shader glow;
     private final int slop;
     private float x, y, downX, downY, glowAlpha;
-    private long downAt = -100000;
+    private long downAt = -100000, rippleAt = -100000;
+    private float rippleX, rippleY;
     private boolean down, dragging, popped, running;
 
     private Flourish(View root, Window.Callback next) {
@@ -213,12 +214,20 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             if (Math.abs(x - downX) > slop || Math.abs(y - downY) > slop) dragging = true;
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             down = false;
-            if (action == MotionEvent.ACTION_UP && !dragging) tapAt = SystemClock.uptimeMillis();
+            if (action == MotionEvent.ACTION_UP && !dragging) {
+                tapAt = SystemClock.uptimeMillis();
+                if (Settings.get(Settings.TAP_RIPPLE) && Wave.animationsEnabled()) {
+                    rippleAt = tapAt;
+                    rippleX = x;
+                    rippleY = y;
+                    start();
+                }
+            }
         }
     }
 
     private void start() {
-        if (running || !Wave.animationsEnabled() || !holdOn() && !glowOn()) return;
+        if (running || !Wave.animationsEnabled() || !holdOn() && !glowOn() && !rippling()) return;
         running = true;
         root.postDelayed(this, FRAME);
     }
@@ -233,8 +242,12 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             Confetti.at(root, downX, downY);
         }
         invalidateSelf();
-        running = down || glowAlpha > 0;
+        running = down || glowAlpha > 0 || rippling();
         if (running) root.postDelayed(this, FRAME);
+    }
+
+    private boolean rippling() {
+        return SystemClock.uptimeMillis() - rippleAt < RIPPLE_MILLIS;
     }
 
     /** 0 until a still finger has rested a moment, then 1 at the moment long press fires. */
@@ -248,6 +261,15 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     }
 
     public void draw(Canvas c) {
+        float ripple = (SystemClock.uptimeMillis() - rippleAt) / (float) RIPPLE_MILLIS;
+        if (ripple < 1) {
+            float eased = 1 - (1 - ripple) * (1 - ripple);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth((3 - 2 * ripple) * dp);
+            paint.setColor(Palette.color(0xffd0bcff));
+            paint.setAlpha(Math.round(120 * (1 - ripple)));
+            c.drawCircle(rippleX, rippleY, (10 + 44 * eased) * dp, paint);
+        }
         if (glowAlpha > 0) {
             int save = c.save();
             c.translate(x, y);

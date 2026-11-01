@@ -199,6 +199,7 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         for (DevTests.Result r : outcome) if (r.failed()) out.append(r).append('\n');
         for (DevTests.Result r : outcome) if (!r.failed()) out.append(r).append('\n');
         report = out.toString();
+        if (note.isEmpty()) for (String line : report.split("\n")) android.util.Log.i("SpatchTest", line);
         results.setText(report);
     }
 

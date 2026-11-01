@@ -57,6 +57,15 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         return current;
     }
 
+    /** Where playback is now; the session only reports it when it changes. */
+    static long position() {
+        android.media.session.PlaybackState state = current == null ? null : current.getPlaybackState();
+        if (state == null) return 0;
+        long position = state.getPosition();
+        if (state.getState() != android.media.session.PlaybackState.STATE_PLAYING) return position;
+        return position + (long) ((android.os.SystemClock.elapsedRealtime() - state.getLastPositionUpdateTime()) * state.getPlaybackSpeed());
+    }
+
     /** The mini-player appeared: bring it up to date from the session worker. */
     static void refreshMini() {
         worker().post(MINI);

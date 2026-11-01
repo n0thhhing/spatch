@@ -15,13 +15,24 @@ final class SettingsHero extends View {
     private final Path path = new Path();
     private final int accent = Palette.color(0xffd0bcff), deep = Palette.color(0xffb7a3ee),
         ink = Palette.color(0xff14121c);
-    private boolean offscreen;
+    private boolean offscreen, held;
+    private float touchX, touchY, shapeX, shapeY, extraSpin;
 
     SettingsHero(Context c) {
         super(c, null);
         setContentDescription("Spatch for Spotify 9.1.98.521");
         setClickable(true); // a press needs its release for the spring
         Springy.attach(this);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent e) {
+        if (Settings.get(Settings.HERO_TOUCH)) {
+            held = e.getActionMasked() != android.view.MotionEvent.ACTION_UP && e.getActionMasked() != android.view.MotionEvent.ACTION_CANCEL;
+            touchX = e.getX();
+            touchY = e.getY();
+        }
+        return super.dispatchTouchEvent(e);
     }
 
     /** Scrolled out of view: stops the frame loop until it returns. */
@@ -47,7 +58,17 @@ final class SettingsHero extends View {
         paint.setShader(null);
 
         // Nine-lobed scallop, the shape of the play button.
-        float cx = w - 64 * dp, cy = h * 0.42f, base = 54 * dp, spin = time * 0.25f;
+        float restX = w - 64 * dp, restY = h * 0.42f, base = 54 * dp;
+        if (shapeX == 0) {
+            shapeX = restX;
+            shapeY = restY;
+        }
+        // The shape chases a held finger, spins up with the chase, then drifts home.
+        float wantX = held ? touchX : restX, wantY = held ? touchY : restY, chase = motion ? 0.16f : 1;
+        extraSpin += (Math.abs(wantX - shapeX) + Math.abs(wantY - shapeY)) / (200 * dp);
+        shapeX += (wantX - shapeX) * chase;
+        shapeY += (wantY - shapeY) * chase;
+        float cx = shapeX, cy = shapeY, spin = time * 0.25f + extraSpin;
         path.reset();
         for (int i = 0; i <= 90; i++) {
             double a = i * Math.PI * 2 / 90;
