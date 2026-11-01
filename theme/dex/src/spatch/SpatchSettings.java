@@ -902,7 +902,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     }
 
     private void hideKeyboard() {
-        ((android.view.inputmethod.InputMethodManager) getContext().getSystemService("input_method")).hideSoftInputFromWindow(getWindowToken(), 0);
+        Object keyboard = getContext().getSystemService("input_method");
+        if (keyboard instanceof android.view.inputmethod.InputMethodManager) ((android.view.inputmethod.InputMethodManager) keyboard).hideSoftInputFromWindow(getWindowToken(), 0);
     }
 
     private void open(LinearLayout page) {
