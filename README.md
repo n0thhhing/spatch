@@ -13,13 +13,21 @@ refused rather than patched blindly.
   Material, plus custom fonts.
 - **Player:** circular artwork, a wavy or audio-reactive ring, a configurable glow, record-style skip
   animations, wavy progress, shaped controls and an immersive full-screen player with a real spectrum
-  of Spotify's own audio.
-- **Screens:** a floating navigation bar, sliding filter pills, a redesigned side panel, card-based
-  Library and playlist rows, and a local-only profile banner.
+  of Spotify's own audio. Artwork comes in several shapes with drifting dust or stars behind it, leans
+  under your finger, pulses with the bass, and can be held and spun like a record to seek.
+- **Controls:** hold Next or Previous to run through a song, a time bubble while seeking, seek bar
+  styles, a player colour that can follow the album, and swipe to skip in the immersive player.
+- **Screens:** a floating navigation bar that can hide while you scroll, sliding filter pills, a
+  redesigned side panel, cards on Library, playlist, search and album rows, softened page headers, and
+  a local-only profile banner.
+- **Feel:** bouncy press on tiles, tap ripples, a spinning mini player cover, an album-tinted mini
+  bar, and bursts on the play button.
 - **Content:** hide podcasts, audiobooks, Home sections and side menu rows.
 
 Everything is configured in the app: open the side panel and choose **Spatch**. Each feature has a
-main switch and a page of finer options, and settings carry over between updates.
+main switch and a page of finer options, and settings carry over between updates. Search finds any
+setting by name, presets turn the playful extras on or off together, and Copy and Paste move a whole
+setup between installs.
 
 ## Requirements
 

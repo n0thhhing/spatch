@@ -6,19 +6,11 @@ hasn't been started. Findings from attempts are included so nobody repeats them.
 
 ## Tried and not working yet
 
-**Cards on search results, album tracks and Spotify's settings rows.** Library and playlist rows have
-cards through `r0a1.d` and `eeb1`. `kro1.d`, Encore's shared list row, was hooked with a guard against
-double cards. It had no visible effect on these three screens, so they use another row and the hook
-was removed. Spotify's settings is one full-screen `ComposeView`. `"track_row"` leads to `r030` and
-`g5d1.e`, which is the next place to look. The sampler in Developer options shows which `p.*`
-functions run during a scroll, which is the best way to find the real row.
+**Cards on Spotify's settings rows and the queue.** Search, albums and artist pages are `RecyclerView`s, so `RowCards` gives their rows cards. Spotify's settings is one full-screen `ComposeView`, and `kro1.d` doesn't reach it. The queue is a `RecyclerView` in a dialog window, which `RowCards.watch` doesn't see because it only follows activities. The first needs the real row function; the second needs a way to reach dialog windows.
 
 **Spotify's white pills (Refresh, Log out, round play buttons on Home).** Turning white into the accent
 in `Surfaces.bg`, including near-white, changed nothing, so these don't paint through `yw9`. The next
 step is finding Encore's contained button.
-
-**Liked Songs' blue header.** `b521` holds `0xff4100f5` and `0xff509bf5`, but that may be the Liked
-Songs icon rather than the header. It needs a test on its own.
 
 ## Eye candy
 
@@ -29,13 +21,13 @@ Songs icon rather than the header. It needs a test on its own.
 - Home shelves: scroll parallax on large covers.
 - Artist page: header image zooms slightly on pull, name fades into the top bar.
 - Now Playing title: colour taken from the cover, per setting.
-- Seek bar styles beyond the wave: beads, pulse, a line that follows the spectrum.
+- A seek bar style that follows the spectrum.
 - Theme picker: a circular reveal from the tapped swatch.
 - Animated wallpaper-style backdrop on Home, off by default.
 
 ## Fun interactions
 
-- Immersive: swipe the artwork sideways to skip, drag up and down for volume.
+- Immersive: drag up and down for volume.
 - Mini player: fling the cover away to skip, with it spinning off the bar.
 - Nav bar: long-press a tab for shortcuts, such as Recents or a pinned playlist.
 - Search: pull down on the page to focus the search field.
@@ -46,7 +38,6 @@ Songs icon rather than the header. It needs a test on its own.
 
 ## Settings
 
-- Export and import all Spatch settings as text.
 - Named presets of your own, beyond Calm and Everything.
 - Strength sliders for tilt, ripple size and hide distance instead of fixed values.
 - A live preview of the player inside Spatch settings.
