@@ -30,7 +30,7 @@ import p.zpo;
  * window's touch stream is watched, never consumed, to draw a glow under a dragging finger and a ring
  * that charges up to a long press. Rows also rise in, in turn, when a page opens.
  */
-public final class Flourish extends Drawable implements InvocationHandler, Runnable {
+public final class Flourish extends Drawable implements InvocationHandler, Runnable, android.view.ViewTreeObserver.OnGlobalLayoutListener {
     static final int NONE = 0, LIBRARY = 1, PLAYLIST = 2;
     private static final int LIBRARY_TAB = 2;
     private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500, RIPPLE_MILLIS = 340;
@@ -66,7 +66,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     private long downAt = -100000, rippleAt = -100000;
     private float rippleX, rippleY, lastY, pulled;
     private View nav, pill, mini;
-    private boolean barsHidden;
+    private boolean barsHidden, scanning;
     private boolean down, dragging, popped, running;
 
     private Flourish(View root, Window.Callback next) {
@@ -90,6 +90,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
         flourish.setBounds(0, 0, root.getWidth(), root.getHeight());
         root.getOverlay().add(flourish);
         window.setCallback((Window.Callback) Proxy.newProxyInstance(Window.Callback.class.getClassLoader(), new Class<?>[] {Window.Callback.class}, flourish));
+        root.getViewTreeObserver().addOnGlobalLayoutListener(flourish);
         current = flourish;
     }
 
@@ -262,6 +263,20 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             if (Wave.animationsEnabled()) bar.animate().translationY(by).setDuration(hide ? 240 : 320).start();
             else bar.setTranslationY(by);
         }
+    }
+
+    private final Runnable scan = new Runnable() {
+        public void run() {
+            scanning = false;
+            if (Settings.get(Settings.LIST_CARDS)) RowCards.scan(root);
+        }
+    };
+
+    /** Lists appear whenever a page or result arrives, so layouts ask for a look, at most every half second. */
+    public void onGlobalLayout() {
+        if (scanning) return;
+        scanning = true;
+        MAIN.postDelayed(scan, 500);
     }
 
     private void start() {

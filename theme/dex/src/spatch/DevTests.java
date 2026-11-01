@@ -918,6 +918,11 @@ final class DevTests {
                 AudioSpectrum.request(context, AudioSpectrum.MINI, false);
             }
         });
+        speed("Speed: list scan", 3, new Runnable() {
+            public void run() {
+                RowCards.scan(root);
+            }
+        });
         speed("Speed: backdrop frame", 16, new Runnable() {
             private final Atmosphere backdrop = new Atmosphere();
             private Canvas canvas;

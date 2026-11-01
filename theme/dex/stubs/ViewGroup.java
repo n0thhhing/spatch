@@ -1,6 +1,8 @@
 package android.view;
 // Compile-time stub only; never packaged (the device provides the real class).
 public class ViewGroup extends View implements ViewParent {
+    public interface OnHierarchyChangeListener { void onChildViewAdded(View parent, View child); void onChildViewRemoved(View parent, View child); }
+    public void setOnHierarchyChangeListener(OnHierarchyChangeListener l) {}
     public void requestDisallowInterceptTouchEvent(boolean disallow) {}
     public static class LayoutParams {
         public static final int MATCH_PARENT = -1;

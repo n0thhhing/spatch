@@ -655,6 +655,7 @@ public class PlayerRuntimeTest {
         check(Settings.importText(saved)==Settings.KEYS.length+Settings.CHOICES.length,"export must round trip");
         check(Settings.get(Settings.ART_TILT)&&Settings.choice(Settings.ART_SHAPE).equals("circle"),"import must restore");
         check(Settings.importText("nonsense\nart_shape=hexagon\nart_tilt=maybe\n=true")==0 && Settings.choice(Settings.ART_SHAPE).equals("circle"),"bad text must change nothing");
+        check(RowCards.fits(56,1000,1000)&&!RowCards.fits(39,1000,1000)&&!RowCards.fits(216,1000,1000)&&!RowCards.fits(56,400,1000),"cards fit list rows, not headings, shelves or tiles");
         System.out.println("PASS skip animations");
 
         // Decoration colours.

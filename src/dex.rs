@@ -564,7 +564,7 @@ const RELOCATED: [(&str, &str, &str, &str); 12] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 52] = [
+const HELPERS: [(&str, &str); 53] = [
     ("Fonts", include_str!("../theme/dex/src/spatch/Fonts.java")),
     (
         "FontFile",
@@ -723,6 +723,10 @@ const HELPERS: [(&str, &str); 52] = [
     (
         "SeekBubble",
         include_str!("../theme/dex/src/spatch/SeekBubble.java"),
+    ),
+    (
+        "RowCards",
+        include_str!("../theme/dex/src/spatch/RowCards.java"),
     ),
     (
         "Springy",
@@ -898,6 +902,10 @@ fn obfuscated_classes() -> String {
 }
 
 const STUBS: &[(&str, &str)] = &[
+    (
+        "LayerDrawable.java",
+        include_str!("../theme/dex/stubs/android/graphics/drawable/LayerDrawable.java"),
+    ),
     (
         "InputMethodManager.java",
         include_str!("../theme/dex/stubs/android/view/inputmethod/InputMethodManager.java"),
