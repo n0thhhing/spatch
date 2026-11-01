@@ -902,6 +902,10 @@ fn obfuscated_classes() -> String {
 }
 
 const STUBS: &[(&str, &str)] = &[
+    (
+        "Application.java",
+        include_str!("../theme/dex/stubs/android/app/Application.java"),
+    ),
     ("i7h.java", include_str!("../theme/dex/stubs/p/i7h.java")),
     ("shc0.java", include_str!("../theme/dex/stubs/p/shc0.java")),
     (

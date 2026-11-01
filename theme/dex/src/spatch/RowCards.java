@@ -30,6 +30,48 @@ final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeList
         return heightDp >= MIN && heightDp <= MAX && width >= listWidth * .9f;
     }
 
+    /** Pages open in several activities, so every window gets watched for lists as they appear. */
+    static void watch(android.app.Application app) {
+        app.registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {
+            public void onActivityResumed(android.app.Activity activity) {
+                join(activity.getWindow().getDecorView());
+            }
+
+            public void onActivityCreated(android.app.Activity a, android.os.Bundle b) {}
+
+            public void onActivityStarted(android.app.Activity a) {}
+
+            public void onActivityPaused(android.app.Activity a) {}
+
+            public void onActivityStopped(android.app.Activity a) {}
+
+            public void onActivitySaveInstanceState(android.app.Activity a, android.os.Bundle b) {}
+
+            public void onActivityDestroyed(android.app.Activity a) {}
+        });
+    }
+
+    /** Rows arrive with layouts: each window looks for new lists at most twice a second. */
+    static void join(final View decor) {
+        if (JOINED.containsKey(decor)) return;
+        JOINED.put(decor, Boolean.TRUE);
+        final Runnable look = new Runnable() {
+            public void run() {
+                looking = false;
+                if (Settings.get(Settings.LIST_CARDS)) scan(decor);
+            }
+        };
+        decor.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            public void onGlobalLayout() {
+                if (looking) return;
+                looking = true;
+                decor.postDelayed(look, 500);
+            }
+        });
+    }
+
+    private static boolean looking;
+
     /** Joins every list under a view; each list is only joined once. */
     static void scan(View view) {
         if (view.getVisibility() != View.VISIBLE || !(view instanceof ViewGroup)) return;

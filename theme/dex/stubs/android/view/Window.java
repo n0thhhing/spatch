@@ -4,4 +4,5 @@ public abstract class Window {
     public interface Callback { boolean dispatchTouchEvent(MotionEvent event); }
     public final Callback getCallback() { return null; }
     public void setCallback(Callback callback) {}
+    public android.view.View getDecorView() { return null; }
 }

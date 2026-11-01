@@ -199,6 +199,7 @@ public final class Settings implements jg81 {
         Fonts.load(c);
         if (prefs != null || c == null) return;
         prefs = c.getSharedPreferences("spatch", 0);
+        if (c.getApplicationContext() instanceof android.app.Application) RowCards.watch((android.app.Application) c.getApplicationContext());
         dev("start", new Class<?>[] {Context.class}, c);
         for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], DEFAULTS[i]);
         for (int i = 0; i < CHOICES.length; i++) chosen[i] = valid(i, prefs.getString(CHOICE_KEYS[i], null));
