@@ -411,10 +411,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         resetFor(new int[] {2, 62}, new int[0]);
         LinearLayout wavePage = subPage("Wavy progress");
         LinearLayout waveRows = addGroup();
+        addChoice(waveRows, Settings.SEEK_STYLE, "Style", null, new String[] {"Wave", "Beads", "Pulse", "Line"});
         addChoice(waveRows, Settings.WAVE_SPEED, "Speed", null, new String[] {"Normal", "Slow", "Fast"});
         waveRows.addView(featureRows[51]);
         finish(waveRows);
-        resetFor(new int[] {0, 51}, new int[] {Settings.WAVE_SPEED});
+        resetFor(new int[] {0, 51}, new int[] {Settings.WAVE_SPEED, Settings.SEEK_STYLE});
         LinearLayout buttonPage = subPage("Button animations");
         LinearLayout buttonRows = addGroup();
         buttonRows.addView(featureRows[52]);
@@ -474,6 +475,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         player.addView(featureRows[5]);
         player.addView(featureRows[Settings.HOLD_SEEK]);
         player.addView(featureRows[Settings.SEEK_BUBBLE]);
+        addColors(player, Settings.PLAYER_COLOR, "Player colour");
         finish(player);
         addSectionHeader("Other players");
         LinearLayout others = addGroup();
@@ -481,7 +483,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         others.addView(master(4, immersivePage));
         link(others, "device_mobile", "Mini player", "New song pop and artwork flight", miniPage);
         finish(others);
-        resetFor(new int[] {5, Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX});
+        resetFor(new int[] {5, Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
         finishCategory(playerPage);
 
         View visualizers = category(categories, "soundwave", "Visualizers", "Spectrum styles and where they show", "Visualizers");
@@ -754,7 +756,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 String wanted = s.toString().trim().toLowerCase(java.util.Locale.ROOT);
                 if (wanted.isEmpty()) return;
                 for (int i = 0, shown = 0; i < FEATURE_TITLES.length && shown < 8; i++) {
-                    LinearLayout page = pageOf(featureRows[i]);
+                    LinearLayout page = masterPages.containsKey(Integer.valueOf(i)) ? masterPages.get(Integer.valueOf(i)) : pageOf(featureRows[i]);
                     if (page == null || !matches(i, wanted)) continue;
                     link(found, FEATURE_ICONS[i], FEATURE_TITLES[i], FEATURE_SUBTITLES[i], page);
                     shown++;
@@ -899,7 +901,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         refreshChoices();
     }
 
+    private void hideKeyboard() {
+        ((android.view.inputmethod.InputMethodManager) getContext().getSystemService("input_method")).hideSoftInputFromWindow(getWindowToken(), 0);
+    }
+
     private void open(LinearLayout page) {
+        hideKeyboard();
         final View to = (View) page.getParent(), from = stack.get(stack.size() - 1);
         stack.add(to);
         barTitle.setAlpha(1f);
@@ -1345,6 +1352,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     /** Slides out, then detaches (a second call, from the delayed run(), detaches at once). */
     public void close() {
+        hideKeyboard();
         if (popPage()) {
             if (back != null) back.unregister();
             if (android.os.Build.VERSION.SDK_INT >= 33) back = Back.register(this, this); // a Back gesture spends its callback

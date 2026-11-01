@@ -52,6 +52,7 @@ public final class ScallopFill extends Drawable {
 
     @Override
     public void draw(Canvas canvas) {
+        if (!"accent".equals(Settings.choice(Settings.PLAYER_COLOR))) paint.setColor(Tint.color(Settings.PLAYER_COLOR));
         canvas.drawPath(path, paint);
     }
 

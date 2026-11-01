@@ -898,6 +898,14 @@ fn obfuscated_classes() -> String {
 }
 
 const STUBS: &[(&str, &str)] = &[
+    (
+        "InputMethodManager.java",
+        include_str!("../theme/dex/stubs/android/view/inputmethod/InputMethodManager.java"),
+    ),
+    (
+        "IBinder.java",
+        include_str!("../theme/dex/stubs/android/os/IBinder.java"),
+    ),
     ("ud5.java", include_str!("../theme/dex/stubs/p/ud5.java")),
     ("w6b1.java", include_str!("../theme/dex/stubs/p/w6b1.java")),
     (

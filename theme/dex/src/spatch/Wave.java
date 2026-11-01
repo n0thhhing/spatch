@@ -140,7 +140,8 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         // Proportions of the drawable height so the seekbar and the mini-player share one drawable.
         float stroke = h / 3f + (h * 0.6f - h / 3f) * thick;
         float restStroke = h / 5f;
-        float a = Math.max(0f, (h - stroke) / 2f) * amp;
+        String style = Settings.choice(Settings.SEEK_STYLE);
+        float a = "wave".equals(style) ? Math.max(0f, (h - stroke) / 2f) * amp : 0f;
         float wl = h * 2.5f;
         String speed = Settings.choice(Settings.WAVE_SPEED);
         long period = "slow".equals(speed) ? PERIOD_MS * 2 : "fast".equals(speed) ? PERIOD_MS / 2 : PERIOD_MS;
@@ -158,7 +159,23 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             canvas.drawLine(restStart, cy, x1, cy, rest);
         }
         float end = Math.min(px-thumbGap, x1);
-        if (end > x0) {
+        int opacity = played.getAlpha();
+        played.setColor(Tint.color(Settings.PLAYER_COLOR));
+        played.setAlpha(opacity);
+        if (end > x0 && "beads".equals(style)) {
+            // Beads swell in a slow wave that runs back along the played part.
+            float gap = stroke * 2.4f;
+            for (float x = x0; x <= end; x += gap) {
+                played.setStrokeWidth(stroke * (1 + 0.45f * amp * (float) Math.sin((x - b.left + phase) / wl * Math.PI)));
+                canvas.drawPoint(x, cy, played);
+            }
+        } else if (end > x0 && "pulse".equals(style)) {
+            float step = h / 4f;
+            for (float x = x0; x < end; x += step) {
+                played.setStrokeWidth(stroke * (0.8f + 0.5f * amp * (float) Math.max(0, Math.sin((x - b.left + phase) / wl * Math.PI))));
+                canvas.drawLine(x, cy, Math.min(end, x + step), cy, played);
+            }
+        } else if (end > x0) {
             path.reset();
             for (float x = x0; ; x = Math.min(x + 2f, end)) {
                 // + phase: crests travel left, back along the played part (not toward the playhead).

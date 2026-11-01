@@ -35,8 +35,8 @@ public final class Settings implements jg81 {
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
     static final int MINI_VISUALIZER = 16, HAPTICS = 17, LIBRARY_CASCADE = 64, LIBRARY_HOLD = 65, LIBRARY_GLOW = 66, PLAYLIST_CASCADE = 67, PLAYLIST_HOLD = 68, PLAYLIST_GLOW = 69, BURST = 70, BURST_PLAYER = 71, BURST_MINI = 72, BURST_IMMERSIVE = 73, BURST_LISTS = 74, ART_TILT = 75, ART_SCRATCH = 76, HOLD_SEEK = 77, SEEK_BUBBLE = 78, MINI_ALBUM = 79, TAP_RIPPLE = 80, HERO_TOUCH = 81, BOUNCY_PRESS = 82, HIDE_BARS = 83, BEAT_BOUNCE = 84, MINI_HOLD_LIKE = 85, MINI_SPIN = 86, IMM_SWIPE = 87;
-    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5, ART_SKIP = 6, IMM_CHANGE = 7, RING_COLOR = 8, GLOW_COLOR = 9, GLOW_STYLE = 10, RING_WIDTH = 11, RING_SPEED = 12, WAVE_SPEED = 13, NAV_COLOR = 14, BURST_SHAPE = 15, BURST_AMOUNT = 16, BURST_SIZE = 17, BURST_TONES = 18, BURST_COLOR = 19, BURST_WHEN = 20, ART_SHAPE = 21, RIPPLE_COLOR = 22, BOUNCE = 23, BACKDROP_FX = 24;
-    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position", "art_skip", "imm_change", "ring_color", "glow_color", "glow_style", "ring_width", "ring_speed", "wave_speed", "nav_color", "burst_shape", "burst_amount", "burst_size", "burst_tones", "burst_color", "burst_when", "art_shape", "ripple_color", "bounce", "backdrop_fx"};
+    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5, ART_SKIP = 6, IMM_CHANGE = 7, RING_COLOR = 8, GLOW_COLOR = 9, GLOW_STYLE = 10, RING_WIDTH = 11, RING_SPEED = 12, WAVE_SPEED = 13, NAV_COLOR = 14, BURST_SHAPE = 15, BURST_AMOUNT = 16, BURST_SIZE = 17, BURST_TONES = 18, BURST_COLOR = 19, BURST_WHEN = 20, ART_SHAPE = 21, RIPPLE_COLOR = 22, BOUNCE = 23, BACKDROP_FX = 24, SEEK_STYLE = 25, PLAYER_COLOR = 26;
+    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position", "art_skip", "imm_change", "ring_color", "glow_color", "glow_style", "ring_width", "ring_speed", "wave_speed", "nav_color", "burst_shape", "burst_amount", "burst_size", "burst_tones", "burst_color", "burst_when", "art_shape", "ripple_color", "bounce", "backdrop_fx", "seek_style", "player_color"};
     static final String[][] CHOICES = {
         {"bars", "centre", "contour", "dots"},
         {"subtle", "none"},
@@ -63,6 +63,8 @@ public final class Settings implements jg81 {
         Tint.NAMES,
         {"normal", "soft", "wild"},
         {"none", "dust", "stars"},
+        {"wave", "beads", "pulse", "line"},
+        Tint.NAMES,
     };
     private static final String[] chosen = new String[CHOICES.length];
     private static final boolean[] on = DEFAULTS.clone();
