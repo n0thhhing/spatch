@@ -155,8 +155,29 @@ public final class MiniBar extends MotionLayout implements Runnable {
         cover.setClipToOutline(true);
     }
 
+    private final Runnable turn = new Runnable() {
+        public void run() {
+            spinning = playing && Settings.get(Settings.MINI_SPIN) && Wave.animationsEnabled() && isShown() && shapedCover != null;
+            if (!spinning) {
+                if (shapedCover != null && !Settings.get(Settings.MINI_SPIN)) shapedCover.setRotation(0);
+                return;
+            }
+            long now = SystemClock.uptimeMillis();
+            shapedCover.setRotation((shapedCover.getRotation() + Math.min(100, now - turnedAt) * SPIN) % 360);
+            turnedAt = now;
+            postDelayed(this, 33);
+        }
+    };
+    private boolean spinning;
+    private long turnedAt;
+    private static final float SPIN = 360f / 9000; // degrees per millisecond
+
     public void run() {
         roundCover();
+        if (!spinning) {
+            turnedAt = SystemClock.uptimeMillis();
+            turn.run();
+        }
         if (previous != null) previous.allow(actions);
         if (next != null) next.allow(actions);
         ClickHaptic.attach(findViewById(id("play_pause_button")));

@@ -648,6 +648,9 @@ public class PlayerRuntimeTest {
         check(ArtMotion.scrubbed(1000,-3600,60000)==0&&ArtMotion.scrubbed(59000,3600,60000)==60000&&ArtMotion.scrubbed(0,360,60000)==30000,"one turn is 30 seconds, kept inside the song");
         check(HoldSeek.landing(5000,-10000,60000)==0&&HoldSeek.landing(58000,10000,60000)==59000&&HoldSeek.landing(5000,10000,0)==15000,"hold seek stops before the ends");
         check(SeekBubble.time(61000).equals("1:01")&&SeekBubble.time(600000).equals("10:00")&&SeekBubble.time(-5).equals("0:00"),"time label");
+        check(SpatchSettings.matches(Settings.ART_SCRATCH,"scratch")&&SpatchSettings.matches(Settings.HIDE_BARS,"slide away")&&!SpatchSettings.matches(Settings.ART_TILT,"zzz"),"settings search reads titles and subtitles");
+        for(int setting:SpatchSettings.PRESET) check(Settings.DEFAULTS[setting]||setting==Settings.LIBRARY_HOLD||setting==Settings.PLAYLIST_HOLD||setting==Settings.LIBRARY_GLOW||setting==Settings.PLAYLIST_GLOW||setting==Settings.LIBRARY_CASCADE||setting==Settings.PLAYLIST_CASCADE||setting==Settings.BURST,"a preset covers only playful extras, got "+Settings.KEYS[setting]);
+        check(!SpatchWidget.skips(5),"an unknown widget stays Glance's");
         System.out.println("PASS skip animations");
 
         // Decoration colours.

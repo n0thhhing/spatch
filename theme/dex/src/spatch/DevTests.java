@@ -857,6 +857,81 @@ final class DevTests {
                 return "";
             }
         });
+        test("Every artwork shape stays in its view", new Test() {
+            public String run() {
+                inApp();
+                Paint paint = new Paint(1);
+                paint.setColor(0xffff0000);
+                for (String shape : Settings.CHOICES[Settings.ART_SHAPE]) {
+                    Path outline = new Path();
+                    PlayerArt.trace(outline, shape, ART / 2f, ART / 2f, ART * .44f);
+                    Bitmap pixels = Bitmap.createBitmap(ART, ART, Bitmap.Config.ARGB_8888);
+                    new Canvas(pixels).drawPath(outline, paint);
+                    check(red(pixels, ART / 2, ART / 2), shape + " is hollow");
+                    check(pixels.getPixel(1, ART / 2) == 0 && pixels.getPixel(ART / 2, 1) == 0, shape + " reaches the edge of the view");
+                }
+                return Settings.CHOICES[Settings.ART_SHAPE].length + " shapes";
+            }
+        });
+        test("Backdrop draws in every style", new Test() {
+            public String run() {
+                inApp();
+                String fx = Settings.choice(Settings.BACKDROP_FX);
+                Canvas canvas = new Canvas(Bitmap.createBitmap(ART, ART, Bitmap.Config.ARGB_8888));
+                Atmosphere backdrop = new Atmosphere();
+                backdrop.capture(new ColorDrawable(0xff336699));
+                backdrop.setBounds(0, 0, ART, ART);
+                try {
+                    for (String style : Settings.CHOICES[Settings.BACKDROP_FX]) {
+                        Settings.setChoice(Settings.BACKDROP_FX, style);
+                        backdrop.draw(canvas);
+                    }
+                } finally {
+                    Settings.setChoice(Settings.BACKDROP_FX, fx);
+                }
+                return "";
+            }
+        });
+        test("Settings search finds the new switches", new Test() {
+            public String run() {
+                check(SpatchSettings.matches(Settings.ART_SCRATCH, "scratch"), "by title");
+                check(SpatchSettings.matches(Settings.HIDE_BARS, "slide away"), "by subtitle");
+                check(!SpatchSettings.matches(Settings.ART_SCRATCH, "zzz"), "nonsense");
+                return "";
+            }
+        });
+        test("Presets only hold switches that exist", new Test() {
+            public String run() {
+                for (int setting : SpatchSettings.PRESET) check(setting >= 0 && setting < Settings.KEYS.length, "index " + setting);
+                check(new HashSet<Integer>(boxed(SpatchSettings.PRESET)).size() == SpatchSettings.PRESET.length, "listed twice");
+                return SpatchSettings.PRESET.length + " switches";
+            }
+        });
+        test("An unknown widget still gets Glance", new Test() {
+            public String run() {
+                check(!SpatchWidget.skips(-12345), "a widget Spatch doesn't own must still be drawn");
+                return "";
+            }
+        });
+        speed("Speed: audio request stays off the main thread", 1, new Runnable() {
+            public void run() {
+                AudioSpectrum.request(context, AudioSpectrum.MINI, false);
+            }
+        });
+        speed("Speed: backdrop frame", 16, new Runnable() {
+            private final Atmosphere backdrop = new Atmosphere();
+            private Canvas canvas;
+
+            public void run() {
+                if (canvas == null) {
+                    int size = root.getWidth();
+                    canvas = new Canvas(Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888));
+                    backdrop.capture(new ColorDrawable(0xff336699));
+                    backdrop.setBounds(0, 0, size, size);
+                }
+                backdrop.draw(canvas);
+            }
+        });
         test("Tests left settings alone", new Test() {
             public String run() {
                 for (int i = 0; i < switches.length; i++) check(Settings.get(i) == switches[i], Settings.KEYS[i]);
@@ -917,6 +992,12 @@ final class DevTests {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) audit(group.getChildAt(i), problems);
         }
+    }
+
+    private static List<Integer> boxed(int[] values) {
+        ArrayList<Integer> out = new ArrayList<Integer>();
+        for (int value : values) out.add(Integer.valueOf(value));
+        return out;
     }
 
     private static String label(View view) {

@@ -115,7 +115,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Bouncy press",
         "Hide bars while scrolling",
         "Beat bounce",
-        "Hold to like"
+        "Hold to like",
+        "Spinning cover"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -204,7 +205,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Tiles and rows spring back when you let go",
         "The bars slide away going down and return going up",
         "The artwork pulses with the bass",
-        "Hold the mini player's cover to like the song"
+        "Hold the mini player's cover to like the song",
+        "The mini player's cover turns like a record while playing"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
@@ -214,7 +216,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album"
     };
 
     /** Section layout: Settings indices per group. */
@@ -256,7 +258,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private static final long SWAP = 220;
     private static final int RISE_ROWS = 8;
     /** The playful extras a preset turns off or on together; choices and everything else stay as they are. */
-    private static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST};
+    static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST};
     private static final android.view.animation.DecelerateInterpolator RISE = new android.view.animation.DecelerateInterpolator(2f);
     final FrameLayout pages;
     private final int bottom;
@@ -447,8 +449,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         miniRows.addView(featureRows[61]);
         miniRows.addView(featureRows[Settings.MINI_ALBUM]);
         miniRows.addView(featureRows[Settings.MINI_HOLD_LIKE]);
+        miniRows.addView(featureRows[Settings.MINI_SPIN]);
         finish(miniRows);
-        resetFor(new int[] {60, 61, Settings.MINI_ALBUM, Settings.MINI_HOLD_LIKE}, new int[0]);
+        resetFor(new int[] {60, 61, Settings.MINI_ALBUM, Settings.MINI_HOLD_LIKE, Settings.MINI_SPIN}, new int[0]);
         inside(playerPage);
         addSectionHeader("Artwork");
         LinearLayout artRows = addGroup();
@@ -748,7 +751,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 if (wanted.isEmpty()) return;
                 for (int i = 0, shown = 0; i < FEATURE_TITLES.length && shown < 8; i++) {
                     LinearLayout page = pageOf(featureRows[i]);
-                    if (page == null || !FEATURE_TITLES[i].toLowerCase(java.util.Locale.ROOT).contains(wanted) && !FEATURE_SUBTITLES[i].toLowerCase(java.util.Locale.ROOT).contains(wanted)) continue;
+                    if (page == null || !matches(i, wanted)) continue;
                     link(found, FEATURE_ICONS[i], FEATURE_TITLES[i], FEATURE_SUBTITLES[i], page);
                     shown++;
                 }
@@ -783,6 +786,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout.LayoutParams under = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         under.bottomMargin = dp(14);
         home.addView(presets, under);
+    }
+
+    static boolean matches(int setting, String wanted) {
+        return FEATURE_TITLES[setting].toLowerCase(java.util.Locale.ROOT).contains(wanted) || FEATURE_SUBTITLES[setting].toLowerCase(java.util.Locale.ROOT).contains(wanted);
     }
 
     /** The page a row is on, or null for rows that were never placed. */
