@@ -149,6 +149,7 @@ final class ArtMotion implements Runnable {
     /** Where a scratch will land, over the art. */
     void readout(Canvas canvas, float dp) {
         float cx = art.getWidth() / 2f, cy = art.getHeight() / 2f;
+        canvas.rotate(-spin, cx, cy); // the record turns, its label stays level
         String time = SeekBubble.time(preview) + " / " + SeekBubble.time(duration);
         paint.setTypeface(Fonts.settings(700));
         paint.setTextSize(18 * dp);
@@ -158,5 +159,6 @@ final class ArtMotion implements Runnable {
         canvas.drawRoundRect(cx - half, cy - 22 * dp, cx + half, cy + 22 * dp, 22 * dp, 22 * dp, paint);
         paint.setColor(Palette.color(0xffd0bcff));
         canvas.drawText(time, cx, cy + 6 * dp, paint);
+        canvas.rotate(spin, cx, cy);
     }
 }

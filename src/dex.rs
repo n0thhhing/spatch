@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 79] = [
+pub const EDITS: [Edit; 80] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -347,6 +347,12 @@ pub const EDITS: [Edit; 79] = [
         anchor: ".method public static final j(Lkotlin/jvm/functions/Function0;IZLp/rhm0;FZZLjava/lang/String;Lp/pzj;I)V\n    .locals 28\n",
         replacement: ".method public static final j(Lkotlin/jvm/functions/Function0;IZLp/rhm0;FZZLjava/lang/String;Lp/pzj;I)V\n    .locals 28\n\n    invoke-static/range {p0 .. p1}, Lspatch/Flourish;->pressed(Lkotlin/jvm/functions/Function0;I)Lkotlin/jvm/functions/Function0;\n\n    move-result-object p0\n",
     },
+    // Press release of everything Encore makes pressable (p.if41): the spec comes from spatch.Surfaces.
+    Edit {
+        file: "smali/p/if41.smali",
+        anchor: "    .line 1\n    const/high16 v0, 0x3f800000    # 1.0f\n\n    .line 2\n    .line 3\n    invoke-static {v0}, Lp/ywd0;->w(F)Ljava/lang/Float;\n\n    .line 4\n    .line 5\n    .line 6\n    move-result-object v2\n\n    .line 7\n    const/4 v5, 0x0\n\n    .line 8\n    const/16 v7, 0xe\n\n    .line 9\n    .line 10\n    iget-object v1, p0, Lp/if41;->P0:Lp/d95;\n\n    .line 11\n    .line 12\n    const/4 v3, 0x0\n",
+        replacement: "    .line 1\n    const/high16 v0, 0x3f800000    # 1.0f\n\n    .line 2\n    .line 3\n    invoke-static {v0}, Lp/ywd0;->w(F)Ljava/lang/Float;\n\n    .line 4\n    .line 5\n    .line 6\n    move-result-object v2\n\n    .line 7\n    const/4 v5, 0x0\n\n    .line 8\n    const/16 v7, 0xc\n\n    .line 9\n    .line 10\n    iget-object v1, p0, Lp/if41;->P0:Lp/d95;\n\n    .line 11\n    .line 12\n    invoke-static {}, Lspatch/Surfaces;->pressSpring()Lp/ud5;\n\n    move-result-object v3\n",
+    },
     // Widget: Glance's hand-off of the rendered RemoteViews (p.rx5, classes.dex) asks
     // spatch.SpatchWidget first; it returns Spatch's views only for the Now Playing widget.
     Edit {
@@ -526,7 +532,7 @@ pub const EDITS: [Edit; 79] = [
 
 /// Original classes moved into `HELPER_DEX` (smali folder, file, original DEX, descriptor) because
 /// their own DEX has no room for the references their edits add; behaviour and names are unchanged.
-const RELOCATED: [(&str, &str, &str, &str); 11] = [
+const RELOCATED: [(&str, &str, &str, &str); 12] = [
     // Typography and the Home filter row: these DEX tables are full too.
     ("smali", "p/jw21.smali", "classes.dex", "Lp/jw21;"),
     ("smali_classes2", "p/tzb.smali", "classes2.dex", "Lp/tzb;"),
@@ -534,6 +540,8 @@ const RELOCATED: [(&str, &str, &str, &str); 11] = [
     // Compose surface and shape policy (spatch.Surfaces): both DEX tables are full.
     ("smali", "p/yw9.smali", "classes.dex", "Lp/yw9;"),
     ("smali", "p/xp31.smali", "classes.dex", "Lp/xp31;"),
+    // Encore's press spring: classes.dex has no room for the hook's reference.
+    ("smali", "p/if41.smali", "classes.dex", "Lp/if41;"),
     (
         "smali_classes2",
         "com/spotify/playbacknative/AudioEffectsListener.smali",
@@ -879,6 +887,8 @@ fn obfuscated_classes() -> String {
 }
 
 const STUBS: &[(&str, &str)] = &[
+    ("ud5.java", include_str!("../theme/dex/stubs/p/ud5.java")),
+    ("w6b1.java", include_str!("../theme/dex/stubs/p/w6b1.java")),
     (
         "Camera.java",
         include_str!("../theme/dex/stubs/android/graphics/Camera.java"),

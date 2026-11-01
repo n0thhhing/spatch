@@ -33,7 +33,8 @@ import p.zpo;
 public final class Flourish extends Drawable implements InvocationHandler, Runnable {
     static final int NONE = 0, LIBRARY = 1, PLAYLIST = 2;
     private static final int LIBRARY_TAB = 2;
-    private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500, RIPPLE_MILLIS = 340; // ms
+    private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500, RIPPLE_MILLIS = 340;
+    private static final float BAR_PULL = 40; // dp // ms
     private static final float GLOW = 120, RING = 34, RING_WIDTH = 4, FOLLOW = 0.3f; // dp
     private static final float CASCADE_MILLIS = 340, CASCADE_STAGGER = 45, CASCADE_RISE = 26; // ms, dp
     private static final int CASCADE_ROWS = 10, CASCADE_MASK = 0xfffeb; // alpha and translationY only
@@ -63,7 +64,9 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     private final int slop;
     private float x, y, downX, downY, glowAlpha;
     private long downAt = -100000, rippleAt = -100000;
-    private float rippleX, rippleY;
+    private float rippleX, rippleY, lastY, pulled;
+    private View nav, pill, mini;
+    private boolean barsHidden;
     private boolean down, dragging, popped, running;
 
     private Flourish(View root, Window.Callback next) {
@@ -107,6 +110,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     }
 
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if ("dispatchKeyEvent".equals(method.getName()) && nav != null) bars(-1); // Back can leave the page they hid on
         if ("dispatchTouchEvent".equals(method.getName())) {
             try {
                 touch((MotionEvent) args[0]);
@@ -210,11 +214,23 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             downY = y;
             downAt = SystemClock.uptimeMillis();
             start();
+            lastY = y;
+            bars(0);
         } else if (action == MotionEvent.ACTION_MOVE) {
+            if (Settings.get(Settings.HIDE_BARS)) {
+                pulled += y - lastY;
+                if (Math.abs(x - downX) < Math.abs(y - downY)) {
+                    if (pulled < -BAR_PULL * dp) bars(1);
+                    else if (pulled > BAR_PULL * dp / 3) bars(-1);
+                }
+                lastY = y;
+            }
             if (Math.abs(x - downX) > slop || Math.abs(y - downY) > slop) dragging = true;
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             down = false;
+            pulled = 0;
             if (action == MotionEvent.ACTION_UP && !dragging) {
+                bars(-1); // a tap may open anything: nothing should stay hidden under it
                 tapAt = SystemClock.uptimeMillis();
                 if (Settings.get(Settings.TAP_RIPPLE) && Wave.animationsEnabled()) {
                     rippleAt = tapAt;
@@ -223,6 +239,28 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
                     start();
                 }
             }
+        }
+    }
+
+    /** Slides the bottom bars: 1 away, -1 back, 0 only finds them for this touch. */
+    private void bars(int way) {
+        if (way == 0) {
+            nav = root.findViewById(root.getResources().getIdentifier("navigation_bar", "id", root.getContext().getPackageName()));
+            pill = root.findViewById(root.getResources().getIdentifier("indicator", "id", root.getContext().getPackageName()));
+            mini = MiniBar.current();
+            return;
+        }
+        boolean hide = way > 0;
+        if (hide == barsHidden || hide && (nav == null || !nav.isShown())) return;
+        barsHidden = hide;
+        pulled = 0;
+        for (View bar : new View[] {nav, pill, mini}) {
+            if (bar == null) continue;
+            int[] at = new int[2];
+            bar.getLocationOnScreen(at);
+            float by = hide ? root.getHeight() - at[1] + 16 * dp : 0;
+            if (Wave.animationsEnabled()) bar.animate().translationY(by).setDuration(hide ? 240 : 320).start();
+            else bar.setTranslationY(by);
         }
     }
 

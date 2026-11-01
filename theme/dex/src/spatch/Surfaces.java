@@ -1,6 +1,8 @@
 package spatch;
 
 import p.bv61;
+import p.ud5;
+import p.w6b1;
 import p.cxn1;
 import p.evx;
 import p.mtg;
@@ -69,6 +71,11 @@ public final class Surfaces {
     public static evx drawerItem(evx item) {
         if (!Settings.sideCards()) return item;
         return evx.a(item, null, 0, null, new zyq0(0f, 0f, 0f, 0f), null, 47);
+    }
+
+    /** if41's release: everything Encore makes pressable springs back past rest, or settles as stock. */
+    public static ud5 pressSpring() {
+        return Settings.get(Settings.BOUNCY_PRESS) && Wave.animationsEnabled() ? new w6b1(0.38f, 420f, null) : new w6b1(1f, 1500f, null);
     }
 
     /** tsr, Compose's default press overlay: a light veil that reads on any theme surface. */

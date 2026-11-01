@@ -137,6 +137,10 @@ public final class MiniBar extends MotionLayout implements Runnable {
         }
     }
 
+    static MiniBar current() {
+        return bar == null ? null : bar.get();
+    }
+
     static void settingsChanged() {
         MiniBar view = bar == null ? null : bar.get();
         if (view != null) view.run();

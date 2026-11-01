@@ -111,7 +111,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Seek time bubble",
         "Album colour bar",
         "Tap ripples",
-        "Playful banner"
+        "Playful banner",
+        "Bouncy press",
+        "Hide bars while scrolling"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -196,7 +198,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Shows the time above your finger",
         "Takes on a little of the cover's colour",
         "A soft ring wherever you tap",
-        "Drag the shape on the Spatch banner"
+        "Drag the shape on the Spatch banner",
+        "Tiles and rows spring back when you let go",
+        "The bars slide away going down and return going up"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
@@ -206,7 +210,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up"
     };
 
     /** Section layout: Settings indices per group. */
@@ -246,6 +250,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private View chooseBanner, removeBanner;
     private static final float INACTIVE = 0.5f;
     private static final long SWAP = 220;
+    private static final int RISE_ROWS = 8;
+    private static final android.view.animation.DecelerateInterpolator RISE = new android.view.animation.DecelerateInterpolator(2f);
     final FrameLayout pages;
     private final int bottom;
     private final java.util.ArrayList<View> stack = new java.util.ArrayList<View>();
@@ -575,6 +581,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         for (int i : MOTION) motion.addView(featureRows[i]);
         motion.addView(featureRows[Settings.TAP_RIPPLE]);
         motion.addView(featureRows[Settings.HERO_TOUCH]);
+        motion.addView(featureRows[Settings.BOUNCY_PRESS]);
+        motion.addView(featureRows[Settings.HIDE_BARS]);
         finish(motion);
         addSectionHeader("Haptics");
         LinearLayout haptics = addGroup();
@@ -583,7 +591,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         tryHaptics.setOnClickListener(this);
         haptics.addView(tryHaptics);
         finish(haptics);
-        resetFor(concat(concat(MOTION, HAPTICS), new int[] {Settings.TAP_RIPPLE, Settings.HERO_TOUCH}), new int[0]);
+        resetFor(concat(concat(MOTION, HAPTICS), new int[] {Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS}), new int[0]);
         finishCategory(navigation);
 
         View contentPage = category(categories, "hidden", "Content", "Hidden sections, podcasts and the side menu", "Content");
@@ -803,6 +811,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         to.setAlpha(0f);
         to.setTranslationX(direction * density * 40);
         to.animate().alpha(1f).translationX(0f).setDuration(SWAP).start();
+        if (direction > 0) rise(((ViewGroup) to).getChildAt(0));
         from.animate().alpha(0f).translationX(-direction * density * 24).setDuration(SWAP).start();
         postDelayed(new Runnable() {
             public void run() {
@@ -811,6 +820,17 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 from.setTranslationX(0f);
             }
         }, SWAP);
+    }
+
+    /** A page's groups arrive in turn, each from a little lower. */
+    private void rise(View page) {
+        if (!(page instanceof ViewGroup)) return;
+        ViewGroup groups = (ViewGroup) page;
+        for (int i = 0; i < Math.min(groups.getChildCount(), RISE_ROWS); i++) {
+            View group = groups.getChildAt(i);
+            group.setTranslationY(density * 18);
+            group.animate().translationY(0f).setStartDelay(i * 28L).setDuration(300).setInterpolator(RISE).start();
+        }
     }
 
     private boolean popPage() {
