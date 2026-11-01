@@ -789,10 +789,15 @@ fn stub_members() -> String {
             match c {
                 '{' | ';' if depth == 1 => {
                     for member in stub_member(&statement) {
-                        // Many stub constructors exist only for javac: list the ones a helper calls.
-                        let made = helpers(true)
-                            .iter()
-                            .any(|(_, h)| h.contains(&format!("new {class}(")));
+                        // Many stub constructors and fields exist only for javac or the stub's own
+                        // body: list what a helper uses.
+                        let used = |text: &str| helpers(true).iter().any(|(_, h)| h.contains(text));
+                        let made = used(&format!("new {class}("));
+                        let field = member.strip_suffix("|=").map(|name| format!(".{name}"));
+                        if field.is_some_and(|name| !used(&name)) || statement.contains("private ")
+                        {
+                            continue;
+                        }
                         if !member.starts_with(&format!("{class}|")) {
                             members.push(format!("p.{class}|{member}"));
                         } else if made {
@@ -820,6 +825,7 @@ fn stub_members() -> String {
 /// One class-body statement as `name|parameter types`; a field line can name several, a nested type none.
 fn stub_member(statement: &str) -> Vec<String> {
     let simple = |text: &str| {
+        let text = text.replace("...", "[] ");
         let text = text.trim().split('<').next().unwrap().trim();
         let mut words: Vec<_> = text.split_whitespace().filter(|w| *w != "final").collect();
         words.pop();
@@ -1705,6 +1711,8 @@ mod tests {
         }
         assert!(members.contains("p.hqr0|getValue|"));
         assert!(members.contains("p.psn0|b|="));
+        assert!(members.contains("p.hoo1|w|Object[]"));
+        assert!(!members.contains("p.reb1|mask|=") && !members.contains("p.knb1|value|="));
         assert!(members.contains("p.z341|q|rhm0;float;float;float;float;float;float;float;long;bv61;boolean;long;long;int;"));
     }
 
