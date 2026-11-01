@@ -12,6 +12,7 @@ import android.os.SystemClock;
 
 /** Player-only circular art. Keeps Spotify's image loading, gestures and accessibility. */
 public final class PlayerArt extends ImageView {
+    private boolean preview; // settings sample: draws with the live settings, never touches the player or audio
     private final Paint ink = new Paint(3);
     private final Path outline = new Path();
     // Shared by every carousel page, so a song change crossfades from the old colours rather than
@@ -47,7 +48,15 @@ public final class PlayerArt extends ImageView {
     private static Drawable original; // controls background before any page's backdrop replaced it
     public PlayerArt(Context c, AttributeSet a) { super(c, a); Settings.load(c); }
 
+    static PlayerArt preview(Context c, Drawable art) {
+        PlayerArt sample = new PlayerArt(c, null);
+        sample.preview = true;
+        sample.setImageDrawable(art);
+        return sample;
+    }
+
     public boolean dispatchTouchEvent(MotionEvent e) {
+        if (preview) return false;
         float slop = Math.max(36, getWidth() * 0.08f);
         motion.touch(e);
         int action = e.getActionMasked();
@@ -109,7 +118,7 @@ public final class PlayerArt extends ImageView {
         boolean current=isCurrentPage();
         if(!current) {
             // Spin and fade follow the slide, so a page crossing the screen draws every frame.
-            if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(skipMotion && Math.abs(offset) < 1.1f ? 16 : 250);
+            if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(preview || skipMotion && Math.abs(offset) < 1.1f ? 16 : 250);
             return;
         }
         float[] from=MiniBar.claimExpansion();
@@ -507,7 +516,7 @@ public final class PlayerArt extends ImageView {
     }
 
     boolean isCurrentPage() {
-        if(getWidth()<=0 || !isShown()) return false;
+        if(preview || getWidth()<=0 || !isShown()) return false;
         getLocationOnScreen(loc);
         float centre=loc[0]+getWidth()/2f;
         return Math.abs(centre-getRootView().getWidth()/2f) < getWidth()/4f;

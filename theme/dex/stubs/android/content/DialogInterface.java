@@ -7,6 +7,10 @@ public interface DialogInterface {
 
     void dismiss();
 
+    interface OnDismissListener {
+        void onDismiss(DialogInterface d);
+    }
+
     interface OnClickListener {
         void onClick(DialogInterface d, int which);
     }

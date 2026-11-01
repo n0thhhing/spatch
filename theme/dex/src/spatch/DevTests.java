@@ -236,6 +236,25 @@ final class DevTests {
                 return "";
             }
         });
+        test("Player preview leaves the player alone", new Test() {
+            public String run() {
+                PlayerArt sample = PlayerArt.preview(context, new android.graphics.drawable.ColorDrawable(0xff336699));
+                check(!sample.isCurrentPage(), "it would capture audio and set the backdrop");
+                long now = SystemClock.uptimeMillis();
+                MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 10, 10, 0);
+                check(!sample.dispatchTouchEvent(down), "it would scratch the real song");
+                down.recycle();
+                return "";
+            }
+        });
+        test("Theme reveal covers the whole screen", new Test() {
+            public String run() {
+                check(Math.abs(ThemeReveal.reach(300, 400, 0, 0) - 500) < .01f, "from a corner");
+                check(Math.abs(ThemeReveal.reach(300, 400, 300, 400) - 500) < .01f, "from the far corner");
+                check(ThemeReveal.reach(300, 400, 150, 200) >= 250, "from the middle");
+                return "";
+            }
+        });
         test("Motes move every frame after weeks of uptime", new Test() {
             public String run() {
                 double weeks = 21 * 86400;

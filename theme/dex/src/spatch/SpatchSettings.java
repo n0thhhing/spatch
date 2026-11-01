@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.ColorStateList;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
@@ -23,7 +24,7 @@ import android.widget.TextView;
  * round at the group's ends. Opened from the profile side drawer; handles system back gesture,
  * hardware back, and the header back button.
  */
-public final class SpatchSettings extends FrameLayout implements View.OnClickListener, View.OnScrollChangeListener, DialogInterface.OnClickListener, Runnable {
+public final class SpatchSettings extends FrameLayout implements View.OnClickListener, View.OnScrollChangeListener, DialogInterface.OnClickListener, DialogInterface.OnDismissListener, Runnable {
     Back back;
 
     // Indexed like Settings.KEYS: wave, buttons, backdrop, round_art, immersive, shapes, reduce_motion, visualizer,
@@ -274,6 +275,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private final java.util.ArrayList<View> masters = new java.util.ArrayList<View>();
     private final java.util.HashMap<Integer, LinearLayout> masterPages = new java.util.HashMap<Integer, LinearLayout>();
     private TextView homeCount, themeNote;
+    private ThemeReveal reveal;
     private boolean closing;
     private final M3Switch[] featureSwitches = new M3Switch[FEATURE_TITLES.length];
     private static final int[] HAPTICS = {17, 18, 19, 20};
@@ -391,7 +393,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         finishCategory(appearance);
 
         View playerPage = category(categories, "now_playing", "Player", "Artwork, ring, glow, controls and immersive", "Player");
+        addPlayerPreview((LinearLayout) playerPage);
         LinearLayout artworkPage = subPage("Artwork");
+        addPlayerPreview(artworkPage);
         addSectionHeader("Ring");
         LinearLayout ringRows = addGroup();
         addChoice(ringRows, Settings.ART_OUTLINE, "Style", "Audio moves the ring with the music; uses the microphone permission", new String[] {"Wavy", "Simple", "None", "Audio"});
@@ -710,6 +714,35 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         }
         content = page;
         return page;
+    }
+
+    /** The real artwork drawing over a real backdrop and seek bar, so every change shows as it's made. */
+    private void addPlayerPreview(LinearLayout page) {
+        Context context = getContext();
+        FrameLayout frame = new FrameLayout(context);
+        frame.setBackground(rounded(card, dp(24)));
+        frame.setClipToOutline(true);
+        frame.setContentDescription("Preview of the player");
+        Drawable art = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[] {accent, high});
+        Atmosphere backdrop = new Atmosphere();
+        backdrop.capture(art);
+        View behind = new View(context, null);
+        behind.setBackground(backdrop);
+        frame.addView(behind, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        FrameLayout.LayoutParams artLp = new FrameLayout.LayoutParams(dp(196), dp(196), Gravity.CENTER_HORIZONTAL);
+        artLp.topMargin = dp(8);
+        frame.addView(PlayerArt.preview(context, art), artLp);
+        Wave wave = new Wave();
+        wave.setLevel(4000);
+        View seek = new View(context, null);
+        seek.setBackground(wave);
+        FrameLayout.LayoutParams seekLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(12), Gravity.BOTTOM);
+        seekLp.leftMargin = seekLp.rightMargin = dp(28);
+        seekLp.bottomMargin = dp(16);
+        frame.addView(seek, seekLp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(244));
+        lp.bottomMargin = dp(8);
+        page.addView(frame, lp);
     }
 
     /** Springy rows overshoot their bounds; a parent must not cut that off. */
@@ -1168,17 +1201,32 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     private void onThemeSelected(int index, String themeName) {
         String current = Palette.requested();
-        if (themeName.equals(current)) return;
+        if (themeName.equals(current) || reveal != null) return;
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
         refreshThemes(themeName, true);
+        reveal = ThemeReveal.open(this, themeRows[index], index, THEME_TITLES[index]);
+        if (reveal == null) { askThemeRestart(); return; }
+        postDelayed(new Runnable() {
+            public void run() {
+                if (isAttachedToWindow()) askThemeRestart();
+            }
+        }, 420);
+    }
 
+    private void askThemeRestart() {
         new AlertDialog.Builder(getContext(), 0x010302d1) // android.R.style.Theme_DeviceDefault_Dialog_Alert: system Material dialog, not Holo
             .setTitle("Restart to apply theme?")
             .setMessage("Spotify needs to restart to apply the new color palette.")
             .setPositiveButton("Restart now", this)
             .setNegativeButton("Later", this)
+            .setOnDismissListener(this)
             .show();
+    }
+
+    public void onDismiss(DialogInterface dialog) {
+        if (reveal != null) reveal.close();
+        reveal = null;
     }
 
     void addSectionHeader(String title) {
@@ -1343,6 +1391,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     public void onClick(DialogInterface dialog, int which) {
         if (which == DialogInterface.BUTTON_POSITIVE) {
+            reveal = null; // stays over the screen through the restart
             Palette.restart(getContext());
         } else {
             dialog.dismiss();

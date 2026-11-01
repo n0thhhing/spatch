@@ -22,7 +22,6 @@ step is finding Encore's contained button.
 - Artist page: header image zooms slightly on pull, name fades into the top bar.
 - Now Playing title: colour taken from the cover, per setting.
 - A seek bar style that follows the spectrum.
-- Theme picker: a circular reveal from the tapped swatch.
 - Animated wallpaper-style backdrop on Home, off by default.
 
 ## Fun interactions
@@ -40,7 +39,6 @@ step is finding Encore's contained button.
 
 - Named presets of your own, beyond Calm and Everything.
 - Strength sliders for tilt, ripple size and hide distance instead of fixed values.
-- A live preview of the player inside Spatch settings.
 
 ## Speed
 

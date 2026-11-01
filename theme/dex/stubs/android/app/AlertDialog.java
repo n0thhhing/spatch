@@ -35,6 +35,7 @@ public class AlertDialog implements android.content.DialogInterface {
             return this;
         }
 
+        public Builder setOnDismissListener(android.content.DialogInterface.OnDismissListener l) { return this; }
         public Builder setView(android.view.View v) { return this; }
         public Builder setNeutralButton(CharSequence s, android.content.DialogInterface.OnClickListener l) { return this; }
         public AlertDialog create() { return new AlertDialog(); }

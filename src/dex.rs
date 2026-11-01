@@ -564,7 +564,7 @@ const RELOCATED: [(&str, &str, &str, &str); 12] = [
 ];
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-const HELPERS: [(&str, &str); 53] = [
+const HELPERS: [(&str, &str); 54] = [
     ("Fonts", include_str!("../theme/dex/src/spatch/Fonts.java")),
     (
         "FontFile",
@@ -645,6 +645,10 @@ const HELPERS: [(&str, &str); 53] = [
     (
         "SettingsHero",
         include_str!("../theme/dex/src/spatch/SettingsHero.java"),
+    ),
+    (
+        "ThemeReveal",
+        include_str!("../theme/dex/src/spatch/ThemeReveal.java"),
     ),
     (
         "ThemeSwatch",
