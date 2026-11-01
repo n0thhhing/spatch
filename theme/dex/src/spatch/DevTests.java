@@ -747,7 +747,7 @@ final class DevTests {
             public String run() {
                 motion();
                 String when = Settings.choice(Settings.BURST_WHEN);
-                boolean master = Settings.get(Settings.BURST), mini = Settings.get(Settings.BURST_MINI);
+                boolean master = Settings.get(Settings.BURST), mini = Settings.get(Settings.BURST_MINI), player = Settings.get(Settings.BURST_PLAYER);
                 int before = Confetti.live;
                 ClickHaptic clicks = new ClickHaptic();
                 View button = new View(context);
@@ -763,9 +763,16 @@ final class DevTests {
                     button.setContentDescription("Pause");
                     clicks.sendAccessibilityEvent(button, 1);
                     check(Confetti.live == before, "Play only burst on pause");
+                    button.setId(ClickHaptic.PLAYER_BUTTON);
+                    button.setContentDescription("Play");
+                    button.setAccessibilityDelegate(clicks);
+                    Settings.set(Settings.BURST_PLAYER, true);
+                    ClickHaptic.forward(button);
+                    check(Confetti.live == before, "the immersive player burst a second time");
                 } finally {
                     Settings.set(Settings.BURST, master);
                     Settings.set(Settings.BURST_MINI, mini);
+                    Settings.set(Settings.BURST_PLAYER, player);
                     Settings.setChoice(Settings.BURST_WHEN, when);
                 }
                 return "";
