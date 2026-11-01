@@ -780,7 +780,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             if (i > 0) each.leftMargin = dp(8);
             presets.addView(pill, each);
         }
-        home.addView(presets);
+        LinearLayout.LayoutParams under = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        under.bottomMargin = dp(14);
+        home.addView(presets, under);
     }
 
     /** The page a row is on, or null for rows that were never placed. */

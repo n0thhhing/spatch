@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 80] = [
+pub const EDITS: [Edit; 81] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -359,6 +359,13 @@ pub const EDITS: [Edit; 80] = [
         file: "smali/p/rx5.smali",
         anchor: "    invoke-virtual {v1, v4, v0}, Landroid/appwidget/AppWidgetManager;->updateAppWidget(ILandroid/widget/RemoteViews;)V\n",
         replacement: "    invoke-static {v4, v0}, Lspatch/SpatchWidget;->replace(ILandroid/widget/RemoteViews;)Landroid/widget/RemoteViews;\n\n    move-result-object v0\n\n    invoke-virtual {v1, v4, v0}, Landroid/appwidget/AppWidgetManager;->updateAppWidget(ILandroid/widget/RemoteViews;)V\n",
+    },
+    // Glance translates the whole widget on the main thread for every state change; once Spatch's own
+    // views are showing the result would be thrown away, so the translation doesn't start.
+    Edit {
+        file: "smali/p/rx5.smali",
+        anchor: ".method public final d(Landroid/content/Context;Lp/d3x;Lp/dnm;)Ljava/lang/Object;\n    .locals 20\n",
+        replacement: ".method public final d(Landroid/content/Context;Lp/d3x;Lp/dnm;)Ljava/lang/Object;\n    .locals 20\n\n    move-object/from16 v0, p0\n\n    iget-object v0, v0, Lp/rx5;->e:Lp/yw5;\n\n    iget v0, v0, Lp/yw5;->a:I\n\n    invoke-static {v0}, Lspatch/SpatchWidget;->skips(I)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_translate\n\n    sget-object v0, Lp/bhh1;->a:Lp/bhh1;\n\n    return-object v0\n\n    :spatch_translate\n",
     },
     // Widget: every framework MediaSession Spotify constructs (the outlined constructor sites outside classes4, which has no method-reference room) is
     // followed by spatch.SpatchWidget for title, artist, art and play state.

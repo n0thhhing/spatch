@@ -41,7 +41,8 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     private static final Bitmap[] slotArt = new Bitmap[2], slotSource = new Bitmap[2];
     private static final long FLIP_MS = 420; // longest flip animation (in 320 ms) plus margin
     private static long flipAt = -FLIP_MS, changeSeenAt;
-    private static RemoteViews lastViews;
+    private static volatile RemoteViews lastViews;
+    private static final java.util.Set<Integer> OWNED = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<Integer, Boolean>());
     /** Widget work (bitmaps, RemoteViews, binder calls) stays off Spotify's main thread. */
     private static Handler worker;
     private static final SpatchWidget PUSH = new SpatchWidget(null);
@@ -158,12 +159,18 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     }
 
     /** Glance hand-off: Spatch's views for the Now Playing widget once a session is known. */
+    /** True once a widget shows Spatch's views: push keeps it current, so Glance needn't translate its own. */
+    public static boolean skips(int widgetId) {
+        return lastViews != null && current != null && OWNED.contains(Integer.valueOf(widgetId));
+    }
+
     public static RemoteViews replace(int widgetId, RemoteViews glance) {
         Context app = Settings.app;
         if (app == null || current == null || Build.VERSION.SDK_INT < 31) return glance;
         try {
             AppWidgetProviderInfo info = AppWidgetManager.getInstance(app).getAppWidgetInfo(widgetId);
             if (info == null || !PROVIDER.equals(info.provider.getClassName())) return glance;
+            OWNED.add(Integer.valueOf(widgetId));
             // Mid-change or mid-flip: hand Glance the views already showing; the scheduled push
             // delivers the change once it settles.
             RemoteViews views = settleDelay() > 0 && lastViews != null ? lastViews : build(app);

@@ -28,15 +28,10 @@ public final class AudioSpectrum {
 
     static void request(Context context, int consumer, boolean active) {
         consumers = active ? consumers | consumer : consumers & ~consumer;
-        final Context app = context.getApplicationContext();
         if (queued) return;
         queued = true;
-        worker().post(new Runnable() {
-            public void run() {
-                queued = false;
-                SHARED.update(app, consumers != 0);
-            }
-        });
+        app = context.getApplicationContext();
+        worker().post(CAPTURE);
     }
 
     /** Setting up and reading a Visualizer are binder calls into the audio server: measured stalling skips on the main thread. */
@@ -65,6 +60,13 @@ public final class AudioSpectrum {
 
     private static android.os.Handler worker;
     private static volatile boolean queued;
+    private static volatile Context app;
+    private static final Runnable CAPTURE = new Runnable() {
+        public void run() {
+            queued = false;
+            SHARED.update(app, consumers != 0);
+        }
+    };
     private Visualizer visualizer;
     private int attempted;
     private byte[] fft;
