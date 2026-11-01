@@ -41,7 +41,7 @@ import p.wt30;
  * dragged across the row, and letting go on another chip selects that chip.
  */
 public final class FilterRow extends HorizontalScrollView implements View.OnClickListener, Runnable {
-    private static final int CHIPS = 0x7f0b0617; // R.id.filter_chips_container
+    static final int CHIPS = 0x7f0b0617; // R.id.filter_chips_container
     private static final long TURN_MILLIS = 4000, DIFF_MILLIS = 48;
     private static final int SLIDE = 40; // dp
     private static FilterRow turning;

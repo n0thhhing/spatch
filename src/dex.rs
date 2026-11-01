@@ -753,6 +753,25 @@ fn helpers(debug: bool) -> Vec<(&'static str, &'static str)> {
     HELPERS.iter().chain(extra).copied().collect()
 }
 
+/// Every Spatch method the edits call, as `invoke kind|class|method|descriptor`, for the on-device link test.
+fn hooks() -> String {
+    let mut hooks: Vec<String> = EDITS
+        .iter()
+        .flat_map(|edit| edit.replacement.lines())
+        .filter_map(|line| {
+            let (kind, target) = line.trim().split_once(" {")?;
+            let (_, target) = target.split_once("}, Lspatch/")?;
+            let (class, target) = target.split_once(";->")?;
+            let (method, shape) = target.split_once('(')?;
+            let kind = kind.trim_end_matches("/range");
+            Some(format!("{kind}|spatch.{class}|{method}|({shape}"))
+        })
+        .collect();
+    hooks.sort();
+    hooks.dedup();
+    hooks.join(",")
+}
+
 /// Every obfuscated class the helpers compile against, for the on-device binding test.
 fn obfuscated_classes() -> String {
     let names: Vec<_> = STUBS
@@ -764,6 +783,14 @@ fn obfuscated_classes() -> String {
 }
 
 const STUBS: &[(&str, &str)] = &[
+    (
+        "ColorDrawable.java",
+        include_str!("../theme/dex/stubs/android/graphics/drawable/ColorDrawable.java"),
+    ),
+    (
+        "LayoutInflater.java",
+        include_str!("../theme/dex/stubs/android/view/LayoutInflater.java"),
+    ),
     (
         "Function0.java",
         include_str!("../theme/dex/stubs/kotlin/jvm/functions/Function0.java"),
@@ -1508,7 +1535,8 @@ fn compile_helper(
     for ((_, src), p) in helpers.iter().zip(&helper_paths) {
         let source = helper_source(src, theme)
             .replace("@THEME@", theme.name)
-            .replace("@OBFUSCATED@", &obfuscated_classes());
+            .replace("@OBFUSCATED@", &obfuscated_classes())
+            .replace("@HOOKS@", &hooks());
         fs::write(p, source)?;
         javac_helpers.push(p.as_os_str());
     }
@@ -1589,6 +1617,13 @@ pub fn check_ref_limits(entry: &str, dexdump: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn device_link_test_lists_the_hooks() {
+        let hooks = hooks();
+        assert!(hooks.contains("invoke-static|spatch.Flourish|pressed|(Lkotlin/jvm/functions/Function0;I)Lkotlin/jvm/functions/Function0;"));
+        assert!(hooks.split(',').count() > 20);
+    }
 
     /// Spotify's classes sit in other packages: a hook that isn't public crashes at its first call.
     #[test]

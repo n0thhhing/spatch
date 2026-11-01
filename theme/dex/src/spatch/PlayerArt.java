@@ -29,7 +29,7 @@ public final class PlayerArt extends ImageView {
     private boolean faded;
     private float turn; // the distance Shrink and Fade show, which trails a fast skip
     private long turnAt, centredAt;
-    private static long songAt = -100000;
+    static long songAt = -100000;
     private Drawable previousArt;
     private long revealStart;
     private long tapAt = -1000;

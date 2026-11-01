@@ -63,6 +63,10 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public android.view.ViewOverlay getOverlay() { return new android.view.ViewOverlay(); }
     public boolean isPressed() { return false; }
     public int getId() { return 0; }
+    public void setId(int id) {}
+    public float getAlpha() { return 1; }
+    public void layout(int l, int t, int r, int b) {}
+    public void draw(android.graphics.Canvas c) {}
     protected void onFinishInflate() {}
     public static final int LAYOUT_DIRECTION_RTL = 1, IMPORTANT_FOR_ACCESSIBILITY_NO = 2, IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 4;
     public boolean performHapticFeedback(int c) { return true; }

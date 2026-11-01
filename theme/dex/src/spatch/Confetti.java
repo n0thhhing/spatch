@@ -21,7 +21,7 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
     private static final float REACH = 44, SPREAD = 52, SIZE = 5, SIZE_SPREAD = 6, FALL = 58; // dp
     private static final int COOKIE = 0, SUN = 1, CLOVER = 2, HEART = 3, STAR = 4, DOT = 5;
     private static final Path[] SHAPES = new Path[6];
-    private static int live;
+    static int live;
 
     private final View root;
     private final float x, y, dp;

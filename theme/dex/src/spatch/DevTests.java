@@ -2,12 +2,23 @@ package spatch;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.ColorDrawable;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.TextView;
 import java.io.File;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import kotlin.jvm.functions.Function0;
+import p.rhm0;
 
 /** Self tests run inside the patched app, where they see the real classes, resources and audio. */
 final class DevTests {
@@ -230,7 +241,231 @@ final class DevTests {
                 return Content.onHome().size() + " on Home";
             }
         });
+        test("Every Spatch hook links", new Test() {
+            public String run() {
+                inApp();
+                String[] hooks = "@HOOKS@".split(",");
+                ArrayList<String> broken = new ArrayList<String>();
+                for (String hook : hooks) if (!links(hook.split("\\|"))) broken.add(hook);
+                check(broken.isEmpty(), "broken " + broken);
+                return hooks.length + " hooks";
+            }
+        });
+        test("Hardcoded ids match Spotify's", new Test() {
+            public String run() {
+                inApp();
+                check(ClickHaptic.PLAYER_BUTTON == id("nowplaying_elements_playpause_button", "id"), "player play button");
+                check(ClickHaptic.MINI_BUTTON == id("play_pause_button", "id"), "mini player button");
+                check(FilterRow.CHIPS == id("filter_chips_container", "id"), "filter chips");
+                return "";
+            }
+        });
+        test("Clicks on runtime views", new Test() {
+            public String run() {
+                inApp();
+                View generated = new View(context);
+                generated.setId(0x1a); // the id in the crash: it has no resource name
+                new ClickHaptic().sendAccessibilityEvent(generated, 1);
+                return "";
+            }
+        });
+        test("New title starts the arrival", new Test() {
+            public String run() {
+                motion();
+                TextView title = new TextView(context);
+                TextSlide.attach(title);
+                title.setText("first");
+                PlayerArt.songAt = -100000;
+                title.setText("second");
+                boolean started = PlayerArt.songAt > 0;
+                PlayerArt.songAt = -100000;
+                check(started, "the title watcher never reached the artwork");
+                return "";
+            }
+        });
+        test("Artwork draws in every style", new Test() {
+            public String run() {
+                inApp();
+                String skip = Settings.choice(Settings.ART_SKIP), outline = Settings.choice(Settings.ART_OUTLINE), style = Settings.choice(Settings.GLOW_STYLE);
+                Canvas canvas = new Canvas(Bitmap.createBitmap(ART, ART, Bitmap.Config.ARGB_8888));
+                int drawn = 0;
+                try {
+                    for (String s : Settings.CHOICES[Settings.ART_SKIP]) {
+                        for (String o : Settings.CHOICES[Settings.ART_OUTLINE]) {
+                            for (String g : Settings.CHOICES[Settings.GLOW_STYLE]) {
+                                Settings.setChoice(Settings.ART_SKIP, s);
+                                Settings.setChoice(Settings.ART_OUTLINE, o);
+                                Settings.setChoice(Settings.GLOW_STYLE, g);
+                                art().draw(canvas);
+                                drawn++;
+                            }
+                        }
+                    }
+                } finally {
+                    Settings.setChoice(Settings.ART_SKIP, skip);
+                    Settings.setChoice(Settings.ART_OUTLINE, outline);
+                    Settings.setChoice(Settings.GLOW_STYLE, style);
+                }
+                return drawn + " styles";
+            }
+        });
+        test("Shrink and Fade change the pixels", new Test() {
+            public String run() throws Exception {
+                motion();
+                String skip = Settings.choice(Settings.ART_SKIP);
+                try {
+                    Settings.setChoice(Settings.ART_SKIP, "slide");
+                    check(red(arrived()), "the art should reach past " + EDGE + " at rest");
+                    Settings.setChoice(Settings.ART_SKIP, "shrink");
+                    check(!red(arrived()), "a new song's art stayed full size");
+                    Settings.setChoice(Settings.ART_SKIP, "fade");
+                    PlayerArt fading = art();
+                    PlayerArt.songChanged();
+                    Thread.sleep(2);
+                    fading.draw(new Canvas(Bitmap.createBitmap(ART, ART, Bitmap.Config.ARGB_8888)));
+                    check(fading.getAlpha() < .2f, "a new song's art stayed visible: " + fading.getAlpha());
+                    PlayerArt.songAt = -100000;
+                    PlayerArt leaving = art();
+                    Canvas canvas = new Canvas(Bitmap.createBitmap(ART, ART, Bitmap.Config.ARGB_8888));
+                    leaving.draw(canvas);
+                    Thread.sleep(2);
+                    PlayerArt.songChanged();
+                    Thread.sleep(2);
+                    leaving.draw(canvas);
+                    check(leaving.getAlpha() == 1, "the old art snapped away: " + leaving.getAlpha());
+                } finally {
+                    Settings.setChoice(Settings.ART_SKIP, skip);
+                    PlayerArt.songAt = -100000;
+                }
+                return "";
+            }
+        });
+        test("Rows build on real Compose", new Test() {
+            public String run() {
+                inApp();
+                boolean rise = Settings.get(Settings.LIBRARY_CASCADE);
+                try {
+                    Settings.set(Settings.LIBRARY_CASCADE, true);
+                    int on = modifiers(true);
+                    Settings.set(Settings.LIBRARY_CASCADE, false);
+                    int off = modifiers(true);
+                    check(on == off && on > 0, "a row must keep the same layers with Rise in on and off, or its card goes: " + on + " and " + off);
+                    check(modifiers(false) > 0, "track rows");
+                    return on + " modifiers";
+                } finally {
+                    Settings.set(Settings.LIBRARY_CASCADE, rise);
+                }
+            }
+        });
+        test("Play button press still plays", new Test() {
+            public String run() {
+                inApp();
+                final int[] clicks = {0};
+                Object answer = Flourish.pressed(new Function0() {
+                    public Object invoke() {
+                        clicks[0]++;
+                        return "played";
+                    }
+                }, ScallopShape.PLAYING).invoke();
+                check(clicks[0] == 1 && "played".equals(answer), "the wrapper lost Spotify's click");
+                return "";
+            }
+        });
+        test("Burst draws", new Test() {
+            public String run() {
+                motion();
+                int before = Confetti.live;
+                Confetti.at(root, root.getWidth() / 2f, root.getHeight() / 2f);
+                check(Confetti.live == before + 1 || before > 0, "nothing joined the window");
+                return "";
+            }
+        });
+        test("Artwork page inflates", new Test() {
+            public String run() {
+                inApp();
+                View page = LayoutInflater.from(context).inflate(id("square_cover_art_content", "layout"), null, false);
+                check(page.findViewById(id("image", "id")) instanceof PlayerArt, "the art isn't Spatch's view");
+                return "";
+            }
+        });
         return results;
+    }
+
+    private static final int ART = 400, EDGE = 150;
+
+    /** Tests of real Spotify and Android behaviour mean nothing outside the app. */
+    private void inApp() {
+        if (root == null) throw new Skip("needs the running app");
+    }
+
+    private void motion() {
+        inApp();
+        if (!Wave.animationsEnabled()) throw new Skip("turn off reduce motion first");
+    }
+
+    private PlayerArt art() {
+        PlayerArt page = new PlayerArt(context, null);
+        page.setImageDrawable(new ColorDrawable(0xffff0000));
+        page.layout(0, 0, ART, ART);
+        return page;
+    }
+
+    /** The pixels of a page that has just landed on a new song. */
+    private Bitmap arrived() throws InterruptedException {
+        PlayerArt page = art();
+        PlayerArt.songChanged();
+        Thread.sleep(2);
+        Bitmap pixels = Bitmap.createBitmap(ART, ART, Bitmap.Config.ARGB_8888);
+        page.draw(new Canvas(pixels));
+        return pixels;
+    }
+
+    /** Full-size art reaches this point; the smallest Shrink doesn't. */
+    private static boolean red(Bitmap pixels) {
+        int c = pixels.getPixel(ART / 2 + EDGE, ART / 2);
+        return (c >> 16 & 255) > 200 && (c >> 8 & 255) < 80;
+    }
+
+    /** Runs a row through Spotify's real shape, padding and layer code; returns how many modifiers it added. */
+    private static int modifiers(boolean library) {
+        final int[] added = {0};
+        rhm0 row = (rhm0) Proxy.newProxyInstance(rhm0.class.getClassLoader(), new Class<?>[] {rhm0.class}, new InvocationHandler() {
+            public Object invoke(Object self, Method method, Object[] args) {
+                if ("hashCode".equals(method.getName())) return Integer.valueOf(0);
+                if ("equals".equals(method.getName())) return Boolean.valueOf(self == args[0]);
+                if ("toString".equals(method.getName())) return "row";
+                if (method.getReturnType() == boolean.class) return Boolean.FALSE;
+                added[0]++;
+                return self;
+            }
+        });
+        if (library) Surfaces.libraryRow(row); else Surfaces.trackRow(row);
+        return added[0];
+    }
+
+    /** {invoke kind, class, method, descriptor}: public and exact, or Spotify's call dies when it first runs. */
+    private static boolean links(String[] hook) {
+        try {
+            Class<?> owner = Class.forName(hook[1], false, DevTests.class.getClassLoader());
+            if (!Modifier.isPublic(owner.getModifiers())) return false;
+            for (Method m : owner.getDeclaredMethods()) {
+                if (!m.getName().equals(hook[2]) || !Modifier.isPublic(m.getModifiers())) continue;
+                if (Modifier.isStatic(m.getModifiers()) != "invoke-static".equals(hook[0])) continue;
+                StringBuilder shape = new StringBuilder("(");
+                for (Class<?> p : m.getParameterTypes()) shape.append(descriptor(p));
+                if (shape.append(')').append(descriptor(m.getReturnType())).toString().equals(hook[3])) return true;
+            }
+        } catch (ClassNotFoundException | LinkageError missing) {
+            // a parameter type that isn't in this build counts as broken
+        }
+        return false;
+    }
+
+    private static String descriptor(Class<?> type) {
+        if (type.isArray()) return "[" + descriptor(type.getComponentType());
+        if (!type.isPrimitive()) return "L" + type.getName().replace('.', '/') + ";";
+        return type == int.class ? "I" : type == long.class ? "J" : type == float.class ? "F" : type == boolean.class ? "Z" : type == void.class ? "V"
+            : type == double.class ? "D" : type == byte.class ? "B" : type == short.class ? "S" : "C";
     }
 
     private int id(String name, String type) {
