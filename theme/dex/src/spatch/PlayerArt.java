@@ -150,7 +150,7 @@ public final class PlayerArt extends ImageView {
         return (loc[0] + getWidth() / 2f - getRootView().getWidth() / 2f) / getRootView().getWidth();
     }
 
-    /** Skip animation: the page rolls like a record as it crosses, shrinks or fades on the way. */
+    /** Skip animation: the page rolls like a record as it crosses, or shrinks or fades on the way. */
     private void turnPage(Canvas canvas, String skip, float offset) {
         boolean fade = "fade".equals(skip) && Wave.animationsEnabled();
         if (fade || faded) {
@@ -158,11 +158,12 @@ public final class PlayerArt extends ImageView {
             faded = fade;
         }
         if ("slide".equals(skip) || fade || offset == 0) return;
-        canvas.rotate(offset * 200f, getWidth() / 2f, getHeight() / 2f);
-        if ("shrink".equals(skip)) {
-            float scale = 1 - 0.35f * Math.min(1, Math.abs(offset));
-            canvas.scale(scale, scale, getWidth() / 2f, getHeight() / 2f);
+        if ("spin".equals(skip)) {
+            canvas.rotate(offset * 200f, getWidth() / 2f, getHeight() / 2f);
+            return;
         }
+        float scale = 1 - 0.35f * Math.min(1, Math.abs(offset));
+        canvas.scale(scale, scale, getWidth() / 2f, getHeight() / 2f);
     }
 
     /** Circular art with a soft glow and a slowly turning scalloped ring. */

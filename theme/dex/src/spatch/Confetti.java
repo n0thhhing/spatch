@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
+import android.os.SystemClock;
 import android.view.View;
 import java.util.Random;
 
@@ -21,6 +22,7 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
     private static final int COOKIE = 0, SUN = 1, CLOVER = 2, HEART = 3, STAR = 4, DOT = 5;
     private static final Path[] SHAPES = new Path[6];
     private static int live;
+    private static long buttonAt = -100000;
 
     private final View root;
     private final float x, y, dp;
@@ -103,9 +105,15 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
 
     /** Where a Compose button or the immersive player reports only a point. */
     static void wanted(View host, float x, float y, boolean starting, int where) {
+        buttonAt = SystemClock.uptimeMillis();
         if (Settings.get(Settings.BURST) && Settings.get(where) && (starting || !"play".equals(Settings.choice(Settings.BURST_WHEN)))) {
             at(host, x, y);
         }
+    }
+
+    /** That touch reached a button which reports itself, so a play state change after it is not news. */
+    static boolean answered(long touchAt) {
+        return buttonAt >= touchAt;
     }
 
     /** Always bursts, for the settings preview. */

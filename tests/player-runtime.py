@@ -22,6 +22,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('setEnabled(boolean enabled) {}', 'setEnabled(boolean value) {enabled=value;}').replace('isEnabled() { return true; }', 'isEnabled() { return enabled; }')
             text = text.replace('setPressed(boolean pressed) {}', 'setPressed(boolean value) {pressed=value;}').replace('isPressed() { return false; }', 'isPressed() { return pressed; }')
             text = text.replace('setHovered(boolean hovered) {}', 'setHovered(boolean value) {hovered=value;}').replace('isHovered() { return false; }', 'isHovered() { return hovered; }')
+            text = text.replace('public int getId() { return 0; }', 'public int testId; public int getId() { return testId; }')
             text = text.replace('getRootView() { return null; }', 'getRootView() { if (root != null) return root; View cur = this; while (cur.getParent() instanceof View) { cur = (View) cur.getParent(); } return cur; }')
             text = text.replace('getWidth() { return 0; }', 'getWidth() { return 1000; }').replace('getHeight() { return 0; }', 'getHeight() { return testHeight; }')
             text = text.replace('getContext() { return null; }', 'getContext() { return new android.content.Context(); }')
@@ -607,8 +608,8 @@ public class PlayerRuntimeTest {
         Settings.setChoice(Settings.ART_SKIP,"spin"); View.nextDraw=0; carousel.onDraw(canvas);
         check(Math.abs(canvas.degrees-100)<.01f && View.nextDraw==16,"Spin must roll with the offset, every frame, got "+canvas.degrees);
         carousel.screenX=-500; carousel.onDraw(canvas); check(Math.abs(canvas.degrees+100)<.01f,"the other side must roll the other way");
-        carousel.screenX=500; Settings.setChoice(Settings.ART_SKIP,"shrink"); carousel.onDraw(canvas);
-        check(Math.abs(canvas.scale-.825f)<.001f,"Shrink must scale with the offset, got "+canvas.scale);
+        carousel.screenX=500; Settings.setChoice(Settings.ART_SKIP,"shrink"); canvas.degrees=0; carousel.onDraw(canvas);
+        check(Math.abs(canvas.scale-.825f)<.001f && canvas.degrees==0,"Shrink must scale with the offset and not turn, got "+canvas.scale+" "+canvas.degrees);
         Settings.setChoice(Settings.ART_SKIP,"fade"); canvas.degrees=0; carousel.screenX=250; carousel.onDraw(canvas);
         check(Math.abs(carousel.testAlpha-.65f)<.001f && canvas.degrees==0,"Fade must fade without turning, got "+carousel.testAlpha);
         Settings.setChoice(Settings.ART_SKIP,"slide"); carousel.onDraw(canvas);
@@ -685,6 +686,15 @@ public class PlayerRuntimeTest {
         Settings.setChoice(Settings.BURST_WHEN,"play"); Confetti.wanted(host,0,0,false,Settings.BURST_PLAYER);
         check(liveBursts.getInt(null)==before,"Play only must skip pause"); Settings.setChoice(Settings.BURST_WHEN,"both");
         Settings.set(6,true); Confetti.at(host,0,0); check(liveBursts.getInt(null)==before,"reduce motion must stop bursts"); Settings.set(6,false);
+        View generated=new View(new android.content.Context()); generated.testId=0x1a;
+        Field reportedAt=Confetti.class.getDeclaredField("buttonAt"); reportedAt.setAccessible(true); reportedAt.setLong(null,-100000);
+        Settings.set(Settings.BURST,false); new ClickHaptic().sendAccessibilityEvent(generated,1);
+        check(!Confetti.answered(0),"a runtime id is not a play button and must not throw");
+        generated.testId=0x7f0b0c19; new ClickHaptic().sendAccessibilityEvent(generated,1);
+        check(Confetti.answered(0),"the mini player button must report its press"); Settings.set(Settings.BURST,true);
+        long pressed=android.os.SystemClock.uptimeMillis();
+        check(Confetti.answered(pressed),"a button that reported this press must not burst again on the state change");
+        check(!Confetti.answered(pressed+1),"a later press is a new one");
         System.out.println("PASS play button burst");
 
         // Library and playlists: rows arrive in turn and end exactly in place; the ring meets long press.
@@ -692,6 +702,15 @@ public class PlayerRuntimeTest {
         check(Flourish.rise(5000,9)[0]==1 && Flourish.rise(5000,9)[1]==0,"every row ends in place");
         check(Flourish.rise(100,0)[0]>Flourish.rise(100,3)[0],"later rows wait their turn");
         check(Flourish.holdProgress(0)==0 && Flourish.holdProgress(400)==1 && Flourish.holdProgress(5000)==1,"ring fills by long press");
+        Field armedNow=Flourish.class.getDeclaredField("armed"), tapNow=Flourish.class.getDeclaredField("tapAt"); armedNow.setAccessible(true); tapNow.setAccessible(true);
+        java.lang.reflect.Method sawRows=Flourish.class.getDeclaredMethod("saw",int.class); sawRows.setAccessible(true);
+        Flourish.tab(2); check(armedNow.getBoolean(null),"opening Library rises"); armedNow.setBoolean(null,false);
+        tapNow.setLong(null,android.os.SystemClock.uptimeMillis()-60000);
+        sawRows.invoke(null,Flourish.PLAYLIST); sawRows.invoke(null,Flourish.LIBRARY);
+        check(!armedNow.getBoolean(null),"rows composing without a tap must not hide the page");
+        tapNow.setLong(null,android.os.SystemClock.uptimeMillis());
+        sawRows.invoke(null,Flourish.PLAYLIST); check(armedNow.getBoolean(null),"a tap that opens a playlist rises");
+        Flourish.tab(0); check(!armedNow.getBoolean(null),"leaving for another tab must not leave a rise waiting");
         System.out.println("PASS row cascade and hold ring");
     }
 }

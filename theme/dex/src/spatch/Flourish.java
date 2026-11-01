@@ -32,7 +32,7 @@ import p.zpo;
 final class Flourish extends Drawable implements InvocationHandler, Runnable {
     static final int NONE = 0, LIBRARY = 1, PLAYLIST = 2;
     private static final int LIBRARY_TAB = 2;
-    private static final long HOLD_START = 130, HOLD_END = 400, TOUCH_WINDOW = 900; // ms
+    private static final long HOLD_START = 130, HOLD_END = 400, TOUCH_WINDOW = 900, OPEN_WINDOW = 1500; // ms
     private static final float GLOW = 120, RING = 34, RING_WIDTH = 4, FOLLOW = 0.3f; // dp
     private static final float CASCADE_MILLIS = 340, CASCADE_STAGGER = 45, CASCADE_RISE = 26; // ms, dp
     private static final int CASCADE_ROWS = 10, CASCADE_MASK = 0xfffeb; // alpha and translationY only
@@ -43,14 +43,13 @@ final class Flourish extends Drawable implements InvocationHandler, Runnable {
     private static final Runnable FRAMES = new Runnable() {
         public void run() {
             long now = SystemClock.uptimeMillis();
-            if (now - cascadeAt > CASCADE_MILLIS + CASCADE_STAGGER * CASCADE_ROWS) return;
-            TICK.setValue(Long.valueOf(now));
-            MAIN.postDelayed(this, FRAME);
+            TICK.setValue(Long.valueOf(now)); // also after the end, so the rows drop their layers
+            if (now - cascadeAt <= CASCADE_MILLIS + CASCADE_STAGGER * CASCADE_ROWS) MAIN.postDelayed(this, FRAME);
         }
     };
     private static int page;
     private static boolean armed;
-    private static long cascadeAt = -100000, tickSeen;
+    private static long cascadeAt = -100000, tickSeen, tapAt = -100000;
     private static int order;
     private static Flourish current;
 
@@ -123,13 +122,14 @@ final class Flourish extends Drawable implements InvocationHandler, Runnable {
     /** The tab bar's selection tells which page is open; it comes before any of its rows. */
     static void tab(int tab) {
         page = tab == LIBRARY_TAB ? LIBRARY : NONE;
-        armed = true;
+        armed = page == LIBRARY;
     }
 
+    /** Rows of both kinds can compose on one page, so only a tap may mean a page opened: a replay hides every row. */
     private static void saw(int kind) {
         if (page == kind) return;
         page = kind;
-        armed = true;
+        armed = SystemClock.uptimeMillis() - tapAt < OPEN_WINDOW;
     }
 
     /** Where a row rises from at this time since the page opened: {alpha, rise as 0..1}. */
@@ -175,7 +175,7 @@ final class Flourish extends Drawable implements InvocationHandler, Runnable {
     /** The last press, for Compose buttons that report a change but not where they are. */
     static void played(boolean starting) {
         final Flourish f = current;
-        if (f == null || SystemClock.uptimeMillis() - f.downAt > TOUCH_WINDOW) return;
+        if (f == null || SystemClock.uptimeMillis() - f.downAt > TOUCH_WINDOW || Confetti.answered(f.downAt)) return;
         Confetti.wanted(f.root, f.downX, f.downY, starting, Settings.BURST_LISTS);
     }
 
@@ -203,6 +203,7 @@ final class Flourish extends Drawable implements InvocationHandler, Runnable {
             if (Math.abs(x - downX) > slop || Math.abs(y - downY) > slop) dragging = true;
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             down = false;
+            if (action == MotionEvent.ACTION_UP && !dragging) tapAt = SystemClock.uptimeMillis();
         }
     }
 
