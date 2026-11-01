@@ -1,5 +1,7 @@
 package spatch;
 
+import android.app.ActivityManager;
+import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -8,11 +10,17 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.text.Layout;
+import android.view.Choreographer;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+import android.widget.HorizontalScrollView;
 import android.widget.TextView;
 import java.io.File;
 import java.lang.reflect.Constructor;
@@ -106,6 +114,10 @@ final class DevTests {
     }
 
     private List<Result> all() {
+        final boolean[] switches = new boolean[Settings.KEYS.length];
+        final String[] choices = new String[Settings.CHOICES.length];
+        for (int i = 0; i < switches.length; i++) switches[i] = Settings.get(i);
+        for (int i = 0; i < choices.length; i++) choices[i] = Settings.choice(i);
         test("Settings tables match", new Test() {
             public String run() {
                 int size = Settings.KEYS.length;
@@ -670,10 +682,399 @@ final class DevTests {
                 return "";
             }
         });
+        test("Reduce motion holds everything still", new Test() {
+            public String run() throws Exception {
+                inApp();
+                boolean calm = Settings.get(REDUCE_MOTION);
+                String skip = Settings.choice(Settings.ART_SKIP);
+                int before = Confetti.live;
+                try {
+                    Settings.set(REDUCE_MOTION, true);
+                    Settings.setChoice(Settings.ART_SKIP, "shrink");
+                    check(red(arrived()), "Shrink moved");
+                    Confetti.at(root, 0, 0);
+                    check(Confetti.live == before, "a burst played");
+                } finally {
+                    Settings.set(REDUCE_MOTION, calm);
+                    Settings.setChoice(Settings.ART_SKIP, skip);
+                    PlayerArt.songAt = -100000;
+                }
+                return "";
+            }
+        });
+        test("Leaving Fade restores full opacity", new Test() {
+            public String run() throws Exception {
+                motion();
+                String skip = Settings.choice(Settings.ART_SKIP);
+                Canvas canvas = new Canvas(Bitmap.createBitmap(ART, ART, Bitmap.Config.ARGB_8888));
+                try {
+                    Settings.setChoice(Settings.ART_SKIP, "fade");
+                    PlayerArt page = art();
+                    PlayerArt.songChanged();
+                    Thread.sleep(2);
+                    page.draw(canvas);
+                    check(page.getAlpha() < 1, "it never faded");
+                    Settings.setChoice(Settings.ART_SKIP, "slide");
+                    page.draw(canvas);
+                    check(page.getAlpha() == 1, "the art stayed see-through");
+                } finally {
+                    Settings.setChoice(Settings.ART_SKIP, skip);
+                    PlayerArt.songAt = -100000;
+                }
+                return "";
+            }
+        });
+        test("Only play buttons burst", new Test() {
+            public String run() {
+                motion();
+                String when = Settings.choice(Settings.BURST_WHEN);
+                boolean master = Settings.get(Settings.BURST), mini = Settings.get(Settings.BURST_MINI);
+                int before = Confetti.live;
+                ClickHaptic clicks = new ClickHaptic();
+                View button = new View(context);
+                try {
+                    Settings.set(Settings.BURST, true);
+                    Settings.set(Settings.BURST_MINI, true);
+                    Settings.setChoice(Settings.BURST_WHEN, "play");
+                    button.setContentDescription("Play");
+                    button.setId(id("next_button", "id"));
+                    clicks.sendAccessibilityEvent(button, 1);
+                    check(Confetti.live == before, "a skip button burst");
+                    button.setId(ClickHaptic.MINI_BUTTON);
+                    button.setContentDescription("Pause");
+                    clicks.sendAccessibilityEvent(button, 1);
+                    check(Confetti.live == before, "Play only burst on pause");
+                } finally {
+                    Settings.set(Settings.BURST, master);
+                    Settings.set(Settings.BURST_MINI, mini);
+                    Settings.setChoice(Settings.BURST_WHEN, when);
+                }
+                return "";
+            }
+        });
+        test("Every settings page fits", new Test() {
+            public String run() {
+                inApp();
+                ArrayList<String> problems = new ArrayList<String>();
+                SpatchSettings fresh = new SpatchSettings(context);
+                int width = root.getWidth(), count = fresh.pages.getChildCount();
+                for (int i = 0; i < count; i++) {
+                    View scroll = fresh.pages.getChildAt(i);
+                    scroll.setVisibility(View.VISIBLE);
+                    ViewGroup page = (ViewGroup) ((ViewGroup) scroll).getChildAt(0);
+                    page.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                    page.layout(0, 0, width, page.getMeasuredHeight());
+                    audit(page, problems);
+                }
+                check(problems.isEmpty(), problems.size() + " problems: " + problems.subList(0, Math.min(12, problems.size())));
+                return count + " pages";
+            }
+        });
+        test("No crash since this install", new Test() {
+            public String run() throws Exception {
+                inApp();
+                File crash = DevOptions.crashFile;
+                check(crash == null || !crash.isFile() || crash.lastModified() < installed(), "see Last crash below");
+                return "";
+            }
+        });
+        test("No freeze or native crash since this install", new Test() {
+            public String run() throws Exception {
+                inApp();
+                if (Build.VERSION.SDK_INT < 30) throw new Skip("needs Android 11");
+                ActivityManager system = (ActivityManager) context.getSystemService("activity");
+                int seen = 0;
+                for (ApplicationExitInfo exit : system.getHistoricalProcessExitReasons(null, 0, 16)) {
+                    if (exit.getTimestamp() < installed()) continue;
+                    seen++;
+                    check(exit.getReason() != 6, "frozen (ANR): " + exit.getDescription());
+                    check(exit.getReason() != 5, "native crash: " + exit.getDescription());
+                    check(exit.getReason() != 4, "crash: " + exit.getDescription());
+                }
+                return seen + " exits checked";
+            }
+        });
+        test("Memory has room", new Test() {
+            public String run() {
+                Runtime heap = Runtime.getRuntime();
+                long used = heap.totalMemory() - heap.freeMemory();
+                check(used < heap.maxMemory() * .85, "heap nearly full");
+                return used / 1048576 + " of " + heap.maxMemory() / 1048576 + " MB";
+            }
+        });
+        speed("Speed: artwork frame", 33, new Runnable() {
+            private PlayerArt page;
+            private Canvas canvas;
+
+            public void run() {
+                if (page == null) {
+                    int size = root.getWidth();
+                    page = art();
+                    page.layout(0, 0, size, size);
+                    canvas = new Canvas(Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888));
+                }
+                page.draw(canvas);
+            }
+        });
+        speed("Speed: progress wave", 8, new Runnable() {
+            private final Wave wave = new Wave();
+            private final Canvas canvas = new Canvas(Bitmap.createBitmap(ART, 64, Bitmap.Config.ARGB_8888));
+
+            public void run() {
+                wave.setBounds(0, 0, ART, 64);
+                wave.draw(canvas);
+            }
+        });
+        speed("Speed: one list row", 1, new Runnable() {
+            public void run() {
+                modifiers(true);
+            }
+        });
+        speed("Speed: audio bands", 2, new Runnable() {
+            private final byte[] fft = new byte[1024];
+
+            public void run() {
+                AudioSpectrum.bands(fft, 44100, Spectrum.BANDS);
+            }
+        });
+        speed("Speed: press scan per frame", 2, new Runnable() {
+            public void run() {
+                TapBounce.tick(root);
+            }
+        });
+        speed("Speed: opening Spatch settings", 250, new Runnable() {
+            public void run() {
+                new SpatchSettings(context);
+            }
+        });
+        test("Tests left settings alone", new Test() {
+            public String run() {
+                for (int i = 0; i < switches.length; i++) check(Settings.get(i) == switches[i], Settings.KEYS[i]);
+                for (int i = 0; i < choices.length; i++) check(Settings.choice(i).equals(choices[i]), Settings.CHOICE_KEYS[i]);
+                return "";
+            }
+        });
         return results;
     }
 
-    private static final int ART = 400, EDGE = 150;
+    private static final int ART = 400, EDGE = 150, REDUCE_MOTION = 6, SPEED_RUNS = 15;
+
+    /** Median of a few runs, so one garbage collection doesn't fail a budget; the time shows either way. */
+    private void speed(String name, final float budgetMillis, final Runnable work) {
+        test(name, new Test() {
+            public String run() {
+                inApp();
+                long[] runs = new long[SPEED_RUNS];
+                for (int i = 0; i < SPEED_RUNS; i++) {
+                    long start = System.nanoTime();
+                    work.run();
+                    runs[i] = System.nanoTime() - start;
+                }
+                Arrays.sort(runs);
+                float millis = runs[SPEED_RUNS / 2] / 1e6f;
+                check(millis <= budgetMillis, millis + " ms, budget " + budgetMillis);
+                return millis + " ms";
+            }
+        });
+    }
+
+    private long installed() throws Exception {
+        return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).lastUpdateTime;
+    }
+
+    /** Layout faults a screenshot would show: cut-off text, tiny or unnamed buttons, faint text, overflow. */
+    private void audit(View view, ArrayList<String> problems) {
+        if (view.getVisibility() == View.GONE) return;
+        float dp = context.getResources().getDisplayMetrics().density;
+        String name = label(view);
+        if (view.getParent() instanceof View && !(view.getParent() instanceof HorizontalScrollView) && view.getRight() > ((View) view.getParent()).getWidth() + dp) {
+            problems.add("past its parent: " + name);
+        }
+        if (view.isClickable()) {
+            if (view.getHeight() < 40 * dp) problems.add("small button: " + name);
+            if (name.isEmpty()) problems.add("unnamed button under " + label((View) view.getParent()));
+        }
+        if (view instanceof TextView) {
+            TextView text = (TextView) view;
+            Layout layout = text.getLayout();
+            if (layout != null && text.getLineCount() > 0 && layout.getEllipsisCount(text.getLineCount() - 1) > 0) problems.add("cut off: " + name);
+            if (layout != null && layout.getHeight() > text.getHeight() + dp) problems.add("too tall: " + name);
+            int surface = Palette.tone(Arrays.asList(Palette.NAMES).indexOf(Palette.activeName()), 1);
+            if (name.length() > 0 && text.getBackground() == null && MiniEq.contrast(text.getCurrentTextColor() | 0xff000000, surface) < 3) problems.add("faint: " + name);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) audit(group.getChildAt(i), problems);
+        }
+    }
+
+    private static String label(View view) {
+        if (view == null) return "";
+        CharSequence said = view.getContentDescription();
+        if (said != null && said.length() > 0) return said.toString();
+        if (view instanceof TextView) return String.valueOf(((TextView) view).getText());
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                String inner = label(group.getChildAt(i));
+                if (!inner.isEmpty()) return inner;
+            }
+        }
+        return "";
+    }
+
+    /** A test that watches the running app for a while, on the main thread between frames. */
+    private abstract class Timed {
+        final String name;
+        final long millis;
+
+        Timed(String name, long millis) {
+            this.name = name;
+            this.millis = millis;
+        }
+
+        abstract void start() throws Exception;
+
+        abstract String finish() throws Exception;
+    }
+
+    /** Measures the gaps between real frames. */
+    private static final class Frames implements Choreographer.FrameCallback {
+        private long last;
+        private boolean watching;
+        float worst;
+        int total, slow;
+
+        void begin() {
+            watching = true;
+            Choreographer.getInstance().postFrameCallback(this);
+        }
+
+        void end() {
+            watching = false;
+        }
+
+        public void doFrame(long now) {
+            if (!watching) return;
+            if (last != 0) {
+                float gap = (now - last) / 1e6f;
+                worst = Math.max(worst, gap);
+                total++;
+                if (gap > 34) slow++;
+            }
+            last = now;
+            Choreographer.getInstance().postFrameCallback(this);
+        }
+    }
+
+    /** The second stage: tests that need time to pass, one after another, then {@code done}. */
+    static void timed(Context context, View root, List<Result> into, Runnable done) {
+        if (root == null) {
+            done.run();
+            return;
+        }
+        DevTests tests = new DevTests(context, root);
+        tests.chain(tests.timedTests(), 0, into, done);
+    }
+
+    private void chain(final List<Timed> tests, final int next, final List<Result> into, final Runnable done) {
+        if (next == tests.size()) {
+            done.run();
+            return;
+        }
+        final Timed timed = tests.get(next);
+        String failed = null;
+        try {
+            timed.start();
+        } catch (Throwable t) {
+            failed = t.toString();
+        }
+        final String startFailure = failed;
+        root.postDelayed(new Runnable() {
+            public void run() {
+                if (startFailure != null) {
+                    into.add(new Result(timed.name, FAIL, startFailure));
+                } else {
+                    try {
+                        into.add(new Result(timed.name, PASS, timed.finish()));
+                    } catch (Skip s) {
+                        into.add(new Result(timed.name, SKIP, s.getMessage()));
+                    } catch (Throwable t) {
+                        into.add(new Result(timed.name, FAIL, t.toString()));
+                    }
+                }
+                chain(tests, next + 1, into, done);
+            }
+        }, timed.millis);
+    }
+
+    private List<Timed> timedTests() {
+        ArrayList<Timed> tests = new ArrayList<Timed>();
+        tests.add(new Timed("Idle screen stops drawing", 1500) {
+            private final int[] draws = {0};
+            private final ViewTreeObserver.OnDrawListener counter = new ViewTreeObserver.OnDrawListener() {
+                public void onDraw() {
+                    draws[0]++;
+                }
+            };
+
+            void start() {
+                root.getViewTreeObserver().addOnDrawListener(counter);
+            }
+
+            String finish() {
+                root.getViewTreeObserver().removeOnDrawListener(counter);
+                check(draws[0] <= 30, draws[0] + " draws in 1.5s with nothing moving, which drains battery");
+                return draws[0] + " draws";
+            }
+        });
+        tests.add(new Timed("Title fade finishes", 700) {
+            private TextView title;
+
+            void start() {
+                if (!Wave.animationsEnabled()) throw new Skip("reduce motion is on");
+                title = new TextView(context);
+                TextSlide.attach(title);
+                title.setText("first");
+                title.setText("second");
+                PlayerArt.songAt = -100000;
+            }
+
+            String finish() {
+                check(title.getAlpha() == 1 && title.getTranslationX() == 0, "the title stuck at opacity " + title.getAlpha());
+                return "";
+            }
+        });
+        tests.add(new Timed("Burst stays smooth", 1000) {
+            private final Frames frames = new Frames();
+
+            void start() {
+                if (!Wave.animationsEnabled()) throw new Skip("reduce motion is on");
+                Confetti.at(root, root.getWidth() / 2f, root.getHeight() / 2f);
+                frames.begin();
+            }
+
+            String finish() {
+                frames.end();
+                String seen = frames.total + " frames, " + frames.slow + " slow, worst " + frames.worst + " ms";
+                check(frames.total > 20 && frames.worst < 120 && frames.slow * 10 <= frames.total, seen);
+                return seen;
+            }
+        });
+        tests.add(new Timed("Bursts clean up after themselves", 3500) {
+            void start() {
+                if (!Wave.animationsEnabled()) throw new Skip("reduce motion is on");
+                for (int i = 0; i < 10; i++) Confetti.at(root, root.getWidth() / 2f, root.getHeight() / 2f);
+                check(Confetti.live <= 4, Confetti.live + " at once, over the cap");
+            }
+
+            String finish() {
+                check(Confetti.live == 0, Confetti.live + " never finished");
+                return "";
+            }
+        });
+        return tests;
+    }
 
     /** Tests of real Spotify and Android behaviour mean nothing outside the app. */
     private void inApp() {

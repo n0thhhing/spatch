@@ -18,7 +18,6 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public static final int IMPORTANT_FOR_ACCESSIBILITY_YES = 1;
     protected final void setMeasuredDimension(int w, int h) {}
     public final int getMeasuredWidth() { return 0; }
-    public final int getMeasuredHeight() { return 0; }
     protected void onMeasure(int w, int h) {}
     public void requestLayout() {}
     public int getWidth() { return 0; }
@@ -64,6 +63,13 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public boolean isPressed() { return false; }
     public int getId() { return 0; }
     public void setId(int id) {}
+    public static class MeasureSpec {
+        public static final int EXACTLY = 1073741824, UNSPECIFIED = 0;
+        public static int makeMeasureSpec(int size, int mode) { return size + mode; }
+    }
+    public final void measure(int w, int h) {}
+    public final int getMeasuredHeight() { return 0; }
+    public android.view.ViewTreeObserver getViewTreeObserver() { return null; }
     public float getAlpha() { return 1; }
     public void layout(int l, int t, int r, int b) {}
     public void draw(android.graphics.Canvas c) {}

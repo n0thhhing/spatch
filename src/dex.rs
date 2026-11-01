@@ -868,6 +868,26 @@ fn obfuscated_classes() -> String {
 
 const STUBS: &[(&str, &str)] = &[
     (
+        "ActivityManager.java",
+        include_str!("../theme/dex/stubs/android/app/ActivityManager.java"),
+    ),
+    (
+        "ApplicationExitInfo.java",
+        include_str!("../theme/dex/stubs/android/app/ApplicationExitInfo.java"),
+    ),
+    (
+        "PackageInfo.java",
+        include_str!("../theme/dex/stubs/android/content/pm/PackageInfo.java"),
+    ),
+    (
+        "Layout.java",
+        include_str!("../theme/dex/stubs/android/text/Layout.java"),
+    ),
+    (
+        "ViewTreeObserver.java",
+        include_str!("../theme/dex/stubs/android/view/ViewTreeObserver.java"),
+    ),
+    (
         "ColorDrawable.java",
         include_str!("../theme/dex/stubs/android/graphics/drawable/ColorDrawable.java"),
     ),

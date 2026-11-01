@@ -231,7 +231,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private View chooseBanner, removeBanner;
     private static final float INACTIVE = 0.5f;
     private static final long SWAP = 220;
-    private final FrameLayout pages;
+    final FrameLayout pages;
     private final int bottom;
     private final java.util.ArrayList<View> stack = new java.util.ArrayList<View>();
     private final java.util.ArrayList<View> masters = new java.util.ArrayList<View>();

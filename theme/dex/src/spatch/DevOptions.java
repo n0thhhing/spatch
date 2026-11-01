@@ -24,7 +24,7 @@ import java.util.List;
 public final class DevOptions implements View.OnClickListener, DialogInterface.OnClickListener {
     private static final String CRASH_FILE = "spatch_last_crash.txt";
     private static final int LOG_CHARS = 8000;
-    private static File crashFile;
+    static File crashFile;
 
     private final SpatchSettings page;
     private final Context context;
@@ -183,14 +183,23 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
     }
 
     private void runTests() {
-        List<DevTests.Result> outcome = DevTests.run(context, page.getRootView());
-        StringBuilder out = new StringBuilder(DevTests.summary(outcome)).append("\n\n");
+        final List<DevTests.Result> outcome = DevTests.run(context, page.getRootView());
+        show(outcome, "\nTimed tests running, hands off...\n");
+        Haptics.toggle(run, true);
+        DevTests.timed(context, page.getRootView(), outcome, new Runnable() {
+            public void run() {
+                show(outcome, "");
+                refresh();
+            }
+        });
+    }
+
+    private void show(List<DevTests.Result> outcome, String note) {
+        StringBuilder out = new StringBuilder(DevTests.summary(outcome)).append(note).append("\n\n");
         for (DevTests.Result r : outcome) if (r.failed()) out.append(r).append('\n');
         for (DevTests.Result r : outcome) if (!r.failed()) out.append(r).append('\n');
         report = out.toString();
         results.setText(report);
-        Haptics.toggle(run, true);
-        refresh();
     }
 
     private void copy(String label, String text) {

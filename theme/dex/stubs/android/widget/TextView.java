@@ -4,6 +4,9 @@ public class TextView extends android.view.View {
     public TextView(android.content.Context c, android.util.AttributeSet a) { super(c, a); }
     public TextView(android.content.Context c) { super(c, null); }
     public CharSequence getText() { return null; }
+    public android.text.Layout getLayout() { return null; }
+    public int getLineCount() { return 0; }
+    public int getCurrentTextColor() { return 0; }
     public void addTextChangedListener(android.text.TextWatcher w) {}
     public void setText(CharSequence t) {}
     public void setSingleLine(boolean s) {}

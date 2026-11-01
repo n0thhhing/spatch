@@ -1,1 +1,1 @@
-package android.content.pm; public class PackageManager { public android.content.Intent getLaunchIntentForPackage(String p){return null;} }
+package android.content.pm; public class PackageManager { public android.content.Intent getLaunchIntentForPackage(String p){return null;}  public static class NameNotFoundException extends Exception {} public PackageInfo getPackageInfo(String name,int flags) throws NameNotFoundException {return null;} }
