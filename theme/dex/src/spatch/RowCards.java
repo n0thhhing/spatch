@@ -20,6 +20,11 @@ final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeList
     private final float dp;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF card = new RectF();
+    private long fillingUntil;
+    private int filled;
+    private static final long FILL_MILLIS = 350;
+    private static final int RISE_ROWS = 10;
+    private static final float RISE = 22; // dp
 
     private RowCards(float dp) {
         this.dp = dp;
@@ -87,7 +92,22 @@ final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeList
 
     private static final java.util.WeakHashMap<View, Boolean> JOINED = new java.util.WeakHashMap<View, Boolean>();
 
+    /** Rows filling an empty list rise in turn; a row scrolled into view just appears. */
+    private void rise(View parent, View child) {
+        if (!Settings.get(Settings.LIST_RISE) || !Wave.animationsEnabled()) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (parent instanceof ViewGroup && ((ViewGroup) parent).getChildCount() == 1) {
+            fillingUntil = now + FILL_MILLIS;
+            filled = 0;
+        }
+        if (now > fillingUntil || filled >= RISE_ROWS) return;
+        child.setAlpha(0f);
+        child.setTranslationY(RISE * dp);
+        child.animate().alpha(1f).translationY(0f).setStartDelay(filled++ * 35L).setDuration(300).start();
+    }
+
     public void onChildViewAdded(View parent, View child) {
+        rise(parent, child);
         Drawable was = child.getBackground();
         if (was == null) child.setBackground(new RowCards(dp));
         else if (!(was instanceof android.graphics.drawable.LayerDrawable)) child.setBackground(new android.graphics.drawable.LayerDrawable(new Drawable[] {new RowCards(dp), was})); // rows keep their press ripple

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise Spatch settings on a connected phone, restoring every value it changes.
 
-usage: device-settings.py <base.apk> [--static-only]
+usage: device-settings.py <base.apk> [--static-only] [--only=Screens,Content]
 
 Checks each icon name against the APK, then opens every settings page, flips every switch and picks
 every choice, confirming the row's reported state each time. It never plays audio and never touches
@@ -208,7 +208,10 @@ def main():
     tap(find(screen(), 'text', 'Spatch'))
     time.sleep(3)
     totals = {'switches': 0, 'choices': 0}
+    only = next((a[7:].split(',') for a in sys.argv if a.startswith('--only=')), list(TREE))
     for page, children in TREE.items():
+        if page not in only:
+            continue
         opener = next(n for d, n in visible(screen(), height) if d.startswith(page + ','))
         tap(opener)
         time.sleep(1.2)
