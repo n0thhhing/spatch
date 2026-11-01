@@ -619,6 +619,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         motion.addView(featureRows[Settings.HIDE_BARS]);
         addChoice(motion, Settings.BOUNCE, "Bounce", "How far tiles spring back", new String[] {"Normal", "Soft", "Wild"});
         addColors(motion, Settings.RIPPLE_COLOR, "Ripple colour");
+        refreshChoices();
         finish(motion);
         addSectionHeader("Haptics");
         LinearLayout haptics = addGroup();
