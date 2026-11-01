@@ -780,7 +780,6 @@ final class DevTests {
             public String run() throws Exception {
                 inApp();
                 if (Build.VERSION.SDK_INT < 30) throw new Skip("needs Android 11");
-                // By reflection: a direct call makes d8 add an outline class the helper DEX check would refuse.
                 Object system = context.getSystemService("activity");
                 List<?> exits = (List<?>) system.getClass().getMethod("getHistoricalProcessExitReasons", String.class, int.class, int.class).invoke(system, null, 0, 16);
                 int seen = 0;
@@ -941,7 +940,7 @@ final class DevTests {
     }
 
     /** Measures the gaps between real frames. */
-    private static final class Frames implements Choreographer.FrameCallback {
+    static final class Frames implements Choreographer.FrameCallback {
         private long last;
         private boolean watching;
         float worst;
