@@ -28,7 +28,7 @@ public final class PlayerArt extends ImageView {
     private String glowStyle;
     private boolean faded;
     private float turn; // the distance Shrink and Fade show, which trails a fast skip
-    private long turnAt;
+    private long turnAt, centredAt;
     private static long songAt = -100000;
     private Drawable previousArt;
     private long revealStart;
@@ -89,7 +89,10 @@ public final class PlayerArt extends ImageView {
         String skip = Settings.choice(Settings.ART_SKIP);
         boolean skipMotion = !"slide".equals(skip) && Wave.animationsEnabled();
         float offset = skipMotion ? pageOffset() : 0;
-        turn = skipMotion ? Math.max(settle(turn, Math.abs(offset), now - turnAt), arriving(now - songAt)) : 0;
+        if (Math.abs(offset) > 0.25f) centredAt = 0;
+        else if (centredAt == 0) centredAt = now;
+        // The title changes before the page moves: only a page that came in after it arrives, or the old art snaps away.
+        turn = skipMotion ? Math.max(settle(turn, Math.abs(offset), now - turnAt), centredAt > songAt ? arriving(now - songAt) : 0) : 0;
         turnAt = now;
         turnPage(canvas, skip, offset);
         if (!heroHidden) {

@@ -626,6 +626,13 @@ public class PlayerRuntimeTest {
         slide.afterTextChanged(typed.apply("First")); check(songAt.getLong(null)<0,"the first title seen must not start an arrival");
         try { slide.afterTextChanged(typed.apply("Next song")); } catch(RuntimeException stubbedAnimator) {}
         check(songAt.getLong(null)>0,"a new title must start the arrival");
+        PlayerArt leaving=new PlayerArt(new android.content.Context(),null); leaving.setImageDrawable(new Art()); leaving.screenX=0;
+        Settings.setChoice(Settings.ART_SKIP,"fade"); songAt.setLong(null,-100000); leaving.onDraw(canvas); Thread.sleep(2);
+        carousel.screenX=500; carousel.onDraw(canvas); Thread.sleep(2);
+        try { slide.afterTextChanged(typed.apply("Third song")); } catch(RuntimeException stubbedAnimator) {}
+        leaving.onDraw(canvas);
+        check(leaving.testAlpha==1,"the page already centred is the old song and must not snap away, got "+leaving.testAlpha);
+        carousel.screenX=0; songAt.setLong(null,songAt.getLong(null)-1); // the test clock can stand still: this page landed after the title changed
         Settings.setChoice(Settings.ART_SKIP,"shrink"); carousel.onDraw(canvas);
         check(canvas.scale<.67f,"Shrink must start small on a song change with no slide, got "+canvas.scale);
         Settings.setChoice(Settings.ART_SKIP,"fade"); carousel.onDraw(canvas);
