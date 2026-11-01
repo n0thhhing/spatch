@@ -31,6 +31,7 @@ final class SettingsHero extends View {
             held = e.getActionMasked() != android.view.MotionEvent.ACTION_UP && e.getActionMasked() != android.view.MotionEvent.ACTION_CANCEL;
             touchX = e.getX();
             touchY = e.getY();
+            if (held) getParent().requestDisallowInterceptTouchEvent(true); // the page's scroll would cancel the drag
         }
         return super.dispatchTouchEvent(e);
     }
