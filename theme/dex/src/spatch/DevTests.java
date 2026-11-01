@@ -1,7 +1,5 @@
 package spatch;
 
-import android.app.ActivityManager;
-import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -782,14 +780,18 @@ final class DevTests {
             public String run() throws Exception {
                 inApp();
                 if (Build.VERSION.SDK_INT < 30) throw new Skip("needs Android 11");
-                ActivityManager system = (ActivityManager) context.getSystemService("activity");
+                // By reflection: a direct call makes d8 add an outline class the helper DEX check would refuse.
+                Object system = context.getSystemService("activity");
+                List<?> exits = (List<?>) system.getClass().getMethod("getHistoricalProcessExitReasons", String.class, int.class, int.class).invoke(system, null, 0, 16);
                 int seen = 0;
-                for (ApplicationExitInfo exit : system.getHistoricalProcessExitReasons(null, 0, 16)) {
-                    if (exit.getTimestamp() < installed()) continue;
+                for (Object exit : exits) {
+                    if ((Long) exit.getClass().getMethod("getTimestamp").invoke(exit) < installed()) continue;
                     seen++;
-                    check(exit.getReason() != 6, "frozen (ANR): " + exit.getDescription());
-                    check(exit.getReason() != 5, "native crash: " + exit.getDescription());
-                    check(exit.getReason() != 4, "crash: " + exit.getDescription());
+                    int reason = (Integer) exit.getClass().getMethod("getReason").invoke(exit);
+                    Object why = exit.getClass().getMethod("getDescription").invoke(exit);
+                    check(reason != 6, "frozen (ANR): " + why);
+                    check(reason != 5, "native crash: " + why);
+                    check(reason != 4, "crash: " + why);
                 }
                 return seen + " exits checked";
             }
