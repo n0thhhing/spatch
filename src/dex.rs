@@ -1590,6 +1590,29 @@ pub fn check_ref_limits(entry: &str, dexdump: &str) -> Result<()> {
 mod tests {
     use super::*;
 
+    /// Spotify's classes sit in other packages: a hook that isn't public crashes at its first call.
+    #[test]
+    fn every_hook_spotify_calls_is_public() {
+        let sources = helpers(false);
+        for edit in EDITS {
+            for call in edit.replacement.split("Lspatch/").skip(1) {
+                let Some((class, rest)) = call.split_once(";->") else {
+                    continue;
+                };
+                let method = rest.split('(').next().unwrap();
+                let source = sources.iter().find(|(name, _)| *name == class).unwrap().1;
+                let public_class = source
+                    .lines()
+                    .any(|l| l.starts_with("public ") && l.contains(&format!("class {class} ")));
+                let public_method = source.lines().any(|l| {
+                    l.trim_start().starts_with("public ") && l.contains(&format!(" {method}("))
+                });
+                assert!(public_class, "{class} must be public");
+                assert!(public_method, "{class}.{method} must be public");
+            }
+        }
+    }
+
     #[test]
     fn edits_require_exactly_one_anchor() {
         let lav = crate::theme::by_name("lavender").unwrap();

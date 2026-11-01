@@ -30,7 +30,7 @@ import p.zpo;
  * window's touch stream is watched, never consumed, to draw a glow under a dragging finger and a ring
  * that charges up to a long press. Rows also rise in, in turn, when a page opens.
  */
-final class Flourish extends Drawable implements InvocationHandler, Runnable {
+public final class Flourish extends Drawable implements InvocationHandler, Runnable {
     static final int NONE = 0, LIBRARY = 1, PLAYLIST = 2;
     private static final int LIBRARY_TAB = 2;
     private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500; // ms
