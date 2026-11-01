@@ -610,8 +610,14 @@ public class PlayerRuntimeTest {
         carousel.screenX=-500; carousel.onDraw(canvas); check(Math.abs(canvas.degrees+100)<.01f,"the other side must roll the other way");
         carousel.screenX=500; Settings.setChoice(Settings.ART_SKIP,"shrink"); canvas.degrees=0; carousel.onDraw(canvas);
         check(Math.abs(canvas.scale-.825f)<.001f && canvas.degrees==0,"Shrink must scale with the offset and not turn, got "+canvas.scale+" "+canvas.degrees);
-        Settings.setChoice(Settings.ART_SKIP,"fade"); canvas.degrees=0; carousel.screenX=250; carousel.onDraw(canvas);
-        check(Math.abs(carousel.testAlpha-.65f)<.001f && canvas.degrees==0,"Fade must fade without turning, got "+carousel.testAlpha);
+        Settings.setChoice(Settings.ART_SKIP,"fade"); canvas.degrees=0; carousel.onDraw(canvas);
+        check(Math.abs(carousel.testAlpha-.3f)<.001f && canvas.degrees==0,"Fade must fade without turning, got "+carousel.testAlpha);
+        check(Math.abs(PlayerArt.settle(1,0,21)-.95f)<.001f,"a skip that lands at once must still ease in, got "+PlayerArt.settle(1,0,21));
+        check(Math.abs(PlayerArt.settle(1,0,5000)-(1-32/PlayerArt.ARRIVE_MILLIS))<.001f,"a slow neighbour's gap between frames must not finish the arrival");
+        check(PlayerArt.settle(.5f,.49f,16)==.49f,"a finger drag must be followed exactly");
+        check(PlayerArt.settle(.2f,.6f,16)==.6f,"leaving must not lag");
+        carousel.screenX=0; carousel.onDraw(canvas);
+        check(carousel.testAlpha>.29f&&carousel.testAlpha<.4f,"landing on centre must not jump to full opacity, got "+carousel.testAlpha);
         Settings.setChoice(Settings.ART_SKIP,"slide"); carousel.onDraw(canvas);
         check(carousel.testAlpha==1,"leaving Fade must restore full opacity");
         Settings.setChoice(Settings.ART_SKIP,"spin"); Settings.set(6,true); canvas.degrees=0; carousel.screenX=500; carousel.onDraw(canvas);

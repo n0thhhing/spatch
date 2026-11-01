@@ -27,6 +27,8 @@ public final class PlayerArt extends ImageView {
     private int glowTint;
     private String glowStyle;
     private boolean faded;
+    private float turn; // the distance Shrink and Fade show, which trails a fast skip
+    private long turnAt;
     private Drawable previousArt;
     private long revealStart;
     private long tapAt = -1000;
@@ -86,6 +88,8 @@ public final class PlayerArt extends ImageView {
         String skip = Settings.choice(Settings.ART_SKIP);
         boolean skipMotion = !"slide".equals(skip) && Wave.animationsEnabled();
         float offset = skipMotion ? pageOffset() : 0;
+        turn = skipMotion ? settle(turn, Math.abs(offset), now - turnAt) : 0;
+        turnAt = now;
         turnPage(canvas, skip, offset);
         if (!heroHidden) {
             if (Settings.roundArt()) drawRound(canvas); else super.onDraw(canvas);
@@ -154,16 +158,21 @@ public final class PlayerArt extends ImageView {
     private void turnPage(Canvas canvas, String skip, float offset) {
         boolean fade = "fade".equals(skip) && Wave.animationsEnabled();
         if (fade || faded) {
-            setAlpha(fade ? 1 - Math.min(1, Math.abs(offset) * 1.4f) : 1f);
+            setAlpha(fade ? 1 - Math.min(1, turn * 1.4f) : 1f);
             faded = fade;
         }
-        if ("slide".equals(skip) || fade || offset == 0) return;
+        if ("slide".equals(skip) || fade) return;
         if ("spin".equals(skip)) {
             canvas.rotate(offset * 200f, getWidth() / 2f, getHeight() / 2f);
             return;
         }
-        float scale = 1 - 0.35f * Math.min(1, Math.abs(offset));
+        float scale = 1 - 0.35f * Math.min(1, turn);
         canvas.scale(scale, scale, getWidth() / 2f, getHeight() / 2f);
+    }
+
+    /** A skip lands too fast to see a size or opacity change, so arriving is held to a readable pace; a finger drag is slower and is followed exactly. */
+    static float settle(float shown, float distance, long elapsed) {
+        return Math.max(distance, shown - Math.min(elapsed, 32) / ARRIVE_MILLIS);
     }
 
     /** Circular art with a soft glow and a slowly turning scalloped ring. */
@@ -383,7 +392,7 @@ public final class PlayerArt extends ImageView {
         }
     }
 
-    static final float PRESSED = 0.94f;
+    static final float PRESSED = 0.94f, ARRIVE_MILLIS = 420f;
     /** Ring push at level 1, in radii, and the Bold stroke: both must fit the view's margin at the loudest level. */
     static final float AUDIO_REACH = 0.055f, BOLD = 1.8f;
 
