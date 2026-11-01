@@ -62,25 +62,28 @@ public final class Atmosphere extends Drawable implements Runnable {
         String fx=Settings.choice(Settings.BACKDROP_FX);
         boolean motes=!"none".equals(fx);
         if(motes) drawMotes(c,w,h,"stars".equals(fx),mix(fromColors[0],colors[0],blend));
-        if(Wave.animationsEnabled() && (Settings.artDrift()||motes) && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+(motes?33:66));
+        if(Wave.animationsEnabled() && (Settings.artDrift()||motes) && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+(motes?16:66));
     }
     public void run(){invalidateSelf();}
 
     /** Slow specks rising through the backdrop, swelling with the bass when audio is being read. */
     private void drawMotes(Canvas c,float w,float h,boolean stars,int tint){
-        float dp=Math.max(1,w/400f), now=Wave.animationsEnabled()?SystemClock.uptimeMillis()/1000f:0;
+        float dp=Math.max(1,w/400f);
+        // Double: after days of uptime a float of seconds only moves in steps of an eighth of a second.
+        double now=Wave.animationsEnabled()?SystemClock.uptimeMillis()/1000.0:0;
         float energy=Spectrum.alpha*(Spectrum.bands[0]+Spectrum.bands[1])/2;
         int light=mix(tint,0xffffffff,.65f)&0xffffff;
         for(int i=0;i<MOTES;i++){
             float seed=(i*2654435761L&0xffffffffL)/4294967296f, speed=.012f+seed*.03f;
-            float rise=(seed*7+now*speed+i*.13f)%1f, x=(seed*97%1f)*w+(float)Math.sin(now*.3f+i)*14*dp;
-            float twinkle=.5f+.5f*(float)Math.sin(now*(.7f+seed)+i), size=(1+seed*2)*dp*(1+energy);
+            float rise=rise(now,speed,seed*7+i*.13f), x=(seed*97%1f)*w+(float)Math.sin(now*.3+i)*14*dp;
+            float twinkle=.5f+.5f*(float)Math.sin(now*(.7+seed)+i), size=(1+seed*2)*dp*(1+energy);
             paint.setColor(light|(int)((stars?70+150*twinkle:30+60*twinkle)*(1-rise*.5f))<<24);
             float y=h*(1-rise);
             c.drawCircle(x,y,size,paint);
             if(stars&&seed>.7f){c.drawRect(x-size*3,y-size*.2f,x+size*3,y+size*.2f,paint);c.drawRect(x-size*.2f,y-size*3,x+size*.2f,y+size*3,paint);}
         }
     }
+    static float rise(double seconds,float speed,float start){return (float)((start+seconds*speed)%1);}
     private float blend(){
         if(!Wave.animationsEnabled())return 1;
         float t=Math.min(1f,(SystemClock.uptimeMillis()-changedAt)/900f);

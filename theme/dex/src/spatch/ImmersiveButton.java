@@ -48,7 +48,7 @@ final class ImmersiveButton {
         surface.setState(pressed ? new int[]{0x0101009e,0x010100a7} : hovered ? new int[]{0x0101009e,0x01010367} : new int[0]);
     }
 
-    boolean click() { return enabled() && source != null && source.performClick(); }
+    boolean click() { return enabled() && source != null && ClickHaptic.forward(source); }
 
     void draw(Canvas c, Drawable icon, Drawable alternate, float x, float y, float radius, boolean playing) {
         long now = SystemClock.uptimeMillis();

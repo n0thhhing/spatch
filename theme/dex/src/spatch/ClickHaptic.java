@@ -11,13 +11,24 @@ final class ClickHaptic extends View.AccessibilityDelegate {
     private static final int CLICKED = 1; // AccessibilityEvent.TYPE_VIEW_CLICKED
     static final int PLAYER_BUTTON = 0x7f0b0b46, MINI_BUTTON = 0x7f0b0c19; // R.id.nowplaying_elements_playpause_button, play_pause_button
     private static final ClickHaptic ONE = new ClickHaptic();
+    private static boolean forwarding;
 
     public void sendAccessibilityEvent(View host, int type) {
-        if (type == CLICKED) {
+        if (type == CLICKED && !forwarding) {
             Haptics.playback(host);
             burst(host);
         }
         super.sendAccessibilityEvent(host, type);
+    }
+
+    /** A click passed on from the immersive player, which gave its own feedback where the finger was. */
+    static boolean forward(View button) {
+        forwarding = true;
+        try {
+            return button.performClick();
+        } finally {
+            forwarding = false;
+        }
     }
 
     /** The label still names what the click does: "Pause" means it was playing. */

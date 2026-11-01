@@ -15,6 +15,7 @@ public class ViewGroup extends View implements ViewParent {
     public View getChildAt(int i) { return null; }
     public void removeViewAt(int i) {}
     public void setClipChildren(boolean c) {}
+    public boolean getClipChildren() { return true; }
     public void setClipToPadding(boolean c) {}
     public void addView(View v) {}
     public void removeAllViews() {}

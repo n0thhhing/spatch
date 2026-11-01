@@ -222,6 +222,27 @@ final class DevTests {
                 return "";
             }
         });
+        test("Nothing clips the ring on a loud beat", new Test() {
+            public String run() {
+                PlayerArt page = art();
+                int screen = page.getRootView().getWidth();
+                float reach = (1.045f + .012f + 1.12f * PlayerArt.AUDIO_REACH + .012f * PlayerArt.BOLD / 2) * (1 + PlayerArt.BEAT);
+                check(reach * .88f * page.getWidth() / 2 < screen / 2f, "reaches past the screen");
+                PlayerArt.unclip(page, screen);
+                for (android.view.ViewParent p = page.getParent(); p instanceof ViewGroup; p = p.getParent()) {
+                    check(!((ViewGroup) p).getClipChildren(), p + " clips the ring");
+                    if (((ViewGroup) p).getWidth() >= screen) break;
+                }
+                return "";
+            }
+        });
+        test("Motes move every frame after weeks of uptime", new Test() {
+            public String run() {
+                double weeks = 21 * 86400;
+                check(Atmosphere.rise(weeks, .012f, 0) != Atmosphere.rise(weeks + .016, .012f, 0), "stuck for a frame");
+                return "";
+            }
+        });
         test("Spectrum of silence is empty", new Test() {
             public String run() {
                 for (float level : AudioSpectrum.bands(new byte[1024], 44100, Spectrum.BANDS)) check(level == 0, "level " + level);

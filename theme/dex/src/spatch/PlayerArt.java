@@ -138,6 +138,7 @@ public final class PlayerArt extends ImageView {
         if(now-lastSetup>750) {
             lastSetup=now;
             View root=getRootView();
+            unclip(this, root.getWidth());
             View controls=root.findViewById(ids[1]);
             if(controls instanceof ViewGroup) decorate((ViewGroup)controls);
             ClickHaptic.attach(controls);
@@ -510,6 +511,16 @@ public final class PlayerArt extends ImageView {
         getLocationOnScreen(loc);
         float centre=loc[0]+getWidth()/2f;
         return Math.abs(centre-getRootView().getWidth()/2f) < getWidth()/4f;
+    }
+
+    /** The beat bounce and tilt carry the ring past the view's edge into the screen margin, so nothing up to the full-width page may clip it. */
+    static void unclip(View art, int screenWidth) {
+        for(android.view.ViewParent p=art.getParent(); p instanceof ViewGroup; p=p.getParent()) {
+            ViewGroup group=(ViewGroup)p;
+            group.setClipChildren(false);
+            group.setClipToPadding(false);
+            if(group.getWidth()>=screenWidth) return;
+        }
     }
 
     private static void decorate(ViewGroup group) {
