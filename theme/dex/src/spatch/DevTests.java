@@ -937,6 +937,25 @@ final class DevTests {
                 backdrop.draw(canvas);
             }
         });
+        test("Headers soften bright gradients only", new Test() {
+            public String run() {
+                inApp();
+                ArrayList<p.i7h> colors = new ArrayList<p.i7h>();
+                colors.add(new p.i7h((long) 0xffe91e8c << 32));
+                colors.add(new p.i7h((long) 0xff101010 << 32));
+                boolean on = Settings.get(Settings.SOFT_HEADERS);
+                try {
+                    Settings.set(Settings.SOFT_HEADERS, true);
+                    p.shc0 soft = (p.shc0) Surfaces.headerBrush(new p.shc0(0, 0, 0, colors, null));
+                    long bright = ((p.i7h) soft.d.get(0)).a, dark = ((p.i7h) soft.d.get(1)).a;
+                    check(Surfaces.chroma((int) (bright >>> 32)) < Surfaces.chroma(0xffe91e8c), "pink stayed loud");
+                    check(dark == (long) 0xff101010 << 32, "a dark scrim changed");
+                } finally {
+                    Settings.set(Settings.SOFT_HEADERS, on);
+                }
+                return "";
+            }
+        });
         test("Tests left settings alone", new Test() {
             public String run() {
                 for (int i = 0; i < switches.length; i++) check(Settings.get(i) == switches[i], Settings.KEYS[i]);

@@ -118,7 +118,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Hold to like",
         "Spinning cover",
         "Swipe to skip",
-        "Cards on every list"
+        "Cards on every list",
+        "Soft headers"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -210,7 +211,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Hold the mini player's cover to like the song",
         "The mini player's cover turns like a record while playing",
         "Drag the artwork sideways in the immersive player",
-        "Search results, albums and artist pages get row cards"
+        "Search results, albums and artist pages get row cards",
+        "Bright page headers become a tint of the theme"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
@@ -220,7 +222,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image"
     };
 
     /** Section layout: Settings indices per group. */
@@ -594,8 +596,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         link(screenRows, "playlist", "Playlists", "Track cards and the play button", playlistPage);
         screenRows.addView(master(37, profilePage));
         screenRows.addView(featureRows[Settings.LIST_CARDS]);
+        screenRows.addView(featureRows[Settings.SOFT_HEADERS]);
         finish(screenRows);
-        resetFor(new int[] {Settings.LIST_CARDS}, new int[0]);
+        resetFor(new int[] {Settings.LIST_CARDS, Settings.SOFT_HEADERS}, new int[0]);
         finishCategory(screens);
 
         View navigation = category(categories, "notifications_active", "Motion & haptics", "Transitions, springs and feedback", "Motion & haptics");

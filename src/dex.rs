@@ -74,7 +74,7 @@ pub const EDITS: [Edit; 81] = [
     Edit {
         file: "smali/p/yw9.smali",
         anchor: ".method public constructor <init>(JLandroidx/compose/ui/graphics/Brush;FLp/bv61;I)V\n    .locals 1\n",
-        replacement: ".method public constructor <init>(JLandroidx/compose/ui/graphics/Brush;FLp/bv61;I)V\n    .locals 1\n\n    invoke-static {p1, p2}, Lspatch/Surfaces;->bg(J)J\n\n    move-result-wide p1\n",
+        replacement: ".method public constructor <init>(JLandroidx/compose/ui/graphics/Brush;FLp/bv61;I)V\n    .locals 1\n\n    invoke-static {p1, p2}, Lspatch/Surfaces;->bg(J)J\n\n    move-result-wide p1\n\n    invoke-static {p3}, Lspatch/Surfaces;->headerBrush(Landroidx/compose/ui/graphics/Brush;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object p3\n",
     },
     Edit {
         file: "smali/p/xp31.smali",
@@ -902,6 +902,8 @@ fn obfuscated_classes() -> String {
 }
 
 const STUBS: &[(&str, &str)] = &[
+    ("i7h.java", include_str!("../theme/dex/stubs/p/i7h.java")),
+    ("shc0.java", include_str!("../theme/dex/stubs/p/shc0.java")),
     (
         "LayerDrawable.java",
         include_str!("../theme/dex/stubs/android/graphics/drawable/LayerDrawable.java"),

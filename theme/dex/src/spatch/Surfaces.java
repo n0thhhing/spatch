@@ -1,6 +1,8 @@
 package spatch;
 
 import p.bv61;
+import p.i7h;
+import p.shc0;
 import p.ud5;
 import p.w6b1;
 import p.cxn1;
@@ -19,6 +21,9 @@ import p.zyq0;
 public final class Surfaces {
     private static final int GREY_CARD = 0xff292929, SKELETON = 0x1affffff;
 
+    private static final int VIVID = 70;
+    private static androidx.compose.ui.graphics.Brush softenedFrom, softened;
+
     private Surfaces() {}
 
     private static boolean plain(long c) {
@@ -32,6 +37,37 @@ public final class Surfaces {
         if (argb == GREY_CARD) return (long) Palette.color(0xff2b2640) << 32;
         if (argb == SKELETON) return (long) (Palette.color(0xffd0bcff) & 0xffffff | 0x24000000) << 32;
         return c;
+    }
+
+    /** Bright server colours in page headers become a tint of the theme; dark scrims and images are left alone. */
+    public static androidx.compose.ui.graphics.Brush headerBrush(androidx.compose.ui.graphics.Brush brush) {
+        if (!(brush instanceof shc0) || !Settings.get(Settings.SOFT_HEADERS)) return brush;
+        if (brush.equals(softenedFrom)) return softened;
+        shc0 gradient = (shc0) brush;
+        java.util.ArrayList<i7h> colors = new java.util.ArrayList<i7h>();
+        boolean changed = false;
+        for (Object color : gradient.d) {
+            long value = ((i7h) color).a;
+            int argb = (int) (value >>> 32);
+            if (!plain(value) || chroma(argb) < VIVID) {
+                colors.add((i7h) color);
+                continue;
+            }
+            changed = true;
+            colors.add(new i7h((long) soften(argb) << 32));
+        }
+        softenedFrom = brush;
+        softened = changed ? new shc0(gradient.h, gradient.f, gradient.g, colors, gradient.e) : brush;
+        return softened;
+    }
+
+    static int chroma(int argb) {
+        int r = argb >> 16 & 255, g = argb >> 8 & 255, b = argb & 255;
+        return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+    }
+
+    static int soften(int argb) {
+        return argb & 0xff000000 | Pill.blend(argb, Palette.color(0xff14121c), 0.68f) & 0xffffff;
     }
 
     /** Server tile colours keep their hue as a tint on the theme surface, instead of full-saturation panels. */
