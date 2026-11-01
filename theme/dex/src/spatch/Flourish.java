@@ -304,7 +304,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             float eased = 1 - (1 - ripple) * (1 - ripple);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth((3 - 2 * ripple) * dp);
-            paint.setColor(Palette.color(0xffd0bcff));
+            paint.setColor(Tint.color(Settings.RIPPLE_COLOR));
             paint.setAlpha(Math.round(120 * (1 - ripple)));
             c.drawCircle(rippleX, rippleY, (10 + 44 * eased) * dp, paint);
         }

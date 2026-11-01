@@ -24,23 +24,47 @@ public final class AudioSpectrum {
     /** Renderers of the one shared capture: it runs while any of them is visible and playing. */
     static final int BOTTOM = 1, RADIAL = 2, MINI = 4;
     static final AudioSpectrum SHARED = new AudioSpectrum();
-    private static int consumers;
+    private static volatile int consumers;
 
     static void request(Context context, int consumer, boolean active) {
         consumers = active ? consumers | consumer : consumers & ~consumer;
-        SHARED.update(context, consumers != 0);
+        final Context app = context.getApplicationContext();
+        if (queued) return;
+        queued = true;
+        worker().post(new Runnable() {
+            public void run() {
+                queued = false;
+                SHARED.update(app, consumers != 0);
+            }
+        });
+    }
+
+    /** Setting up and reading a Visualizer are binder calls into the audio server: measured stalling skips on the main thread. */
+    private static android.os.Handler worker() {
+        if (worker == null) {
+            android.os.HandlerThread thread = new android.os.HandlerThread("SpatchAudio");
+            thread.start();
+            worker = new android.os.Handler(thread.getLooper());
+        }
+        return worker;
     }
 
     /** A renderer went away (hidden, closed, backgrounded); no context is needed to stop capture. */
     static void drop(int consumer) {
         consumers &= ~consumer;
-        if (consumers == 0) SHARED.release();
+        if (consumers == 0) worker().post(new Runnable() {
+            public void run() {
+                if (consumers == 0) SHARED.release();
+            }
+        });
     }
 
     static int session() {
         return current;
     }
 
+    private static android.os.Handler worker;
+    private static volatile boolean queued;
     private Visualizer visualizer;
     private int attempted;
     private byte[] fft;

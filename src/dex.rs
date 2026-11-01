@@ -753,7 +753,11 @@ const HELPERS: [(&str, &str); 52] = [
     ),
 ];
 /// Added by `--debug` only, and found by name at runtime, so other builds contain none of this code.
-const DEBUG_HELPERS: [(&str, &str); 3] = [
+const DEBUG_HELPERS: [(&str, &str); 4] = [
+    (
+        "DevSampler",
+        include_str!("../theme/dex/src/spatch/DevSampler.java"),
+    ),
     (
         "DevOptions",
         include_str!("../theme/dex/src/spatch/DevOptions.java"),
@@ -1866,7 +1870,7 @@ mod tests {
         }
         // Normal helpers may only reach it by name: a compile-time reference would fail without --debug.
         for (name, source) in HELPERS {
-            for class in ["DevOptions.", "DevTests.", "DevOverlay."] {
+            for class in ["DevOptions.", "DevTests.", "DevOverlay.", "DevSampler."] {
                 assert!(!source.contains(class), "{name} refers to {class}");
             }
         }

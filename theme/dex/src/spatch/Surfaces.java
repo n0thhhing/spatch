@@ -75,7 +75,9 @@ public final class Surfaces {
 
     /** if41's release: everything Encore makes pressable springs back past rest, or settles as stock. */
     public static ud5 pressSpring() {
-        return Settings.get(Settings.BOUNCY_PRESS) && Wave.animationsEnabled() ? new w6b1(0.38f, 420f, null) : new w6b1(1f, 1500f, null);
+        if (!Settings.get(Settings.BOUNCY_PRESS) || !Wave.animationsEnabled()) return new w6b1(1f, 1500f, null);
+        String bounce = Settings.choice(Settings.BOUNCE);
+        return "soft".equals(bounce) ? new w6b1(0.6f, 300f, null) : "wild".equals(bounce) ? new w6b1(0.24f, 520f, null) : new w6b1(0.38f, 420f, null);
     }
 
     /** tsr, Compose's default press overlay: a light veil that reads on any theme surface. */

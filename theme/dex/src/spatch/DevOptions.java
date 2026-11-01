@@ -29,8 +29,8 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
     private final SpatchSettings page;
     private final Context context;
     private final TextView status, results, crash, log;
-    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, restart, frames, inspect;
-    private final M3Switch framesSwitch, inspectSwitch;
+    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, restart, frames, inspect, sampler;
+    private final M3Switch framesSwitch, inspectSwitch, samplerSwitch;
     private String report = "Not run yet";
 
     /** Called from Settings.load. Records an uncaught crash, then lets Android handle it as usual. */
@@ -78,6 +78,8 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         LinearLayout live = page.addGroup();
         framesSwitch = new M3Switch(context);
         frames = toggle(live, framesSwitch, "time", "Frame monitor", "Frame rate, slow frames, memory and audio, over the app");
+        samplerSwitch = new M3Switch(context);
+        sampler = toggle(live, samplerSwitch, "time", "Main thread sampler", "Logs where the main thread spends its time to logcat");
         inspectSwitch = new M3Switch(context);
         inspect = toggle(live, inspectSwitch, "search", "Touch inspector", "Shows the view under your finger. Compose content shows as one view.");
         page.finish(live);
@@ -241,6 +243,9 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
             runTests();
         } else if (v == copyReport) {
             copy("Spatch report", statusText() + "\nChanged settings\n" + changedSettings() + "\nTests\n" + report + "\nLast crash\n" + lastCrash());
+        } else if (v == sampler) {
+            samplerSwitch.toggle();
+            DevSampler.set(samplerSwitch.isChecked());
         } else if (v == frames || v == inspect) {
             ((v == frames) ? framesSwitch : inspectSwitch).toggle();
             ViewGroup root = (ViewGroup) page.getRootView();

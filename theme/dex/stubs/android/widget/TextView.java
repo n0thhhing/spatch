@@ -10,6 +10,8 @@ public class TextView extends android.view.View {
     public void addTextChangedListener(android.text.TextWatcher w) {}
     public void setText(CharSequence t) {}
     public void setSingleLine(boolean s) {}
+    public void setHintTextColor(int c) {}
+    public void setHint(CharSequence h) {}
     public void setTextSize(float sp) {}
     public void setTextColor(int c) {}
     public void setTypeface(android.graphics.Typeface tf) {}

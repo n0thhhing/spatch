@@ -11,6 +11,7 @@ public class Context {
     public static final String AUDIO_SERVICE = "audio";
     public android.content.res.Resources getResources() { return null; }
     public String getPackageName() { return null; }
+    public Context getApplicationContext() { return this; }
     public SharedPreferences getSharedPreferences(String name, int mode) { return null; }
     public Object getSystemService(String name) { return null; }
 }

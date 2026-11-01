@@ -66,11 +66,62 @@ public final class MiniBar extends MotionLayout implements Runnable {
     }
 
     private int id(String name) {
-        return getResources().getIdentifier(name, "id", getContext().getPackageName());
+        Integer known = IDS.get(name); // run() asks every update: getIdentifier was a measured cost
+        if (known != null) return known.intValue();
+        int found = getResources().getIdentifier(name, "id", getContext().getPackageName());
+        IDS.put(name, Integer.valueOf(found));
+        return found;
     }
 
     /** A tap on the artwork or metadata opens the player; remember where the cover was. */
+    /** Held on the cover or title, the mini player likes the song instead of opening. */
+    private final Runnable holdLike = new Runnable() {
+        public void run() {
+            View like = find(MiniBar.this);
+            if (like == null) return;
+            liked = true;
+            like.performClick();
+            Haptics.saved(like);
+        }
+
+        private View find(View view) {
+            if (view.getClass().getName().endsWith("AddToButtonView")) return view;
+            if (view instanceof android.view.ViewGroup) {
+                android.view.ViewGroup group = (android.view.ViewGroup) view;
+                for (int i = 0; i < group.getChildCount(); i++) {
+                    View inner = find(group.getChildAt(i));
+                    if (inner != null) return inner;
+                }
+            }
+            return null;
+        }
+    };
+    private boolean liked;
+    private static final java.util.HashMap<String, Integer> IDS = new java.util.HashMap<String, Integer>();
+    private float pressX, pressY;
+
+    private boolean likeTouch(MotionEvent e) {
+        int action = e.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            liked = false;
+            pressX = e.getX();
+            pressY = e.getY();
+            if (Settings.get(Settings.MINI_HOLD_LIKE) && previous != null && pressX < previous.getLeft()) postDelayed(holdLike, 450);
+        } else if (action == MotionEvent.ACTION_MOVE) {
+            if (Math.hypot(e.getX() - pressX, e.getY() - pressY) > 24) removeCallbacks(holdLike);
+        } else {
+            removeCallbacks(holdLike);
+            if (liked && action == MotionEvent.ACTION_UP) {
+                e.setAction(MotionEvent.ACTION_CANCEL); // that hold wasn't a tap
+                super.dispatchTouchEvent(e);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean dispatchTouchEvent(MotionEvent e) {
+        if (likeTouch(e)) return true;
         if (coverSpring != null && (e.getActionMasked() != MotionEvent.ACTION_DOWN || previous != null && e.getX() < findViewById(id("tracks_carousel_view")).getRight())) coverSpring.onTouch(shapedCover, e);
         if (e.getActionMasked() == MotionEvent.ACTION_UP && previous != null && e.getX() < findViewById(id("tracks_carousel_view")).getRight()) {
             View cover = findViewById(id("cover_image"));

@@ -53,6 +53,8 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     }
 
     /** Called with every media session Spotify creates; the one that plays or has metadata wins. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, Integer> IDS = new java.util.concurrent.ConcurrentHashMap<String, Integer>();
+
     static MediaController controller() {
         return current;
     }
@@ -297,7 +299,11 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     }
 
     private static int id(Resources r, String pkg, String name) {
-        return r.getIdentifier(name, "id", pkg);
+        Integer known = IDS.get(name);
+        if (known != null) return known.intValue();
+        int found = r.getIdentifier(name, "id", pkg);
+        IDS.put(name, Integer.valueOf(found));
+        return found;
     }
 
     /** A media-button broadcast to Spotify's own receiver, as headsets and lock screens use. */
