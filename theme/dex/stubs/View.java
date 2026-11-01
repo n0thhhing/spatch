@@ -91,6 +91,8 @@ public class View implements android.graphics.drawable.Drawable.Callback {
     public static final int GONE = 8;
     public void setTranslationY(float y) {}
     public void setRotation(float r) {}
+    public void setPivotX(float x) {}
+    public void setPivotY(float y) {}
     public float getRotation() { return 0; }
     public ViewGroup.LayoutParams getLayoutParams() { return null; }
     public interface OnScrollChangeListener { void onScrollChange(View v, int x, int y, int oldX, int oldY); }

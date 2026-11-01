@@ -163,6 +163,8 @@ public final class MiniBar extends MotionLayout implements Runnable {
                 return;
             }
             long now = SystemClock.uptimeMillis();
+            shapedCover.setPivotX(shapedCover.getWidth() / 2f); // Spotify leaves it off-centre, which swings the cover out of the bar
+            shapedCover.setPivotY(shapedCover.getHeight() / 2f);
             shapedCover.setRotation((shapedCover.getRotation() + Math.min(100, now - turnedAt) * SPIN) % 360);
             turnedAt = now;
             postDelayed(this, 33);
