@@ -243,6 +243,18 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         return out.length() == 0 ? "Nothing logged" : out.substring(start);
     }
 
+    /** The selector skips Spotify's own link handling; the application context skips its activities' startActivity. */
+    private void openInBrowser() {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(LATEST_BUILD)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.setSelector(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER));
+        try {
+            context.getApplicationContext().startActivity(intent);
+        } catch (RuntimeException noBrowser) {
+            intent.setSelector(null);
+            context.getApplicationContext().startActivity(intent);
+        }
+    }
+
     public void onClick(View v) {
         if (v == run) {
             runTests();
@@ -268,7 +280,7 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
             new AlertDialog.Builder(context, 0x010302d1).setTitle("Crash Spotify now?").setMessage("It closes straight away. Reopen it to see the record here.")
                 .setPositiveButton("Crash", this).setNegativeButton("Cancel", this).show();
         } else if (v == update) {
-            context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(LATEST_BUILD)));
+            openInBrowser();
         } else if (v == restart) {
             Palette.restart(context);
         }
