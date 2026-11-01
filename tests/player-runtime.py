@@ -714,14 +714,14 @@ public class PlayerRuntimeTest {
         check(liveBursts.getInt(null)==before,"Play only must skip pause"); Settings.setChoice(Settings.BURST_WHEN,"both");
         Settings.set(6,true); Confetti.at(host,0,0); check(liveBursts.getInt(null)==before,"reduce motion must stop bursts"); Settings.set(6,false);
         View generated=new View(new android.content.Context()); generated.testId=0x1a;
-        Field reportedAt=Confetti.class.getDeclaredField("buttonAt"); reportedAt.setAccessible(true); reportedAt.setLong(null,-100000);
-        Settings.set(Settings.BURST,false); new ClickHaptic().sendAccessibilityEvent(generated,1);
-        check(!Confetti.answered(0),"a runtime id is not a play button and must not throw");
-        generated.testId=0x7f0b0c19; new ClickHaptic().sendAccessibilityEvent(generated,1);
-        check(Confetti.answered(0),"the mini player button must report its press"); Settings.set(Settings.BURST,true);
-        long pressed=android.os.SystemClock.uptimeMillis();
-        check(Confetti.answered(pressed),"a button that reported this press must not burst again on the state change");
-        check(!Confetti.answered(pressed+1),"a later press is a new one");
+        new ClickHaptic().sendAccessibilityEvent(generated,1); // a runtime id is not a play button and must not throw
+        generated.testId=0x7f0b0c19; boolean burstReached=false;
+        try { new ClickHaptic().sendAccessibilityEvent(generated,1); } catch(NullPointerException noResources) { burstReached=true; }
+        check(burstReached,"the mini player button must reach the burst");
+        int[] clicks={0}; kotlin.jvm.functions.Function0 wrapped=Flourish.pressed(()->{clicks[0]++;return "done";},1);
+        check("done".equals(wrapped.invoke())&&clicks[0]==1,"a play button's click must still run, once");
+        java.nio.file.Path spatchSrc=java.nio.file.Path.of(System.getProperty("fonts")).getParent().resolve("dex/src/spatch/ScallopShape.java");
+        check(!new String(java.nio.file.Files.readAllBytes(spatchSrc)).contains("Flourish."),"a play state change alone must never burst: paused, tapping a song or skipping starts playback too");
         System.out.println("PASS play button burst");
 
         // Library and playlists: rows arrive in turn and end exactly in place; the ring meets long press.

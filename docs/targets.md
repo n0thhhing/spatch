@@ -513,7 +513,7 @@ Tab press feedback: `k1u.c` (classes12) gets a null indication, so Compose draws
 
 ## Overnight redesign (2026-10-31)
 
-- **Playlist play button:** `p.f1p1.m` (classes4). `ScallopShape.live(state)` takes Spotify's own state (1 = pause glyph shown) and is read during composition; a tick continues only while something composes it, so it stops offscreen and in the background.
+- **Playlist play button:** `p.f1p1.j` (classes4) owns the click and state; `Flourish.pressed` wraps the click for the burst, so playback that starts any other way never bursts. `p.f1p1.m` draws it. `ScallopShape.live(state)` takes Spotify's own state (1 = pause glyph shown) and is read during composition; a tick continues only while something composes it, so it stops offscreen and in the background.
 - **Profile (Compose, not `y5x0`/`jis`):** `p.r7j` -> `p.bn31.i` -> `p.bn31.h`. `h` paints `l6x0.k` plus a vertical gradient; `j` paints the top bar. `l6x0.m` is false on a `PREVIEW_CURRENT_USER` profile, so own-profile detection uses the `e6x0` Edit action in `l6x0.f`. `ProfileBanner` extends `tu61` (ShaderBrush).
 - **Held rows:** `tbx.e` in `p.ggx`'s base set was opaque black; `Surfaces.pressed` replaces that slot.
 - **Back:** `Back` unregisters when it fires, so `SpatchSettings.close` registers again after popping a sub-page.

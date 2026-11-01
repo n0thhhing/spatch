@@ -21,7 +21,8 @@ import p.zpo;
  * continues while something composes it, so a button that scrolled away or went to the background stops.
  */
 public final class ScallopShape implements bv61 {
-    private static final int STEPS = 180, PLAYING = 1; // PLAYING: f1p1.m's first state, the pause glyph
+    private static final int STEPS = 180;
+    static final int PLAYING = 1; // f1p1.m's first state, the pause glyph
     private static final float TURN_MILLIS = 12000f, MORPH_MILLIS = 440f;
     private static final long FRAME = 16, STALE = 250;
     private static final hqr0 TICK = zpo.q(Long.valueOf(0L));
@@ -54,7 +55,6 @@ public final class ScallopShape implements bv61 {
         float wanted = state == PLAYING ? 1 : 0;
         if (shown < 0) shown = from = target = wanted;
         if (wanted != target) {
-            Flourish.played(wanted == 1);
             from = shown;
             target = wanted;
             changedAt = now;

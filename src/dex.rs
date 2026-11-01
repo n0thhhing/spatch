@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 78] = [
+pub const EDITS: [Edit; 79] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -340,6 +340,12 @@ pub const EDITS: [Edit; 78] = [
         file: "smali_classes4/p/f1p1.smali",
         anchor: "    sget-object v5, Lp/xp31;->a:Lp/vp31;\n",
         replacement: "    invoke-static/range {p1 .. p1}, Lspatch/ScallopShape;->live(I)Lp/bv61;\n\n    move-result-object v5\n",
+    },
+    // The play button around it (p.f1p1.j): its click also reports the press for the burst.
+    Edit {
+        file: "smali_classes4/p/f1p1.smali",
+        anchor: ".method public static final j(Lkotlin/jvm/functions/Function0;IZLp/rhm0;FZZLjava/lang/String;Lp/pzj;I)V\n    .locals 28\n",
+        replacement: ".method public static final j(Lkotlin/jvm/functions/Function0;IZLp/rhm0;FZZLjava/lang/String;Lp/pzj;I)V\n    .locals 28\n\n    invoke-static/range {p0 .. p1}, Lspatch/Flourish;->pressed(Lkotlin/jvm/functions/Function0;I)Lkotlin/jvm/functions/Function0;\n\n    move-result-object p0\n",
     },
     // Widget: Glance's hand-off of the rendered RemoteViews (p.rx5, classes.dex) asks
     // spatch.SpatchWidget first; it returns Spatch's views only for the Now Playing widget.
@@ -758,6 +764,10 @@ fn obfuscated_classes() -> String {
 }
 
 const STUBS: &[(&str, &str)] = &[
+    (
+        "Function0.java",
+        include_str!("../theme/dex/stubs/kotlin/jvm/functions/Function0.java"),
+    ),
     (
         "Font.java",
         include_str!("../theme/dex/stubs/android/graphics/fonts/Font.java"),

@@ -19,6 +19,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import kotlin.jvm.functions.Function0;
 import p.hqr0;
 import p.rhm0;
 import p.z341;
@@ -32,7 +33,7 @@ import p.zpo;
 final class Flourish extends Drawable implements InvocationHandler, Runnable {
     static final int NONE = 0, LIBRARY = 1, PLAYLIST = 2;
     private static final int LIBRARY_TAB = 2;
-    private static final long HOLD_START = 130, HOLD_END = 400, TOUCH_WINDOW = 900, OPEN_WINDOW = 1500; // ms
+    private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500; // ms
     private static final float GLOW = 120, RING = 34, RING_WIDTH = 4, FOLLOW = 0.3f; // dp
     private static final float CASCADE_MILLIS = 340, CASCADE_STAGGER = 45, CASCADE_RISE = 26; // ms, dp
     private static final int CASCADE_ROWS = 10, CASCADE_MASK = 0xfffeb; // alpha and translationY only
@@ -142,24 +143,29 @@ final class Flourish extends Drawable implements InvocationHandler, Runnable {
     /** Called while a row composes; a frame tick recomposes the rows only while they are rising. */
     private static rhm0 cascade(rhm0 row, boolean enabled) {
         long tick = ((Long) TICK.getValue()).longValue();
-        if (!enabled || !Wave.animationsEnabled()) return row;
-        long now = SystemClock.uptimeMillis();
-        if (armed) {
-            armed = false;
-            cascadeAt = now;
-            tickSeen = tick;
-            order = 0;
-            MAIN.postDelayed(FRAMES, FRAME);
+        float alpha = 1, rise = 0;
+        if (enabled && Wave.animationsEnabled()) {
+            long now = SystemClock.uptimeMillis();
+            if (armed) {
+                armed = false;
+                cascadeAt = now;
+                tickSeen = tick;
+                order = 0;
+                MAIN.postDelayed(FRAMES, FRAME);
+            }
+            float elapsed = now - cascadeAt;
+            if (elapsed <= CASCADE_MILLIS + CASCADE_STAGGER * CASCADE_ROWS) {
+                if (tick != tickSeen) {
+                    tickSeen = tick;
+                    order = 0;
+                }
+                float[] state = rise(elapsed, Math.min(order++, CASCADE_ROWS));
+                alpha = state[0];
+                rise = state[1] * CASCADE_RISE * (current == null ? 3 : current.dp);
+            }
         }
-        float elapsed = now - cascadeAt;
-        if (elapsed > CASCADE_MILLIS + CASCADE_STAGGER * CASCADE_ROWS) return row;
-        if (tick != tickSeen) {
-            tickSeen = tick;
-            order = 0;
-        }
-        float[] state = rise(elapsed, Math.min(order++, CASCADE_ROWS));
-        float rise = state[1] * CASCADE_RISE * (current == null ? 3 : current.dp);
-        return z341.q(row, 1f, 1f, state[0], 0f, rise, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, CASCADE_MASK);
+        // Always the layer, even at rest: on the phone, rows that lost it lost their card too (cause unknown).
+        return z341.q(row, 1f, 1f, alpha, 0f, rise, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, CASCADE_MASK);
     }
 
     static rhm0 libraryRow(rhm0 row) {
@@ -172,11 +178,15 @@ final class Flourish extends Drawable implements InvocationHandler, Runnable {
         return cascade(row, Settings.get(Settings.PLAYLIST_CASCADE));
     }
 
-    /** The last press, for Compose buttons that report a change but not where they are. */
-    static void played(boolean starting) {
-        final Flourish f = current;
-        if (f == null || SystemClock.uptimeMillis() - f.downAt > TOUCH_WINDOW || Confetti.answered(f.downAt)) return;
-        Confetti.wanted(f.root, f.downX, f.downY, starting, Settings.BURST_LISTS);
+    /** A Compose play button's own click (f1p1.j), showing state: only a press of it bursts, at the last touch. */
+    public static Function0 pressed(final Function0 click, final int state) {
+        return new Function0() {
+            public Object invoke() {
+                Flourish f = current;
+                if (f != null) Confetti.wanted(f.root, f.downX, f.downY, state != ScallopShape.PLAYING, Settings.BURST_LISTS);
+                return click.invoke();
+            }
+        };
     }
 
     private static boolean holdOn() {
