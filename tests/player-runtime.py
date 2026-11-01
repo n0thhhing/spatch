@@ -618,6 +618,20 @@ public class PlayerRuntimeTest {
         check(PlayerArt.settle(.2f,.6f,16)==.6f,"leaving must not lag");
         carousel.screenX=0; carousel.onDraw(canvas);
         check(carousel.testAlpha>.29f&&carousel.testAlpha<.4f,"landing on centre must not jump to full opacity, got "+carousel.testAlpha);
+        // Spotify can jump straight to the new page: a song change alone must start the arrival.
+        java.lang.reflect.Constructor<TextSlide> slideNew=TextSlide.class.getDeclaredConstructor(android.widget.TextView.class); slideNew.setAccessible(true);
+        TextSlide slide=slideNew.newInstance(new android.widget.TextView(new android.content.Context()));
+        java.util.function.Function<String,android.text.Editable> typed=t->(android.text.Editable)java.lang.reflect.Proxy.newProxyInstance(android.text.Editable.class.getClassLoader(),new Class<?>[]{android.text.Editable.class},(o,m,a)->t);
+        java.lang.reflect.Field songAt=PlayerArt.class.getDeclaredField("songAt"); songAt.setAccessible(true);
+        slide.afterTextChanged(typed.apply("First")); check(songAt.getLong(null)<0,"the first title seen must not start an arrival");
+        try { slide.afterTextChanged(typed.apply("Next song")); } catch(RuntimeException stubbedAnimator) {}
+        check(songAt.getLong(null)>0,"a new title must start the arrival");
+        Settings.setChoice(Settings.ART_SKIP,"shrink"); carousel.onDraw(canvas);
+        check(canvas.scale<.67f,"Shrink must start small on a song change with no slide, got "+canvas.scale);
+        Settings.setChoice(Settings.ART_SKIP,"fade"); carousel.onDraw(canvas);
+        check(carousel.testAlpha<.08f,"Fade must start clear on a song change with no slide, got "+carousel.testAlpha);
+        check(PlayerArt.arriving((long)PlayerArt.ARRIVE_MILLIS)==0,"the arrival must end");
+        songAt.setLong(null,-100000);
         Settings.setChoice(Settings.ART_SKIP,"slide"); carousel.onDraw(canvas);
         check(carousel.testAlpha==1,"leaving Fade must restore full opacity");
         Settings.setChoice(Settings.ART_SKIP,"spin"); Settings.set(6,true); canvas.degrees=0; carousel.screenX=500; carousel.onDraw(canvas);

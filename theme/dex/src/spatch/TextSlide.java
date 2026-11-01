@@ -35,6 +35,7 @@ final class TextSlide implements TextWatcher {
         boolean first = last == null;
         last = now;
         if (first || !Wave.animationsEnabled()) return;
+        PlayerArt.songChanged();
         view.setAlpha(0f);
         view.setTranslationX(6 * view.getResources().getDisplayMetrics().density);
         // Spotify relayouts and inflates the new track's page in the first ~100 ms (traced: up to a

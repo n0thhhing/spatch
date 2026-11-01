@@ -29,6 +29,7 @@ public final class PlayerArt extends ImageView {
     private boolean faded;
     private float turn; // the distance Shrink and Fade show, which trails a fast skip
     private long turnAt;
+    private static long songAt = -100000;
     private Drawable previousArt;
     private long revealStart;
     private long tapAt = -1000;
@@ -88,7 +89,7 @@ public final class PlayerArt extends ImageView {
         String skip = Settings.choice(Settings.ART_SKIP);
         boolean skipMotion = !"slide".equals(skip) && Wave.animationsEnabled();
         float offset = skipMotion ? pageOffset() : 0;
-        turn = skipMotion ? settle(turn, Math.abs(offset), now - turnAt) : 0;
+        turn = skipMotion ? Math.max(settle(turn, Math.abs(offset), now - turnAt), arriving(now - songAt)) : 0;
         turnAt = now;
         turnPage(canvas, skip, offset);
         if (!heroHidden) {
@@ -173,6 +174,15 @@ public final class PlayerArt extends ImageView {
     /** A skip lands too fast to see a size or opacity change, so arriving is held to a readable pace; a finger drag is slower and is followed exactly. */
     static float settle(float shown, float distance, long elapsed) {
         return Math.max(distance, shown - Math.min(elapsed, 32) / ARRIVE_MILLIS);
+    }
+
+    /** Spotify can jump the carousel to a new song without sliding it, so the song itself starts the arrival. */
+    static void songChanged() {
+        songAt = SystemClock.uptimeMillis();
+    }
+
+    static float arriving(long sinceSong) {
+        return Math.max(0, 1 - sinceSong / ARRIVE_MILLIS);
     }
 
     /** Circular art with a soft glow and a slowly turning scalloped ring. */
