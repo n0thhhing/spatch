@@ -102,6 +102,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
 
     public void onPlaybackStateChanged(PlaybackState state) {
         if (state != null && state.getState() == PlaybackState.STATE_PLAYING) current = controller;
+        if (controller == current) Wave.paused = state != null && state.getState() == PlaybackState.STATE_PAUSED;
         schedule();
     }
 

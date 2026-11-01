@@ -44,6 +44,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     private AudioManager audio;
     private long audioCheckedAt;
     private boolean audioActive;
+    static volatile boolean paused; // the session says at once; position updates and audio both trail a pause
     private float amp; // 0 = flat, 1 = full wave
     private float thick; // 0 = normal stroke, 1 = dragging stroke
 
@@ -132,8 +133,8 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         long now = SystemClock.uptimeMillis();
         boolean motion = animationsEnabled();
         // Spotify stops position updates while the bar is touched, so also ask whether audio is playing.
-        boolean playing = pressed ? playingAtPress || musicActive(now)
-            : now - lastAdvance < ACTIVE_MS || musicActive(now);
+        boolean playing = !paused && (pressed ? playingAtPress || musicActive(now)
+            : now - lastAdvance < ACTIVE_MS || musicActive(now));
         amp = motion && Settings.wave() ? approach(amp, playing ? 1f : 0f) : 0f;
         thick = !Settings.waveThick() ? 0f : motion ? approach(thick, pressed || hovered ? 1f : 0f) : (pressed ? 1f : 0f);
 
