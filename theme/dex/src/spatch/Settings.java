@@ -30,11 +30,11 @@ import p.zsx;
  */
 public final class Settings implements jg81 {
     static final String URI = "spotify:spatch:settings";
-    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion", "profile_banner", "profile_theme_header", "library_style", "library_cards", "library_chips", "playlist_cards", "nav_style", "nav_drag", "nav_stretch", "nav_lift", "nav_press", "nav_pop", "art_press", "spring_press", "wave_thick", "buttons_bounce", "skip_nudge", "play_spin", "play_morph", "imm_titles", "imm_flight", "side_round", "side_scrim", "mini_pop", "mini_flight", "art_drift", "filter_anim", "library_cascade", "library_hold", "library_glow", "playlist_cascade", "playlist_hold", "playlist_glow", "burst", "burst_player", "burst_mini", "burst_immersive", "burst_lists", "art_tilt", "art_scratch", "hold_seek", "seek_bubble", "mini_album", "tap_ripple", "hero_touch", "bouncy_press", "hide_bars", "beat_bounce", "mini_hold_like", "mini_spin"};
-    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true};
+    static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion", "profile_banner", "profile_theme_header", "library_style", "library_cards", "library_chips", "playlist_cards", "nav_style", "nav_drag", "nav_stretch", "nav_lift", "nav_press", "nav_pop", "art_press", "spring_press", "wave_thick", "buttons_bounce", "skip_nudge", "play_spin", "play_morph", "imm_titles", "imm_flight", "side_round", "side_scrim", "mini_pop", "mini_flight", "art_drift", "filter_anim", "library_cascade", "library_hold", "library_glow", "playlist_cascade", "playlist_hold", "playlist_glow", "burst", "burst_player", "burst_mini", "burst_immersive", "burst_lists", "art_tilt", "art_scratch", "hold_seek", "seek_bubble", "mini_album", "tap_ripple", "hero_touch", "bouncy_press", "hide_bars", "beat_bounce", "mini_hold_like", "mini_spin", "imm_swipe"};
+    static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true};
     private static final int CUSTOMIZE = 0x7f131b75; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
-    static final int MINI_VISUALIZER = 16, HAPTICS = 17, LIBRARY_CASCADE = 64, LIBRARY_HOLD = 65, LIBRARY_GLOW = 66, PLAYLIST_CASCADE = 67, PLAYLIST_HOLD = 68, PLAYLIST_GLOW = 69, BURST = 70, BURST_PLAYER = 71, BURST_MINI = 72, BURST_IMMERSIVE = 73, BURST_LISTS = 74, ART_TILT = 75, ART_SCRATCH = 76, HOLD_SEEK = 77, SEEK_BUBBLE = 78, MINI_ALBUM = 79, TAP_RIPPLE = 80, HERO_TOUCH = 81, BOUNCY_PRESS = 82, HIDE_BARS = 83, BEAT_BOUNCE = 84, MINI_HOLD_LIKE = 85, MINI_SPIN = 86;
+    static final int MINI_VISUALIZER = 16, HAPTICS = 17, LIBRARY_CASCADE = 64, LIBRARY_HOLD = 65, LIBRARY_GLOW = 66, PLAYLIST_CASCADE = 67, PLAYLIST_HOLD = 68, PLAYLIST_GLOW = 69, BURST = 70, BURST_PLAYER = 71, BURST_MINI = 72, BURST_IMMERSIVE = 73, BURST_LISTS = 74, ART_TILT = 75, ART_SCRATCH = 76, HOLD_SEEK = 77, SEEK_BUBBLE = 78, MINI_ALBUM = 79, TAP_RIPPLE = 80, HERO_TOUCH = 81, BOUNCY_PRESS = 82, HIDE_BARS = 83, BEAT_BOUNCE = 84, MINI_HOLD_LIKE = 85, MINI_SPIN = 86, IMM_SWIPE = 87;
     static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5, ART_SKIP = 6, IMM_CHANGE = 7, RING_COLOR = 8, GLOW_COLOR = 9, GLOW_STYLE = 10, RING_WIDTH = 11, RING_SPEED = 12, WAVE_SPEED = 13, NAV_COLOR = 14, BURST_SHAPE = 15, BURST_AMOUNT = 16, BURST_SIZE = 17, BURST_TONES = 18, BURST_COLOR = 19, BURST_WHEN = 20, ART_SHAPE = 21, RIPPLE_COLOR = 22, BOUNCE = 23, BACKDROP_FX = 24;
     static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position", "art_skip", "imm_change", "ring_color", "glow_color", "glow_style", "ring_width", "ring_speed", "wave_speed", "nav_color", "burst_shape", "burst_amount", "burst_size", "burst_tones", "burst_color", "burst_when", "art_shape", "ripple_color", "bounce", "backdrop_fx"};
     static final String[][] CHOICES = {
@@ -427,6 +427,37 @@ public final class Settings implements jg81 {
             if (at > 0) seen.put(row.substring(0, at), row.substring(at + 1));
         }
         hidden.addAll(prefs.getStringSet("home_hidden", new java.util.HashSet<String>()));
+    }
+
+    /** Every setting as key=value lines, for moving a setup between installs. */
+    static String export() {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < KEYS.length; i++) out.append(KEYS[i]).append('=').append(on[i]).append('\n');
+        for (int i = 0; i < CHOICES.length; i++) out.append(CHOICE_KEYS[i]).append('=').append(choice(i)).append('\n');
+        return out.toString();
+    }
+
+    /** Applies exported text; unknown keys and invalid values are skipped. Returns how many were applied. */
+    static int importText(String text) {
+        int applied = 0;
+        for (String line : text.split("\n")) {
+            int split = line.indexOf('=');
+            if (split < 1) continue;
+            String key = line.substring(0, split).trim(), value = line.substring(split + 1).trim();
+            for (int i = 0; i < KEYS.length; i++) {
+                if (KEYS[i].equals(key) && ("true".equals(value) || "false".equals(value))) {
+                    set(i, "true".equals(value));
+                    applied++;
+                }
+            }
+            for (int i = 0; i < CHOICES.length; i++) {
+                if (CHOICE_KEYS[i].equals(key) && java.util.Arrays.asList(CHOICES[i]).contains(value)) {
+                    setChoice(i, value);
+                    applied++;
+                }
+            }
+        }
+        return applied;
     }
 
     static void resetAll() {

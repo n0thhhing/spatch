@@ -651,6 +651,10 @@ public class PlayerRuntimeTest {
         check(SpatchSettings.matches(Settings.ART_SCRATCH,"scratch")&&SpatchSettings.matches(Settings.HIDE_BARS,"slide away")&&!SpatchSettings.matches(Settings.ART_TILT,"zzz"),"settings search reads titles and subtitles");
         for(int setting:SpatchSettings.PRESET) check(Settings.DEFAULTS[setting]||setting==Settings.LIBRARY_HOLD||setting==Settings.PLAYLIST_HOLD||setting==Settings.LIBRARY_GLOW||setting==Settings.PLAYLIST_GLOW||setting==Settings.LIBRARY_CASCADE||setting==Settings.PLAYLIST_CASCADE||setting==Settings.BURST,"a preset covers only playful extras, got "+Settings.KEYS[setting]);
         check(!SpatchWidget.skips(5),"an unknown widget stays Glance's");
+        String saved=Settings.export(); Settings.set(Settings.ART_TILT,false); Settings.setChoice(Settings.ART_SHAPE,"soft");
+        check(Settings.importText(saved)==Settings.KEYS.length+Settings.CHOICES.length,"export must round trip");
+        check(Settings.get(Settings.ART_TILT)&&Settings.choice(Settings.ART_SHAPE).equals("circle"),"import must restore");
+        check(Settings.importText("nonsense\nart_shape=hexagon\nart_tilt=maybe\n=true")==0 && Settings.choice(Settings.ART_SHAPE).equals("circle"),"bad text must change nothing");
         System.out.println("PASS skip animations");
 
         // Decoration colours.

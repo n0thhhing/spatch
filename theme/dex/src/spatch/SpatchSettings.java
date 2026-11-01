@@ -116,7 +116,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Hide bars while scrolling",
         "Beat bounce",
         "Hold to like",
-        "Spinning cover"
+        "Spinning cover",
+        "Swipe to skip"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -206,7 +207,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "The bars slide away going down and return going up",
         "The artwork pulses with the bass",
         "Hold the mini player's cover to like the song",
-        "The mini player's cover turns like a record while playing"
+        "The mini player's cover turns like a record while playing",
+        "Drag the artwork sideways in the immersive player"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
@@ -216,7 +218,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward"
     };
 
     /** Section layout: Settings indices per group. */
@@ -424,8 +426,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addChoice(immersiveRows, Settings.IMM_CHANGE, "New song", "How the artwork changes", new String[] {"Pop", "Spin", "Fade", "None"});
         immersiveRows.addView(featureRows[56]);
         immersiveRows.addView(featureRows[57]);
+        immersiveRows.addView(featureRows[Settings.IMM_SWIPE]);
         finish(immersiveRows);
-        resetFor(new int[] {4, 56, 57}, new int[] {Settings.IMM_CHANGE});
+        resetFor(new int[] {4, 56, 57, Settings.IMM_SWIPE}, new int[] {Settings.IMM_CHANGE});
         LinearLayout burstPage = subPage("Play button burst");
         LinearLayout burstLook = addGroup();
         tryBurst = createSettingRow("star", "Try it", "Throws a burst from this row", icon("chevron_right"));
@@ -761,9 +764,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout presets = new LinearLayout(getContext());
         presets.setOrientation(LinearLayout.HORIZONTAL);
         presets.setPadding(0, dp(10), 0, 0);
-        String[] names = {"Calm", "Everything"};
+        String[] names = {"Calm", "Everything", "Copy", "Paste"};
         for (int i = 0; i < names.length; i++) {
-            final boolean all = i == 1;
+            final int action = i;
             TextView pill = new TextView(getContext());
             pill.setText(names[i]);
             pill.setTextSize(14f);
@@ -772,10 +775,19 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             pill.setGravity(Gravity.CENTER);
             pill.setBackground(rounded(Palette.color(0xff1d1a2a), dp(24)));
             pill.setClickable(true);
-            pill.setContentDescription(names[i] + " preset");
+            pill.setContentDescription(i < 2 ? names[i] + " preset" : names[i] + " settings");
             pill.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
-                    for (int setting : PRESET) Settings.set(setting, all);
+                    android.content.ClipboardManager clips = (android.content.ClipboardManager) getContext().getSystemService("clipboard");
+                    if (action == 2) {
+                        clips.setPrimaryClip(android.content.ClipData.newPlainText("Spatch settings", Settings.export()));
+                    } else if (action == 3) {
+                        android.content.ClipData clip = clips.getPrimaryClip();
+                        if (clip != null && clip.getItemCount() > 0 && clip.getItemAt(0).getText() != null) Settings.importText(clip.getItemAt(0).getText().toString());
+                        refreshChoices();
+                    } else {
+                        for (int setting : PRESET) Settings.set(setting, action == 1);
+                    }
                     syncFeatures();
                     pop(v);
                 }

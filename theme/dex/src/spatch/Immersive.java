@@ -53,6 +53,7 @@ public final class Immersive extends View implements Runnable {
     private float closeCx, closeCy, closeSize, closeRadius;
     private float drawnProgress, closeProgress;
     private final int[] loc = new int[2], ownLoc = new int[2];
+    private static final float SWIPE_SKIP = 0.22f, DRAG_RETURN = 0.8f;
     private final float[] squish = {1, 0};
     private float squishTarget = 1;
     private long lastFrame;
@@ -61,6 +62,8 @@ public final class Immersive extends View implements Runnable {
     private float touchDownX, touchDownY;
     private boolean isDraggingSeek;
     private boolean isDraggingVol;
+    private boolean downOnArt, swiping;
+    private float artDrag;
     private long lastTapTime;
     private long seekDownTime;
     private final ImmersiveButton[] buttons = new ImmersiveButton[6];
@@ -343,6 +346,9 @@ public final class Immersive extends View implements Runnable {
         float left = cxArt - size / 2f, top = cyArt - size / 2f;
 
         int turned = canvas.save();
+        if (!swiping) artDrag = Math.abs(artDrag) < 1 ? 0 : artDrag * DRAG_RETURN;
+        canvas.translate(artDrag, 0);
+        canvas.rotate(artDrag / w * 14, cxArt, cyArt);
         if (changing && "spin".equals(change)) canvas.rotate(360f * Transport.outCubic((now - popAt) / 640f), cxArt, cyArt);
         int artLayer = changing && "fade".equals(change) ? canvas.saveLayerAlpha(0, 0, w, h, Math.round(255 * clamp01((now - popAt) / 420f))) : canvas.save();
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, false);
@@ -622,6 +628,7 @@ public final class Immersive extends View implements Runnable {
                     handleVol(x);
                     return true;
                 }
+                downOnArt = onArt;
                 if (onArt) squishTarget = PlayerArt.PRESSED;
                 return true;
 
@@ -629,7 +636,15 @@ public final class Immersive extends View implements Runnable {
                 if (pressedButton>=0 && buttonAt(x,y)!=pressedButton) {pressedButton=-1;updateButtonFeedback(false);}
                 if (isDraggingSeek) handleSeek(MotionEvent.ACTION_MOVE, x);
                 else if (isDraggingVol) handleVol(x);
-                else if (!onArt) squishTarget = 1;
+                else if (!onArt && !swiping) squishTarget = 1;
+                if (downOnArt && Settings.get(Settings.IMM_SWIPE) && Math.abs(x - touchDownX) > 24 * dp && Math.abs(x - touchDownX) > Math.abs(y - touchDownY)) {
+                    swiping = true;
+                    squishTarget = 1;
+                }
+                if (swiping) {
+                    artDrag = x - touchDownX;
+                    invalidate();
+                }
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
@@ -638,6 +653,7 @@ public final class Immersive extends View implements Runnable {
                 isDraggingSeek = false;
                 isDraggingVol = false;
                 squishTarget = 1;
+                swiping = false;
                 return true;
 
             case MotionEvent.ACTION_UP:
@@ -653,6 +669,17 @@ public final class Immersive extends View implements Runnable {
                 }
                 if (squishTarget == PlayerArt.PRESSED) PlayerArt.release(squish);
                 squishTarget = 1;
+                if (swiping) {
+                    swiping = false;
+                    if (Math.abs(artDrag) > w * SWIPE_SKIP) {
+                        int button = artDrag < 0 ? 4 : 2;
+                        if (buttons[button].enabled()) {
+                            Haptics.playback(this);
+                            buttons[button].click();
+                        }
+                    }
+                    return true;
+                }
                 if (isDraggingSeek) {
                     handleSeek(MotionEvent.ACTION_UP, x);
                     isDraggingSeek = false;
