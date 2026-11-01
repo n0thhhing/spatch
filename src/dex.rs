@@ -772,6 +772,84 @@ fn hooks() -> String {
     hooks.join(",")
 }
 
+/// What each obfuscated stub declares, as `class|member|parameter types`, for the on-device binding
+/// test: `=` marks a field and `<init>` a constructor. A stub that drifts from the app only fails when
+/// that call first runs, so nothing else catches it.
+fn stub_members() -> String {
+    let mut members = Vec::new();
+    for (file, source) in STUBS.iter().filter(|(_, s)| s.contains("package p;")) {
+        let class = file.trim_end_matches(".java");
+        let code: String = source
+            .lines()
+            .map(|line| line.split("//").next().unwrap())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let (mut depth, mut statement) = (0, String::new());
+        for c in code.chars() {
+            match c {
+                '{' | ';' if depth == 1 => {
+                    for member in stub_member(&statement) {
+                        // Many stub constructors exist only for javac: list the ones a helper calls.
+                        let made = helpers(true)
+                            .iter()
+                            .any(|(_, h)| h.contains(&format!("new {class}(")));
+                        if !member.starts_with(&format!("{class}|")) {
+                            members.push(format!("p.{class}|{member}"));
+                        } else if made {
+                            members.push(
+                                format!("p.{class}|{member}")
+                                    .replace(&format!("|{class}|"), "|<init>|"),
+                            );
+                        }
+                    }
+                    statement.clear();
+                }
+                _ if depth == 1 => statement.push(c),
+                _ => {}
+            }
+            match c {
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+        }
+    }
+    members.join(",")
+}
+
+/// One class-body statement as `name|parameter types`; a field line can name several, a nested type none.
+fn stub_member(statement: &str) -> Vec<String> {
+    let simple = |text: &str| {
+        let text = text.trim().split('<').next().unwrap().trim();
+        let mut words: Vec<_> = text.split_whitespace().filter(|w| *w != "final").collect();
+        words.pop();
+        words.join(" ").rsplit('.').next().unwrap().to_string()
+    };
+    if let Some((head, rest)) = statement.split_once('(') {
+        let name = head.split_whitespace().last().unwrap_or_default();
+        let params = rest.split(')').next().unwrap_or_default();
+        let types: Vec<_> = params
+            .split(',')
+            .filter(|p| !p.trim().is_empty())
+            .map(simple)
+            .collect();
+        return vec![format!("{name}|{}", types.join(";"))];
+    }
+    let words: Vec<_> = statement.split_whitespace().collect();
+    if words.is_empty()
+        || words
+            .iter()
+            .any(|w| matches!(*w, "class" | "interface" | "enum"))
+    {
+        return Vec::new();
+    }
+    statement
+        .split(',')
+        .filter_map(|field| field.split('=').next()?.split_whitespace().last())
+        .map(|name| format!("{name}|="))
+        .collect()
+}
+
 /// Every obfuscated class the helpers compile against, for the on-device binding test.
 fn obfuscated_classes() -> String {
     let names: Vec<_> = STUBS
@@ -1536,7 +1614,8 @@ fn compile_helper(
         let source = helper_source(src, theme)
             .replace("@THEME@", theme.name)
             .replace("@OBFUSCATED@", &obfuscated_classes())
-            .replace("@HOOKS@", &hooks());
+            .replace("@HOOKS@", &hooks())
+            .replace("@MEMBERS@", &stub_members());
         fs::write(p, source)?;
         javac_helpers.push(p.as_os_str());
     }
@@ -1617,6 +1696,17 @@ pub fn check_ref_limits(entry: &str, dexdump: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn device_binding_test_lists_stub_members() {
+        let members = stub_members();
+        if let Ok(path) = std::env::var("SPATCH_DUMP_MEMBERS") {
+            std::fs::write(path, members.replace(',', "\n")).unwrap();
+        }
+        assert!(members.contains("p.hqr0|getValue|"));
+        assert!(members.contains("p.psn0|b|="));
+        assert!(members.contains("p.z341|q|rhm0;float;float;float;float;float;float;float;long;bv61;boolean;long;long;int;"));
+    }
 
     #[test]
     fn device_link_test_lists_the_hooks() {

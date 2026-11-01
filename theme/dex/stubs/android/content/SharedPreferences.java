@@ -1,6 +1,7 @@
 package android.content;
 // Compile-time stub only; never packaged (the device provides the real class).
 public interface SharedPreferences {
+    default java.util.Map<String, ?> getAll() { return null; }
     interface Editor {
         Editor putString(String k,String v);
         Editor putStringSet(String k,java.util.Set<String> v);
