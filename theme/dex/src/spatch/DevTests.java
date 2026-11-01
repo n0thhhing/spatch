@@ -212,6 +212,11 @@ final class DevTests {
                     int picked = Tint.vivid(new int[] {color});
                     check(Math.max(picked >> 16 & 255, Math.max(picked >> 8 & 255, picked & 255)) >= 200, Integer.toHexString(color));
                 }
+                int[] cover = new int[144];
+                java.util.Arrays.fill(cover, 0xff802020);
+                cover[0] = 0xff1060ff;
+                int main = Tint.vivid(cover);
+                check((main >> 16 & 255) > (main & 255), "a speck of blue beat a red cover");
                 return "";
             }
         });

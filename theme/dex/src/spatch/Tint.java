@@ -10,6 +10,7 @@ final class Tint {
     static final String[] NAMES = {"accent", "album", "rose", "amber", "mint", "sky", "white"};
     static final int[] SWATCHES = {0, 0, 0xfff2a1b8, 0xffffc777, 0xff8ee6c4, 0xff8fc7ff, 0xfff3eeff};
     private static final float FADE_MILLIS = 900f;
+    private static final int HUES = 12;
     private static final Bitmap SAMPLE = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888);
     private static Drawable source;
     private static int from = 0xffd0bcff, to = 0xffd0bcff;
@@ -36,13 +37,17 @@ final class Tint {
         return Pill.blend(from, to, t * t * (3 - 2 * t));
     }
 
-    /** The most colourful pixel, lifted so it reads on a dark surface; a grey or black cover gives pale grey. */
+    /** The cover's main hue at its most colourful, lifted so it reads on a dark surface; a grey or black cover gives pale grey. */
     static int vivid(int[] pixels) {
+        // Whole hues are weighed so a stray speck of colour can't outvote the cover.
+        int[] weight = new int[HUES];
+        for (int pixel : pixels) weight[hue(pixel)] += chroma(pixel);
+        int main = 0;
+        for (int i = 1; i < HUES; i++) if (weight[i] > weight[main]) main = i;
         int best = pixels[0], chroma = -1;
         for (int pixel : pixels) {
-            int r = pixel >> 16 & 255, g = pixel >> 8 & 255, b = pixel & 255;
-            int c = Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
-            if (c > chroma) {
+            int c = chroma(pixel);
+            if (hue(pixel) == main && c > chroma) {
                 chroma = c;
                 best = pixel;
             }
@@ -51,6 +56,17 @@ final class Tint {
         if (top == 0) return 0xffdcdcdc; // an all-black cover would give an invisible glow
         float lift = Math.max(1f, 220f / top);
         return 0xff000000 | Math.min(255, Math.round(r * lift)) << 16 | Math.min(255, Math.round(g * lift)) << 8 | Math.min(255, Math.round(b * lift));
+    }
+
+    private static int chroma(int pixel) {
+        int r = pixel >> 16 & 255, g = pixel >> 8 & 255, b = pixel & 255;
+        return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+    }
+
+    private static int hue(int pixel) {
+        int r = pixel >> 16 & 255, g = pixel >> 8 & 255, b = pixel & 255;
+        double angle = Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) + Math.PI;
+        return Math.min(HUES - 1, (int) (angle / (2 * Math.PI) * HUES));
     }
 
     /** The colour picked in a choice made of NAMES. */

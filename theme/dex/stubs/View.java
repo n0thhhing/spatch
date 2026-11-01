@@ -1,6 +1,6 @@
 package android.view;
 // Compile-time stub only; never packaged (the device provides the real class).
-public class View implements android.graphics.drawable.Drawable.Callback {
+public class View implements android.graphics.drawable.Drawable.Callback { public void postOnAnimation(Runnable r){}
     public static final int VISIBLE = 0, INVISIBLE = 4;
     public void setAlpha(float a) {}
     public android.content.res.Resources getResources() { return null; }

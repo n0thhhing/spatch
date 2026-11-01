@@ -167,7 +167,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
             shapedCover.setPivotY(shapedCover.getHeight() / 2f);
             shapedCover.setRotation((shapedCover.getRotation() + Math.min(100, now - turnedAt) * SPIN) % 360);
             turnedAt = now;
-            postDelayed(this, 33);
+            postOnAnimation(this);
         }
     };
     private boolean spinning;
