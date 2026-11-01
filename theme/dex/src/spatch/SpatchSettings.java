@@ -727,6 +727,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private void addSearch(LinearLayout home) {
         android.widget.EditText box = new android.widget.EditText(getContext());
         box.setHint("Search settings");
+        box.setContentDescription("Search settings");
         box.setHintTextColor(subdued);
         box.setTextColor(text);
         box.setTextSize(15f);
