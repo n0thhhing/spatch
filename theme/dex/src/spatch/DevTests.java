@@ -236,6 +236,14 @@ final class DevTests {
                 return "";
             }
         });
+        test("Theme colours rebuild in place", new Test() {
+            public String run() {
+                p.gsc before = p.kex.a;
+                p.kex.rebuild();
+                check(p.kex.a != before && p.kex.a != null, "the colour object stayed");
+                return "";
+            }
+        });
         test("Player preview leaves the player alone", new Test() {
             public String run() {
                 PlayerArt sample = PlayerArt.preview(context, new android.graphics.drawable.ColorDrawable(0xff336699));

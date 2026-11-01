@@ -9,11 +9,11 @@ import android.graphics.drawable.Drawable;
 import android.view.View;
 
 /**
- * A chosen theme's colours growing out of its swatch. Spotify only reads the palette at startup, so
- * this shows the theme rather than applying it, and shrinks back if the restart is put off.
+ * A chosen theme's colours growing out of its swatch, covering the screens while they rebuild.
+ * Shrinks back only if the theme couldn't go live and the restart is put off.
  */
 final class ThemeReveal extends Drawable implements ValueAnimator.AnimatorUpdateListener {
-    private static final long MILLIS = 480;
+    static final long MILLIS = 480;
     private final View host;
     private final float x, y, reach, dp;
     private final int surface, accent, text;

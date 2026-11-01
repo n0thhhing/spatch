@@ -153,6 +153,11 @@ public final class Settings implements jg81 {
         if (!URI.equals(uri)) return false;
         View v = drawer == null ? null : drawer.get();
         if (v == null) return false;
+        return show(v, false);
+    }
+
+    /** Opens the page over v's window; themes is true when coming back from a live theme change. */
+    static boolean show(View v, boolean themes) {
         View root = v.getRootView();
         if (!(root instanceof ViewGroup)) return false;
 
@@ -162,6 +167,7 @@ public final class Settings implements jg81 {
         page.bringToFront();
         page.requestFocus();
         page.enter();
+        if (themes) page.showThemes();
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             page.back = Back.register(page, page);
         }

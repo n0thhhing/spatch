@@ -35,14 +35,21 @@ final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeList
         return heightDp >= MIN && heightDp <= MAX && width >= listWidth * .9f;
     }
 
+    private static boolean watching;
+
     /** Pages open in several activities, so every window gets watched for lists as they appear. */
     static void watch(android.app.Application app) {
+        if (watching) return;
+        watching = true;
         app.registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {
             public void onActivityResumed(android.app.Activity activity) {
                 join(activity.getWindow().getDecorView());
+                Palette.resumed(activity);
             }
 
-            public void onActivityCreated(android.app.Activity a, android.os.Bundle b) {}
+            public void onActivityCreated(android.app.Activity a, android.os.Bundle b) {
+                Palette.created(a);
+            }
 
             public void onActivityStarted(android.app.Activity a) {}
 
@@ -52,7 +59,9 @@ final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeList
 
             public void onActivitySaveInstanceState(android.app.Activity a, android.os.Bundle b) {}
 
-            public void onActivityDestroyed(android.app.Activity a) {}
+            public void onActivityDestroyed(android.app.Activity a) {
+                Palette.destroyed(a);
+            }
         });
     }
 

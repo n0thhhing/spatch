@@ -21,7 +21,7 @@ import p.zpo;
  * psn0 instances are rebuilt on every recomposition and can't hold it.
  */
 public final class Pill implements ValueAnimator.AnimatorUpdateListener {
-    private static final int CONTAINER = 0x40d0bcff; // theme accent token at 25% alpha
+    private static int container() { return 0x40d0bcff; } // theme accent token at 25% alpha
     private static final float TOP = 10f, BOTTOM = 15f; // with k1u.d's 4dp and the indicator, a 64dp bar
     private static final long MILLIS = 320;
     private static final float POP = 0.1f; // the selected icon sits this much larger
@@ -87,8 +87,8 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         // The indicator grows from the icon's centre; the outer and inner padding always sum to 20dp.
         modifier = cxn1.D(modifier, 20f * (1 - t), 0f);
         if (t > 0 && rail()) { // portrait: NavIndicator draws the moving indicator
-            int alpha = Math.round((CONTAINER >>> 24) * t);
-            long color = (long) (alpha << 24 | CONTAINER & 0xffffff) << 32; // Compose Color: sRGB ARGB, high 32 bits
+            int alpha = Math.round((container() >>> 24) * t);
+            long color = (long) (alpha << 24 | container() & 0xffffff) << 32; // Compose Color: sRGB ARGB, high 32 bits
             modifier = mtg.n(modifier, color, xp31.a); // background(color, pill shape)
         }
         float scale = Settings.navPop() ? 1 + POP * spring : 1;
@@ -108,7 +108,7 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     }
 
     public static long closeColor() {
-        return (long) Palette.color(CONTAINER) << 32;
+        return (long) container() << 32;
     }
 
     /** jub rotates the whole padded tab, off the icon's centre; a() turns just the icon instead. */

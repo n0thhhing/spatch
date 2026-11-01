@@ -64,7 +64,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 81] = [
+pub const EDITS: [Edit; 85] = [
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -98,6 +98,11 @@ pub const EDITS: [Edit; 81] = [
         replacement: "    const/high16 v7, -0x3ea00000    # -14.0f\n",
     },
 
+    // Encore's colours are built once from Palette: a live theme change builds them again.
+    Edit { file: "smali/p/ggx.smali", anchor: ".field public static final a:Lp/sex;\n", replacement: ".field public static a:Lp/sex;\n" },
+    Edit { file: "smali/p/ggx.smali", anchor: ".method static constructor <clinit>()V\n    .locals 62\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/ggx;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 62\n" },
+    Edit { file: "smali/p/kex.smali", anchor: ".field public static final a:Lp/gsc;\n", replacement: ".field public static a:Lp/gsc;\n" },
+    Edit { file: "smali/p/kex.smali", anchor: ".method static constructor <clinit>()V\n    .locals 6\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/kex;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 6\n" },
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "smali_classes12/p/e1b1.smali", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
@@ -925,6 +930,9 @@ const STUBS: &[(&str, &str)] = &[
         include_str!("../theme/dex/stubs/android/os/IBinder.java"),
     ),
     ("ud5.java", include_str!("../theme/dex/stubs/p/ud5.java")),
+    ("kex.java", include_str!("../theme/dex/stubs/p/kex.java")),
+    ("ggx.java", include_str!("../theme/dex/stubs/p/ggx.java")),
+    ("gsc.java", include_str!("../theme/dex/stubs/p/gsc.java")),
     ("w6b1.java", include_str!("../theme/dex/stubs/p/w6b1.java")),
     (
         "Camera.java",

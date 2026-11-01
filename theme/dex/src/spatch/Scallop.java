@@ -14,7 +14,7 @@ import android.view.View;
  * (5 while paused, 9 while playing). Called from the patched p.lbg.draw() in place of drawCircle.
  */
 public final class Scallop implements Runnable {
-    private static final int ACCENT = 0xd0bcff; // theme accent token, substituted at patch time
+    private static int accent() { return 0xd0bcff; } // theme accent token, resolved each call: the theme can change live
     private static final int STEPS = 180;
 
     private static final WeakHashMap<Object,Scallop> STATES=new WeakHashMap<Object,Scallop>();
@@ -37,7 +37,7 @@ public final class Scallop implements Runnable {
         if(key==null)key=drawable;
         if(!Settings.shapes()) { // plain circle, still in the theme accent
             Paint plain = new Paint(source);
-            plain.setColor((source.getAlpha() << 24) | ACCENT);
+            plain.setColor((source.getAlpha() << 24) | accent());
             canvas.drawCircle(0,0,r,plain);
             return;
         }
@@ -86,7 +86,7 @@ public final class Scallop implements Runnable {
         path.close();
         Paint paint = new Paint(source);
         // Keep lbg's state alpha (pressed 70%, disabled 50%) and swap only the colour.
-        paint.setColor((source.getAlpha() << 24) | ACCENT);
+        paint.setColor((source.getAlpha() << 24) | accent());
         canvas.drawPath(path, paint);
         if((desired==1 || progress<1 || bt<1) && Wave.animationsEnabled() && drawable.isVisible() && Wave.onScreen(drawable))drawable.scheduleSelf(state,now+16);
     }

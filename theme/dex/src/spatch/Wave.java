@@ -24,7 +24,7 @@ import android.os.SystemClock;
 public final class Wave extends Drawable implements Runnable, View.OnTouchListener {
     private int detent = -1, pressLevel;
     private boolean watching;
-    private static final int ACCENT = 0xd0bcff; // theme accent token, substituted at patch time
+    private static int accent() { return 0xd0bcff; } // theme accent token, resolved each call: the theme can change live
     private static final long ACTIVE_MS = 1200;
     private static final long PERIOD_MS = 1600;
     /** Largest level step still treated as playback (10000 = whole track); bigger jumps are seeks. */
@@ -50,10 +50,10 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     public Wave() {
         played.setStyle(Paint.Style.STROKE);
         played.setStrokeCap(Paint.Cap.ROUND);
-        played.setColor(0xff000000 | ACCENT);
+        played.setColor(0xff000000 | accent());
         rest.setStyle(Paint.Style.STROKE);
         rest.setStrokeCap(Paint.Cap.ROUND);
-        rest.setColor(0x4d000000 | ACCENT);
+        rest.setColor(0x4d000000 | accent());
     }
 
     /** Ten steps along a seekbar, only while a finger holds it: playback updates stay silent. */

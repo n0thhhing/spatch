@@ -276,6 +276,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private final java.util.HashMap<Integer, LinearLayout> masterPages = new java.util.HashMap<Integer, LinearLayout>();
     private TextView homeCount, themeNote;
     private ThemeReveal reveal;
+    private LinearLayout appearancePage;
     private boolean closing;
     private final M3Switch[] featureSwitches = new M3Switch[FEATURE_TITLES.length];
     private static final int[] HAPTICS = {17, 18, 19, 20};
@@ -362,7 +363,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
         }
 
-        View appearance = category(categories, "enhance", "Appearance", "Themes and typography", "Appearance");
+        View appearance = appearancePage = (LinearLayout) category(categories, "enhance", "Appearance", "Themes and typography", "Appearance");
         addSectionHeader("Theme");
         for (int row = 0; row < (themeRows.length + 3) / 4; row++) { // blanks keep the last row's widths even
             LinearLayout line = new LinearLayout(context);
@@ -686,7 +687,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         content.addView(reset, resetLp);
 
         TextView about = new TextView(context);
-        about.setText("Keeps your theme and font. Theme and font changes apply after a restart; everything else straight away.");
+        about.setText("Keeps your theme and font. Font changes apply after a restart; everything else straight away.");
         about.setTextSize(12f);
         about.setTextColor(subdued);
         about.setGravity(Gravity.CENTER);
@@ -1199,19 +1200,33 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             .show();
     }
 
-    private void onThemeSelected(int index, String themeName) {
+    private void onThemeSelected(int index, final String themeName) {
         String current = Palette.requested();
         if (themeName.equals(current) || reveal != null) return;
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
         refreshThemes(themeName, true);
         reveal = ThemeReveal.open(this, themeRows[index], index, THEME_TITLES[index]);
-        if (reveal == null) { askThemeRestart(); return; }
+        if (reveal == null) { applyTheme(themeName); return; }
         postDelayed(new Runnable() {
             public void run() {
-                if (isAttachedToWindow()) askThemeRestart();
+                if (isAttachedToWindow()) applyTheme(themeName);
             }
-        }, 420);
+        }, ThemeReveal.MILLIS);
+    }
+
+    private void applyTheme(String themeName) {
+        boolean live = false;
+        try {
+            live = Palette.apply(getContext(), themeName);
+        } catch (RuntimeException | LinkageError e) { // the saved choice still applies on a restart
+            android.util.Log.i("Spatch", "live theme failed: " + e);
+        }
+        if (!live) askThemeRestart();
+    }
+
+    void showThemes() {
+        open(appearancePage);
     }
 
     private void askThemeRestart() {
