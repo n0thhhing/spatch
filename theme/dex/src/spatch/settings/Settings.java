@@ -227,6 +227,13 @@ public final class Settings implements jg81 {
         if (prefs != null) prefs.edit().putString(CHOICE_KEYS[i], chosen[i]).apply();
     }
 
+    /** True the first time it's asked for a key, ever. */
+    static boolean firstTime(String key) {
+        if (prefs == null || prefs.getBoolean(key, false)) return false;
+        prefs.edit().putBoolean(key, true).apply();
+        return true;
+    }
+
     static boolean get(int i) {
         return on[i];
     }

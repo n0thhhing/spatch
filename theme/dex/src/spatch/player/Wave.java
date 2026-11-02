@@ -181,7 +181,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             path.reset();
             for (float x = x0; ; x = Math.min(x + 2f, end)) {
                 // + phase: crests travel left, back along the played part (not toward the playhead).
-                float y = cy + a * (real ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha) : 1f) * taper(end - x, wl) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
+                float y = cy + a * (real ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha) : 1f) * (1f - thick * (1f - taper(end - x, wl))) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
                 if (x == x0) {
                     path.moveTo(x, y);
                 } else {
@@ -200,7 +200,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         }
     }
 
-    /** Eases the wave flat over its last half wavelength, so it reaches the thumb on the bar's centre line. */
+    /** Flat at the thumb, full half a wavelength back: dragging brings the wave onto the centre line there. */
     static float taper(float left, float wl) {
         float t = Math.max(0f, Math.min(1f, left / (wl / 2f)));
         return t * t * (3 - 2 * t);
@@ -210,17 +210,20 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     private boolean listening(long now, boolean motion) {
         View host = host();
         if (host == null || amp == 0f || !motion || !Settings.get(Settings.WAVE_AUDIO)) return false;
+        if (host.getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) {
+            if (Settings.firstTime("wave_audio_asked")) AudioSpectrum.requestPermission(host.getContext());
+            return false;
+        }
         AudioSpectrum.lease(host.getContext(), AudioSpectrum.WAVE);
         Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), now, true, Settings.vizSmooth());
         return AudioSpectrum.SHARED.status == null && Spectrum.seeded;
     }
 
-    /** Wave height at a point along the bar, bass at the start: never above the plain wave, which fills the bounds. */
+    /** Wave height at a point: mostly the beat, so the whole wave moves even when only the bass end has played. Never above the plain wave, which fills the bounds. */
     static float swell(float[] bands, float along, float alpha) {
-        float at = Math.max(0f, Math.min(1f, along)) * (bands.length - 1);
-        int low = (int) at, high = Math.min(bands.length - 1, low + 1);
-        float level = bands[low] + (bands[high] - bands[low]) * (at - low);
-        return .25f + .75f * Math.max(0f, Math.min(1f, alpha * level));
+        float beat = (bands[0] + bands[1]) / 2f;
+        float level = alpha * (.65f * beat + .35f * Spectrum.at(bands, Math.max(0f, Math.min(1f, along)), false));
+        return .12f + .88f * Math.max(0f, Math.min(1f, level));
     }
 
     /** Local playback state, polled at most twice a second (binder call); false if unavailable. */

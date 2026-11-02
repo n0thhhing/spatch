@@ -1330,6 +1330,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             int i = ((Integer) v.getTag()).intValue();
             featureSwitches[i].toggle();
             changed(i, featureSwitches[i].isChecked(), v);
+            if (i == Settings.WAVE_AUDIO && Settings.get(i) && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) AudioSpectrum.requestPermission(getContext());
             syncFeatures();
             return;
         }
