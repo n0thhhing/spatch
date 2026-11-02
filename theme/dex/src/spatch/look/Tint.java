@@ -12,7 +12,7 @@ public final class Tint {
     static final int[] SWATCHES = {0, 0, 0xfff2a1b8, 0xffffc777, 0xff8ee6c4, 0xff8fc7ff, 0xfff3eeff};
     private static final float FADE_MILLIS = 900f;
     private static final int HUES = 12;
-    private static final float GLOW_BLUR = 40f; // px
+    private static final float GLOW_BLUR = 12f; // px: Spotify clips each line to its text, so a wide glow shows a box
     public static Shadow lyricGlow;
     private static final Bitmap SAMPLE = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888);
     private static Drawable source;
@@ -37,7 +37,7 @@ public final class Tint {
 
     /** Spotify's lyric code reads its glow from a field: classes9 has no method references to spare. */
     static void glowLyrics() {
-        lyricGlow = Settings.get(Settings.LYRICS_FOCUS) ? new Shadow(GLOW_BLUR, (to & 0xffffffffL | 0xff000000L) << 32, 0L) : null;
+        lyricGlow = Settings.get(Settings.LYRICS_FOCUS) ? new Shadow(GLOW_BLUR, (to & 0xffffffL | 0x80000000L) << 32, 0L) : null;
     }
 
     /** The artwork's colour, fading from the last song's. */

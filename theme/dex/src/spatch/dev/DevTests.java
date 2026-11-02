@@ -226,6 +226,7 @@ final class DevTests {
                 check(Wave.swell(bands, .5f, 1f) == .25f, "silence should leave a small wave");
                 java.util.Arrays.fill(bands, 9f);
                 check(Wave.swell(bands, 1f, 9f) == 1f, "loud music went past the bounds");
+                check(Wave.taper(0f, 10f) == 0f && Wave.taper(10f, 10f) == 1f, "the wave should end on the centre line");
                 return "";
             }
         });

@@ -153,7 +153,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         float px = b.left + (b.right - b.left) * (level / 10000f);
 
         // Remaining track: from just after the played line to the end, never underneath it.
-        float thumbGap = thumbVisible * h * .5f;
+        float thumbGap = Math.max(thumbVisible, pressed ? thick : 0f) * h * .5f; // Spotify's own line thumb shows while dragging
         float restStart = Math.max(px + Math.max(stroke,thumbGap), x0);
         if (restStart < x1) {
             rest.setStrokeWidth(restStroke);
@@ -181,7 +181,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             path.reset();
             for (float x = x0; ; x = Math.min(x + 2f, end)) {
                 // + phase: crests travel left, back along the played part (not toward the playhead).
-                float y = cy + a * (real ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha) : 1f) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
+                float y = cy + a * (real ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha) : 1f) * taper(end - x, wl) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
                 if (x == x0) {
                     path.moveTo(x, y);
                 } else {
@@ -198,6 +198,12 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         if (amp > 0f || settling) {
             if (onScreen(this)) scheduleSelf(this, now + 16);
         }
+    }
+
+    /** Eases the wave flat over its last half wavelength, so it reaches the thumb on the bar's centre line. */
+    static float taper(float left, float wl) {
+        float t = Math.max(0f, Math.min(1f, left / (wl / 2f)));
+        return t * t * (3 - 2 * t);
     }
 
     /** Whether real audio is reaching the wave; without it the wave keeps its plain shape. */
