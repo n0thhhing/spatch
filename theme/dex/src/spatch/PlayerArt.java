@@ -42,6 +42,8 @@ public final class PlayerArt extends ImageView {
     private float squishTarget = 1;
     private long squishAt;
     private boolean heroHidden, radialOn;
+    private int titleColour;
+    private static final float TITLE_ALBUM=.7f;
     private float beatLevel;
     private final ArtMotion motion = new ArtMotion(this);
     private Expansion expansion;
@@ -131,6 +133,7 @@ public final class PlayerArt extends ImageView {
         // page centred on screen may set the blurred backdrop, or a neighbour's art wins.
         Drawable art=getDrawable();
         Tint.follow(art);
+        colourTitle();
         if(background!=null && !Settings.backdrop()) {
             if(background.getBackground() instanceof Atmosphere) background.setBackground(original);
         } else if(background!=null && art!=null) {
@@ -428,6 +431,17 @@ public final class PlayerArt extends ImageView {
         if (ring) drawRing(canvas); else drawGlow(canvas);
         canvas.restoreToCount(layer);
         canvas.restoreToCount(save);
+    }
+
+    /** Mostly the cover's colour, kept part theme text so a dark cover stays readable; restored when off. */
+    private void colourTitle() {
+        if(preview) return;
+        View found=getRootView().findViewById(ids[2]);
+        if(!(found instanceof android.widget.TextView)) return;
+        android.widget.TextView title=(android.widget.TextView)found;
+        if(titleColour==0) titleColour=title.getCurrentTextColor();
+        int wanted=Settings.get(Settings.TITLE_ALBUM)?Pill.blend(titleColour,Tint.album(),TITLE_ALBUM):titleColour;
+        if(wanted!=title.getCurrentTextColor()) title.setTextColor(wanted);
     }
 
     void hideForHero(boolean hide) {

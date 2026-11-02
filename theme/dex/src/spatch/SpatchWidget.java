@@ -35,6 +35,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     private static final String BUTTONS = "com.spotify.mediasession.mediasession.receiver.MediaButtonReceiver";
     private static final int VISIBLE = 0, GONE = 8;
     private static MediaController current;
+    static volatile String nowTitle;
     // Two track slots for the song-change flip: the shown one and the one that slid out.
     private static int shown;
     private static final String[] slotKey = new String[2], slotTitle = new String[2], slotArtist = new String[2];
@@ -119,6 +120,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         MediaController c = current;
         if (c == null) return;
         MediaMetadata m = c.getMetadata();
+        if (m != null) nowTitle = m.getString(MediaMetadata.METADATA_KEY_TITLE);
         MiniBar.update(m, c.getPlaybackState(), m == null ? null : cover(m));
     }
 

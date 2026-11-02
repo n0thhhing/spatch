@@ -177,10 +177,11 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
                 canvas.drawLine(x, cy, Math.min(end, x + step), cy, played);
             }
         } else if (end > x0) {
+            boolean real = "wave".equals(style) && listening(now, motion);
             path.reset();
             for (float x = x0; ; x = Math.min(x + 2f, end)) {
                 // + phase: crests travel left, back along the played part (not toward the playhead).
-                float y = cy + a * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
+                float y = cy + a * (real ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha) : 1f) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
                 if (x == x0) {
                     path.moveTo(x, y);
                 } else {
@@ -197,6 +198,23 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         if (amp > 0f || settling) {
             if (onScreen(this)) scheduleSelf(this, now + 16);
         }
+    }
+
+    /** Whether real audio is reaching the wave; without it the wave keeps its plain shape. */
+    private boolean listening(long now, boolean motion) {
+        View host = host();
+        if (host == null || amp == 0f || !motion || !Settings.get(Settings.WAVE_AUDIO)) return false;
+        AudioSpectrum.lease(host.getContext(), AudioSpectrum.WAVE);
+        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), now, true, Settings.vizSmooth());
+        return AudioSpectrum.SHARED.status == null && Spectrum.seeded;
+    }
+
+    /** Wave height at a point along the bar, bass at the start: never above the plain wave, which fills the bounds. */
+    static float swell(float[] bands, float along, float alpha) {
+        float at = Math.max(0f, Math.min(1f, along)) * (bands.length - 1);
+        int low = (int) at, high = Math.min(bands.length - 1, low + 1);
+        float level = bands[low] + (bands[high] - bands[low]) * (at - low);
+        return .25f + .75f * Math.max(0f, Math.min(1f, alpha * level));
     }
 
     /** Local playback state, polled at most twice a second (binder call); false if unavailable. */

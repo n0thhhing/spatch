@@ -220,6 +220,25 @@ final class DevTests {
                 return "";
             }
         });
+        test("Audio wave stays inside the plain wave", new Test() {
+            public String run() {
+                float[] bands = new float[24];
+                check(Wave.swell(bands, .5f, 1f) == .25f, "silence should leave a small wave");
+                java.util.Arrays.fill(bands, 9f);
+                check(Wave.swell(bands, 1f, 9f) == 1f, "loud music went past the bounds");
+                return "";
+            }
+        });
+        test("Queue finds the playing row", new Test() {
+            public String run() {
+                android.widget.TextView text = new android.widget.TextView(context);
+                text.setText("Song");
+                android.widget.LinearLayout row = new android.widget.LinearLayout(context);
+                row.addView(text);
+                check(RowCards.shows(row, "Song") && !RowCards.shows(row, "Other") && !RowCards.shows(row, null), "wrong row");
+                return "";
+            }
+        });
         test("Audio ring fits its view", new Test() {
             public String run() {
                 float reach = 1.045f + .012f + 1.12f * PlayerArt.AUDIO_REACH + .012f * PlayerArt.BOLD / 2;

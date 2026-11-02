@@ -22,7 +22,7 @@ public final class AudioSpectrum {
     }
 
     /** Renderers of the one shared capture: it runs while any of them is visible and playing. */
-    static final int BOTTOM = 1, RADIAL = 2, MINI = 4;
+    static final int BOTTOM = 1, RADIAL = 2, MINI = 4, WAVE = 8;
     static final AudioSpectrum SHARED = new AudioSpectrum();
     private static volatile int consumers;
 
@@ -33,6 +33,19 @@ public final class AudioSpectrum {
         app = context.getApplicationContext();
         worker().post(CAPTURE);
     }
+
+    /** For a drawable, which isn't told when it leaves the screen: stops drawing, and capture lapses. */
+    static void lease(Context context, int consumer) {
+        request(context, consumer, true);
+        worker().removeCallbacks(LAPSE);
+        worker().postDelayed(LAPSE, 1000);
+    }
+
+    private static final Runnable LAPSE = new Runnable() {
+        public void run() {
+            drop(WAVE);
+        }
+    };
 
     /** Setting up and reading a Visualizer are binder calls into the audio server: measured stalling skips on the main thread. */
     private static android.os.Handler worker() {

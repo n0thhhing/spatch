@@ -64,7 +64,26 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 85] = [
+pub const EDITS: [Edit; 88] = [
+    // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
+    // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
+    Edit {
+        file: "smali_classes9/p/wkf0.smali",
+        anchor: "    if-eqz p2, :cond_23\n",
+        replacement: "    sget-object v10, Lspatch/Settings;->on:[Z\n\n    const/16 v11, 0x5d\n\n    aget-boolean v10, v10, v11\n\n    if-nez v10, :spatch_lyrics_focus\n\n    if-eqz p2, :cond_23\n\n    :spatch_lyrics_focus\n",
+    },
+    // The active line's text style (p.okf0, field b): clearing mask bit 0x2000 lets the copy take the shadow.
+    Edit {
+        file: "smali_classes9/p/okf0.smali",
+        anchor: "    invoke-static/range {v15 .. v41}, Lp/uce1;->a(",
+        replacement: "    iget-boolean v8, v0, Lp/okf0;->b:Z\n\n    if-eqz v8, :spatch_no_glow\n\n    sget-object v31, Lspatch/Tint;->lyricGlow:Landroidx/compose/ui/graphics/Shadow;\n\n    if-eqz v31, :spatch_no_glow\n\n    const v41, 0xffdffc\n\n    :spatch_no_glow\n    invoke-static/range {v15 .. v41}, Lp/uce1;->a(",
+    },
+    // The queue sheet's list reports itself on layout; its window is a dialog no activity hook sees.
+    Edit {
+        file: "smali_classes3/com/spotify/nowplayingqueue/bottomsheet/view/layoutmanager/StickyHeaderLinearLayoutManager.smali",
+        anchor: ".method public final t0(Lp/f511;Lp/k511;)V\n    .locals 2\n",
+        replacement: ".method public final t0(Lp/f511;Lp/k511;)V\n    .locals 2\n\n    iget-object v0, p0, Landroidx/recyclerview/widget/a;->b:Landroidx/recyclerview/widget/RecyclerView;\n\n    invoke-static {v0}, Lspatch/RowCards;->queue(Landroid/view/ViewGroup;)V\n",
+    },
     // Every real save state reaches SaveBurst before the view takes it (tap flag e, previous state d).
     Edit {
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
@@ -1052,6 +1071,10 @@ const STUBS: &[(&str, &str)] = &[
         include_str!("../theme/dex/stubs/androidx/compose/ui/graphics/Brush.java"),
     ),
     (
+        "Shadow.java",
+        include_str!("../theme/dex/stubs/androidx/compose/ui/graphics/Shadow.java"),
+    ),
+    (
         "BitmapShader.java",
         include_str!("../theme/dex/stubs/android/graphics/BitmapShader.java"),
     ),
@@ -1819,13 +1842,16 @@ mod tests {
                 let Some((class, rest)) = call.split_once(";->") else {
                     continue;
                 };
-                let method = rest.split('(').next().unwrap();
+                let method = rest.split(['(', ':']).next().unwrap();
                 let source = sources.iter().find(|(name, _)| *name == class).unwrap().1;
                 let public_class = source
                     .lines()
                     .any(|l| l.starts_with("public ") && l.contains(&format!("class {class} ")));
                 let public_method = source.lines().any(|l| {
-                    l.trim_start().starts_with("public ") && l.contains(&format!(" {method}("))
+                    l.trim_start().starts_with("public ")
+                        && [format!(" {method}("), format!(" {method};"), format!(" {method} ="),]
+                            .iter()
+                            .any(|name| l.contains(name))
                 });
                 assert!(public_class, "{class} must be public");
                 assert!(public_method, "{class}.{method} must be public");

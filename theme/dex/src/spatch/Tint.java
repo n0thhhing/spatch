@@ -4,13 +4,16 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
+import androidx.compose.ui.graphics.Shadow;
 
 /** The colours a user can pick for decorations: the theme's accent, the artwork's, or a fixed one. */
-final class Tint {
+public final class Tint {
     static final String[] NAMES = {"accent", "album", "rose", "amber", "mint", "sky", "white"};
     static final int[] SWATCHES = {0, 0, 0xfff2a1b8, 0xffffc777, 0xff8ee6c4, 0xff8fc7ff, 0xfff3eeff};
     private static final float FADE_MILLIS = 900f;
     private static final int HUES = 12;
+    private static final float GLOW_BLUR = 40f; // px
+    public static Shadow lyricGlow;
     private static final Bitmap SAMPLE = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888);
     private static Drawable source;
     private static int from = 0xffd0bcff, to = 0xffd0bcff;
@@ -29,6 +32,12 @@ final class Tint {
         from = album();
         to = vivid(pixels);
         changedAt = SystemClock.uptimeMillis();
+        glowLyrics();
+    }
+
+    /** Spotify's lyric code reads its glow from a field: classes9 has no method references to spare. */
+    static void glowLyrics() {
+        lyricGlow = Settings.get(Settings.LYRICS_FOCUS) ? new Shadow(GLOW_BLUR, (to & 0xffffffffL | 0xff000000L) << 32, 0L) : null;
     }
 
     /** The artwork's colour, fading from the last song's. */
