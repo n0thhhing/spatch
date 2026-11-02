@@ -120,7 +120,10 @@ public final class PlayerArt extends ImageView {
         boolean current=isCurrentPage();
         if(!current) {
             // Spin and fade follow the slide, so a page crossing the screen draws every frame.
-            if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(preview || skipMotion && Math.abs(offset) < 1.1f ? 16 : 250);
+            if(Wave.animationsEnabled() && isShown()) {
+                if(preview || skipMotion && Math.abs(offset) < 1.1f) postInvalidateOnAnimation();
+                else postInvalidateDelayed(250);
+            }
             return;
         }
         float[] from=MiniBar.claimExpansion();
@@ -167,7 +170,7 @@ public final class PlayerArt extends ImageView {
             }
         }
         TapBounce.tick(getRootView());
-        if(Wave.animationsEnabled() && isShown()) postInvalidateDelayed(16);
+        if(Wave.animationsEnabled() && isShown()) postInvalidateOnAnimation();
     }
 
     /** How far this carousel page sits from the screen's centre, in screen widths; signed. */

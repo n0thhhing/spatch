@@ -7,6 +7,7 @@ import android.media.MediaMetadata;
 import android.media.session.PlaybackState;
 import android.os.SystemClock;
 import android.util.AttributeSet;
+import android.view.Choreographer;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ProgressBar;
@@ -155,19 +156,19 @@ public final class MiniBar extends MotionLayout implements Runnable {
         cover.setClipToOutline(true);
     }
 
-    private final Runnable turn = new Runnable() {
-        public void run() {
+    /** Paced by the display's frame time: the clock at callback time wobbles with whatever else the main thread is doing. */
+    private final Choreographer.FrameCallback turn = new Choreographer.FrameCallback() {
+        public void doFrame(long frame) {
             spinning = playing && Settings.get(Settings.MINI_SPIN) && Wave.animationsEnabled() && isShown() && shapedCover != null;
             if (!spinning) {
                 if (shapedCover != null && !Settings.get(Settings.MINI_SPIN)) shapedCover.setRotation(0);
                 return;
             }
-            long now = SystemClock.uptimeMillis();
             shapedCover.setPivotX(shapedCover.getWidth() / 2f); // Spotify leaves it off-centre, which swings the cover out of the bar
             shapedCover.setPivotY(shapedCover.getHeight() / 2f);
-            shapedCover.setRotation((shapedCover.getRotation() + Math.min(100, now - turnedAt) * SPIN) % 360);
-            turnedAt = now;
-            postOnAnimation(this);
+            shapedCover.setRotation((shapedCover.getRotation() + Math.min(100f, (frame - turnedAt) / 1e6f) * SPIN) % 360);
+            turnedAt = frame;
+            Choreographer.getInstance().postFrameCallback(this);
         }
     };
     private boolean spinning;
@@ -177,8 +178,9 @@ public final class MiniBar extends MotionLayout implements Runnable {
     public void run() {
         roundCover();
         if (!spinning) {
-            turnedAt = SystemClock.uptimeMillis();
-            turn.run();
+            spinning = true;
+            turnedAt = System.nanoTime();
+            Choreographer.getInstance().postFrameCallback(turn);
         }
         if (previous != null) previous.allow(actions);
         if (next != null) next.allow(actions);
