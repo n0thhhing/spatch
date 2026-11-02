@@ -6,7 +6,7 @@ hasn't been started. Findings from attempts are included so nobody repeats them.
 
 ## Tried and not working yet
 
-**Cards on Spotify's settings rows and the queue.** Search, albums and artist pages are `RecyclerView`s, so `RowCards` gives their rows cards. Spotify's settings is one full-screen `ComposeView`, and `kro1.d` doesn't reach it. The queue is a `RecyclerView` in a dialog window, which `RowCards.watch` doesn't see because it only follows activities. The first needs the real row function; the second needs a way to reach dialog windows.
+**Cards on Spotify's settings rows and the queue.** Search, albums and artist pages are `RecyclerView`s, so `RowCards` gives their rows cards. Spotify's settings is one full-screen `ComposeView`, and `kro1.d` doesn't reach it. The first needs the real row function. The queue now joins from its layout manager, not yet seen on a phone.
 
 **Spotify's white pills (Refresh, Log out, round play buttons on Home).** Turning white into the accent
 in `Surfaces.bg`, including near-white, changed nothing, so these don't paint through `yw9`. The next
@@ -14,14 +14,11 @@ step is finding Encore's contained button.
 
 ## Eye candy
 
-- Lyrics: glow on the current line, gentle scale on the active line, album-coloured background.
-- Queue: rows rise in, and a playing shimmer on the current row.
+- Lyrics: earlier lines fading out. It needs a method call in classes9, which is at its limit.
 - Context menus: rows rising in turn, a tinted header from the cover.
 - Connect sheet: animated rings around the current device.
 - Home shelves: scroll parallax on large covers.
 - Artist page: header image zooms slightly on pull, name fades into the top bar.
-- Now Playing title: colour taken from the cover, per setting.
-- A seek bar style that follows the spectrum.
 - Animated wallpaper-style backdrop on Home, off by default.
 
 ## Fun interactions

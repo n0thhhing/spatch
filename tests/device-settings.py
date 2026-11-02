@@ -36,7 +36,7 @@ def check_icons(apk):
     tools = Path(os.environ.get('BUILD_TOOLS', '/opt/homebrew/share/android-commandlinetools/build-tools/36.0.0'))
     dump = subprocess.run([str(tools / 'aapt2'), 'dump', 'resources', apk], capture_output=True, text=True, check=True).stdout
     real = set(re.findall(r'drawable/encore_icon_([a-z0-9_]+)_24\b', dump))
-    source = (ROOT / 'theme/dex/src/spatch/SpatchSettings.java').read_text()
+    source = (ROOT / 'theme/dex/src/spatch/settings/SpatchSettings.java').read_text()
     table = re.search(r'FEATURE_ICONS = \{(.*?)\};', source, re.S)[1]
     used = re.findall(r'"([a-z_]+)"', table)
     used += re.findall(r'icon\("([a-z_]+)"\)|createSettingRow\("([a-z_]+)"', source)

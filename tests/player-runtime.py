@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
         target = out / source.name
         target.write_text(text)
         sources.append(str(target))
-    for source in (ROOT / 'theme/dex/src/spatch').glob('*.java'):
+    for source in (ROOT / 'theme/dex/src/spatch').rglob('*.java'):
         if source.name == 'Palette.java':
             rows = re.findall(r'theme\(\s*"[^"]+",\s*\[([^]]+)\]', (ROOT / 'src/theme.rs').read_text())
             palette = ','.join('{'+','.join(re.findall(r'0x[0-9a-f]+', row))+'}' for row in rows)

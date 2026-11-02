@@ -1,6 +1,8 @@
 mod arsc;
 mod dex;
+mod edits;
 mod fonts;
+mod helpers;
 mod input;
 mod lottie;
 mod patch;

@@ -74,9 +74,11 @@ adb install-multiple -r base.apk split_config.*.apk
 
 | Path | What lives there |
 | --- | --- |
-| `src/dex.rs` | Guarded smali edits and the helper DEX build. Each edit must match its anchor exactly once. |
+| `src/edits.rs` | Guarded smali edits. Each must match its anchor exactly once. |
+| `src/helpers.rs` | The helper Java and stub file lists. |
+| `src/dex.rs` | The helper DEX build and reassembly. |
 | `src/theme.rs` | Theme colour roles. |
-| `theme/dex/src/spatch/` | The Java helper classes added to the app, including the settings UI. |
+| `theme/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |
 | `theme/dex/stubs/` | Compile-only stubs. `p/` holds Spotify's obfuscated classes; see [its README](theme/dex/stubs/p/README.md). |
 | `theme/player/` | Pinned resource overrides. |
 | `docs/targets.md` | Which app code owns each screen and why each target was chosen. |
