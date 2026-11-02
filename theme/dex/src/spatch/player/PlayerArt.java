@@ -470,9 +470,9 @@ public final class PlayerArt extends ImageView {
         }
     }
 
-    static final float PRESSED = 0.94f, ARRIVE_MILLIS = 420f, BEAT = 0.035f;
+    static final float PRESSED = 0.94f, ARRIVE_MILLIS = 420f, BEAT = 0.02f;
     /** Ring push at level 1, in radii, and the Bold stroke: both must fit the view's margin at the loudest level. */
-    static final float AUDIO_REACH = 0.055f, BOLD = 1.8f;
+    static final float AUDIO_REACH = 0.035f, BOLD = 1.8f;
 
     static void release(float[] state) {
         // A quick DOWN/UP can land between frames; ensure it still starts a visible rebound.

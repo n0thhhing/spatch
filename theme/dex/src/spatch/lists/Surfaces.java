@@ -82,9 +82,12 @@ public final class Surfaces {
         return card(row, 12f, 3f, 0xff2b2640);
     }
 
-    /** Your Library rows on their own rounded cards. */
+    /**
+     * Your Library rows on their own rounded cards, the cover inset inside: 24dp corners less the 8dp
+     * inset matches the cover's own 16dp corners, so the two curves run parallel.
+     */
     public static rhm0 libraryRow(rhm0 row) {
-        return Flourish.libraryRow(Settings.libraryCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row);
+        return Flourish.libraryRow(Settings.libraryCards() ? cxn1.D(card(row, 8f, 2f, 0xff1d1a2a, 24f), 8f, 8f) : row);
     }
 
     public static rhm0 trackRow(rhm0 row) {
@@ -92,7 +95,11 @@ public final class Surfaces {
     }
 
     private static rhm0 card(rhm0 row, float sides, float ends, int color) {
-        vp31 shape = xp31.b(20f);
+        return card(row, sides, ends, color, 20f);
+    }
+
+    private static rhm0 card(rhm0 row, float sides, float ends, int color, float radius) {
+        vp31 shape = xp31.b(radius);
         rhm0 inset = cxn1.D(row, sides, ends);
         rhm0 clipped = z341.q(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
         return mtg.n(clipped, (long) Palette.color(color) << 32, shape);

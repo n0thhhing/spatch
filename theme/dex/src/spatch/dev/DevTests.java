@@ -1223,6 +1223,8 @@ final class DevTests {
             };
 
             void start() {
+                android.media.AudioManager audio = (android.media.AudioManager) context.getSystemService("audio");
+                if (audio != null && audio.isMusicActive()) throw new Skip("music is playing, so the mini player is meant to move");
                 root.getViewTreeObserver().addOnDrawListener(counter);
             }
 
