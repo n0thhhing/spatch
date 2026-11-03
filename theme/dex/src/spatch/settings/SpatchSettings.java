@@ -824,6 +824,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                     link(found, FEATURE_ICONS[i], FEATURE_TITLES[i], FEATURE_SUBTITLES[i], page);
                     shown++;
                 }
+                Fonts.restyle(found); // rows made after the page was styled
             }
         });
         LinearLayout presets = new LinearLayout(getContext());
