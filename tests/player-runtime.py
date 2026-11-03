@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Run helper behavior on JVM doubles; does not replace Android/device verification."""
 import os
 import re

@@ -37,7 +37,9 @@ def check_icons(apk):
     dump = subprocess.run([str(tools / 'aapt2'), 'dump', 'resources', apk], capture_output=True, text=True, check=True).stdout
     real = set(re.findall(r'drawable/encore_icon_([a-z0-9_]+)_24\b', dump))
     source = (ROOT / 'theme/dex/src/spatch/settings/SpatchSettings.java').read_text()
-    table = re.search(r'FEATURE_ICONS = \{(.*?)\};', source, re.S)[1]
+    match = re.search(r'FEATURE_ICONS = \{(.*?)\};', source, re.DOTALL)
+    assert match is not None, 'FEATURE_ICONS table not found in SpatchSettings.java'
+    table = match[1]
     used = re.findall(r'"([a-z_]+)"', table)
     used += re.findall(r'icon\("([a-z_]+)"\)|createSettingRow\("([a-z_]+)"', source)
     used = {name for item in used for name in ([item] if isinstance(item, str) else item) if name}
@@ -49,7 +51,7 @@ def check_icons(apk):
 
 
 def adb(*args):
-    return subprocess.run(['adb', *args], capture_output=True, text=True, timeout=60).stdout
+    return subprocess.run(['adb', *args], capture_output=True, text=True, timeout=60, check=False).stdout
 
 
 def front():
@@ -117,14 +119,14 @@ def state(root, name):
 
 def flip(page, name, was):
     wanted = 'Off' if was == 'On' else 'On'
-    node = next(n for d, n in visible(screen(), 1 << 30) if SWITCH.match(d) and SWITCH.match(d)[1] == name)
+    node = next(n for d, n in visible(screen(), 1 << 30) if (match := SWITCH.match(d)) and match[1] == name)
     print(f'flipping {page} / {name}, was {was}', flush=True)  # names what to set back if the phone drops
     tap(node)
     now = state(dismiss_restart(), name)
     try:
         assert now == wanted, f'{page} / {name}: stayed {now} after tapping from {was}'
     finally:
-        back = next(n for d, n in visible(screen(), 1 << 30) if SWITCH.match(d) and SWITCH.match(d)[1] == name)
+        back = next(n for d, n in visible(screen(), 1 << 30) if (match := SWITCH.match(d)) and match[1] == name)
         tap(back)
         restored = state(dismiss_restart(), name)
     assert restored == was, f'{page} / {name}: not restored, now {restored}, was {was}. Set it back by hand.'
@@ -202,7 +204,9 @@ def main():
         return
     assert front(), 'open Spotify on Home first'
     adb('logcat', '-b', 'crash', '-c')
-    height = int(re.search(r'x(\d+)', adb('shell', 'wm', 'size'))[1])
+    match = re.search(r'x(\d+)', adb('shell', 'wm', 'size'))
+    assert match is not None, 'could not read the device screen size'
+    height = int(match[1])
     tap(find(screen(), 'content-desc', 'Go to profile and settings'))
     time.sleep(3)
     tap(find(screen(), 'text', 'Spatch'))
