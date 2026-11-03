@@ -15,6 +15,7 @@ final class MiniRing extends Drawable {
     private final RectF oval = new RectF();
     private final int color;
     private final float dp;
+    private int drawnLevel;
 
     MiniRing(int color, float dp) {
         this.color = color;
@@ -31,12 +32,20 @@ final class MiniRing extends Drawable {
         paint.setColor(color & 0x4dffffff);
         c.drawArc(oval, 0, 360, false, paint);
         paint.setColor(color);
-        c.drawArc(oval, -90, getLevel() * 0.036f, false, paint);
+        drawnLevel = getLevel();
+        c.drawArc(oval, -90, drawnLevel * 0.036f, false, paint);
     }
 
+    /** Spotify moves the level ~55 times a second, a few hundredths of a pixel each: redraw once the arc has visibly moved. */
     protected boolean onLevelChange(int level) {
-        invalidateSelf();
-        return true;
+        boolean moved = moved(drawnLevel, level, getBounds().width() / 2f - INSET_DP * dp);
+        if (moved) invalidateSelf();
+        return moved;
+    }
+
+    /** A seek back always shows; forward progress waits for half a pixel of arc. */
+    static boolean moved(int drawn, int level, float radius) {
+        return level < drawn || (level - drawn) * 0.036f * (float) Math.PI / 180 * radius >= 0.5f;
     }
 
     public void setAlpha(int alpha) {}

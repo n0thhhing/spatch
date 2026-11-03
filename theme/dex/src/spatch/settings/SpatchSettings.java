@@ -1154,7 +1154,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     /** Slides in from the right while the top of the page rises into place; called once attached. */
     void enter() {
-        if (!Wave.animationsEnabled()) return;
+        boolean motion = Wave.animationsEnabled();
+        postDelayed(cover, motion ? 240 : 0);
+        if (!motion) return;
         setAlpha(0f);
         setTranslationX(density * 48);
         animate().alpha(1f).translationX(0f).setDuration(240).start();
@@ -1459,6 +1461,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             back.unregister();
             back = null;
         }
+        uncover();
         if (!closing && Wave.animationsEnabled()) {
             closing = true;
             animate().alpha(0f).translationX(density * 48).setDuration(180).start();
@@ -1469,6 +1472,46 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         if (p instanceof ViewGroup) {
             ((ViewGroup) p).removeView(this);
         }
+    }
+
+    /** Spotify's own views under the page, hidden while it covers them so their animations stop drawing. */
+    private final java.util.ArrayList<View> covered = new java.util.ArrayList<View>();
+
+    private final Runnable cover = new Runnable() {
+        public void run() {
+            cover();
+        }
+    };
+
+    private void cover() {
+        if (closing || !(getParent() instanceof ViewGroup)) return;
+        ViewGroup root = (ViewGroup) getParent();
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child.getVisibility() == View.VISIBLE && !child.getClass().getName().startsWith("spatch.")) {
+                child.setVisibility(View.INVISIBLE);
+                covered.add(child);
+            }
+        }
+    }
+
+    private void uncover() {
+        for (View child : covered) {
+            child.setVisibility(View.VISIBLE);
+            wake(child); // loops that stopped while hidden restart from their next draw
+        }
+        covered.clear();
+        MiniBar.settingsChanged();
+    }
+
+    private static void wake(View view) {
+        view.invalidate();
+        if (view instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) view).getChildCount(); i++) wake(((ViewGroup) view).getChildAt(i));
+    }
+
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        uncover();
     }
 
     public boolean dispatchKeyEvent(KeyEvent event) {

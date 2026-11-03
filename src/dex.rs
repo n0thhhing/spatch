@@ -271,7 +271,10 @@ pub fn build(
         let name = d.file_name();
         let name = name.to_string_lossy();
         // smali -> classes.dex, smali_classesN -> classesN.dex; classes16 is the helper.
-        let dex = format!("classes{}.dex", name.strip_prefix("smali_classes").unwrap_or(""));
+        let dex = format!(
+            "classes{}.dex",
+            name.strip_prefix("smali_classes").unwrap_or("")
+        );
         if name.starts_with("smali")
             && name != "smali_classes16"
             && !DEX_TARGETS.iter().any(|(entry, _)| *entry == dex)
