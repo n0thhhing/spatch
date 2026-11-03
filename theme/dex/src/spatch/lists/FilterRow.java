@@ -5,6 +5,7 @@ import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.GradientDrawable;
@@ -49,6 +50,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
     private static long turnAt;
     private static final long SELECT_MILLIS = 420, PRESS_MILLIS = 90, CONFIRM_MILLIS = 700, EDGE_MILLIS = 16;
     private static final float PRESSED_SCALE = 0.96f;
+    private static final int JOINED_GAP = 2, INNER = 4; // dp: a sub-filter sits against its parent as one group
     private static final int PILL = 40, PUSH = 7, SQUASH = 6, LIFT = 4, EDGE = 56, EDGE_STEP = 7, GLOW = 6; // dp
 
     private final int surface = Palette.color(0xff2b2640), onSurface = Palette.color(0xfff3eeff),
@@ -127,6 +129,9 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
             }
             boolean on = row[0].equals(child != null ? child : parent);
             chip.bind(row[0], row[1], on);
+            chip.joinStart = row.length > 2;
+            chip.joinEnd = false;
+            if (chip.joinStart && !order.isEmpty()) order.get(order.size() - 1).joinEnd = true;
             if (on) selected = chip;
             order.add(chip);
         }
@@ -191,8 +196,8 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
             chip.open = chip.openFrom + (chip.openTo - chip.openFrom) * eased;
             chip.setAlpha(chip.open);
             LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) chip.getLayoutParams();
-            lp.setMarginStart(i == 0 ? 0 : Math.round(dp(8) * chip.open));
-            chip.requestLayout();
+            lp.setMarginStart(i == 0 ? 0 : Math.round(dp(chip.joinStart ? JOINED_GAP : 8) * chip.open));
+            chip.setLayoutParams(lp); // re-resolves the start margin; requestLayout alone kept the first one
         }
     }
 
@@ -202,14 +207,14 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         byId.keySet().retainAll(live);
     }
 
-    /** {id, label}: top-level chips, with the open chip's children straight after it. */
+    /** {id, label}, plus a marker for children: top-level chips, with the open chip's children straight after it. */
     static ArrayList<String[]> rows(List items, String parent, String child) {
         ArrayList<String[]> out = new ArrayList<String[]>();
         for (Object item : items) {
             in60 chip = (in60) item;
             out.add(new String[] {chip.f, chip.g});
             if (!chip.f.equals(parent) || chip.h == null) continue;
-            for (Object sub : chip.h) out.add(new String[] {((jn60) sub).f, ((jn60) sub).g});
+            for (Object sub : chip.h) out.add(new String[] {((jn60) sub).f, ((jn60) sub).g, "sub"});
         }
         return out;
     }
@@ -337,6 +342,8 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
     private final class Track extends LinearLayout implements ValueAnimator.AnimatorUpdateListener, Runnable {
         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), pill = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
+        private final Path shape = new Path();
+        private final float[] radii = new float[8];
         private final OvershootInterpolator settle = new OvershootInterpolator(1.4f);
         private final int light = Pill.blend(selected, onSurface, 0.4f);
         private Shader pillShader;
@@ -486,9 +493,12 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
                 float overlap = Math.min(right, chip.getRight()) - Math.max(left, chip.getLeft());
                 chip.ink(Math.max(0, Math.min(1, overlap / Math.max(1, chip.getRight() - chip.getLeft()))));
                 float scale = chip.getScaleX(), inset = (1 - scale) * (chip.getRight() - chip.getLeft()) / 2;
-                float x = chip.getTranslationX(), radius = density * (12 + 8 * chip.ink);
+                float x = chip.getTranslationX();
                 rect.set(chip.getLeft() + x + inset, middle - half * scale, chip.getRight() + x - inset, middle + half * scale);
-                canvas.drawRoundRect(rect, radius, radius, fill);
+                chip.corners(radii);
+                shape.reset();
+                shape.addRoundRect(rect, radii, Path.Direction.CW);
+                canvas.drawPath(shape, fill);
             }
             if (right - left < 1) return;
             if (pillShader == null) {
@@ -529,6 +539,8 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         private final GradientDrawable shape = new GradientDrawable();
         private ValueAnimator press;
         float ink = -1, open = 1, openFrom = 1, openTo = 1;
+        boolean joinStart, joinEnd;
+        private final float[] own = new float[8];
         String id;
 
         Chip(Context context) {
@@ -572,8 +584,18 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         void ink(float t) {
             if (t == ink) return;
             ink = t;
-            shape.setCornerRadius(density * (12 + 8 * t));
+            corners(own);
+            shape.setCornerRadii(own);
             setTextColor(Pill.blend(onSurface, onSelected, t));
+        }
+
+        /** Path radii: joined sides stay tight until the pill covers the chip, then round out with it. */
+        void corners(float[] out) {
+            float outer = density * (12 + 8 * ink), inner = density * (INNER + (20 - INNER) * ink);
+            boolean rtl = getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+            float l = (rtl ? joinEnd : joinStart) ? inner : outer, r = (rtl ? joinStart : joinEnd) ? inner : outer;
+            out[0] = out[1] = out[6] = out[7] = l;
+            out[2] = out[3] = out[4] = out[5] = r;
         }
 
         public void onAnimationUpdate(ValueAnimator a) {

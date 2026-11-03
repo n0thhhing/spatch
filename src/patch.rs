@@ -39,7 +39,7 @@ macro_rules! target {
 /// Now Playing slice. Ownership: p.jcs inflates revised_template_page_layout (which includes
 /// revised_template_overlay); p.u1o inflates track_info_nowplaying_view; the seekbar drawables are
 /// reached only through the NowPlayingSeekBar style and p.ews.
-pub const TARGETS: [Target; 19] = [
+pub const TARGETS: [Target; 20] = [
     // Mini-player surface (also its live-room and hat variants): adds a faint outline.
     target!(
         "res/drawable/floating_layout_bg.xml",
@@ -129,13 +129,20 @@ pub const TARGETS: [Target; 19] = [
         "res/drawable/launcher_screen.xml",
         "78d71eb64c7fd787d8595ce19a1be21a6d555a0bca45bc71b1b624fa08aadfcb"
     ),
+    // Now Playing widget's picker entry: previewLayout shows Spatch's widget instead of Spotify's
+    // stock picture, which stays as previewImage for launchers before Android 12.
+    target!(
+        "res/xml/dynamic_npv_widget_info.xml",
+        "07a21e2d672462203f14d8e1cd71d51bc89a76c3d41254b1b51a833f27498253"
+    ),
 ];
 
 /// Resources defined only in the density splits that a patched entry must keep referencing. apktool
 /// cannot see them from base (it writes `@null`), so the staging copy declares each with its exact ID
 /// and a placeholder value; only the compiled XML is shipped, never the staging resource table.
-pub const SPLIT_REFS: [(&str, &str, &str); 3] = [
+pub const SPLIT_REFS: [(&str, &str, &str); 4] = [
     ("drawable", "ic_spotify_icon_rgb_green", "0x7f080a71"),
+    ("drawable", "npv_widget_preview", "0x7f080bbe"),
     ("dimen", "square_cover_art_size", "0x7f070755"),
     ("dimen", "square_cover_art_top_margin", "0x7f070756"),
 ];
@@ -173,7 +180,7 @@ macro_rules! new_file {
     };
 }
 
-pub const NEW_RESOURCES: [(arsc::NewFile, &str); 26] = [
+pub const NEW_RESOURCES: [(arsc::NewFile, &str); 27] = [
     new_file!("drawable", "spatch_widget_bg"),
     new_file!("drawable", "spatch_widget_art"),
     new_file!("drawable", "spatch_widget_scallop"),
@@ -200,12 +207,26 @@ pub const NEW_RESOURCES: [(arsc::NewFile, &str); 26] = [
     new_file!("anim", "spatch_widget_out"),
     new_file!("layout", "spatch_widget"),
     new_file!("layout", "spatch_widget_large"),
+    new_file!("layout", "spatch_widget_preview"),
 ];
 
+/// New bitmap resources, shipped as they are: the cover in the widget picker's sample song.
+pub const NEW_IMAGES: [(arsc::NewFile, &[u8]); 1] = [(
+    arsc::NewFile {
+        type_name: "drawable",
+        name: "spatch_widget_preview_art",
+        path: "res/drawable/spatch_widget_preview_art.jpg",
+    },
+    include_bytes!("../theme/player/res/drawable/spatch_widget_preview_art.jpg"),
+)];
+
+/// Every new file, XML first; `append_files` hands out IDs in this order.
 fn new_files() -> Vec<arsc::NewFile> {
     NEW_RESOURCES
         .iter()
-        .map(|(f, _)| arsc::NewFile { ..*f })
+        .map(|(f, _)| f)
+        .chain(NEW_IMAGES.iter().map(|(f, _)| f))
+        .map(|f| arsc::NewFile { ..*f })
         .collect()
 }
 
@@ -385,10 +406,10 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
     // New resources get the IDs the table append will give them, so compiled references agree.
     let new_ids = arsc::append_files(&input::read_entry(base, "resources.arsc")?, &new_files())?.1;
     let mut declared = declare_split_refs(&fs::read_to_string(&public)?, &split_dumps)?;
-    let lines: String = NEW_RESOURCES
+    let lines: String = new_files()
         .iter()
         .zip(&new_ids)
-        .map(|((f, _), id)| {
+        .map(|(f, id)| {
             format!(
                 "    <public type=\"{}\" name=\"{}\" id=\"{id:#010x}\" />\n",
                 f.type_name, f.name
@@ -407,6 +428,9 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
             .into());
         }
         fs::write(path, theme.apply(source))?;
+    }
+    for (f, bytes) in &NEW_IMAGES {
+        fs::write(decoded.join(f.path), bytes)?;
     }
     let placeholders: String = SPLIT_REFS
         .iter()
@@ -474,6 +498,7 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
         check_references(f.path, &tree, "", &known)?;
         added.push((f.path, input::read_entry(&rebuilt, f.path)?));
     }
+    added.extend(NEW_IMAGES.iter().map(|(f, bytes)| (f.path, bytes.to_vec())));
     Ok((compiled, added))
 }
 

@@ -10,5 +10,6 @@ public class Path {
     public void close() { throw new RuntimeException(); }
     public void offset(float dx, float dy) {}
     public void addRoundRect(RectF rect, float rx, float ry, Direction dir) {}
+    public void addRoundRect(RectF rect, float[] radii, Direction dir) {}
     public void addRoundRect(float left, float top, float right, float bottom, float rx, float ry, Direction dir) {}
 }
