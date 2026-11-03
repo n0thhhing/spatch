@@ -50,14 +50,25 @@ final class PaletteResources {
         zout.finish();
     }
 
+    /**
+     * The overlay is prepared once and kept in the cache, named for the theme, this install and (for the
+     * wallpaper theme) its colours, so a launch only maps it; preparing it cost 30-60ms of startup.
+     */
     static boolean install(Context context,String theme){
-        File file=null;
         try{
-            file=File.createTempFile("spatch-theme-",".apk",context.getCacheDir());
             boolean wallpaper=theme.equals("wallpaper");
-            try(InputStream in=context.getAssets().open("spatch-themes/"+(wallpaper?"lavender":theme)+".apk");OutputStream out=new FileOutputStream(file)){
-                if(wallpaper)recolored(in,out);
-                else{byte[] buffer=new byte[16384];int count;while((count=in.read(buffer))!=-1)out.write(buffer,0,count);}
+            long installed=context.getPackageManager().getPackageInfo(context.getPackageName(),0).lastUpdateTime;
+            String key=theme+"-"+Long.toHexString(installed)+(wallpaper?"-"+Integer.toHexString(java.util.Arrays.hashCode(Palette.wallpaperRow())):"");
+            File file=new File(context.getCacheDir(),"spatch-theme-"+key+".apk");
+            if(!file.isFile()){
+                File[] old=context.getCacheDir().listFiles();
+                if(old!=null)for(File f:old)if(f.getName().startsWith("spatch-theme-"))f.delete();
+                File part=new File(context.getCacheDir(),"spatch-theme-"+key+".part");
+                try(InputStream in=context.getAssets().open("spatch-themes/"+(wallpaper?"lavender":theme)+".apk");OutputStream out=new FileOutputStream(part)){
+                    if(wallpaper)recolored(in,out);
+                    else{byte[] buffer=new byte[16384];int count;while((count=in.read(buffer))!=-1)out.write(buffer,0,count);}
+                }
+                if(!part.renameTo(file))return false;
             }
             ResourcesLoader loader=new ResourcesLoader();
             try(ParcelFileDescriptor fd=ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY)){
@@ -66,7 +77,6 @@ final class PaletteResources {
             context.getResources().addLoaders(loader);
             current=loader;
             return true;
-        }catch(IOException|RuntimeException e){return false;}
-        finally{if(file!=null)file.delete();}
+        }catch(IOException|RuntimeException|android.content.pm.PackageManager.NameNotFoundException e){return false;}
     }
 }

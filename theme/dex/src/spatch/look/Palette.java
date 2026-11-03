@@ -34,6 +34,8 @@ public final class Palette {
     static int tone(int theme,int role){return 0xff000000|row(theme)[role];}
     private static int[] row(int theme){return theme==WALLPAPER?wallpaper:COLOURS[theme];}
 
+    static int[] wallpaperRow(){return wallpaper;}
+
     /** The nine roles from the system palette (dark tones, as every Spatch theme is dark). */
     static int[] wallpaper(Context c){
         if(android.os.Build.VERSION.SDK_INT<31)return COLOURS[0];
