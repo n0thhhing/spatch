@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Helps port Spatch to a new Spotify build.
 
-    python3 port/port.py <old.apkm> <new.apkm> [--work <dir>]
+    python3 scripts/port/port.py <old.apkm> <new.apkm> [--work <dir>]
 
 Decodes both builds (cached in the work folder), maps every resource ID by name, and matches each
 obfuscated Spotify class Spatch refers to (in src/ and theme/dex/) with its renamed self in the new
@@ -23,7 +23,7 @@ import sys
 import zipfile
 from concurrent.futures import ProcessPoolExecutor
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo, above scripts/port/
 BUILD_TOOLS = sorted(glob.glob('/opt/homebrew/share/android-commandlinetools/build-tools/*'))
 OBF = re.compile(r'Lp/[\w$]+;')
 MEMBER = re.compile(r'(Lp/_;->)[\w$]+')
@@ -144,7 +144,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('old')
     ap.add_argument('new')
-    ap.add_argument('--work', default=os.path.join(ROOT, 'port', '.work'))
+    ap.add_argument('--work', default=os.path.join(ROOT, 'scripts', 'port', '.work'))
     args = ap.parse_args()
     old_dir, new_dir = os.path.join(args.work, 'old'), os.path.join(args.work, 'new')
     for apkm, d in ((args.old, old_dir), (args.new, new_dir)):

@@ -1,6 +1,6 @@
 # Spatch's own names for the obfuscated Spotify classes it uses, and where each is in a build.
 # Code writes S_<alias>; src/names.rs swaps in the supported build's class before anything is
-# compiled or edited. A cell is <smali folder>/<class>; a trailing ? marks a match port/port.py
+# compiled or edited. A cell is <smali folder>/<class>; a trailing ? marks a match scripts/port/port.py
 # wasn't sure of, which the build refuses until someone checks the code and removes it.
 alias	9.1.98.521	9.2.0.26
 AccountRow	smali_classes2/ag81	smali_classes2/fh81

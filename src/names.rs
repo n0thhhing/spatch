@@ -1,14 +1,14 @@
 //! Spatch's own names for what changes between Spotify builds. Code, stubs and smali edits write
 //! `S_<alias>` for an obfuscated class and `R_<type>_<name>` for a Spotify resource; before anything
-//! is compiled or edited, `rewrite` swaps in the class's name (from `port/aliases.tsv`, a column per
-//! build, filled by `port/port.py`) and the resource's ID (read from the build's own table).
+//! is compiled or edited, `rewrite` swaps in the class's name (from `scripts/port/aliases.tsv`, a column per
+//! build, filled by `scripts/port/port.py`) and the resource's ID (read from the build's own table).
 
 use crate::Result;
 use crate::input::VERSION_NAME;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-const ALIASES: &str = include_str!("../port/aliases.tsv");
+const ALIASES: &str = include_str!("../scripts/port/aliases.tsv");
 const TYPES: [&str; 13] = [
     "anim", "array", "attr", "bool", "color", "dimen", "drawable", "font", "id", "integer",
     "layout", "string", "style",
@@ -59,13 +59,13 @@ fn parse<'a>(text: &'a str, build: &str) -> Parsed<'a> {
         .filter(|l| !l.is_empty() && !l.starts_with('#'));
     let header: Vec<&str> = rows
         .next()
-        .ok_or("port/aliases.tsv is empty")?
+        .ok_or("scripts/port/aliases.tsv is empty")?
         .split('\t')
         .collect();
     let column = header
         .iter()
         .position(|h| *h == build)
-        .ok_or_else(|| format!("port/aliases.tsv has no column for Spotify {build}"))?;
+        .ok_or_else(|| format!("scripts/port/aliases.tsv has no column for Spotify {build}"))?;
     let mut table = HashMap::new();
     for row in rows {
         let cells: Vec<&str> = row.split('\t').collect();

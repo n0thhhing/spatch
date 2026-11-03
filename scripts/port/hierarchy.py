@@ -1,13 +1,13 @@
 """Checks each stub's extends/implements against the real class hierarchy of a decoded Spotify build.
 
-    python3 port/hierarchy.py <decoded build> <column in port/aliases.tsv>
+    python3 scripts/port/hierarchy.py <decoded build> <column in scripts/port/aliases.tsv>
 
 A stub that claims the wrong parent compiles fine and only fails when the phone's verifier rejects
 the class Spatch built against it, which is how a wrong match for S_ComposeOutline first showed up.
 """
 import re, sys, glob, os
 DEC, BUILD = sys.argv[1], sys.argv[2]
-lines = [l.split('\t') for l in open('port/aliases.tsv').read().splitlines() if l and not l.startswith('#')]
+lines = [l.split('\t') for l in open('scripts/port/aliases.tsv').read().splitlines() if l and not l.startswith('#')]
 col = lines[0].index(BUILD)
 new = {r[0]: r[col].rstrip('?') for r in lines[1:]}
 def parents(cls):
