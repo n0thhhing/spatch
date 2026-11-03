@@ -1,0 +1,64 @@
+# Publishes the nightly patches (scripts/nightly.sh) from every push. The Spotify APKM comes from the
+# private Spatch source, with its own invite in the SOURCE_INVITE secret (made with
+# source/cloudflare/add-friend.sh nightly-ci; revoke with `npx wrangler secret delete CODE_nightly-ci`).
+name: nightly
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["**"]
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true # a newer push makes the running build moot
+
+permissions:
+  contents: write # the nightly tag and release
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.spatch/nightly-target
+          key: nightly-${{ hashFiles('Cargo.lock') }}
+      - name: Android build-tools and apktool
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" > /dev/null
+          mkdir -p "$HOME/bin"
+          curl -fsSL -o "$HOME/bin/apktool.jar" https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          printf '#!/bin/sh\nexec java -jar "%s/bin/apktool.jar" "$@"\n' "$HOME" > "$HOME/bin/apktool"
+          chmod +x "$HOME/bin/apktool"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Spotify APKM from the private source
+        env:
+          INVITE: ${{ secrets.SOURCE_INVITE }}
+        run: |
+          version=$(sed -n 's/^pub const VERSION_NAME: &str = "\(.*\)";/\1/p' src/input.rs)
+          index=${INVITE%%#*} login=${INVITE#*#}
+          auth="${login%%.*}:${login#*.}"
+          curl -fsS -u "$auth" "$index" > "$RUNNER_TEMP/index.json"
+          entry=$(jq -c --arg v "$version" '.sources[] | select(.versionName == $v)' "$RUNNER_TEMP/index.json")
+          [ -n "$entry" ] || { echo "the source has no Spotify $version"; exit 1; }
+          apkm="$RUNNER_TEMP/spotify-$version.apkm"
+          # curl sends the login to the source only, not to the GitHub link it redirects to
+          curl -fsSL -u "$auth" -o "$apkm" "${index%/*}/$(echo "$entry" | jq -r '.urls[0]')"
+          echo "$(echo "$entry" | jq -r .sha256)  $apkm" | sha256sum -c -
+          echo "SPATCH_APKM=$apkm" >> "$GITHUB_ENV"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          scripts/nightly.sh "$GITHUB_SHA"

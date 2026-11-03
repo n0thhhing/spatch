@@ -1,7 +1,8 @@
 #!/bin/sh
 # Publishes the patch bundles of a commit (HEAD by default) as the `nightly` prerelease, which
 # Spatch Manager installs when Nightly patches is on. Builds from a clean copy of the commit, so
-# uncommitted work never ships. Needs the supported Spotify APKM in the repo root (it is ignored).
+# uncommitted work never ships. Needs the supported Spotify APKM: $SPATCH_APKM, or in the repo root
+# (it is ignored). .github/workflows/nightly.yml runs this on every push.
 #   scripts/nightly.sh [commit]
 set -eu
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -13,7 +14,7 @@ if [ "$(gh release view nightly --json targetCommitish -q .targetCommitish 2>/de
     exit 0
 fi
 version=$(git -C "$repo" show "$sha:src/input.rs" | sed -n 's/^pub const VERSION_NAME: &str = "\(.*\)";/\1/p')
-apkm=$(ls "$repo"/*"_$version-"*.apkm 2>/dev/null | head -1)
+apkm=${SPATCH_APKM:-$(ls "$repo"/*"_$version-"*.apkm 2>/dev/null | head -1)}
 [ -n "$apkm" ] || { echo "no Spotify $version APKM in $repo"; exit 1; }
 
 work=$(mktemp -d)
