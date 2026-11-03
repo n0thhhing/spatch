@@ -11,15 +11,11 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
-import android.content.res.TypedArray;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.text.InputType;
-import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -54,7 +50,8 @@ public final class MainActivity extends Activity {
     private Releases releases;
     private String releaseError, pendingTag;
     private boolean busy, installingSelf, conflict;
-    private int accent, text, muted, surface;
+    private Look look;
+    private LinearLayout statusCard;
 
     private TextView spotifyStatus, apkmStatus, patchStatus, keyStatus, managerStatus, status;
     private Button choose, patch, uninstall, managerUpdate, check, exportKey, importKey;
@@ -92,13 +89,11 @@ public final class MainActivity extends Activity {
     protected void onCreate(android.os.Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences("manager", MODE_PRIVATE);
-        TypedArray a = obtainStyledAttributes(new int[] {android.R.attr.colorAccent, android.R.attr.textColorPrimary, android.R.attr.textColorSecondary, android.R.attr.colorBackground});
-        accent = a.getColor(0, 0xffd0bcff);
-        text = a.getColor(1, 0xfff3eeff);
-        muted = a.getColor(2, 0xffbcb3dc);
-        int background = a.getColor(3, 0xff14121c);
-        a.recycle();
-        surface = blend(background, text, 0.07f);
+        look = new Look(this);
+        getWindow().getDecorView().setBackgroundColor(look.surface);
+        getWindow().setStatusBarColor(look.surface);
+        getWindow().setNavigationBarColor(look.surface);
+        if (!look.dark) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         setContentView(layout());
         registerReceiver(installResult, new IntentFilter(Installer.ACTION), Context.RECEIVER_NOT_EXPORTED);
         refresh();
@@ -130,51 +125,67 @@ public final class MainActivity extends Activity {
     }
 
     private View layout() {
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(20);
-        page.setPadding(pad, dp(48), pad, pad);
+        LinearLayout page = look.column();
+        page.setPadding(look.dp(16), look.dp(56), look.dp(16), look.dp(32));
 
-        TextView title = label("Spatch Manager", 30, text);
-        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        TextView title = look.text("Spatch", 36, look.onSurface, false);
+        title.setPadding(look.dp(8), 0, look.dp(8), 0);
         page.addView(title);
-        page.addView(label("Patches Spotify on this phone and signs it with this phone's own key.", 15, muted));
+        TextView subtitle = look.text("Patches Spotify on this phone and signs it with this phone's own key.", 15, look.onSurfaceVariant, false);
+        subtitle.setPadding(look.dp(8), look.dp(4), look.dp(8), look.dp(8));
+        page.addView(subtitle);
 
-        LinearLayout spotify = card(page, "Spotify");
-        spotifyStatus = line(spotify);
-        apkmStatus = line(spotify);
-        patchStatus = line(spotify);
+        statusCard = look.column();
+        statusCard.setPadding(look.dp(20), look.dp(16), look.dp(20), look.dp(16));
+        statusCard.setBackground(look.shape(look.secondaryContainer, 28));
+        status = look.text("", 15, look.onSecondaryContainer, false);
+        statusCard.addView(status);
+        progress = look.progress();
+        progress.setVisibility(View.GONE);
+        statusCard.addView(progress, look.spaced(10));
+        statusCard.setVisibility(View.GONE);
+        page.addView(statusCard, look.spaced(12));
+
+        LinearLayout spotify = look.card(page, "Spotify");
+        spotifyStatus = look.text("", 16, look.onSurface, false);
+        spotify.addView(spotifyStatus);
+        apkmStatus = look.text("", 14, look.onSurfaceVariant, false);
+        spotify.addView(apkmStatus, look.spaced(6));
+        patchStatus = look.text("", 14, look.onSurfaceVariant, false);
+        spotify.addView(patchStatus, look.spaced(2));
         developer = new Switch(this);
-        developer.setText("Developer build (adds Developer options: self tests, frame monitor, logs)");
-        developer.setTextColor(text);
         developer.setChecked(prefs.getBoolean(DEBUG, false));
         developer.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(DEBUG, on).apply();
             refresh();
         });
-        spotify.addView(developer);
-        choose = button(spotify, "Choose Spotify APKM", v -> pickApkm());
-        patch = button(spotify, "Install Spatch", v -> patch());
-        uninstall = button(spotify, "Uninstall Spotify", v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
+        spotify.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer), look.spaced(6));
+        patch = look.button("Install Spatch", Look.Kind.FILLED, v -> patch());
+        spotify.addView(patch, look.spaced(8));
+        choose = look.button("Choose Spotify APKM", Look.Kind.TONAL, v -> pickApkm());
+        spotify.addView(choose, look.spaced(8));
+        uninstall = look.button("Uninstall Spotify", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
+        spotify.addView(uninstall, look.spaced(8));
 
-        LinearLayout key = card(page, "Signing key");
-        keyStatus = line(key);
-        exportKey = button(key, "Export key", v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
-        importKey = button(key, "Import key", v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
+        LinearLayout key = look.card(page, "Signing key");
+        keyStatus = look.text("", 14, look.onSurfaceVariant, false);
+        keyStatus.setTypeface(android.graphics.Typeface.MONOSPACE);
+        key.addView(keyStatus);
+        exportKey = look.button("Export", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
+        importKey = look.button("Import", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
+        key.addView(look.row(exportKey, importKey), look.spaced(12));
 
-        LinearLayout manager = card(page, "Manager");
-        managerStatus = line(manager);
-        managerUpdate = button(manager, "Update manager", v -> updateManager());
-        check = button(manager, "Check for updates", v -> checkUpdates());
-        button(manager, "Releases on GitHub", v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
-
-        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progress.setVisibility(View.GONE);
-        page.addView(progress, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        status = label("", 15, text);
-        page.addView(status);
+        LinearLayout manager = look.card(page, "Manager");
+        managerStatus = look.text("", 14, look.onSurfaceVariant, false);
+        manager.addView(managerStatus);
+        managerUpdate = look.button("Update manager", Look.Kind.FILLED, v -> updateManager());
+        manager.addView(managerUpdate, look.spaced(12));
+        check = look.button("Check for updates", Look.Kind.TEXT, v -> checkUpdates());
+        Button page2 = look.button("Releases", Look.Kind.TEXT, v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
+        manager.addView(look.row(check, page2), look.spaced(4));
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setClipToPadding(false);
         scroll.addView(page);
         return scroll;
     }
@@ -199,19 +210,19 @@ public final class MainActivity extends Activity {
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
         patch.setText(!ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
         choose.setText(apkm.isFile() ? "Choose another APKM" : "Choose Spotify APKM");
-        patch.setEnabled(!busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null));
+        look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null));
         developer.setEnabled(!busy);
         uninstall.setVisibility(conflict && info != null && !ours ? View.VISIBLE : View.GONE);
         try {
-            keyStatus.setText(keys == null ? "Making this phone's key…" : "Fingerprint " + keys.fingerprint().substring(0, 16) + "…");
+            keyStatus.setText(keys == null ? "Making this phone's key…" : "Fingerprint\n" + keys.fingerprint().substring(0, 32).replaceAll("(.{4})(?!$)", "$1 "));
         } catch (Exception e) {
             keyStatus.setText("Key unreadable.");
         }
         int own = ownCode(), newest = Releases.code(releases == null ? null : releases.manager);
         managerStatus.setText("Version " + own + (newest > own ? ", version " + newest + " is available." : "."));
         managerUpdate.setVisibility(newest > own ? View.VISIBLE : View.GONE);
-        for (Button b : Arrays.asList(choose, managerUpdate, check, exportKey, importKey)) b.setEnabled(!busy);
-        exportKey.setEnabled(!busy && keys != null);
+        for (Button b : Arrays.asList(choose, managerUpdate, check, importKey)) look.enable(b, !busy);
+        look.enable(exportKey, !busy && keys != null);
     }
 
     private void checkUpdates() {
@@ -419,7 +430,7 @@ public final class MainActivity extends Activity {
         EditText field = new EditText(this);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         LinearLayout box = new LinearLayout(this);
-        box.setPadding(dp(24), dp(8), dp(24), 0);
+        box.setPadding(look.dp(24), look.dp(8), look.dp(24), 0);
         box.addView(field, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         new AlertDialog.Builder(this).setTitle(title).setView(box).setNegativeButton("Cancel", null)
             .setPositiveButton(action, (d, w) -> {
@@ -478,60 +489,6 @@ public final class MainActivity extends Activity {
 
     private void say(String message) {
         status.setText(message);
-    }
-
-    private LinearLayout card(LinearLayout page, String title) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(18), dp(16), dp(18), dp(12));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(surface);
-        bg.setCornerRadius(dp(24));
-        card.setBackground(bg);
-        TextView heading = label(title, 18, accent);
-        heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        card.addView(heading);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(16);
-        page.addView(card, lp);
-        return card;
-    }
-
-    private TextView line(LinearLayout card) {
-        TextView t = label("", 15, text);
-        card.addView(t);
-        return t;
-    }
-
-    private Button button(LinearLayout card, String label, View.OnClickListener click) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setOnClickListener(click);
-        b.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(6);
-        card.addView(b, lp);
-        return b;
-    }
-
-    private TextView label(String s, int sp, int color) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextSize(sp);
-        t.setTextColor(color);
-        t.setPadding(0, dp(4), 0, dp(4));
-        return t;
-    }
-
-    private int dp(int v) {
-        return Math.round(v * getResources().getDisplayMetrics().density);
-    }
-
-    private static int blend(int a, int b, float t) {
-        int r = Math.round((a >> 16 & 255) + ((b >> 16 & 255) - (a >> 16 & 255)) * t);
-        int g = Math.round((a >> 8 & 255) + ((b >> 8 & 255) - (a >> 8 & 255)) * t);
-        int bl = Math.round((a & 255) + ((b & 255) - (a & 255)) * t);
-        return 0xff000000 | r << 16 | g << 8 | bl;
+        statusCard.setVisibility(message.isEmpty() && progress.getVisibility() != View.VISIBLE ? View.GONE : View.VISIBLE);
     }
 }
