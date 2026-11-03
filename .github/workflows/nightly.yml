@@ -1,6 +1,7 @@
 # Publishes the nightly patches (scripts/nightly.sh) from every push. The Spotify APKM comes from the
 # private Spatch source, with its own invite in the SOURCE_INVITE secret (made with
 # source/cloudflare/add-friend.sh nightly-ci; revoke with `npx wrangler secret delete CODE_nightly-ci`).
+# The two bundles build side by side on their own runners; a last job publishes both.
 name: nightly
 
 on:
@@ -13,13 +14,15 @@ concurrency:
   group: nightly
   cancel-in-progress: true # a newer push makes the running build moot
 
-permissions:
-  contents: write # the nightly tag and release
-
 jobs:
-  nightly:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        bundle: [normal, debug]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -31,7 +34,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.spatch/nightly-target
-          key: nightly-${{ hashFiles('Cargo.lock') }}
+          key: nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}
       - name: Android build-tools and apktool
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" > /dev/null
@@ -55,9 +58,35 @@ jobs:
           curl -fsSL -u "$auth" -o "$apkm" "${index%/*}/$(echo "$entry" | jq -r '.urls[0]')"
           echo "$(echo "$entry" | jq -r .sha256)  $apkm" | sha256sum -c -
           echo "SPATCH_APKM=$apkm" >> "$GITHUB_ENV"
+      - name: Build the ${{ matrix.bundle }} bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIGHTLY_BUILD: ${{ matrix.bundle }}
+          NIGHTLY_OUT: ${{ runner.temp }}/bundle
+        run: scripts/nightly.sh "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.bundle }}
+          path: ${{ runner.temp }}/bundle
+          if-no-files-found: ignore # nightly was already this commit
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # the nightly tag and release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/bundles
+          merge-multiple: true
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          NIGHTLY_BUNDLES: ${{ runner.temp }}/bundles
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

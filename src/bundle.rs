@@ -47,17 +47,20 @@ pub fn write(
     for (name, sha) in APKS {
         writeln!(steps, "apk {name} {sha}")?;
     }
-    let mut patches = Vec::new();
-    for (entry, bytes) in replace {
-        let old = input::read_entry(&base, entry)?;
-        let name = format!("p/{}", patches.len());
+    let olds = replace
+        .iter()
+        .map(|(entry, _)| input::read_entry(&base, entry))
+        .collect::<Result<Vec<_>>>()?;
+    let mut jobs: Vec<(&[u8], &[u8])> = Vec::new(); // (old, new), patch p/<index>
+    for ((entry, bytes), old) in replace.iter().zip(&olds) {
         writeln!(
             steps,
-            "replace {entry} {} {} {name}",
-            input::sha256_bytes(&old),
-            input::sha256_bytes(bytes)
+            "replace {entry} {} {} p/{}",
+            input::sha256_bytes(old),
+            input::sha256_bytes(bytes),
+            jobs.len()
         )?;
-        patches.push((name, diff(&old, bytes)?));
+        jobs.push((old, bytes));
     }
     let cover = NEW_IMAGES[0].path;
     for (entry, bytes) in add {
@@ -71,14 +74,15 @@ pub fn write(
         } else {
             "D"
         };
-        let name = format!("p/{}", patches.len());
         writeln!(
             steps,
-            "add {entry} {method} {} {name}",
-            input::sha256_bytes(bytes)
+            "add {entry} {method} {} p/{}",
+            input::sha256_bytes(bytes),
+            jobs.len()
         )?;
-        patches.push((name, diff(&basis, bytes)?));
+        jobs.push((&basis, bytes));
     }
+    let patches = diff_all(&jobs)?;
     if !PREVIEW_TRACK.is_empty() && add.iter().any(|(e, _)| *e == cover) {
         writeln!(steps, "cover {cover} {PREVIEW_TRACK}")?;
     }
@@ -89,8 +93,8 @@ pub fn write(
         .compression_level(Some(9));
     zip.start_file("bundle.txt", opts)?;
     zip.write_all(steps.as_bytes())?;
-    for (name, patch) in &patches {
-        zip.start_file(name.as_str(), opts)?;
+    for (i, patch) in patches.iter().enumerate() {
+        zip.start_file(format!("p/{i}"), opts)?;
         zip.write_all(patch)?;
     }
     zip.finish()?;
@@ -162,9 +166,57 @@ fn files<'a>(dump: &'a str, id: &str) -> impl Iterator<Item = String> + 'a {
 }
 
 /// A bsdiff patch, checked by applying it before it is trusted.
+/// Every patch, in order, spread over the machine's cores.
+fn diff_all(jobs: &[(&[u8], &[u8])]) -> Result<Vec<Vec<u8>>> {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let done = std::sync::Mutex::new(vec![None; jobs.len()]);
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    std::thread::scope(|s| {
+        for _ in 0..threads.min(jobs.len()) {
+            s.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some((old, new)) = jobs.get(i) else { break };
+                    let patch = diff(old, new).map_err(|e| e.to_string());
+                    done.lock().unwrap()[i] = Some(patch);
+                }
+            });
+        }
+    });
+    done.into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|p| Ok(p.expect("every job ran")?))
+        .collect()
+}
+
+/// A resource table starts with this chunk header.
+const TABLE_HEADER: [u8; 4] = [0x02, 0x00, 0x0c, 0x00];
+
+/// Whether a new file can share bytes with the original table: a table, or a zip holding one (the
+/// theme overlays). Nothing else Spatch adds does.
+fn like_table(new: &[u8]) -> bool {
+    new.starts_with(&TABLE_HEADER) || new.starts_with(b"PK\x03\x04")
+}
+
+/// A bsdiff patch that copies `new` in whole: one control (no mix, copy all, no seek), then the bytes.
+fn literal(new: &[u8]) -> Vec<u8> {
+    let mut patch = Vec::with_capacity(24 + new.len());
+    for n in [0, new.len() as u64, 0] {
+        patch.extend_from_slice(&n.to_le_bytes());
+    }
+    patch.extend_from_slice(new);
+    patch
+}
+
 fn diff(old: &[u8], new: &[u8]) -> Result<Vec<u8>> {
     let mut patch = Vec::new();
-    bsdiff::diff(old, new, &mut patch)?;
+    if old.starts_with(&TABLE_HEADER) && !like_table(new) {
+        // Diffing against an unrelated table only costs a sort of it.
+        patch = literal(new);
+    } else {
+        bsdiff::diff(old, new, &mut patch)?;
+    }
     let mut back = Vec::with_capacity(new.len());
     bsdiff::patch(old, &mut patch.as_slice(), &mut back)?;
     if back != new {
@@ -178,6 +230,21 @@ mod tests {
     use super::*;
     use crate::input::tests::{temp_dir, write_zip};
     use std::io::Read;
+
+    #[test]
+    fn new_files_unlike_the_table_are_copied_in_whole() {
+        let table = [&TABLE_HEADER[..], b"the original table"].concat();
+        // diff checks every patch reproduces its file
+        assert_eq!(diff(&table, b"a font").unwrap(), literal(b"a font"));
+        for overlay in [[&TABLE_HEADER[..], b"the edited table"].concat(), [&b"PK\x03\x04"[..], &table].concat()] {
+            assert_ne!(diff(&table, &overlay).unwrap(), literal(&overlay), "overlays are diffed");
+        }
+        let overlay = [&TABLE_HEADER[..], b"the edited table"].concat();
+        let jobs: Vec<(&[u8], &[u8])> = vec![(&table, b"x"), (&table, &overlay), (b"old", b"new")];
+        let all = diff_all(&jobs).unwrap();
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0], diff(&table, b"x").unwrap(), "kept in order");
+    }
 
     #[test]
     fn clone_lines_follow_the_manifest_to_strings_and_the_icon() {
