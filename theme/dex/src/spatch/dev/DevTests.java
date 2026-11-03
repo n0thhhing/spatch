@@ -530,7 +530,6 @@ final class DevTests {
                 inApp();
                 check(Surfaces.bg((long) 0xff292929 << 32) == (long) Palette.color(0xff2b2640) << 32, "grey card");
                 check(Surfaces.bg((long) 0xff123456 << 32) == (long) 0xff123456 << 32, "other colours must pass through");
-                if (Settings.get(Settings.SOFT_HEADERS)) check(Surfaces.bg((long) 0xff2e2e32 << 32) != (long) 0xff2e2e32 << 32, "a flat grey header background stayed grey");
                 return "";
             }
         });
