@@ -28,7 +28,7 @@ use crate::patch::{NEW_IMAGES, PREVIEW_FALLBACK, PREVIEW_TRACK};
 use std::fmt::Write as _;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions;
 
 const BASIS: &str = "resources.arsc";
@@ -47,10 +47,8 @@ pub fn write(
     for (name, sha) in APKS {
         writeln!(steps, "apk {name} {sha}")?;
     }
-    let olds = replace
-        .iter()
-        .map(|(entry, _)| input::read_entry(&base, entry))
-        .collect::<Result<Vec<_>>>()?;
+    let entries: Vec<_> = replace.iter().map(|(entry, _)| *entry).collect();
+    let olds = input::read_entries(&base, &entries)?;
     let mut jobs: Vec<(&[u8], &[u8])> = Vec::new(); // (old, new), patch p/<index>
     for ((entry, bytes), old) in replace.iter().zip(&olds) {
         writeln!(
@@ -120,7 +118,9 @@ pub fn clone_lines(dump: &str, tree: impl Fn(&str) -> Result<String>) -> Result<
         .split_once("E: application")
         .ok_or("the manifest has no application")?
         .1;
-    let icon = refs(app, "icon").next().ok_or("the application has no icon")?;
+    let icon = refs(app, "icon")
+        .next()
+        .ok_or("the application has no icon")?;
     let adaptive = files(dump, &icon)
         .find(|f| f.starts_with("res/mipmap-anydpi"))
         .ok_or_else(|| format!("icon {icon} is not an adaptive icon"))?;
@@ -171,13 +171,18 @@ fn diff_all(jobs: &[(&[u8], &[u8])]) -> Result<Vec<Vec<u8>>> {
     let next = std::sync::atomic::AtomicUsize::new(0);
     let done = std::sync::Mutex::new(vec![None; jobs.len()]);
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let cache = std::env::var_os("XDG_CACHE_HOME")
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".cache")))
+        .map(|p| p.join("spatch/diffs-v1"));
     std::thread::scope(|s| {
         for _ in 0..threads.min(jobs.len()) {
             s.spawn(|| {
                 loop {
                     let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let Some((old, new)) = jobs.get(i) else { break };
-                    let patch = diff(old, new).map_err(|e| e.to_string());
+                    let patch = cached_diff(old, new, cache.as_deref()).map_err(|e| e.to_string());
                     done.lock().unwrap()[i] = Some(patch);
                 }
             });
@@ -188,6 +193,41 @@ fn diff_all(jobs: &[(&[u8], &[u8])]) -> Result<Vec<Vec<u8>>> {
         .into_iter()
         .map(|p| Ok(p.expect("every job ran")?))
         .collect()
+}
+
+/// Reuse expensive diffs only for these exact bytes, and reapply every cache hit before trusting it.
+fn cached_diff(old: &[u8], new: &[u8], cache: Option<&Path>) -> Result<Vec<u8>> {
+    if old.starts_with(&TABLE_HEADER) && !like_table(new) {
+        return diff(old, new); // literal patches don't sort the input
+    }
+    let path = cache.map(|dir| {
+        dir.join(format!(
+            "{}-{}.diff",
+            input::sha256_bytes(old),
+            input::sha256_bytes(new)
+        ))
+    });
+    if let Some(path) = &path
+        && let Ok(patch) = std::fs::read(path)
+    {
+        let mut back = Vec::with_capacity(new.len());
+        if bsdiff::patch(old, &mut patch.as_slice(), &mut back).is_ok() && back == new {
+            return Ok(patch);
+        }
+    }
+    let patch = diff(old, new)?;
+    if let Some(path) = path {
+        // Cache failures never prevent a build; rename only after the complete patch is written.
+        let temp = path.with_extension(format!("{}.tmp", std::process::id()));
+        let _ = std::fs::create_dir_all(path.parent().unwrap());
+        if let Ok(mut file) = File::create_new(&temp) {
+            if file.write_all(&patch).is_ok() {
+                let _ = std::fs::rename(&temp, &path);
+            }
+            let _ = std::fs::remove_file(temp);
+        }
+    }
+    Ok(patch)
 }
 
 /// A resource table starts with this chunk header.
@@ -236,8 +276,15 @@ mod tests {
         let table = [&TABLE_HEADER[..], b"the original table"].concat();
         // diff checks every patch reproduces its file
         assert_eq!(diff(&table, b"a font").unwrap(), literal(b"a font"));
-        for overlay in [[&TABLE_HEADER[..], b"the edited table"].concat(), [&b"PK\x03\x04"[..], &table].concat()] {
-            assert_ne!(diff(&table, &overlay).unwrap(), literal(&overlay), "overlays are diffed");
+        for overlay in [
+            [&TABLE_HEADER[..], b"the edited table"].concat(),
+            [&b"PK\x03\x04"[..], &table].concat(),
+        ] {
+            assert_ne!(
+                diff(&table, &overlay).unwrap(),
+                literal(&overlay),
+                "overlays are diffed"
+            );
         }
         let overlay = [&TABLE_HEADER[..], b"the edited table"].concat();
         let jobs: Vec<(&[u8], &[u8])> = vec![(&table, b"x"), (&table, &overlay), (b"old", b"new")];
@@ -327,4 +374,25 @@ mod tests {
         bsdiff::patch(b"table", &mut patch.as_slice(), &mut back).unwrap();
         assert_eq!(back, PREVIEW_FALLBACK);
     }
+}
+#[test]
+fn cached_diffs_are_reapplied_and_corruption_is_rebuilt() {
+    let dir = input::tests::temp_dir("diff-cache");
+    let (old, new) = (&b"original bytes"[..], &b"updated bytes"[..]);
+    let expected = diff(old, new).unwrap();
+    assert_eq!(cached_diff(old, new, Some(&dir)).unwrap(), expected);
+    let path = std::fs::read_dir(&dir)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    // A different but valid patch proves the next call reads and validates the cache.
+    std::fs::write(&path, literal(new)).unwrap();
+    assert_eq!(cached_diff(old, new, Some(&dir)).unwrap(), literal(new));
+    std::fs::write(&path, b"broken").unwrap();
+    assert_eq!(cached_diff(old, new, Some(&dir)).unwrap(), expected);
+    let unavailable = dir.join("not-a-directory");
+    std::fs::write(&unavailable, b"x").unwrap();
+    assert_eq!(cached_diff(old, new, Some(&unavailable)).unwrap(), expected);
 }

@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -133,6 +134,7 @@ final class Bundle implements AutoCloseable {
         if (clone != null && !clonable()) throw new IOException("This patch bundle can't make a clone; update the patches.");
         int replaced = 0;
         try (ZipFile in = new ZipFile(src); ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(dst), 1 << 16))) {
+            out.setLevel(Deflater.BEST_SPEED); // installed APKs are local: avoid spending seconds recompressing every DEX
             byte[] basis = null;
             for (Enumeration<? extends ZipEntry> e = in.entries(); e.hasMoreElements();) {
                 ZipEntry z = e.nextElement();

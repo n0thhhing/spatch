@@ -1,6 +1,6 @@
 //! Guarded smali edits for the Now Playing controls plus the spatch.Scallop helper DEX.
 //!
-//! Only classes3.dex and classes9.dex are reassembled; the helper ships as a new classes16.dex.
+//! Only DEX_TARGETS are decoded and reassembled; the helper ships as a new classes16.dex.
 //! classes9.dex is at the 65,536 method-reference limit, so its edits add field refs and constants only.
 
 use crate::Result;
@@ -219,8 +219,12 @@ fn obfuscated_classes() -> String {
 }
 
 pub fn check_originals(base: &Path) -> Result<()> {
-    for (entry, sha) in DEX_TARGETS {
-        let got = input::sha256_bytes(&input::read_entry(base, entry)?);
+    let entries: Vec<_> = DEX_TARGETS.iter().map(|(entry, _)| *entry).collect();
+    for ((entry, sha), bytes) in DEX_TARGETS
+        .into_iter()
+        .zip(input::read_entries(base, &entries)?)
+    {
+        let got = input::sha256_bytes(&bytes);
         if got != sha {
             return Err(
                 format!("{entry} does not match the supported original (got {got})").into(),
@@ -255,9 +259,14 @@ pub fn build(
     theme: &Theme,
     debug: bool,
 ) -> Result<Vec<(&'static str, Vec<u8>)>> {
-    let fw = staging.join("framework");
+    let fw = staging.join("dex-framework");
     let smali = staging.join("smali");
     let built = staging.join("dex.apk");
+    let sources = staging.join("sources.apk");
+    input::select_entries(base, &sources, |name| {
+        matches!(name, "AndroidManifest.xml" | "resources.arsc")
+            || DEX_TARGETS.iter().any(|(entry, _)| *entry == name)
+    })?;
     tools.run(
         &tools.apktool,
         &[
@@ -267,7 +276,7 @@ pub fn build(
             fw.as_os_str(),
             OsStr::new("-o"),
             smali.as_os_str(),
-            base.as_os_str(),
+            sources.as_os_str(),
         ],
     )?;
     for e in &EDITS {

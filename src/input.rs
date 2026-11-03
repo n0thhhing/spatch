@@ -112,13 +112,37 @@ pub fn extract_apks(apkm: &Path, dest: &Path) -> Result<()> {
 
 /// Reads one entry fully from an APK.
 pub fn read_entry(apk: &Path, name: &str) -> Result<Vec<u8>> {
+    Ok(read_entries(apk, &[name])?.remove(0))
+}
+
+/// Parse the ZIP directory once for a batch, rather than once per entry.
+pub fn read_entries(apk: &Path, names: &[&str]) -> Result<Vec<Vec<u8>>> {
     let mut zip = zip::ZipArchive::new(File::open(apk)?)?;
-    let mut entry = zip
-        .by_name(name)
-        .map_err(|e| format!("{}: entry {name}: {e}", apk.display()))?;
-    let mut buf = Vec::new();
-    entry.read_to_end(&mut buf)?;
-    Ok(buf)
+    names
+        .iter()
+        .map(|name| {
+            let mut entry = zip
+                .by_name(name)
+                .map_err(|e| format!("{}: entry {name}: {e}", apk.display()))?;
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            Ok(buf)
+        })
+        .collect()
+}
+
+/// Small tool inputs keep apktool from copying and repacking unrelated APK contents.
+pub fn select_entries(apk: &Path, out: &Path, keep: impl Fn(&str) -> bool) -> Result<()> {
+    let mut source = zip::ZipArchive::new(File::open(apk)?)?;
+    let mut selected = zip::ZipWriter::new(File::create_new(out)?);
+    for i in 0..source.len() {
+        let entry = source.by_index_raw(i)?;
+        if keep(entry.name()) {
+            selected.raw_copy_file(entry)?;
+        }
+    }
+    selected.finish()?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -163,6 +187,49 @@ pub mod tests {
                 .to_string()
                 .contains("unsupported input")
         );
+    }
+
+    #[test]
+    fn tool_input_keeps_only_selected_entries_without_changing_them() {
+        let d = temp_dir("selected");
+        let source = d.join("base.apk");
+        let selected = d.join("resources.apk");
+        write_zip(
+            &source,
+            &[
+                ("res/layout/player.xml", b"layout"),
+                ("classes.dex", b"dex"),
+                ("assets/large", b"asset"),
+            ],
+        );
+        let before = sha256_file(&source).unwrap();
+        select_entries(&source, &selected, |name| name.starts_with("res/")).unwrap();
+        assert_eq!(
+            read_entry(&selected, "res/layout/player.xml").unwrap(),
+            b"layout"
+        );
+        assert_eq!(
+            zip::ZipArchive::new(File::open(&selected).unwrap())
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(sha256_file(&source).unwrap(), before);
+        assert_eq!(
+            read_entries(
+                &source,
+                &["classes.dex", "res/layout/player.xml", "classes.dex"]
+            )
+            .unwrap(),
+            vec![b"dex".to_vec(), b"layout".to_vec(), b"dex".to_vec()]
+        );
+        assert!(
+            read_entries(&source, &["missing"])
+                .unwrap_err()
+                .to_string()
+                .contains("entry missing")
+        );
+        assert!(select_entries(&source, &selected, |_| true).is_err());
     }
 
     #[test]

@@ -206,6 +206,7 @@ pub fn build(
         .chain(crate::lottie::FILES)
         .collect();
     let mut overlays = Vec::new();
+    let manifest = crate::input::read_entry(base, "AndroidManifest.xml")?;
     for (theme, path) in THEMES.iter().zip(PATHS) {
         let mut z = ZipWriter::new(Cursor::new(Vec::new()));
         z.start_file(
@@ -217,7 +218,7 @@ pub fn build(
             "AndroidManifest.xml",
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated),
         )?;
-        z.write_all(&crate::input::read_entry(base, "AndroidManifest.xml")?)?;
+        z.write_all(&manifest)?;
         for (name, bytes) in compiled
             .iter()
             .filter(|(n, _)| TARGETS.iter().any(|t| t.entry == *n))

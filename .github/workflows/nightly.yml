@@ -1,4 +1,4 @@
-# Publishes the nightly patches (scripts/nightly.sh) from every push. The Spotify APKM comes from the
+# Publishes nightly patches when patch sources change. The Spotify APKM comes from the
 # private Spatch source, with its own invite in the SOURCE_INVITE secret (made with
 # source/cloudflare/add-friend.sh nightly-ci; revoke with `npx wrangler secret delete CODE_nightly-ci`).
 # The two bundles build side by side on their own runners; a last job publishes both.
@@ -8,6 +8,14 @@ on:
   push:
     branches: ["**"]
     tags-ignore: ["**"]
+    paths:
+      - "src/**"
+      - "theme/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "scripts/nightly.sh"
+      - "scripts/port/aliases.tsv"
+      - ".github/workflows/nightly.yml"
   workflow_dispatch:
 
 concurrency:
@@ -34,12 +42,30 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.spatch/nightly-target
-          key: nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('Cargo.toml', 'src/**', 'theme/**', 'scripts/port/aliases.tsv') }}
+          restore-keys: |
+            ${{ runner.os }}-nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}-
+            ${{ runner.os }}-nightly-${{ matrix.bundle }}-
+            nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/spatch/diffs-v1
+          key: ${{ runner.os }}-spatch-diffs-v1-${{ github.sha }}-${{ matrix.bundle }}
+          restore-keys: |
+            ${{ runner.os }}-spatch-diffs-v1-
+      - uses: actions/cache@v4
+        with:
+          path: ~/bin/apktool.jar
+          key: ${{ runner.os }}-apktool-3.0.3
       - name: Android build-tools and apktool
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" > /dev/null
+          if [ ! -x "$ANDROID_HOME/build-tools/36.0.0/aapt2" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" > /dev/null
+          fi
           mkdir -p "$HOME/bin"
-          curl -fsSL -o "$HOME/bin/apktool.jar" https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          if [ ! -s "$HOME/bin/apktool.jar" ]; then
+            curl -fsSL -o "$HOME/bin/apktool.jar" https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          fi
           printf '#!/bin/sh\nexec java -jar "%s/bin/apktool.jar" "$@"\n' "$HOME" > "$HOME/bin/apktool"
           chmod +x "$HOME/bin/apktool"
           echo "$HOME/bin" >> "$GITHUB_PATH"
@@ -70,6 +96,7 @@ jobs:
           path: ${{ runner.temp }}/bundle
           if-no-files-found: ignore # nightly was already this commit
           retention-days: 1
+          compression-level: 0 # the bundles are already compressed ZIPs
 
   publish:
     needs: build

@@ -90,3 +90,12 @@ javac -d /tmp/rt -cp <apksig classes> manager/src/spatch/manager/Bundle.java man
 ```bash
 java -cp /tmp/rt:<apksig classes> spatch.manager.RoundTrip <input.apkm> <bundle.zip> <signed-set-dir> <work-dir>
 ```
+
+`RewriteTest` times the APK rewrite without signing or downloading, then checks every entry's bytes
+and compression method against the original. The manager uses fast compression to shorten patching;
+the resulting APK can be slightly larger. Run with an original `base.apk` and a fresh work directory:
+
+```bash
+javac --release 11 -d /tmp/rewrite manager/src/spatch/manager/Bundle.java manager/src/spatch/manager/Clone.java manager/test/spatch/manager/RewriteTest.java
+java -cp /tmp/rewrite spatch.manager.RewriteTest <base.apk> <work-dir>
+```

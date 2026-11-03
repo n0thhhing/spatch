@@ -126,6 +126,14 @@ python3 tests/player-runtime.py
 
 The runtime tests run helper logic on JVM doubles. They do not replace testing on a device.
 
+Resource compilation and DEX rebuilding run side by side, each with only the APK entries its tools
+need. The input checks and rebuilt reference checks still run before any output is published.
+Nightly CI skips pushes that only change docs, tests or the manager, reuses Rust and apktool caches,
+and uploads the already compressed bundles without compressing them again.
+Verified binary diffs are cached under `$XDG_CACHE_HOME/spatch/diffs-v1` (or
+`~/.cache/spatch/diffs-v1`) and reapplied before reuse. Clearing that directory only makes the next
+bundle build slower; original APKs are never cached there.
+
 With a phone connected and Spotify open on Home, this checks every icon name against the APK, then
 flips every switch and option on the settings pages and restores each one:
 

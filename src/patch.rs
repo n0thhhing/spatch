@@ -378,8 +378,9 @@ fn new_files() -> Vec<arsc::NewFile> {
 }
 
 pub fn check_targets(base: &Path) -> Result<()> {
-    for t in &TARGETS {
-        let got = input::sha256_bytes(&input::read_entry(base, t.entry)?);
+    let entries: Vec<_> = TARGETS.iter().map(|t| t.entry).collect();
+    for (t, bytes) in TARGETS.iter().zip(input::read_entries(base, &entries)?) {
+        let got = input::sha256_bytes(&bytes);
         if got != t.original_sha256 {
             return Err(format!(
                 "target {} does not match the supported original (got {got}); input is modified, \
@@ -445,8 +446,15 @@ pub fn run(
         ],
     )?;
     crate::names::load_resources(&dump);
-    let (mut compiled, new_entries) = compile_targets(&base, &staging.path, tools, theme)?;
-    let mut dexes = dex::build(&base, &staging.path, tools, theme, debug)?;
+    // Resource and DEX builds have separate inputs and staging paths; neither waits on the other.
+    let ((mut compiled, new_entries), mut dexes) = std::thread::scope(|scope| -> Result<_> {
+        let dex = scope.spawn(|| {
+            dex::build(&base, &staging.path, tools, theme, debug).map_err(|e| e.to_string())
+        });
+        let resources = compile_targets(&base, &staging.path, tools, theme);
+        let dexes = dex.join().map_err(|_| "DEX build thread panicked")?;
+        Ok((resources?, dexes?))
+    })?;
     let helper = dexes.pop().expect("dex::build returns the helper last");
     compiled.append(&mut dexes);
     compiled.extend(lottie::patch_all(&base, theme)?);
@@ -561,6 +569,10 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
     let fw = staging.join("framework");
     let decoded = staging.join("decoded");
     let rebuilt = staging.join("rebuilt.apk");
+    let resources = staging.join("resources.apk");
+    input::select_entries(base, &resources, |name| {
+        matches!(name, "AndroidManifest.xml" | "resources.arsc") || name.starts_with("res/")
+    })?;
     tools.run(
         &tools.apktool,
         &[
@@ -570,7 +582,7 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
             fw.as_os_str(),
             OsStr::new("-o"),
             decoded.as_os_str(),
-            base.as_os_str(),
+            resources.as_os_str(),
         ],
     )?;
     let manifest = decoded.join("AndroidManifest.xml");

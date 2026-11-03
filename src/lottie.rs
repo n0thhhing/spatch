@@ -39,8 +39,8 @@ const ACCENT_TOKEN: u32 = 0xd0bcff;
 pub fn patch_all(base: &Path, theme: &Theme) -> Result<Vec<(&'static str, Vec<u8>)>> {
     let accent = theme.map(ACCENT_TOKEN) & 0xffffff;
     let mut out = Vec::new();
-    for f in FILES {
-        let text = String::from_utf8(input::read_entry(base, f)?)?;
+    for (f, bytes) in FILES.into_iter().zip(input::read_entries(base, &FILES)?) {
+        let text = String::from_utf8(bytes)?;
         let (new, n) = recolor(&text, accent);
         if n == 0 {
             return Err(format!("{f}: no Spotify green found; not the supported build").into());
