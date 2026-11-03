@@ -170,6 +170,68 @@ final class Look {
         return row;
     }
 
+    /** A filled text field with its label above. */
+    LinearLayout field(String label, android.widget.EditText input) {
+        LinearLayout box = column();
+        box.addView(text(label, 13, onSurfaceVariant, true));
+        input.setSingleLine(true);
+        input.setTextSize(16);
+        input.setTextColor(onSurface);
+        input.setHintTextColor(onSurfaceVariant);
+        input.setBackground(shape(containerHigh, 12));
+        input.setPadding(dp(16), dp(12), dp(16), dp(12));
+        box.addView(input, spaced(6));
+        return box;
+    }
+
+    interface Pick {
+        void page(int index);
+    }
+
+    /** A Material 3 navigation bar: icon and label per page, a pill behind the chosen page's icon. */
+    LinearLayout navBar(String[] labels, String[] icons, Pick pick) {
+        LinearLayout bar = new LinearLayout(context);
+        bar.setBackgroundColor(container);
+        for (int i = 0; i < labels.length; i++) {
+            final int index = i;
+            LinearLayout item = column();
+            item.setGravity(Gravity.CENTER_HORIZONTAL);
+            item.setPadding(0, dp(12), 0, dp(16));
+            android.widget.ImageView icon = new android.widget.ImageView(context);
+            icon.setImageDrawable(context.getDrawable(context.getResources().getIdentifier("ic_" + icons[i], "drawable", context.getPackageName())).mutate());
+            icon.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            icon.setPadding(dp(20), dp(4), dp(20), dp(4)); // a 24dp icon in the 64x32 pill
+            item.addView(icon, new LinearLayout.LayoutParams(dp(64), dp(32)));
+            TextView label = text(labels[i], 12, onSurfaceVariant, true);
+            label.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(4);
+            item.addView(label, lp);
+            item.setContentDescription(labels[i]);
+            item.setBackground(new RippleDrawable(ColorStateList.valueOf(onSurface & 0xffffff | 0x1f000000), null, null));
+            item.setOnClickListener(v -> {
+                select(bar, index);
+                pick.page(index);
+            });
+            bar.addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        return bar;
+    }
+
+    /** Marks one page of a navBar as chosen. */
+    void select(LinearLayout bar, int index) {
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            LinearLayout item = (LinearLayout) bar.getChildAt(i);
+            android.widget.ImageView icon = (android.widget.ImageView) item.getChildAt(0);
+            TextView label = (TextView) item.getChildAt(1);
+            boolean on = i == index;
+            icon.setBackground(on ? shape(secondaryContainer, 16) : null);
+            icon.getDrawable().setTint(on ? onSecondaryContainer : onSurfaceVariant);
+            label.setTextColor(on ? onSurface : onSurfaceVariant);
+            item.setSelected(on);
+        }
+    }
+
     ProgressBar progress() {
         ProgressBar p = new ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal);
         p.setProgressTintList(ColorStateList.valueOf(primary));

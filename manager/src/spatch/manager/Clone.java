@@ -23,10 +23,16 @@ final class Clone {
     static final String ORIGINAL = "com.spotify.music", ICON_PATH = "res/spatch/clone_icon.png";
 
     final String pkg, label;
+    final byte[] icon; // the launcher icon's foreground as a PNG, or null to keep Spotify's
 
     Clone(String pkg, String label) {
+        this(pkg, label, null);
+    }
+
+    Clone(String pkg, String label, byte[] icon) {
         this.pkg = pkg;
         this.label = label;
+        this.icon = icon;
     }
 
     /** Why a package name can't be used, or null when it can. */

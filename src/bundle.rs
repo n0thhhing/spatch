@@ -12,6 +12,8 @@
 //! replace <entry> <original sha256> <result sha256> <patch>
 //! add <entry> <S|D> <result sha256> <patch>          S stored, D deflated; appended in this order
 //! cover <entry> <spotify track url>                   the phone fetches this cover for that entry
+//! clone-authority <string>                            a resource string the manifest uses as an authority
+//! clone-icon <entry>                                  the launcher icon's foreground, swapped in a clone
 //! ```
 //!
 //! A replaced entry keeps its place and compression method. Added entries are patched against the
@@ -35,6 +37,7 @@ pub fn write(
     apks: &Path,
     replace: &[(&str, Vec<u8>)],
     add: &[(&str, Vec<u8>)],
+    clone: &str,
     out: &Path,
 ) -> Result<()> {
     let base = apks.join("base.apk");
@@ -79,6 +82,7 @@ pub fn write(
     if !PREVIEW_TRACK.is_empty() && add.iter().any(|(e, _)| *e == cover) {
         writeln!(steps, "cover {cover} {PREVIEW_TRACK}")?;
     }
+    steps.push_str(clone);
     let mut zip = zip::ZipWriter::new(File::create_new(out)?);
     let opts = SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
@@ -91,6 +95,70 @@ pub fn write(
     }
     zip.finish()?;
     Ok(())
+}
+
+/// The `clone-` lines: what a clone must rename besides the manifest. `dump` is `aapt2 dump
+/// resources` of base.apk, `tree(entry)` is `aapt2 dump xmltree` of one of its XML files.
+pub fn clone_lines(dump: &str, tree: impl Fn(&str) -> Result<String>) -> Result<String> {
+    let manifest = tree("AndroidManifest.xml")?;
+    let mut lines = String::new();
+    for id in refs(&manifest, "authorities") {
+        for value in values(dump, &id) {
+            let s = value
+                .strip_prefix("() \"")
+                .and_then(|v| v.strip_suffix('"'))
+                .ok_or_else(|| format!("authority {id} is not a plain string: {value}"))?;
+            writeln!(lines, "clone-authority {s}")?;
+        }
+    }
+    // The application's own icon: the first android:icon after `E: application`.
+    let app = manifest
+        .split_once("E: application")
+        .ok_or("the manifest has no application")?
+        .1;
+    let icon = refs(app, "icon").next().ok_or("the application has no icon")?;
+    let adaptive = files(dump, &icon)
+        .find(|f| f.starts_with("res/mipmap-anydpi"))
+        .ok_or_else(|| format!("icon {icon} is not an adaptive icon"))?;
+    let tree = tree(&adaptive)?;
+    let foreground = tree
+        .split_once("E: foreground")
+        .and_then(|(_, f)| refs(f, "drawable").next())
+        .ok_or_else(|| format!("{adaptive} has no foreground"))?;
+    let mut any = false;
+    for f in files(dump, &foreground) {
+        writeln!(lines, "clone-icon {f}")?;
+        any = true;
+    }
+    if !any {
+        return Err(format!("the icon foreground {foreground} has no file").into());
+    }
+    Ok(lines)
+}
+
+/// The resource IDs an `android:<attr>` refers to in an xmltree dump.
+fn refs<'a>(tree: &'a str, attr: &'a str) -> impl Iterator<Item = String> + 'a {
+    let key = format!(":{attr}(");
+    tree.lines()
+        .filter(move |l| l.contains(&key))
+        .filter_map(|l| Some(l.split_once("=@")?.1.trim().to_string()))
+}
+
+/// The value lines of one resource in a resources dump.
+fn values<'a>(dump: &'a str, id: &str) -> impl Iterator<Item = &'a str> + 'a {
+    let head = format!("resource {id} ");
+    dump.lines()
+        .skip_while(move |l| !l.trim_start().starts_with(&head))
+        .skip(1)
+        .take_while(|l| !l.trim_start().starts_with("resource "))
+        .map(str::trim)
+}
+
+fn files<'a>(dump: &'a str, id: &str) -> impl Iterator<Item = String> + 'a {
+    values(dump, id).filter_map(|v| {
+        let path = v.split_once("(file) ")?.1;
+        Some(path.split(' ').next()?.to_string())
+    })
 }
 
 /// A bsdiff patch, checked by applying it before it is trusted.
@@ -112,6 +180,25 @@ mod tests {
     use std::io::Read;
 
     #[test]
+    fn clone_lines_follow_the_manifest_to_strings_and_the_icon() {
+        let dump = "    resource 0x7f0809cf drawable/fg\n      () (file) res/drawable/fg.xml type=XML\n\
+            \x20   resource 0x7f0f0000 mipmap/ic_launcher\n      () @mipmap/old\n      (anydpi-v26) (file) res/mipmap-anydpi-v26/ic_launcher.xml type=XML\n\
+            \x20   resource 0x7f131aa3 string/media_provider_authority\n      () \"com.spotify.mobile.android.mediaapi\"\n";
+        let tree = |entry: &str| -> Result<String> {
+            Ok(match entry {
+                "AndroidManifest.xml" => "  E: activity\n    A: android:icon(0x01010002)=@0x7f0f0002\n  E: application\n    A: android:icon(0x01010002)=@0x7f0f0000\n      E: provider\n        A: android:authorities(0x01010018)=\"com.spotify.music.share\" (Raw: \"x\")\n        A: android:authorities(0x01010018)=@0x7f131aa3\n",
+                "res/mipmap-anydpi-v26/ic_launcher.xml" => "  E: adaptive-icon\n      E: background\n        A: android:drawable(0x01010199)=@0x7f06025c\n      E: foreground\n        A: android:drawable(0x01010199)=@0x7f0809cf\n",
+                other => return Err(format!("unexpected {other}").into()),
+            }
+            .to_string())
+        };
+        assert_eq!(
+            clone_lines(dump, tree).unwrap(),
+            "clone-authority com.spotify.mobile.android.mediaapi\nclone-icon res/drawable/fg.xml\n"
+        );
+    }
+
+    #[test]
     fn bundle_lists_steps_and_patches_reproduce_entries() {
         let d = temp_dir("bundle");
         write_zip(
@@ -126,6 +213,7 @@ mod tests {
             &d,
             &[("classes.dex", b"new dex bytes!".to_vec())],
             &[("assets/x", b"table plus".to_vec())],
+            "",
             &out,
         )
         .unwrap();
@@ -149,7 +237,7 @@ mod tests {
         let mut back = Vec::new();
         bsdiff::patch(b"table table table", &mut patch.as_slice(), &mut back).unwrap();
         assert_eq!(back, b"table plus");
-        assert!(write(&d, &[], &[], &out).is_err(), "never overwrites");
+        assert!(write(&d, &[], &[], "", &out).is_err(), "never overwrites");
     }
 
     #[test]
@@ -158,7 +246,7 @@ mod tests {
         write_zip(&d.join("base.apk"), &[("resources.arsc", b"table")]);
         let out = d.join("b.zip");
         let cover = NEW_IMAGES[0].path;
-        write(&d, &[], &[(cover, b"someone's artwork".to_vec())], &out).unwrap();
+        write(&d, &[], &[(cover, b"someone's artwork".to_vec())], "", &out).unwrap();
         let mut zip = zip::ZipArchive::new(File::open(&out).unwrap()).unwrap();
         let mut steps = String::new();
         zip.by_name("bundle.txt")

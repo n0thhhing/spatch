@@ -436,14 +436,15 @@ pub fn run(
     input::extract_apks(apkm, &apks)?;
     let base = apks.join("base.apk");
     check_targets(&base)?;
-    crate::names::load_resources(&tools.run(
+    let dump = tools.run(
         &tools.aapt2,
         &[
             OsStr::new("dump"),
             OsStr::new("resources"),
             base.as_os_str(),
         ],
-    )?);
+    )?;
+    crate::names::load_resources(&dump);
     let (mut compiled, new_entries) = compile_targets(&base, &staging.path, tools, theme)?;
     let mut dexes = dex::build(&base, &staging.path, tools, theme, debug)?;
     let helper = dexes.pop().expect("dex::build returns the helper last");
@@ -470,7 +471,19 @@ pub fn run(
             return Ok(());
         }
         Output::Bundle => {
-            crate::bundle::write(&apks, &compiled, &added, out)?;
+            let clone = crate::bundle::clone_lines(&dump, |entry| {
+                tools.run(
+                    &tools.aapt2,
+                    &[
+                        OsStr::new("dump"),
+                        OsStr::new("xmltree"),
+                        OsStr::new("--file"),
+                        OsStr::new(entry),
+                        base.as_os_str(),
+                    ],
+                )
+            })?;
+            crate::bundle::write(&apks, &compiled, &added, &clone, out)?;
             println!("wrote {}", out.display());
             return Ok(());
         }

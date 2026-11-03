@@ -39,6 +39,7 @@ final class Bundle implements AutoCloseable {
     private final Map<String, String[]> replace = new HashMap<>(); // entry -> {"replace", entry, old sha, new sha, patch}
     private final List<String[]> add = new ArrayList<>(); // {entry, S|D, sha, patch}
     private String coverEntry, coverTrack; // the widget preview's cover, fetched here rather than shipped
+    private final List<String> cloneAuthorities = new ArrayList<>(), cloneIcons = new ArrayList<>();
     private final ZipFile zip;
 
     Bundle(File file) throws IOException {
@@ -56,6 +57,8 @@ final class Bundle implements AutoCloseable {
                 case "replace": replace.put(f[1], f); break;
                 case "add": add.add(new String[] {f[1], f[2], f[3], f[4]}); break;
                 case "cover": coverEntry = f[1]; coverTrack = f[2]; break;
+                case "clone-authority": cloneAuthorities.add(f[1]); break;
+                case "clone-icon": cloneIcons.add(f[1]); break;
                 default: break;
             }
         }
@@ -75,19 +78,24 @@ final class Bundle implements AutoCloseable {
      * Without an APKM: patches an original base.apk and takes the splits from an installed Spotify of
      * the same version (any device configuration; only base.apk is changed, splits are re-signed).
      */
-    List<File> apply(File base, List<File> splits, File dir, Progress progress) throws IOException {
+    /** Whether this bundle says what a clone must rename; older bundles don't. */
+    boolean clonable() {
+        return !cloneIcons.isEmpty();
+    }
+
+    List<File> apply(File base, List<File> splits, File dir, Clone clone, Progress progress) throws IOException {
         int total = splits.size() + 2, done = 0;
         progress.step("Checking Spotify", done++, total);
         if (!sha256(base).equals(baseSha())) throw new IOException("That copy of Spotify isn't the original " + spotify + ".");
         List<File> out = new ArrayList<>();
         progress.step("Patching base.apk", done++, total);
         File patched = new File(dir, "base.apk");
-        rewrite(base, patched, true);
+        rewrite(base, patched, true, clone);
         out.add(patched);
         for (File split : splits) {
             progress.step("Preparing " + split.getName(), done++, total);
             File copy = new File(dir, split.getName());
-            rewrite(split, copy, false);
+            rewrite(split, copy, false, clone);
             out.add(copy);
         }
         return out;
@@ -97,7 +105,7 @@ final class Bundle implements AutoCloseable {
      * Writes each APK, unsigned, into dir and returns them in install order. baseOnly writes just
      * base.apk, for an update that keeps the splits already installed (they never change).
      */
-    List<File> apply(File apkm, File dir, boolean baseOnly, Progress progress) throws IOException {
+    List<File> apply(File apkm, File dir, boolean baseOnly, Clone clone, Progress progress) throws IOException {
         int total = (baseOnly ? 1 : apks.size()) * 2 + 1, done = 0;
         progress.step("Checking the APKM", done++, total);
         if (!sha256(apkm).equals(apkmSha)) throw new IOException("That file isn't the Spotify " + spotify + " APKM this version of Spatch is made for.");
@@ -113,7 +121,7 @@ final class Bundle implements AutoCloseable {
                 if (!sha256(original).equals(apk[1])) throw new IOException(apk[0] + " in the APKM is damaged.");
                 progress.step("Patching " + apk[0], done++, total);
                 File patched = new File(dir, apk[0]);
-                rewrite(original, patched, apk[0].equals("base.apk"));
+                rewrite(original, patched, apk[0].equals("base.apk"), clone);
                 original.delete();
                 out.add(patched);
             }
@@ -121,7 +129,8 @@ final class Bundle implements AutoCloseable {
         return out;
     }
 
-    private void rewrite(File src, File dst, boolean base) throws IOException {
+    private void rewrite(File src, File dst, boolean base, Clone clone) throws IOException {
+        if (clone != null && !clonable()) throw new IOException("This patch bundle can't make a clone; update the patches.");
         int replaced = 0;
         try (ZipFile in = new ZipFile(src); ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(dst), 1 << 16))) {
             byte[] basis = null;
@@ -129,11 +138,17 @@ final class Bundle implements AutoCloseable {
                 ZipEntry z = e.nextElement();
                 if (signature(z.getName())) continue;
                 String[] step = base ? replace.get(z.getName()) : null;
-                if (step != null) {
+                boolean cloned = clone != null && (z.getName().equals("AndroidManifest.xml") || base && z.getName().equals(BASIS));
+                if (step != null || cloned) {
                     byte[] old = read(in, z);
                     if (base && z.getName().equals(BASIS)) basis = old;
-                    put(out, z.getName(), z.getMethod(), patched(old, step[2], step[3], step[4], z.getName()));
-                    replaced++;
+                    byte[] now = old;
+                    if (step != null) {
+                        now = patched(old, step[2], step[3], step[4], z.getName());
+                        replaced++;
+                    }
+                    if (cloned) now = z.getName().equals(BASIS) ? clone.table(now, cloneSwaps(clone)) : clone.manifest(now, base);
+                    put(out, z.getName(), z.getMethod(), now);
                 } else {
                     if (base && z.getName().equals(BASIS)) basis = read(in, z);
                     ZipEntry n = new ZipEntry(z.getName());
@@ -160,7 +175,16 @@ final class Bundle implements AutoCloseable {
                 }
                 put(out, step[0], step[1].equals("S") ? ZipEntry.STORED : ZipEntry.DEFLATED, bytes);
             }
+            if (clone != null && clone.icon != null) put(out, Clone.ICON_PATH, ZipEntry.STORED, clone.icon);
         }
+    }
+
+    /** The resource strings a clone renames: authorities move under its package, the icon to its own. */
+    private Map<String, String> cloneSwaps(Clone clone) {
+        Map<String, String> swaps = new HashMap<>();
+        for (String a : cloneAuthorities) swaps.put(a, clone.authority(a));
+        if (clone.icon != null) for (String path : cloneIcons) swaps.put(path, Clone.ICON_PATH);
+        return swaps;
     }
 
     private byte[] patched(byte[] old, String oldSha, String newSha, String patch, String name) throws IOException {

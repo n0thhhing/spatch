@@ -50,6 +50,16 @@ checks twice a day and posts a notification; tapping it opens the manager straig
 
 **Update manager** appears when a newer manager release is out.
 
+The pages along the bottom are Spotify (the steps above), Clone, Key and Manager.
+
+**Clone** installs a second Spatch beside the first, under its own package name (say
+`com.spotify.music.two`), with its own app name and, optionally, a picture of yours as its icon.
+It has its own login and downloads. The manager renames the package in every APK, moves the content
+providers under the new name, sets the label and swaps the launcher icon's foreground; the patch
+bundle's `clone-` lines say which resource strings and icon file that takes in each Spotify build.
+Clones are signed with the phone's key and keep Spotify's permission names, so they install beside
+Spatch but not beside Spotify's own app. Screens inside the app still say Spotify.
+
 ## Releases
 
 Two kinds of release, both found by tag:
