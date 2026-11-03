@@ -47,6 +47,8 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     static volatile boolean paused; // the session says at once; position updates and audio both trail a pause
     private float amp; // 0 = flat, 1 = full wave
     private float thick; // 0 = normal stroke, 1 = dragging stroke
+    private float phase; // how far the crests have travelled, in pixels
+    private long phaseAt;
 
     public Wave() {
         played.setStyle(Paint.Style.STROKE);
@@ -142,11 +144,19 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         float stroke = h / 3f + (h * 0.6f - h / 3f) * thick;
         float restStroke = h / 5f;
         String style = Settings.choice(Settings.SEEK_STYLE);
+        boolean real = "wave".equals(style) && listening(now, motion);
+        String reacts = Settings.choice(Settings.WAVE_REACTS), follows = Settings.choice(Settings.WAVE_FOLLOWS), strength = Settings.choice(Settings.WAVE_STRENGTH);
+        boolean height = real && ("height".equals(reacts) || "all".equals(reacts));
+        float beat = real ? beat(Spectrum.bands, Spectrum.alpha) : 0f;
+        if (real && ("thickness".equals(reacts) || "all".equals(reacts))) stroke = Math.min(h * 0.8f, stroke * (1f + push(strength) * beat));
         float a = "wave".equals(style) ? Math.max(0f, (h - stroke) / 2f) * amp : 0f;
         float wl = h * 2.5f;
         String speed = Settings.choice(Settings.WAVE_SPEED);
         long period = "slow".equals(speed) ? PERIOD_MS * 2 : "fast".equals(speed) ? PERIOD_MS / 2 : PERIOD_MS;
-        float phase = (now % period) / (float) period * wl;
+        // Crests travel at the chosen speed; with Speed following the music, a beat sends them along faster.
+        float rush = real && ("speed".equals(reacts) || "all".equals(reacts)) ? 1f + 2f * push(strength) * beat : 1f;
+        phase = (phase + Math.min(100, Math.max(0, now - phaseAt)) / (float) period * wl * rush) % wl;
+        phaseAt = now;
         float cy = (b.top + b.bottom) / 2f;
         float x0 = b.left + stroke / 2f;
         float x1 = b.right - restStroke / 2f;
@@ -177,11 +187,10 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
                 canvas.drawLine(x, cy, Math.min(end, x + step), cy, played);
             }
         } else if (end > x0) {
-            boolean real = "wave".equals(style) && listening(now, motion);
             path.reset();
             for (float x = x0; ; x = Math.min(x + 2f, end)) {
                 // + phase: crests travel left, back along the played part (not toward the playhead).
-                float y = cy + a * (real ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha) : 1f) * (1f - thick * (1f - taper(end - x, wl))) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
+                float y = cy + a * (height ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha, follows, strength) : 1f) * (1f - thick * (1f - taper(end - x, wl))) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
                 if (x == x0) {
                     path.moveTo(x, y);
                 } else {
@@ -221,9 +230,27 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
 
     /** Wave height at a point: mostly the beat, so the whole wave moves even when only the bass end has played. Never above the plain wave, which fills the bounds. */
     static float swell(float[] bands, float along, float alpha) {
-        float beat = (bands[0] + bands[1]) / 2f;
-        float level = alpha * (.65f * beat + .35f * Spectrum.at(bands, Math.max(0f, Math.min(1f, along)), false));
-        return .12f + .88f * Math.max(0f, Math.min(1f, level));
+        return swell(bands, along, alpha, "mix", "normal");
+    }
+
+    /** follows: mix (beat and melody), beat (the whole wave together) or melody (each point its own band); strength widens or narrows the swing. */
+    static float swell(float[] bands, float along, float alpha, String follows, String strength) {
+        float melody = Spectrum.at(bands, Math.max(0f, Math.min(1f, along)), false);
+        float mix = "beat".equals(follows) ? (bands[0] + bands[1]) / 2f : "melody".equals(follows) ? melody : .65f * (bands[0] + bands[1]) / 2f + .35f * melody;
+        float level = Math.max(0f, Math.min(1f, alpha * mix));
+        if ("subtle".equals(strength)) return .55f + .45f * level;
+        if ("strong".equals(strength)) return .02f + .98f * Math.min(1f, level * 1.4f);
+        return .12f + .88f * level;
+    }
+
+    /** The beat's strength, 0 to 1: the two lowest bands. */
+    static float beat(float[] bands, float alpha) {
+        return Math.max(0f, Math.min(1f, alpha * (bands[0] + bands[1]) / 2f));
+    }
+
+    /** How hard Thickness and Speed follow a beat. */
+    static float push(String strength) {
+        return "subtle".equals(strength) ? .25f : "strong".equals(strength) ? .9f : .5f;
     }
 
     /** Local playback state, polled at most twice a second (binder call); false if unavailable. */

@@ -444,7 +444,13 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         waveRows.addView(featureRows[51]);
         waveRows.addView(featureRows[Settings.WAVE_AUDIO]);
         finish(waveRows);
-        resetFor(new int[] {0, 51, Settings.WAVE_AUDIO}, new int[] {Settings.WAVE_SPEED, Settings.SEEK_STYLE});
+        addSectionHeader("With the music");
+        LinearLayout musicRows = addGroup();
+        addChoice(musicRows, Settings.WAVE_REACTS, "What moves", "Wave style, with Follow the music on", new String[] {"Height", "Thickness", "Speed", "All three"});
+        addChoice(musicRows, Settings.WAVE_FOLLOWS, "Follows", "Melody lets each part of the bar follow its own notes", new String[] {"Beat and melody", "Beat", "Melody"});
+        addChoice(musicRows, Settings.WAVE_STRENGTH, "Strength", null, new String[] {"Normal", "Subtle", "Strong"});
+        finish(musicRows);
+        resetFor(new int[] {0, 51, Settings.WAVE_AUDIO}, new int[] {Settings.WAVE_SPEED, Settings.SEEK_STYLE, Settings.WAVE_REACTS, Settings.WAVE_FOLLOWS, Settings.WAVE_STRENGTH});
         LinearLayout buttonPage = subPage("Button animations");
         LinearLayout buttonRows = addGroup();
         buttonRows.addView(featureRows[52]);

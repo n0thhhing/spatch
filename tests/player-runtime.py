@@ -686,6 +686,10 @@ public class PlayerRuntimeTest {
         check(RowCards.fits(56,1000,1000)&&!RowCards.fits(39,1000,1000)&&!RowCards.fits(216,1000,1000)&&!RowCards.fits(56,400,1000),"cards fit list rows, not headings, shelves or tiles");
         check(Surfaces.chroma(Surfaces.soften(0xffe91e8c))<Surfaces.chroma(0xffe91e8c)&&(Surfaces.soften(0x80e91e8c)>>>24)==0x80,"softening quiets a colour and keeps its opacity");
         check(!MiniRing.moved(5000,5005,60)&&MiniRing.moved(5000,5020,60)&&MiniRing.moved(5000,4999,60)&&MiniRing.moved(0,10000,60),"the mini ring redraws once its arc visibly moves");
+        float[] silentBands=new float[Spectrum.bands.length], loudBands=new float[Spectrum.bands.length]; java.util.Arrays.fill(loudBands,1f);
+        check(Wave.swell(silentBands,.5f,1f,"mix","normal")==Wave.swell(silentBands,.5f,1f)&&Wave.swell(loudBands,.5f,1f,"mix","normal")==Wave.swell(loudBands,.5f,1f),"the default music settings keep the old wave");
+        check(Wave.swell(silentBands,.5f,1f,"beat","subtle")>Wave.swell(silentBands,.5f,1f,"beat","normal")&&Wave.swell(silentBands,.5f,1f,"beat","normal")>Wave.swell(silentBands,.5f,1f,"beat","strong"),"subtle swings least and strong most");
+        check(Wave.swell(loudBands,.5f,1f,"melody","strong")<=1f&&Wave.beat(loudBands,1f)==1f&&Wave.beat(silentBands,1f)==0f&&Wave.push("strong")>Wave.push("subtle"),"music never pushes the wave past its bounds");
         check(SpatchWidget.isAd("spotify:ad:abc123")&&!SpatchWidget.isAd("spotify:track:abc")&&!SpatchWidget.isAd(null),"ads are told apart from songs by their item id");
         check(Surfaces.black(0x66121212)&&Surfaces.black(0xb3181818)&&!Surfaces.black(0xff141414),"Spotify's page blacks are recognised at any opacity");
         check(Surfaces.grey(0xff535353)&&!Surfaces.grey(0xff101010)&&!Surfaces.grey(0x80535353)&&!Surfaces.grey(0xffe91e8c)&&Surfaces.chroma(Surfaces.tintGrey(0xff535353))>0,"flat header greys take a theme tint; scrims and colours do not");
