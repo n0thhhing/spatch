@@ -133,7 +133,10 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
         rise(parent, child);
         Drawable was = child.getBackground();
         if (was == null) child.setBackground(new RowCards(dp, queue));
-        else if (!(was instanceof android.graphics.drawable.LayerDrawable)) child.setBackground(new android.graphics.drawable.LayerDrawable(new Drawable[] {new RowCards(dp, queue), was})); // rows keep their press ripple
+        else if (!(was instanceof android.graphics.drawable.LayerDrawable)) { // rows keep their press ripple
+            child.setBackground(null); // releases it, so the layer can take it without a second owner
+            child.setBackground(new android.graphics.drawable.LayerDrawable(new Drawable[] {new RowCards(dp, queue), was}));
+        }
     }
 
     public void onChildViewRemoved(View parent, View child) {}
