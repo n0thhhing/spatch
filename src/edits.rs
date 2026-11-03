@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 96] = [
+pub const EDITS: [Edit; 98] = [
     // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {
@@ -300,6 +300,20 @@ pub const EDITS: [Edit; 96] = [
         file: "smali_classes11/p/hf81.smali",
         anchor: "    iput-object p6, p0, Lp/hf81;->f:Ljava/util/List;\n",
         replacement: "    invoke-static {p6}, Lspatch/Settings;->rows(Ljava/util/List;)Ljava/util/List;\n\n    move-result-object p6\n\n    iput-object p6, p0, Lp/hf81;->f:Ljava/util/List;\n",
+    },
+    // Profile card (p.ph81: name, picture, open, can open, then the account switcher as g): Hide account
+    // switcher leaves the card closed with nothing to open. p1 to p3 are stored already and set again below.
+    Edit {
+        file: "smali_classes11/p/ph81.smali",
+        anchor: "    iput-boolean p5, p0, Lp/ph81;->e:Z\n",
+        replacement: "    sget-object p1, Lspatch/Settings;->on:[Z\n\n    const/16 p2, 0x61\n\n    aget-boolean p1, p1, p2\n\n    if-eqz p1, :spatch_switcher\n\n    const/4 p5, 0x0\n\n    const/4 p6, 0x0\n\n    const/4 p7, 0x0\n\n    :spatch_switcher\n\n    iput-boolean p5, p0, Lp/ph81;->e:Z\n",
+    },
+    // The open card's Parental controls row (p.r1): Hide Parental controls takes Spotify's own branch for a
+    // card without it. v0 and v12 are written before they are next read on both paths.
+    Edit {
+        file: "smali_classes4/p/r1.smali",
+        anchor: "    if-eqz v1, :cond_82\n",
+        replacement: "    if-eqz v1, :cond_82\n\n    sget-object v0, Lspatch/Settings;->on:[Z\n\n    const/16 v12, 0x62\n\n    aget-boolean v0, v0, v12\n\n    if-nez v0, :cond_82\n",
     },
     Edit {
         file: "smali_classes11/p/hf81.smali",

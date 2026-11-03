@@ -440,7 +440,8 @@ public class PlayerRuntimeTest {
 
         // New settings keep today's look for anyone upgrading, and album colours stay readable.
         check(Settings.KEYS.length==Settings.DEFAULTS.length,"every key needs a default");
-        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB&&i!=Settings.HIDE_ACCOUNT_SWITCHER&&i!=Settings.HIDE_PARENTAL_CONTROLS) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        check(!Settings.DEFAULTS[Settings.HIDE_ACCOUNT_SWITCHER]&&!Settings.DEFAULTS[Settings.HIDE_PARENTAL_CONTROLS],"hiding the account switcher and Parental controls is opt-in");
         check(!Settings.DEFAULTS[Settings.HIDE_PREMIUM_TAB],"hiding the Premium tab is opt-in: it removes part of Spotify's own interface");
         p.dsn0 premiumTab=new p.dsn0();premiumTab.b=3;premiumTab.c=new p.sgk1();premiumTab.c.a="spotify:upsell:premium_in_app_destination";
         p.dsn0 createTab=new p.dsn0();createTab.b=4;createTab.c=new p.sgk1();createTab.c.a="spotify:create-menu";
