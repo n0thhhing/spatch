@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gallery · Spatch</title>
+<meta name="description" content="Screenshots of Spatch on a Pixel.">
+<meta name="theme-color" content="#141218">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600&family=Roboto+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400..500,0..1,0&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+<main>
+<div class="wrap page-head"><p class="eyebrow">Gallery</p><h1>Spatch on a Pixel</h1><p class="lead">Real screenshots, Lavender theme. Tap one to see it larger.</p>
+<div class="filters"><button class="chip on" data-filter="all">All</button><button class="chip" data-filter="player">Player</button><button class="chip" data-filter="screens">Screens</button><button class="chip" data-filter="settings">Settings</button><button class="chip" data-filter="widget">Widget</button><button class="chip" data-filter="manager">Manager</button></div></div>
+<div class="wrap"><div class="gallery"><figure class="reveal" data-zoom data-kind="player"><div class="phone flat"><img src="assets/shots/player_main.jpg" alt="Player" loading="lazy"></div><figcaption>Player</figcaption></figure><figure class="reveal" data-zoom data-kind="player"><div class="phone flat"><img src="assets/shots/immersive.jpg" alt="Immersive view" loading="lazy"></div><figcaption>Immersive view</figcaption></figure><figure class="reveal" data-zoom data-kind="settings"><div class="phone flat"><img src="assets/shots/playerset.jpg" alt="Player settings" loading="lazy"></div><figcaption>Player settings</figcaption></figure><figure class="reveal" data-zoom data-kind="screens"><div class="phone flat"><img src="assets/shots/home_main.jpg" alt="Home" loading="lazy"></div><figcaption>Home</figcaption></figure><figure class="reveal" data-zoom data-kind="screens"><div class="phone flat"><img src="assets/shots/playlist.jpg" alt="Playlist header" loading="lazy"></div><figcaption>Playlist header</figcaption></figure><figure class="reveal" data-zoom data-kind="screens"><div class="phone flat"><img src="assets/shots/playlist2.jpg" alt="Track cards" loading="lazy"></div><figcaption>Track cards</figcaption></figure><figure class="reveal" data-zoom data-kind="screens"><div class="phone flat"><img src="assets/shots/library.jpg" alt="Library" loading="lazy"></div><figcaption>Library</figcaption></figure><figure class="reveal" data-zoom data-kind="screens"><div class="phone flat"><img src="assets/shots/search.jpg" alt="Search" loading="lazy"></div><figcaption>Search</figcaption></figure><figure class="reveal" data-zoom data-kind="settings"><div class="phone flat"><img src="assets/shots/settings.jpg" alt="Spatch settings" loading="lazy"></div><figcaption>Spatch settings</figcaption></figure><figure class="reveal" data-zoom data-kind="settings"><div class="phone flat"><img src="assets/shots/settings2.jpg" alt="Categories" loading="lazy"></div><figcaption>Categories</figcaption></figure><figure class="reveal" data-zoom data-kind="settings"><div class="phone flat"><img src="assets/shots/appearance.jpg" alt="Themes" loading="lazy"></div><figcaption>Themes</figcaption></figure><figure class="reveal" data-zoom data-kind="settings"><div class="phone flat"><img src="assets/shots/appearance2.jpg" alt="Typography" loading="lazy"></div><figcaption>Typography</figcaption></figure><figure class="reveal" data-zoom data-kind="manager"><div class="phone flat"><img src="assets/shots/manager.jpg" alt="Spatch Manager" loading="lazy"></div><figcaption>Spatch Manager</figcaption></figure><figure class="reveal" data-zoom data-kind="widget"><div class="card" style="padding:12px"><img src="assets/shots/widget.jpg" alt="Widget" style="border-radius:16px" loading="lazy"></div><figcaption>Widget</figcaption></figure></div></div>
+</main>
+<script src="assets/site.js"></script>
+<script>document.querySelectorAll("[data-filter]").forEach(function(b){b.onclick=function(){document.querySelectorAll("[data-filter]").forEach(function(x){x.classList.toggle("on",x===b)});document.querySelectorAll("[data-kind]").forEach(function(f){f.style.display=b.dataset.filter==="all"||f.dataset.kind===b.dataset.filter?"":"none"})}})</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ · Spatch</title>
+<meta name="description" content="Common questions about Spatch: safety, accounts, ads, versions and keys.">
+<meta name="theme-color" content="#141218">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600&family=Roboto+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400..500,0..1,0&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+<main>
+<div class="wrap page-head"><p class="eyebrow">FAQ</p><h1>Questions, answered</h1></div><section style="padding-top:16px"><div class="wrap" style="max-width:860px"><details class="reveal"><summary>Is Spatch safe?</summary><div class="body"><p>Spatch is open source: everything it changes is in the repository, and the manager checks every file against its SHA-256. It needs no account and sends nothing anywhere. It is still a modified app, so it can't come with Spotify's guarantees.</p></div></details><details class="reveal"><summary>Can my account get banned?</summary><div class="body"><p>Modified clients are against Spotify's terms. Spatch only changes how the app looks and doesn't unlock anything, so the risk is low, but it isn't zero. Use it at your own risk.</p></div></details><details class="reveal"><summary>Does Spatch remove ads or unlock Premium?</summary><div class="body"><p>No. Spatch is cosmetic by design. It doesn't skip, block or hide ads, and it doesn't unlock Premium features. On free accounts it only makes sure its own artwork doesn't fight with Spotify's ad cards.</p></div></details><details class="reveal"><summary>Why do I need a specific Spotify version?</summary><div class="body"><p>Spatch edits Spotify's own code in exact places. Each Spotify release moves those places, so every version needs its own patches. Spatch refuses anything it wasn't built for instead of patching blindly.</p></div></details><details class="reveal"><summary>Why does Spotify have to be uninstalled the first time?</summary><div class="body"><p>Android only updates an app with one signed by the same key. Spatch is signed with your phone's key, not Spotify's, so the original has to go first. After that every update installs in place.</p></div></details><details class="reveal"><summary>What happens if I lose my key?</summary><div class="body"><p>You'd have to uninstall Spatch to install a build signed by a new key, losing downloads. Export the key from the manager and keep it safe.</p></div></details><details class="reveal"><summary>Does Spatch work on free accounts?</summary><div class="body"><p>Yes. Free accounts can also hide the Premium tab.</p></div></details><details class="reveal"><summary>Can I go back to normal Spotify?</summary><div class="body"><p>Uninstall Spatch and install Spotify from the Play Store.</p></div></details><details class="reveal"><summary>Where are Spatch's settings?</summary><div class="body"><p>Open Spotify's side panel (your profile picture) and choose Spatch.</p></div></details><details class="reveal"><summary>Who makes Spatch?</summary><div class="body"><p>Spatch is an independent, unofficial project. It is not affiliated with or endorsed by Spotify AB.</p></div></details></div></section>
+</main>
+<script src="assets/site.js"></script>
+</body>
+</html>

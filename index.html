@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spatch · Material You for Spotify</title>
+<meta name="description" content="Spatch gives Spotify for Android a Material You 3 redesign: circular art, audio-reactive player, themes, fonts and a home-screen widget. Patched on your own phone with Spatch Manager.">
+<meta name="theme-color" content="#141218">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600&family=Roboto+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400..500,0..1,0&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Unofficial · cosmetic · open source</p>
+        <h1>Spotify, in <span>Material You</span>.</h1>
+        <p class="lead">Spatch redesigns Spotify for Android: circular album art with a slowly turning scalloped ring, a player that moves with the music, eight themes plus one from your wallpaper, your own fonts, and a widget that blends into your home screen.</p>
+        <div class="btn-row">
+          <a class="btn filled lg" href="install.html"><span class="ms">download</span>Get Spatch</a>
+          <a class="btn tonal lg" href="features.html"><span class="ms">auto_awesome</span>See what changes</a>
+        </div>
+        <div class="badges">
+          <span class="chip"><span class="ms">android</span>Android 10+</span>
+          <span class="chip"><span class="ms">phone_android</span>Patched on your phone</span>
+          <span class="chip"><span class="ms">key</span>Your own signing key</span>
+          <span class="chip"><span class="ms">update</span>One-tap updates</span>
+        </div>
+      </div>
+      <div class="hero-phones" aria-hidden="true">
+        <div class="phone"><img src="assets/shots/home_main.jpg" alt=""></div>
+        <div class="phone"><img src="assets/shots/player_main.jpg" alt=""></div>
+        <div class="phone"><img src="assets/shots/settings.jpg" alt=""></div>
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow reveal">Everything you touch</p>
+      <h2 class="reveal">A full redesign, not a skin.</h2>
+      <p class="lead reveal">Spatch reaches into Spotify's own screens and rebuilds the parts you use every day, then gives you a settings page to shape every detail.</p>
+      <div class="grid three" style="margin-top:32px">
+        <a class="card reveal" href="features.html#player"><div class="icon-tile"><span class="ms">album</span></div><h3>A living player</h3><p>Circular or shaped artwork, a wavy progress bar, a glow from the album's colour, a ring that pulses with the bass, and an immersive full-screen view.</p></a>
+        <a class="card reveal" href="themes.html"><div class="icon-tile t"><span class="ms">palette</span></div><h3>Themes &amp; fonts</h3><p>Lavender, Gruvbox, Catppuccin, Rosé Pine, Nord, Tokyo Night, Dracula, Gruvbox Material, or your wallpaper's colours. Pick a font or import your own.</p></a>
+        <a class="card reveal" href="features.html#screens"><div class="icon-tile s"><span class="ms">dashboard</span></div><h3>Every screen</h3><p>A floating navigation bar that hides while you scroll, sliding filter pills, cards on Library and playlists, themed headers, and a redesigned side panel.</p></a>
+        <a class="card reveal" href="features.html#motion"><div class="icon-tile"><span class="ms">animation</span></div><h3>Motion &amp; feel</h3><p>Springy presses, tap ripples, haptics, a spinning mini-player cover and bursts on the play button. Calm them down or turn them all on.</p></a>
+        <a class="card reveal" href="features.html#widget"><div class="icon-tile t"><span class="ms">widgets</span></div><h3>Home-screen widget</h3><p>A Material You widget with a morphing play button and a bouncing equaliser, optionally coloured from your wallpaper.</p></a>
+        <a class="card reveal" href="features.html#content"><div class="icon-tile s"><span class="ms">visibility_off</span></div><h3>Less clutter</h3><p>Hide podcasts, audiobooks, Home sections and side-menu rows you never use. Free accounts can hide the Premium tab.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap feature">
+      <div class="reveal">
+        <p class="eyebrow">How it works</p>
+        <h2>Patched on your phone. Signed by your phone.</h2>
+        <p class="lead">Spatch Manager takes the Spotify version Spatch supports, applies the newest patches and signs the result with a key that never leaves your phone. Updates arrive as a notification and install in one tap.</p>
+        <ul>
+          <li><span class="ms">verified</span><span><b>Checked at every step.</b> Every file is matched against its exact SHA-256, so what you install is exactly what the patches describe.</span></li>
+          <li><span class="ms">lock</span><span><b>No accounts, no servers.</b> Nothing is uploaded; the manager only downloads patches from GitHub.</span></li>
+          <li><span class="ms">bolt</span><span><b>Quick updates.</b> Later updates replace one APK and skip the confirmation screen on Android 12 and newer.</span></li>
+        </ul>
+        <div class="btn-row" style="margin-top:28px"><a class="btn filled" href="install.html">Install guide</a><a class="btn text" href="manager.html">About the manager</a></div>
+      </div>
+      <div class="phone reveal" style="max-width:320px"><img src="assets/shots/manager.jpg" alt="Spatch Manager with Spatch installed"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="card filled reveal" style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between;padding:32px">
+        <div style="max-width:60ch"><h2 style="margin-bottom:8px">Cosmetic by design.</h2><p class="muted" style="margin:0">Spatch changes how Spotify looks and moves. It doesn't unlock Premium, skip ads or touch your account, and it never ships Spotify's own files: you bring your own copy.</p></div>
+        <a class="btn tonal" href="faq.html"><span class="ms">help</span>Read the FAQ</a>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install · Spatch</title>
+<meta name="description" content="How to install Spatch with Spatch Manager, update it, back up your key, and patch on a computer.">
+<meta name="theme-color" content="#141218">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600&family=Roboto+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400..500,0..1,0&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+<main>
+<div class="wrap page-head"><p class="eyebrow">Install</p><h1>Get Spatch on your phone</h1><p class="lead">Spatch Manager does the work: it patches Spotify on your phone, signs it with a key made there and installs it. You need the exact Spotify version Spatch is built for.</p></div>
+<section style="padding-top:24px"><div class="wrap">
+<div class="note"><span class="ms">info</span><p><b>Supported build:</b> Spotify for Android <b>9.1.98.521</b> (version code 148115007), as an APKM bundle. Spatch checks the file's SHA-256 and refuses anything else.</p></div>
+<div class="steps">
+  <div class="step reveal"><h3>Install Spatch Manager</h3><p>Download <code>spatch-manager.apk</code> from the <a href="https://github.com/n0thhhing/spatch/releases/latest">latest release</a> and open it. Android asks once to allow installs from your browser. Android 10 or newer.</p></div>
+  <div class="step reveal"><h3>Get the Spotify APKM</h3><p>Download Spotify 9.1.98.521 as an <b>APKM</b> from <a href="https://www.apkmirror.com/">APKMirror</a>, which only publishes uploads signed with Spotify's real key. On the download page use the plain <b>Download APK Bundle</b> button; the big coloured ones are ads. If that exact Spotify version is already installed unmodified, you can skip this step.</p></div>
+  <div class="step reveal"><h3>Choose the APKM</h3><p>In the manager tap <b>Choose Spotify APKM</b> and pick the file from Downloads. The manager keeps a copy, so you never pick it again.</p></div>
+  <div class="step reveal"><h3>Make room</h3><p>A Spotify signed by Spotify can't be updated by a differently signed app, so the manager asks to uninstall it first; this removes downloaded songs. Then turn off Play Store auto-update for Spotify so Play doesn't offer an update that would fail.</p></div>
+  <div class="step reveal"><h3>Install Spatch</h3><p>Tap <b>Install Spatch</b>. The manager downloads the newest patches, checks every file, signs and installs. Open Spotify and sign in.</p></div>
+  <div class="step reveal"><h3>Back up your key</h3><p>On the Signing key card tap <b>Export</b> and keep the <code>.p12</code> file and its password somewhere safe. With it a new phone can keep updating the same install.</p></div>
+</div>
+<div class="note warn" style="margin-top:28px"><span class="ms">warning</span><p>Spatch is unofficial and changes Spotify's app, which is against Spotify's terms of use. It only changes how the app looks, but use it at your own risk.</p></div>
+</div></section>
+<section><div class="wrap grid two">
+  <div class="card reveal"><div class="icon-tile"><span class="ms">update</span></div><h3>Updating</h3><p>Tell me about new patches notifies you twice a day at most. Tap the notification and the manager updates straight away; on Android 12+ it skips the confirmation screen once it installed Spotify.</p></div>
+  <div class="card reveal"><div class="icon-tile t"><span class="ms">sync_alt</span></div><h3>Already patched on a computer?</h3><p>Import the keystore you signed with (Signing key, Import) and the manager installs over it as an update, keeping your data. Choose the APKM once, since a patched install has no original left in it.</p></div>
+  <div class="card reveal"><div class="icon-tile s"><span class="ms">developer_mode</span></div><h3>Developer build</h3><p>Flip Developer build in the manager and tap Switch build to get Developer options: self tests, a frame monitor, a touch inspector and logs. Settings stay.</p></div>
+  <div class="card reveal"><div class="icon-tile"><span class="ms">terminal</span></div><h3>Prefer a computer?</h3><p>The patcher is a Rust command-line tool. See below.</p></div>
+</div></section>
+<section><div class="wrap"><h2 class="reveal">Patching on a computer</h2><p class="lead reveal">Requires Rust, Java and Android build-tools (aapt2, zipalign, apksigner), plus your own signing key.</p>
+<pre class="reveal"><code>cargo build --release
+./target/release/spatch inspect &lt;input.apkm&gt;
+./target/release/spatch patch &lt;input.apkm&gt; --out &lt;dir&gt; --theme gruvbox \
+    --keystore &lt;file&gt; --alias &lt;name&gt; --ks-pass-env SPATCH_KS_PASS
+adb install-multiple -r base.apk split_config.*.apk</code></pre>
+<p class="muted reveal">Add <code>--debug</code> for Developer options. <code>spatch bundle</code> writes a patch bundle for the manager instead of a signed set.</p></div></section>
+<section><div class="wrap"><h2 class="reveal">Troubleshooting</h2>
+<details><summary>"Spotify is signed with a different key"</summary><div class="body"><p>The installed Spotify wasn't signed by your manager's key. Import the key it was signed with, or uninstall it (this removes downloads) and install again.</p></div></details>
+<details><summary>"That file isn't the Spotify APKM Spatch is made for"</summary><div class="body"><p>The file is a different version or was modified. Download 9.1.98.521 again from APKMirror and pick the APKM, not an APK or XAPK.</p></div></details>
+<details><summary>The quick update didn't take</summary><div class="body"><p>Tap Install again: the manager falls back to reinstalling every APK.</p></div></details>
+<details><summary>Couldn't reach GitHub</summary><div class="body"><p>The manager needs a connection to find and download patches. Check your network and tap Check for updates.</p></div></details>
+</div></section>
+</main>
+<script src="assets/site.js"></script>
+</body>
+</html>
