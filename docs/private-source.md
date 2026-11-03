@@ -43,7 +43,46 @@ Both are written beside their final names and renamed into place, the APKM first
 never has an index pointing at an incomplete file. Copy them to the server in the same order:
 upload the APKM, check its hash there, then replace `index.json`.
 
-## Serving it with Caddy
+## Free: a Cloudflare Worker in front of a private GitHub release
+
+No server needed. `source/cloudflare/` holds a Worker that checks each login, serves `index.json`,
+and answers the APKM's path with GitHub's own download link for an asset in a private release. That
+link expires within minutes, and the file never passes through the Worker. Cloudflare's free plan
+covers it (100,000 requests a day, no card), and an install costs two requests.
+
+1. Make a free Cloudflare account at dash.cloudflare.com.
+2. Put the exact APKM in a release of a private repository. `wrangler.toml` points at
+   `n0thhhing/spatch-builds`, tag `apkm-9.1.98.521`, asset `spotify-9.1.98.521.apkm`; change them if
+   yours differ. The Worker refuses an asset whose size doesn't match `index.json`.
+3. Log in and deploy; wrangler prints the Worker's address, `https://spatch-source.<you>.workers.dev`:
+
+   ```bash
+   cd source/cloudflare
+   npx wrangler login
+   npx wrangler deploy
+   ```
+
+4. On GitHub, Settings, Developer settings, Fine-grained tokens: a token with access to only the
+   private repository and only *Contents: Read-only*. Give it to the Worker, pasting it when asked:
+
+   ```bash
+   npx wrangler secret put GITHUB_TOKEN
+   ```
+
+5. Invite each person. This makes a random code, stores only its SHA-256 as the secret
+   `CODE_<name>`, and prints their invite:
+
+   ```bash
+   ./add-friend.sh alex https://spatch-source.<you>.workers.dev
+   ```
+
+   `npx wrangler secret delete CODE_alex` takes alex's access away.
+
+`index.json` there comes from `spatch source`; when the supported Spotify changes, run it again, copy
+the new `index.json` over, update the release and `wrangler.toml`, and deploy. `node --test
+source/cloudflare/worker.test.mjs` checks the Worker against a fake GitHub.
+
+## Serving it yourself with Caddy
 
 Caddy gets HTTPS certificates by itself and can require a login per person. Generate a code for each
 friend and store only its hash on the server:

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "package": "com.spotify.music",
+  "sources": [
+    {
+      "versionName": "9.1.98.521",
+      "versionCode": 148115007,
+      "sha256": "1b966decbcaaa5d1473f38cc8ae0f562f41bc90d76b671eb3726773ad36cbd8b",
+      "size": 60589740,
+      "minSdk": 24,
+      "abis": ["arm64-v8a"],
+      "urls": ["spotify-148115007-1b966decbcaaa5d1.apkm"]
+    }
+  ]
+}

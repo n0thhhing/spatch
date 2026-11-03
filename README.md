@@ -97,6 +97,7 @@ adb install-multiple -r base.apk split_config.*.apk
 | `src/dex.rs` | The helper DEX build and reassembly. |
 | `src/bundle.rs` | Patch bundles for Spatch Manager. |
 | `src/source.rs` | Files for a private source: the checked APKM and its `index.json`. |
+| `source/cloudflare/` | A free private source: a Cloudflare Worker in front of a private GitHub release. |
 | `manager/` | Spatch Manager, the Android app that patches, signs and installs on the phone. |
 | `src/theme.rs` | Theme colour roles. |
 | `theme/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |
