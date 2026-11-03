@@ -250,7 +250,10 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
         if (way == 0) {
             nav = root.findViewById(root.getResources().getIdentifier("navigation_bar", "id", root.getContext().getPackageName()));
             pill = root.findViewById(root.getResources().getIdentifier("indicator", "id", root.getContext().getPackageName()));
-            mini = MiniBar.current();
+            // The whole mini player's slot, not the bar inside it: since 9.2.0.26 the bar sits in
+            // containers that clip it, so moving the bar alone cut it off at their edge.
+            mini = root.findViewById(root.getResources().getIdentifier("now_playing_view_container", "id", root.getContext().getPackageName()));
+            if (mini == null) mini = MiniBar.current();
             return;
         }
         boolean hide = way > 0;
