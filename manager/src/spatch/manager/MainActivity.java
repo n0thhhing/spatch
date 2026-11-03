@@ -43,7 +43,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates", INVITE = "source_invite", DOWNLOADED = "apkm_downloaded";
     private static final String PAGE = "page", CLONE_PKG = "clone_package", CLONE_NAME = "clone_name", CLONE_INSTALLED = "clone_installed:";
-    static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", UPDATE = "start_update";
+    static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", NIGHTLY = "nightly_patches", UPDATE = "start_update";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
     private static final String[] PAGES = {"Spotify", "Clone", "Key", "Manager"}, PAGE_ICONS = {"music_note", "content_copy", "key", "tune"};
     private static final String[] HEADINGS = {"Spatch", "Clone", "Signing key", "Manager"};
@@ -69,7 +69,7 @@ public final class MainActivity extends Activity {
     private LinearLayout nav;
     private ScrollView scroll;
     private ProgressBar progress;
-    private Switch developer, notify;
+    private Switch developer, notify, nightly;
 
     private final BroadcastReceiver installResult = new BroadcastReceiver() {
         @Override
@@ -204,6 +204,13 @@ public final class MainActivity extends Activity {
             refresh();
         });
         spotify.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer), look.spaced(6));
+        nightly = new Switch(this);
+        nightly.setChecked(prefs.getBoolean(NIGHTLY, false));
+        nightly.setOnCheckedChangeListener((v, on) -> {
+            prefs.edit().putBoolean(NIGHTLY, on).apply();
+            refresh();
+        });
+        spotify.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
         patch = look.button("Install Spatch", "download", Look.Kind.FILLED, v -> patch());
         spotify.addView(patch, look.spaced(8));
         choose = look.button("Choose Spotify APKM", "folder_open", Look.Kind.TONAL, v -> pickApkm());
@@ -388,7 +395,7 @@ public final class MainActivity extends Activity {
             : source != null ? "Spotify downloads from " + source.host() + " when you install."
             : info != null && !ours ? "No APKM needed if the installed Spotify is the unmodified version Spatch supports."
             : "Choose the Spotify APKM that Spatch supports, or add an invite to a Spatch source.");
-        Releases.Release bundle = releases == null ? null : releases.bundle;
+        Releases.Release bundle = releases == null ? null : releases.bundle(nightly.isChecked());
         patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
             : releaseError != null ? releaseError : "Looking for patches…");
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
@@ -397,6 +404,7 @@ public final class MainActivity extends Activity {
         look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null || source != null));
         Look.label(invite, source == null ? "Add an invite" : "Invite for " + source.host());
         developer.setEnabled(!busy);
+        nightly.setEnabled(!busy);
         uninstall.setVisibility(conflict && info != null && !ours ? View.VISIBLE : View.GONE);
         try {
             keyStatus.setText(keys == null ? "Making this phone's key…" : "Fingerprint\n" + keys.fingerprint().substring(0, 32).replaceAll("(.{4})(?!$)", "$1 "));
@@ -531,7 +539,7 @@ public final class MainActivity extends Activity {
             say("Allow Spatch Manager to install apps, then tap Install again.");
             return;
         }
-        final Releases.Release release = releases.bundle;
+        final Releases.Release release = releases.bundle(nightly.isChecked());
         final boolean debug = developer.isChecked();
         final String tag = variant(release.tag, debug);
         conflict = false;

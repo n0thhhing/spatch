@@ -64,7 +64,7 @@ public final class UpdateCheck extends JobService {
         SharedPreferences prefs = getSharedPreferences("manager", MODE_PRIVATE);
         String installed = prefs.getString(MainActivity.INSTALLED, null);
         if (installed == null) return; // nothing installed by this manager yet
-        Releases.Release bundle = Releases.fetch().bundle;
+        Releases.Release bundle = Releases.fetch().bundle(prefs.getBoolean(MainActivity.NIGHTLY, false));
         if (bundle == null) return;
         String wanted = MainActivity.variant(bundle.tag, prefs.getBoolean(MainActivity.DEBUG, false));
         if (wanted.equals(installed) || wanted.equals(prefs.getString(NOTIFIED, null))) return;

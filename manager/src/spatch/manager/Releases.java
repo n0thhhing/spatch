@@ -31,7 +31,12 @@ final class Releases {
         }
     }
 
-    Release bundle, manager;
+    Release bundle, manager, nightly; // nightly: the bundle built from the newest commit, tagged nightly-<commit>
+
+    /** The bundle to install: the nightly when asked for and published, the newest release otherwise. */
+    Release bundle(boolean wantNightly) {
+        return wantNightly && nightly != null ? nightly : bundle;
+    }
 
     static Releases fetch() throws IOException {
         HttpURLConnection c = open("https://api.github.com/repos/" + REPO + "/releases?per_page=50", "application/vnd.github+json");
@@ -42,8 +47,14 @@ final class Releases {
             Releases r = new Releases();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject release = list.getJSONObject(i);
-                if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
                 String tag = release.getString("tag_name");
+                if (tag.equals("nightly") && release.optBoolean("prerelease") && !release.optBoolean("draft")) {
+                    String commit = release.optString("target_commitish", "");
+                    String url = asset(release, "spatch-bundle.zip");
+                    if (commit.length() >= 7 && url != null) r.nightly = new Release("nightly-" + commit.substring(0, 7), url, asset(release, "spatch-bundle-debug.zip"));
+                    continue;
+                }
+                if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
                 if (r.bundle == null && (tag.startsWith("patches-v") || tag.startsWith("bundle-"))) r.bundle = new Release(tag, asset(release, "spatch-bundle.zip"), asset(release, "spatch-bundle-debug.zip"));
                 if (r.manager == null && tag.startsWith("manager-v")) r.manager = new Release(tag, asset(release, "spatch-manager.apk"), null);
                 if (r.bundle != null && r.bundle.url == null) r.bundle = null;
@@ -70,6 +81,7 @@ final class Releases {
 
     /** What a release is called on screen: its version, without the tag's prefix. */
     static String version(Release r) {
+        if (r.tag.startsWith("nightly-")) return "nightly " + r.tag.substring("nightly-".length());
         int dash = r.tag.lastIndexOf("-v");
         return dash >= 0 ? r.tag.substring(dash + 2) : r.tag;
     }
