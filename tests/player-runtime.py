@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
         if source.name == 'TextView.java':
             text = text.replace('public CharSequence getText() { return null; }', 'private CharSequence shown; public CharSequence getText() { return shown; }').replace('public void setText(CharSequence t) {}', 'public void setText(CharSequence t) {shown=t;}')
         if source.name == 'MotionEvent.java':
-            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public void offsetLocation(float dx,float dy){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
+            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public float getRawX(){return x;} public float getRawY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public void offsetLocation(float dx,float dy){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
         if source.name == 'Visualizer.java':
             text = text.replace('public class Visualizer {', 'public class Visualizer { public static int session,created,released; public static boolean fail;')
             text = text.replace('public Visualizer(int session) {}', 'public Visualizer(int id) {session=id;created++;}')
@@ -440,7 +440,8 @@ public class PlayerRuntimeTest {
 
         // New settings keep today's look for anyone upgrading, and album colours stay readable.
         check(Settings.KEYS.length==Settings.DEFAULTS.length,"every key needs a default");
-        for(int i=43;i<Settings.KEYS.length;i++) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        check(!Settings.DEFAULTS[Settings.WIDGET_WALLPAPER],"the wallpaper widget is opt-in: on by default it would recolour an existing widget");
         check(Settings.choice(Settings.ART_SKIP).equals("slide")&&Settings.choice(Settings.ART_OUTLINE).equals("wavy")&&Settings.choice(Settings.IMM_CHANGE).equals("pop")&&Settings.choice(Settings.GLOW_COLOR).equals("accent"),"defaults must match the existing look");
         check(Tint.vivid(new int[] {0xff202020,0xff400808,0xff101010})==(0xff000000|220<<16|28<<8|28),"the most colourful pixel wins and is lifted");
         check(Tint.vivid(new int[] {0xffffffff})==0xffffffff,"a bright pixel is not darkened");
@@ -660,6 +661,14 @@ public class PlayerRuntimeTest {
         check(Settings.importText("nonsense\nart_shape=hexagon\nart_tilt=maybe\n=true")==0 && Settings.choice(Settings.ART_SHAPE).equals("circle"),"bad text must change nothing");
         check(RowCards.fits(56,1000,1000)&&!RowCards.fits(39,1000,1000)&&!RowCards.fits(216,1000,1000)&&!RowCards.fits(56,400,1000),"cards fit list rows, not headings, shelves or tiles");
         check(Surfaces.chroma(Surfaces.soften(0xffe91e8c))<Surfaces.chroma(0xffe91e8c)&&(Surfaces.soften(0x80e91e8c)>>>24)==0x80,"softening quiets a colour and keeps its opacity");
+        java.lang.reflect.Field wallpaperRow=Palette.class.getDeclaredField("wallpaper");wallpaperRow.setAccessible(true);
+        Object keptRow=wallpaperRow.get(null);
+        wallpaperRow.set(null,new int[]{1,2,3,4,5,6,0x123456,8,9});
+        int lavenderAccent=Palette.tone(0,6)&0xffffff;
+        byte[] recolored=Palette.recolor(new byte[]{0,8,0,0,0x1c,(byte)lavenderAccent,(byte)(lavenderAccent>>8),(byte)(lavenderAccent>>16),(byte)0x80,9});
+        check(recolored[5]==0x56&&recolored[6]==0x34&&recolored[7]==0x12&&recolored[8]==(byte)0x80&&recolored[0]==0&&recolored[9]==9,"wallpaper theme recolours Lavender's values and keeps their opacity");
+        check(Palette.tone(Palette.WALLPAPER,6)==0xff123456,"wallpaper theme reads its own row");
+        wallpaperRow.set(null,keptRow);
         System.out.println("PASS skip animations");
 
         // Decoration colours.

@@ -47,10 +47,11 @@ Two kinds of release, both found by tag:
 
 | Tag | Asset | Made with |
 | --- | --- | --- |
-| `bundle-<name>` | `spatch-bundle.zip` and `spatch-bundle-debug.zip` | `spatch bundle <input.apkm> --out <file.zip>`, adding `--debug` for the second |
-| `manager-v<code>` | `spatch-manager.apk` | `manager/build.sh <code> <out.apk> --keystore ... --alias ... --ks-pass-env ...` |
+| `patches-v<version>` | `spatch-bundle.zip` and `spatch-bundle-debug.zip` | `spatch bundle <input.apkm> --out <file.zip>`, adding `--debug` for the second |
+| `manager-v<version>` | `spatch-manager.apk` | `manager/build.sh <version> <out.apk> --keystore ... --alias ... --ks-pass-env ...` |
 
-The manager's version code is the number in its tag, and every manager release must be signed
+Versions are `major.minor.patch`, `0.x` until 1.0. The manager's version code is derived from its
+version (`major*10000 + minor*100 + patch`), and every manager release must be signed
 with the same key so it can update itself. The bundle format is described in `src/bundle.rs`.
 
 ## Building

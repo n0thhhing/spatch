@@ -198,7 +198,7 @@ public final class MainActivity extends Activity {
         String installed = prefs.getString(INSTALLED, null);
         boolean debug = developer.isChecked();
         spotifyStatus.setText(info == null ? "Spotify isn't installed."
-            : ours ? "Spatch is installed" + (installed != null ? ": " + installed : "") + ". Spotify " + info.versionName + "."
+            : ours ? "Spatch is installed" + (installed != null ? ": patches " + installed.replaceFirst("^(patches-v|bundle-)", "") : "") + ". Spotify " + info.versionName + "."
             : "Spotify " + info.versionName + " is installed with another key. To install over it, import the key it was signed with (Signing key, Import key); otherwise it has to be uninstalled first.");
         File apkm = apkm();
         apkmStatus.setText(apkm.isFile() ? "APKM saved (" + apkm.length() / (1 << 20) + " MB)."
@@ -206,7 +206,7 @@ public final class MainActivity extends Activity {
             : info != null && !ours ? "No APKM needed if the installed Spotify is the unmodified version Spatch supports."
             : "Choose the Spotify APKM that Spatch supports.");
         Releases.Release bundle = releases == null ? null : releases.bundle;
-        patchStatus.setText(bundle != null ? "Newest patches: " + bundle.tag + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
+        patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
             : releaseError != null ? releaseError : "Looking for patches…");
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
         patch.setText(!ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
@@ -220,7 +220,7 @@ public final class MainActivity extends Activity {
             keyStatus.setText("Key unreadable.");
         }
         int own = ownCode(), newest = Releases.code(releases == null ? null : releases.manager);
-        managerStatus.setText("Version " + own + (newest > own ? ", version " + newest + " is available." : "."));
+        managerStatus.setText("Version " + ownName() + (newest > own ? ". Version " + Releases.version(releases.manager) + " is available." : "."));
         managerUpdate.setVisibility(newest > own ? View.VISIBLE : View.GONE);
         for (Button b : Arrays.asList(choose, managerUpdate, check, importKey)) look.enable(b, !busy);
         look.enable(exportKey, !busy && keys != null);
@@ -460,7 +460,15 @@ public final class MainActivity extends Activity {
         return false;
     }
 
-    private int ownCode() {
+    private String ownName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            return "?";
+        }
+    }
+
+        private int ownCode() {
         try {
             return (int) getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode();
         } catch (PackageManager.NameNotFoundException e) {

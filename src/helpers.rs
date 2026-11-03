@@ -686,6 +686,10 @@ pub const STUBS: &[(&str, &str)] = &[
         include_str!("../theme/dex/stubs/android/content/res/ColorStateList.java"),
     ),
     (
+        "Configuration.java",
+        include_str!("../theme/dex/stubs/android/content/res/Configuration.java"),
+    ),
+    (
         "GradientDrawable.java",
         include_str!("../theme/dex/stubs/android/graphics/drawable/GradientDrawable.java"),
     ),

@@ -91,7 +91,8 @@ final class DevOverlay extends View implements Choreographer.FrameCallback {
     /** Sees each new touch, then declines it so the app beneath gets it. */
     public boolean onTouchEvent(MotionEvent e) {
         if (inspect && e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-            picked = deepest(getRootView(), e.getX(), e.getY());
+            picked = deepest(getRootView(), e.getRawX(), e.getRawY()); // screen coordinates, as getLocationOnScreen
+            if (picked == null) picked = getRootView();
             pickedLines = describe(picked);
             invalidate();
         }
@@ -108,6 +109,9 @@ final class DevOverlay extends View implements Choreographer.FrameCallback {
                 View hit = deepest(group.getChildAt(i), x, y);
                 if (hit != null) return hit;
             }
+            // A full-screen layer with nothing under the finger (tooltips, scrims) lets the search go on
+            // beneath it; Compose hosts are kept, since their content is not made of views.
+            if (group.getChildCount() > 0 && !view.getClass().getName().contains("Compose")) return null;
         }
         return view;
     }

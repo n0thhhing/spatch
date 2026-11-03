@@ -12,8 +12,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Spatch's public GitHub releases: patch bundles are tagged bundle-* (spatch-bundle.zip, plus
- * spatch-bundle-debug.zip with Developer options), manager builds manager-v<code>. The newest
+ * Spatch's public GitHub releases: patch bundles are tagged patches-v<version> (bundle-* before; spatch-bundle.zip, plus
+ * spatch-bundle-debug.zip with Developer options), manager builds manager-v<version>. The newest
  * published release of each kind wins.
  */
 final class Releases {
@@ -44,7 +44,7 @@ final class Releases {
                 JSONObject release = list.getJSONObject(i);
                 if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
                 String tag = release.getString("tag_name");
-                if (r.bundle == null && tag.startsWith("bundle-")) r.bundle = new Release(tag, asset(release, "spatch-bundle.zip"), asset(release, "spatch-bundle-debug.zip"));
+                if (r.bundle == null && (tag.startsWith("patches-v") || tag.startsWith("bundle-"))) r.bundle = new Release(tag, asset(release, "spatch-bundle.zip"), asset(release, "spatch-bundle-debug.zip"));
                 if (r.manager == null && tag.startsWith("manager-v")) r.manager = new Release(tag, asset(release, "spatch-manager.apk"), null);
                 if (r.bundle != null && r.bundle.url == null) r.bundle = null;
                 if (r.manager != null && r.manager.url == null) r.manager = null;
@@ -57,13 +57,21 @@ final class Releases {
         }
     }
 
-    /** The version code a manager release carries in its tag, or 0. */
+    /** The version code a manager release's tag stands for (manager-v0.6.0 is 600; the first tags were bare codes), or 0. */
     static int code(Release r) {
+        if (r == null) return 0;
         try {
-            return r == null ? 0 : Integer.parseInt(r.tag.substring("manager-v".length()));
+            String[] v = r.tag.substring("manager-v".length()).split("\\.");
+            return v.length == 3 ? Integer.parseInt(v[0]) * 10000 + Integer.parseInt(v[1]) * 100 + Integer.parseInt(v[2]) : Integer.parseInt(v[0]);
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    /** What a release is called on screen: its version, without the tag's prefix. */
+    static String version(Release r) {
+        int dash = r.tag.lastIndexOf("-v");
+        return dash >= 0 ? r.tag.substring(dash + 2) : r.tag;
     }
 
     /** The download URL of the release's asset with that name, or null. */

@@ -108,7 +108,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     }
 
     /** A skip or play/pause fires several callbacks in a burst; rebuild once, after it settles. */
-    private static void schedule() {
+    static void schedule() {
         Handler h = worker();
         h.removeCallbacks(PUSH);
         h.postDelayed(PUSH, 100);
@@ -301,11 +301,40 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         v.setOnClickPendingIntent(id(r, pkg, "play_button"), key(app, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE));
         v.setOnClickPendingIntent(id(r, pkg, "previous_button"), key(app, KeyEvent.KEYCODE_MEDIA_PREVIOUS));
         v.setOnClickPendingIntent(id(r, pkg, "next_button"), key(app, KeyEvent.KEYCODE_MEDIA_NEXT));
+        if (Build.VERSION.SDK_INT >= 31 && Settings.get(Settings.WIDGET_WALLPAPER)) wallpaper(v, r, pkg);
         Intent open = app.getPackageManager().getLaunchIntentForPackage(pkg);
         if (open != null) {
             v.setOnClickPendingIntent(root, PendingIntent.getActivity(app, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         }
         return v;
+    }
+
+    /**
+     * The wallpaper's Material You colours instead of the theme's. They are named, not resolved, so the
+     * launcher fills them in and the widget follows a new wallpaper by itself; light or dark is the
+     * phone's mode when the widget was last drawn. The blurred art backdrop goes, to sit flat like other widgets.
+     */
+    private static void wallpaper(RemoteViews v, Resources r, String pkg) {
+        boolean dark = (r.getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        int surface = sys(r, dark ? "accent2_800" : "accent2_50"), title = sys(r, dark ? "neutral1_50" : "neutral1_900");
+        int artist = sys(r, dark ? "accent2_200" : "accent2_700"), accent = sys(r, dark ? "accent1_200" : "accent1_600");
+        int onAccent = sys(r, dark ? "accent1_800" : "accent1_0");
+        if (surface == 0 || title == 0 || artist == 0 || accent == 0 || onAccent == 0) return;
+        v.setColorStateList(0x01020000, "setBackgroundTintList", surface);
+        v.setViewVisibility(id(r, pkg, "frame"), GONE);
+        for (String name : new String[] {"title", "title2"}) v.setColor(id(r, pkg, name), "setTextColor", title);
+        for (String name : new String[] {"subtitle", "subtitle2"}) v.setColor(id(r, pkg, name), "setTextColor", artist);
+        for (String name : new String[] {"previous_button", "next_button", "icon"}) {
+            v.setInt(id(r, pkg, name), "setColorFilter", 0); // transparent: the tint below shows through
+            v.setColorStateList(id(r, pkg, name), "setImageTintList", name.equals("icon") ? onAccent : title);
+        }
+        for (String name : new String[] {"spinner", "image", "text1", "text2", "icon_view", "image_view"}) {
+            v.setColorStateList(id(r, pkg, name), "setIndeterminateTintList", accent);
+        }
+    }
+
+    private static int sys(Resources r, String name) {
+        return r.getIdentifier("system_" + name, "color", "android");
     }
 
     private static int id(Resources r, String pkg, String name) {
