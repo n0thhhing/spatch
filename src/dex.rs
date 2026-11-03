@@ -526,11 +526,14 @@ mod tests {
         if let Ok(path) = std::env::var("SPATCH_DUMP_MEMBERS") {
             std::fs::write(path, members.replace(',', "\n")).unwrap();
         }
-        assert!(members.contains("p.hqr0|getValue|"));
-        assert!(members.contains("p.psn0|b|="));
-        assert!(members.contains("p.hoo1|w|Object[]"));
-        assert!(!members.contains("p.reb1|mask|=") && !members.contains("p.knb1|value|="));
-        assert!(members.contains("p.z341|q|rhm0;float;float;float;float;float;float;float;long;bv61;boolean;long;long;int;"));
+        let has = |m: &str| members.contains(&names::rewrite(m).unwrap());
+        assert!(has("p.S_ComposeMutableState|getValue|"));
+        assert!(has("p.S_NavBarTabState|b|="));
+        assert!(has("p.S_KotlinCollections|s|Object[]"));
+        assert!(!has("p.S_SettingsRowModel|mask|=") && !has("p.S_KotlinMutableStateFlow|value|="));
+        assert!(has(
+            "p.S_ComposeGraphicsLayer|D|S_ComposeModifier;float;float;float;float;float;float;float;long;S_ComposeShape;boolean;long;long;int;"
+        ));
     }
 
     #[test]
@@ -661,7 +664,7 @@ mod tests {
         assert!(
             names::rewrite(&obfuscated_classes())
                 .unwrap()
-                .contains("p.x7v")
+                .contains(&names::rewrite("p.S_DrawerLayout").unwrap())
         );
     }
 

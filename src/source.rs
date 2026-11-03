@@ -137,7 +137,8 @@ mod tests {
         assert!(json.contains("\"minSdk\": 28,"));
         assert!(json.contains("\"abis\": [\"arm64-v8a\"]"));
         assert!(json.contains(&format!(
-            "\"urls\": [\"spotify-{VERSION_CODE}-1b966decbcaaa5d1.apkm\"]"
+            "\"urls\": [\"spotify-{VERSION_CODE}-{}.apkm\"]",
+            &APKM_SHA256[..16]
         )));
     }
 

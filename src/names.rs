@@ -177,14 +177,10 @@ mod tests {
 
     #[test]
     fn rewrite_swaps_whole_aliases_only() {
-        let alias = ALIASES
-            .lines()
-            .find(|l| l.starts_with("ProfileCard\t"))
-            .unwrap();
-        assert!(alias.contains("/ph81"));
+        let (folder, card) = table().as_ref().unwrap()["ProfileCard"];
         assert_eq!(
             rewrite("Lp/S_ProfileCard;->e:Z p.S_ProfileCard x").unwrap(),
-            "Lp/ph81;->e:Z p.ph81 x"
+            format!("Lp/{card};->e:Z p.{card} x")
         );
         assert_eq!(
             rewrite("MY_S_Thing S_lower S_").unwrap(),
@@ -198,7 +194,7 @@ mod tests {
         );
         assert_eq!(
             smali_file("S_ProfileCard").unwrap(),
-            "smali_classes11/p/ph81.smali"
+            format!("{folder}/p/{card}.smali")
         );
         assert_eq!(
             smali_file("smali/p/abc.smali").unwrap(),
