@@ -4,3 +4,4 @@ dist/
 # local design-reference checkout (separate repo, no licence): never vendored
 swiftify/
 .cache/
+port/.work/
