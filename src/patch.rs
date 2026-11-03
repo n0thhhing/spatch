@@ -264,7 +264,7 @@ pub const NEW_IMAGES: [arsc::NewFile; 1] = [arsc::NewFile {
 
 /// The sample song in `spatch_widget_preview` (its title and artist are written in that layout).
 /// Only the link lives in the repo; the cover is fetched at build time. Empty: plain tile.
-const PREVIEW_TRACK: &str = "";
+const PREVIEW_TRACK: &str = "https://open.spotify.com/track/3CWhQE4dYKzAC0qpbGJANW";
 const PREVIEW_FALLBACK: &[u8] =
     include_bytes!("../theme/player/res/drawable/spatch_widget_preview_fallback.jpg");
 
