@@ -128,6 +128,8 @@ Add `--static-only` to run just the icon check without a phone.
 MIT; see [LICENSE](LICENSE). Bundled fonts keep their own licences in `theme/fonts/licenses/`.
 
 Spatch is unofficial and not affiliated with or endorsed by Spotify AB; Spotify is its trademark. No
-Spotify code or assets are stored in this repository: you supply your own APKM, and builds are never
-distributed here. Spatch changes only how the app looks and moves. Modified clients are against
+Spotify code or assets are stored in this repository, and no Spotify APKs are distributed here: you
+supply your own APKM. The patch bundles on the releases page are binary diffs against that APKM;
+because Spatch rebuilds Spotify's DEX files, those diffs include parts of Spotify's code in
+re-encoded form. Spatch changes only how the app looks and moves. Modified clients are against
 Spotify's terms of use, so use it at your own risk.
