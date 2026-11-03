@@ -6,32 +6,28 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-pub const APKM_SHA256: &str = "1b966decbcaaa5d1473f38cc8ae0f562f41bc90d76b671eb3726773ad36cbd8b";
+pub const APKM_SHA256: &str = "186e251a3d4998b0a8182916c55be2ade2d7b9444efc6e8e8cc79bde08ed1ee2";
 pub const PACKAGE: &str = "com.spotify.music";
-pub const VERSION_NAME: &str = "9.1.98.521";
-pub const VERSION_CODE: &str = "148115007";
+pub const VERSION_NAME: &str = "9.2.0.26";
+pub const VERSION_CODE: &str = "148373686";
 
 /// Every APK in the supported APKM, with its pinned SHA-256.
-pub const APKS: [(&str, &str); 5] = [
+pub const APKS: &[(&str, &str)] = &[
     (
         "base.apk",
-        "3374d8a2d1b6ec9319355b0c749072cd88cde1f382fdabb710ccdc0f66605093",
+        "cc165669d31851b1193cae7d54c9261579c431b432080970f460704d06e4612f",
     ),
     (
         "split_config.arm64_v8a.apk",
-        "69ecd638588dd5200562dc3ee8c88ceeacc732f2874fbbe4c21c153ec0f8b44e",
+        "d9360d4b9a29a46c752b61b8c6409c67c4aa78ca07ca9af1f768af950b0155bd",
     ),
     (
         "split_config.en.apk",
-        "ea9f683ebced9c7eb02610be53e1c336add873e10fd54248ed7a16bf94b7d47d",
+        "a6e91962543f23478c59d70a19bd00637b9ab03d4a321480cea50c90b1d281ff",
     ),
     (
         "split_config.xxhdpi.apk",
-        "0f5d19f82f19c431157ac300d55beda3584d03b75d204838cd3b15e26656f987",
-    ),
-    (
-        "split_config.xxxhdpi.apk",
-        "6dccbd4b6fda715f4d62e0da96ae03b241ceb0bb34648ed44ad1cbb28fd81c39",
+        "371b587b87fde2cb5078d78fb3cd13a239a059149a22918372034e499944b800",
     ),
 ];
 
@@ -95,12 +91,12 @@ pub fn extract_apks(apkm: &Path, dest: &Path) -> Result<()> {
         }
         seen.push(name);
     }
-    for (name, _) in APKS {
+    for &(name, _) in APKS {
         if !seen.iter().any(|s| s == name) {
             return Err(format!("APKM is missing {name}").into());
         }
     }
-    for (name, want) in APKS {
+    for &(name, want) in APKS {
         let out = dest.join(name);
         let mut entry = zip.by_name(name)?;
         let mut w = File::create_new(&out)?;

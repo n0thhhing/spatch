@@ -17,48 +17,48 @@ use std::path::Path;
 /// Original DEX entries that get reassembled, with their pinned SHA-256.
 pub const DEX_TARGETS: [(&str, &str); 11] = [
     (
-        "classes5.dex",
-        "a26cf01d4128da9d07d952b8608c5c764af46566b359ffc95e9aa19a66fa6cb9",
-    ),
-    (
-        "classes7.dex",
-        "70a11db74157abea0b986fdde6329d11967b29279e9c9743da205f7ac36312b0",
-    ),
-    (
-        "classes12.dex",
-        "7b4424837bf4395e524dfe63c43bdc390756c3f8154a7fe3bc424edf0aab666d",
-    ),
-    (
-        "classes4.dex",
-        "f828186226fbb3f25f442f5a9a2a02f3830360abdfe71eae1e8875095d56d73b",
+        "classes.dex",
+        "0520d0e2b66ba60593b815e71902247327da8c5a6392334219cd77d1d438ea21",
     ),
     (
         "classes2.dex",
-        "ab778e21f6e76990f9cb6e9cac223e1efa9b3d6064b4400d5d039bcd1408f836",
-    ),
-    (
-        "classes.dex",
-        "fcbf149d55c9dfec9cae0f5a3f57a117ccf93a82e9ec0ba2418278b2c58c7db0",
+        "6f75b6523f9c11d4de3cefa3209d9d408c61e07caaa12d42155b3c9141b0b532",
     ),
     (
         "classes3.dex",
-        "674c59d561e55247e3706d0d26d5ea9fccfd0ed363fcbf1ea83a7fd486fb839a",
+        "28b77b1cc585e4d4853a662a48144e4941e7532265f21d8b2dc598325c290da3",
     ),
     (
-        "classes9.dex",
-        "6103cda1ad35bfc69af12950b9dadd1363e61e078e92db2af0c9b5b868929685",
+        "classes4.dex",
+        "6c97eeef14cdcb27979633bd4d1e929156b0426e0e631a15eaf9fb67ecc32e52",
+    ),
+    (
+        "classes5.dex",
+        "d7fa0ae3238dd5a5d4c3755f7b63116c610c8e84be973871a8ef61cee05e95b5",
+    ),
+    (
+        "classes7.dex",
+        "f81bc0fa078bc2134b63e9043969060f42eb3044d29bc5d1d2d9c6f051d4f8b8",
     ),
     (
         "classes8.dex",
-        "b15fb9d6e63eb89b2dc4372a4b1fd31fff12072cb7b709c2f82c73c07a78de8e",
+        "7956386cce678c2d4c0b907ef04eb9ed6aa564edefd4054067f91b2e128c8d5a",
     ),
     (
-        "classes11.dex",
-        "4182af06a411edb9a02a1f9d104dd1bdfdc7b31d197fe8da6803aa6f58aafb90",
+        "classes9.dex",
+        "3cf0dd51390e5cfa4adc4389a90e921921656eef9178ad434d60239ff6b7cb90",
     ),
     (
         "classes10.dex",
-        "d791a807bfd5ddeb03c4d46cb5dbb2d65a29c2b7d9e49726400ababf861b3fd1",
+        "0b48ba31f2c4905e0541172be072874873babc6b7322fc14238a3a9ceaa577a1",
+    ),
+    (
+        "classes11.dex",
+        "f994a60a684dd0e02567afa439a28e2717edaa372d749511c369e0431d3dac22",
+    ),
+    (
+        "classes12.dex",
+        "b51ab44ec17867799300aa46a0a46fe3eba6169ba7382a996bbb928d034ac526",
     ),
 ];
 /// Next free multidex slot (base ships classes.dex..classes15.dex).

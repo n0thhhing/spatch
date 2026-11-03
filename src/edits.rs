@@ -133,7 +133,7 @@ pub const EDITS: [Edit; 98] = [
     // base press: the only black here that paints a surface (v13 stays for text on accents)
     Edit {
         file: "S_EncoreColorTokens",
-        anchor: "    const-wide v13, 0xff000000L\n\n    .line 22\n    .line 23\n    .line 24\n    .line 25\n    .line 26\n    invoke-static {v13, v14}, Lp/S_EncoreTint;->f(J)J\n\n    .line 27\n    .line 28\n    .line 29\n    move-result-wide v11\n",
+        anchor: "    const-wide v13, 0xff000000L\n\n    .line 22\n    .line 23\n    .line 24\n    .line 25\n    .line 26\n    invoke-static {v13, v14}, Lp/S_EncoreTint;->g(J)J\n\n    .line 27\n    .line 28\n    .line 29\n    move-result-wide v11\n",
         replacement: "    const-wide v13, 0xff000000L\n\n    .line 22\n    .line 23\n    .line 24\n    .line 25\n    .line 26\n    invoke-static {}, Lspatch/Surfaces;->pressed()J\n\n    .line 27\n    .line 28\n    .line 29\n    move-result-wide v11\n",
     },
     // elevated base
@@ -202,8 +202,8 @@ pub const EDITS: [Edit; 98] = [
     // gets Pill's icon offset too; p2 is put back because the method reuses it for k1u.d.
     Edit {
         file: "S_CreateTab",
-        anchor: "    invoke-static/range {p0 .. p5}, Lp/S_ComposePadding;->G(Lp/S_ComposeModifier;FFFFI)Lp/S_ComposeModifier;\n\n    .line 537\n    .line 538\n    .line 539\n    move-result-object v0\n\n    .line 540\n    move-object v3, v1\n",
-        replacement: "    invoke-static/range {p2 .. p2}, Lspatch/Pill;->closeDiscTop(F)F\n\n    move-result p2\n\n    invoke-static/range {p0 .. p5}, Lp/S_ComposePadding;->G(Lp/S_ComposeModifier;FFFFI)Lp/S_ComposeModifier;\n\n    .line 537\n    .line 538\n    .line 539\n    move-result-object v0\n\n    move/from16 p2, v3\n\n    .line 540\n    move-object v3, v1\n",
+        anchor: "    invoke-static/range {p0 .. p5}, Lp/S_ComposePadding;->B(Lp/S_ComposeModifier;FFFFI)Lp/S_ComposeModifier;\n\n    .line 537\n    .line 538\n    .line 539\n    move-result-object v0\n\n    .line 540\n    move-object v3, v1\n",
+        replacement: "    invoke-static/range {p2 .. p2}, Lspatch/Pill;->closeDiscTop(F)F\n\n    move-result p2\n\n    invoke-static/range {p0 .. p5}, Lp/S_ComposePadding;->B(Lp/S_ComposeModifier;FFFFI)Lp/S_ComposeModifier;\n\n    .line 537\n    .line 538\n    .line 539\n    move-result-object v0\n\n    move/from16 p2, v3\n\n    .line 540\n    move-object v3, v1\n",
     },
     // Create opening (p.S_CreateTab.V0, classes5): Spotify's white disc, shrink and dark tint go; the disc
     // becomes a tonal pill and Pill turns the + on its own centre (see Pill.closeAngle).
@@ -336,7 +336,7 @@ pub const EDITS: [Edit; 98] = [
     Edit {
         file: "S_SearchBar",
         anchor: "    sget-wide v9, Lp/S_ComposeColor;->f:J\n",
-        replacement: "    const-wide v9, 0xff2b2640L\n\n    invoke-static {v9, v10}, Lp/S_EncoreTint;->f(J)J\n\n    move-result-wide v9\n",
+        replacement: "    const-wide v9, 0xff2b2640L\n\n    invoke-static {v9, v10}, Lp/S_EncoreTint;->g(J)J\n\n    move-result-wide v9\n",
     },
     Edit {
         file: "S_SearchBar",
@@ -346,12 +346,12 @@ pub const EDITS: [Edit; 98] = [
     Edit {
         file: "S_SearchBar",
         anchor: "    iget-wide v9, v9, Lp/S_SearchFieldColors;->g:J\n",
-        replacement: "    const-wide v9, 0xfff3eeffL\n\n    invoke-static {v9, v10}, Lp/S_EncoreTint;->f(J)J\n\n    move-result-wide v9\n",
+        replacement: "    const-wide v9, 0xfff3eeffL\n\n    invoke-static {v9, v10}, Lp/S_EncoreTint;->g(J)J\n\n    move-result-wide v9\n",
     },
     Edit {
         file: "S_SearchBar",
         anchor: "    iget-wide v7, v4, Lp/S_SearchFieldShape;->e:J\n",
-        replacement: "    const-wide v7, 0xffbcb3dcL\n\n    invoke-static {v7, v8}, Lp/S_EncoreTint;->f(J)J\n\n    move-result-wide v7\n",
+        replacement: "    const-wide v7, 0xffbcb3dcL\n\n    invoke-static {v7, v8}, Lp/S_EncoreTint;->g(J)J\n\n    move-result-wide v7\n",
     },
     // Playlist "mix" play button (p.S_MixPlayButton.m, "mixing_play_button_simple_green", classes4): its
     // background is clipped to the player's scallop instead of a circle (one new field ref).
@@ -369,8 +369,8 @@ pub const EDITS: [Edit; 98] = [
     // Press release of everything Encore makes pressable (p.S_EncorePressable): the spec comes from spatch.Surfaces.
     Edit {
         file: "S_EncorePressable",
-        anchor: "    .line 1\n    const/high16 v0, 0x3f800000    # 1.0f\n\n    .line 2\n    .line 3\n    invoke-static {v0}, Lp/S_EncorePressSpec;->w(F)Ljava/lang/Float;\n\n    .line 4\n    .line 5\n    .line 6\n    move-result-object v2\n\n    .line 7\n    const/4 v5, 0x0\n\n    .line 8\n    const/16 v7, 0xe\n\n    .line 9\n    .line 10\n    iget-object v1, p0, Lp/S_EncorePressable;->P0:Lp/S_PressRelease;\n\n    .line 11\n    .line 12\n    const/4 v3, 0x0\n",
-        replacement: "    .line 1\n    const/high16 v0, 0x3f800000    # 1.0f\n\n    .line 2\n    .line 3\n    invoke-static {v0}, Lp/S_EncorePressSpec;->w(F)Ljava/lang/Float;\n\n    .line 4\n    .line 5\n    .line 6\n    move-result-object v2\n\n    .line 7\n    const/4 v5, 0x0\n\n    .line 8\n    const/16 v7, 0xc\n\n    .line 9\n    .line 10\n    iget-object v1, p0, Lp/S_EncorePressable;->P0:Lp/S_PressRelease;\n\n    .line 11\n    .line 12\n    invoke-static {}, Lspatch/Surfaces;->pressSpring()Lp/S_ComposeAnimationSpec;\n\n    move-result-object v3\n",
+        anchor: "    .line 1\n    const/high16 v0, 0x3f800000    # 1.0f\n\n    .line 2\n    .line 3\n    invoke-static {v0}, Lp/S_EncorePressSpec;->o(F)Ljava/lang/Float;\n\n    .line 4\n    .line 5\n    .line 6\n    move-result-object v2\n\n    .line 7\n    const/4 v5, 0x0\n\n    .line 8\n    const/16 v7, 0xe\n\n    .line 9\n    .line 10\n    iget-object v1, p0, Lp/S_EncorePressable;->P0:Lp/S_PressRelease;\n\n    .line 11\n    .line 12\n    const/4 v3, 0x0\n",
+        replacement: "    .line 1\n    const/high16 v0, 0x3f800000    # 1.0f\n\n    .line 2\n    .line 3\n    invoke-static {v0}, Lp/S_EncorePressSpec;->o(F)Ljava/lang/Float;\n\n    .line 4\n    .line 5\n    .line 6\n    move-result-object v2\n\n    .line 7\n    const/4 v5, 0x0\n\n    .line 8\n    const/16 v7, 0xc\n\n    .line 9\n    .line 10\n    iget-object v1, p0, Lp/S_EncorePressable;->P0:Lp/S_PressRelease;\n\n    .line 11\n    .line 12\n    invoke-static {}, Lspatch/Surfaces;->pressSpring()Lp/S_ComposeAnimationSpec;\n\n    move-result-object v3\n",
     },
     // Widget: Glance's hand-off of the rendered RemoteViews (p.S_GlanceRemoteViews, classes.dex) asks
     // spatch.SpatchWidget first; it returns Spatch's views only for the Now Playing widget.
@@ -418,14 +418,14 @@ pub const EDITS: [Edit; 98] = [
     // Own profile top bar (bn31.i): the same banner setting picks its colour.
     Edit {
         file: "S_OwnProfileTopBar",
-        anchor: "    iget v0, v14, Lp/S_ProfileModel;->k:I\n\n    .line 272\n    .line 273\n    invoke-static {v0}, Lp/S_EncoreTint;->d(I)J\n\n    .line 274\n    .line 275\n    .line 276\n    move-result-wide v0\n",
-        replacement: "    iget v0, v14, Lp/S_ProfileModel;->k:I\n\n    .line 272\n    .line 273\n    invoke-static {v0}, Lp/S_EncoreTint;->d(I)J\n\n    .line 274\n    .line 275\n    .line 276\n    move-result-wide v0\n\n    invoke-static {v0, v1, v14}, Lspatch/ProfileBanner;->bar(JLp/S_ProfileModel;)J\n\n    move-result-wide v0\n",
+        anchor: "    iget v0, v14, Lp/S_ProfileModel;->k:I\n\n    .line 272\n    .line 273\n    invoke-static {v0}, Lp/S_EncoreTint;->e(I)J\n\n    .line 274\n    .line 275\n    .line 276\n    move-result-wide v0\n",
+        replacement: "    iget v0, v14, Lp/S_ProfileModel;->k:I\n\n    .line 272\n    .line 273\n    invoke-static {v0}, Lp/S_EncoreTint;->e(I)J\n\n    .line 274\n    .line 275\n    .line 276\n    move-result-wide v0\n\n    invoke-static {v0, v1, v14}, Lspatch/ProfileBanner;->bar(JLp/S_ProfileModel;)J\n\n    move-result-wide v0\n",
     },
     // Own profile header (bn31.h): spatch.ProfileBanner may replace the brush over Spotify's colour.
     Edit {
         file: "S_OwnProfileTopBar",
-        anchor: "    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->m(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
-        replacement: "    invoke-static {v5, v0}, Lspatch/ProfileBanner;->brush(Landroidx/compose/ui/graphics/Brush;Lp/S_ProfileModel;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object v5\n\n    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->m(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
+        anchor: "    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->e(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
+        replacement: "    invoke-static {v5, v0}, Lspatch/ProfileBanner;->brush(Landroidx/compose/ui/graphics/Brush;Lp/S_ProfileModel;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object v5\n\n    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->e(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
     },
     // Your Library rows (r0a1.d): spatch.Surfaces lays each on a card.
     Edit {
@@ -465,8 +465,8 @@ pub const EDITS: [Edit; 98] = [
     },
     Edit {
         file: "S_LibraryFilterRow",
-        anchor: "    invoke-static {v2, v1}, Lp/S_LibraryItems;->l(Ljava/lang/String;Ljava/util/List;)Lp/S_LibraryFilterChips;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    return-object v0\n",
-        replacement: "    invoke-static {v2, v1}, Lp/S_LibraryItems;->l(Ljava/lang/String;Ljava/util/List;)Lp/S_LibraryFilterChips;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    invoke-static {v0}, Lspatch/Content;->libraryChips(Ljava/util/ArrayList;)Ljava/util/ArrayList;\n\n    move-result-object v0\n\n    return-object v0\n",
+        anchor: "    invoke-static {v2, v1}, Lp/S_LibraryItems;->n(Ljava/lang/String;Ljava/util/List;)Lp/S_LibraryFilterChips;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    return-object v0\n",
+        replacement: "    invoke-static {v2, v1}, Lp/S_LibraryItems;->n(Ljava/lang/String;Ljava/util/List;)Lp/S_LibraryFilterChips;\n\n    .line 49\n    .line 50\n    .line 51\n    move-result-object v1\n\n    .line 52\n    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z\n\n    .line 53\n    .line 54\n    .line 55\n    goto :goto_0\n\n    .line 56\n    :cond_0\n    invoke-static {v0}, Lspatch/Content;->libraryChips(Ljava/util/ArrayList;)Ljava/util/ArrayList;\n\n    move-result-object v0\n\n    return-object v0\n",
     },
     // Floating icon-only bar: k1u.c always takes its compact branch (no label; TalkBack still reads
     // the tab's description), which Spotify otherwise uses below 520dp of height.
@@ -492,7 +492,7 @@ pub const EDITS: [Edit; 98] = [
     Edit {
         file: "S_MixFontLoaderD",
         anchor: ".method public static c(Landroid/content/Context;ILandroid/util/TypedValue;ILp/S_MixFontLoaderB;ZZ)Landroid/graphics/Typeface;\n    .locals 11\n",
-        replacement: ".method public static c(Landroid/content/Context;ILandroid/util/TypedValue;ILp/S_MixFontLoaderB;ZZ)Landroid/graphics/Typeface;\n    .locals 11\n\n    invoke-static {p1}, Lspatch/Fonts;->resource(I)Landroid/graphics/Typeface;\n\n    move-result-object v0\n\n    if-eqz v0, :spatch_stock\n\n    if-eqz p4, :spatch_done\n\n    invoke-virtual {p4, v0}, Lp/S_MixFontLoaderB;->o(Landroid/graphics/Typeface;)V\n\n    :spatch_done\n    return-object v0\n\n    :spatch_stock\n",
+        replacement: ".method public static c(Landroid/content/Context;ILandroid/util/TypedValue;ILp/S_MixFontLoaderB;ZZ)Landroid/graphics/Typeface;\n    .locals 11\n\n    invoke-static {p1}, Lspatch/Fonts;->resource(I)Landroid/graphics/Typeface;\n\n    move-result-object v0\n\n    if-eqz v0, :spatch_stock\n\n    if-eqz p4, :spatch_done\n\n    invoke-virtual {p4, v0}, Lp/S_MixFontLoaderB;->f(Landroid/graphics/Typeface;)V\n\n    :spatch_done\n    return-object v0\n\n    :spatch_stock\n",
     },
     Edit {
         file: "S_MixFontLoaderE",

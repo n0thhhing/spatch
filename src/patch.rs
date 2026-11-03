@@ -191,7 +191,13 @@ pub const SPLIT_REFS: [(&str, &str, &str); 4] = [
     ("dimen", "square_cover_art_size", "0x7f070755"),
     ("dimen", "square_cover_art_top_margin", "0x7f070756"),
 ];
-const DENSITY_SPLITS: [&str; 2] = ["split_config.xxhdpi.apk", "split_config.xxxhdpi.apk"];
+/// The APKM's density splits, which define `SPLIT_REFS`.
+fn density_splits() -> impl Iterator<Item = &'static str> {
+    input::APKS
+        .iter()
+        .map(|(name, _)| *name)
+        .filter(|name| name.starts_with("split_config.") && name.ends_with("dpi.apk"))
+}
 
 /// Original base resources.arsc; the output must differ (colour swaps applied).
 const ORIGINAL_ARSC_SHA256: &str =
@@ -474,7 +480,7 @@ pub fn run(
     let result = staging.path.join("result");
     fs::create_dir(&result)?;
     let mut certs = HashSet::new();
-    for (name, _) in APKS {
+    for &(name, _) in APKS {
         let unsigned = staging.path.join(format!("{name}.unsigned"));
         let aligned = staging.path.join(format!("{name}.aligned"));
         let signed = result.join(name);
@@ -566,7 +572,7 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
         )
     };
     let mut split_dumps = Vec::new();
-    for split in DENSITY_SPLITS {
+    for split in density_splits() {
         split_dumps.push(dump_resources(&base.with_file_name(split))?);
     }
     let public = decoded.join("res/values/public.xml");
