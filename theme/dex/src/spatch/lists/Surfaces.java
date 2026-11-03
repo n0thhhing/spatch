@@ -21,7 +21,7 @@ import p.zyq0;
 public final class Surfaces {
     private static final int GREY_CARD = 0xff292929, SKELETON = 0x1affffff;
 
-    private static final int VIVID = 70, GREY_CHROMA = 20;
+    private static final int VIVID = 70;
     private static androidx.compose.ui.graphics.Brush softenedFrom, softened;
 
     private Surfaces() {}
@@ -39,10 +39,7 @@ public final class Surfaces {
         return c;
     }
 
-    /**
-     * Server colours in page headers become a tint of the theme: bright ones are quietened, and the
-     * flat greys black-and-white covers give take the theme surface. Dark scrims and images are left alone.
-     */
+    /** Bright server colours in page headers become a tint of the theme; dark scrims and images are left alone. */
     public static androidx.compose.ui.graphics.Brush headerBrush(androidx.compose.ui.graphics.Brush brush) {
         if (!(brush instanceof shc0) || !Settings.get(Settings.SOFT_HEADERS)) return brush;
         if (brush.equals(softenedFrom)) return softened;
@@ -52,9 +49,12 @@ public final class Surfaces {
         for (Object color : gradient.d) {
             long value = ((i7h) color).a;
             int argb = (int) (value >>> 32);
-            int themed = !plain(value) ? argb : chroma(argb) >= VIVID ? soften(argb) : grey(argb) ? tintGrey(argb) : argb;
-            changed |= themed != argb;
-            colors.add(themed == argb ? (i7h) color : new i7h((long) themed << 32));
+            if (!plain(value) || chroma(argb) < VIVID) {
+                colors.add((i7h) color);
+                continue;
+            }
+            changed = true;
+            colors.add(new i7h((long) soften(argb) << 32));
         }
         softenedFrom = brush;
         softened = changed ? new shc0(gradient.h, gradient.f, gradient.g, colors, gradient.e) : brush;
@@ -64,16 +64,6 @@ public final class Surfaces {
     static int chroma(int argb) {
         int r = argb >> 16 & 255, g = argb >> 8 & 255, b = argb & 255;
         return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
-    }
-
-    /** An opaque neutral grey lighter than a scrim, as Spotify picks for a black-and-white cover. */
-    static boolean grey(int argb) {
-        int max = Math.max(argb >> 16 & 255, Math.max(argb >> 8 & 255, argb & 255));
-        return argb >>> 24 == 0xff && chroma(argb) < GREY_CHROMA && max > 0x24 && max < 0xb0;
-    }
-
-    static int tintGrey(int argb) {
-        return 0xff000000 | Pill.blend(argb, Palette.color(0xff2b2640), 0.6f) & 0xffffff;
     }
 
     static int soften(int argb) {
