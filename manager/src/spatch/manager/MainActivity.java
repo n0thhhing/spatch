@@ -216,8 +216,22 @@ public final class MainActivity extends Activity {
         manager.addView(look.row(check, page2), look.spaced(4));
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setClipToPadding(false);
         scroll.addView(page);
+        // Android 15 draws apps edge to edge: keep the page clear of the status and navigation bars.
+        scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top, bottom;
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars());
+                top = bars.top;
+                bottom = bars.bottom;
+            } else {
+                top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(0, top, 0, 0);
+            page.setPadding(look.dp(16), look.dp(24), look.dp(16), look.dp(32) + bottom);
+            return insets;
+        });
         return scroll;
     }
 
