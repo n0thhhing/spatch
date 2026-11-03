@@ -366,6 +366,10 @@ pub const STUBS: &[(&str, &str)] = &[
         include_str!("../theme/dex/stubs/androidx/recyclerview/widget/RecyclerView.java"),
     ),
     (
+        "CarouselView.java",
+        include_str!("../theme/dex/stubs/com/spotify/legacyglue/carousel/CarouselView.java"),
+    ),
+    (
         "a.java",
         include_str!("../theme/dex/stubs/androidx/recyclerview/widget/a.java"),
     ),

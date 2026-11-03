@@ -95,6 +95,7 @@ public final class PlayerArt extends ImageView {
 
     protected void onDraw(Canvas canvas) {
         long now = SystemClock.uptimeMillis();
+        resnap(this, now);
         if (Wave.animationsEnabled()) spring(squish, squishTarget, now - squishAt);
         else { squish[0] = 1; squish[1] = 0; }
         squishAt = now;
@@ -195,6 +196,37 @@ public final class PlayerArt extends ImageView {
         }
         float scale = 1 - 0.35f * Math.min(1, turn);
         canvas.scale(scale, scale, getWidth() / 2f, getHeight() / 2f);
+    }
+
+    private static long snapCheckedAt, offSlotSince;
+
+    /**
+     * Free accounts: when Spotify takes an ad page back out of the player's carousel, the remaining pages
+     * can be left part-way between slots, half a cover on screen. A carousel at rest with a page off its
+     * slot for a moment is asked to settle on its current position; a drag or fling is left alone.
+     */
+    static void resnap(View art, long now) {
+        if (now - snapCheckedAt < 300) return;
+        snapCheckedAt = now;
+        View page = art;
+        android.view.ViewParent up = art.getParent();
+        while (up instanceof View && !(up instanceof com.spotify.legacyglue.carousel.CarouselView)) {
+            page = (View) up;
+            up = up.getParent();
+        }
+        if (!(up instanceof com.spotify.legacyglue.carousel.CarouselView)) return;
+        com.spotify.legacyglue.carousel.CarouselView carousel = (com.spotify.legacyglue.carousel.CarouselView) up;
+        int width = carousel.getWidth();
+        if (width == 0 || page.getWidth() != width || carousel.getScrollState() != 0 || Math.floorMod(page.getLeft(), width) == 0) {
+            offSlotSince = 0;
+            return;
+        }
+        if (offSlotSince == 0) {
+            offSlotSince = now;
+        } else if (now - offSlotSince >= 300) {
+            offSlotSince = 0;
+            carousel.setPosition(carousel.getCurrentPosition());
+        }
     }
 
     /** A skip lands too fast to see a size or opacity change, so arriving is held to a readable pace; a finger drag is slower and is followed exactly. */
