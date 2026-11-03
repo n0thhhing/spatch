@@ -12,6 +12,11 @@ they install in place. Nothing is uploaded anywhere.
    supported Spotify is installed unmodified (from the Play Store, say): the manager uses that.
 3. **Install Spatch**. Android asks once to let the manager install apps, then to confirm.
 
+With an invite to a private Spatch source (**Add an invite**, or share the invite link to Spatch
+Manager), step 2 goes away: Install Spatch downloads the exact APKM it needs, checks its size and
+hash, and keeps it for later updates. A saved APKM and an unmodified installed Spotify still come
+first. Running a source is described in `docs/private-source.md`.
+
 Only `base.apk` is patched, so the manager keeps the original `base.apk` (or the APKM) and takes the
 other APKs from the installed Spotify; updates never ask for the APKM again. A Spotify already
 patched elsewhere has no original left in it, so that case needs the APKM once.

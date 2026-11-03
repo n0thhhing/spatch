@@ -40,7 +40,7 @@ import java.util.concurrent.Executors;
  * own updates. Patching, signing and installing all happen here; nothing leaves the phone.
  */
 public final class MainActivity extends Activity {
-    private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates";
+    private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates", INVITE = "source_invite", DOWNLOADED = "apkm_downloaded";
     static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", UPDATE = "start_update";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3;
 
@@ -51,12 +51,13 @@ public final class MainActivity extends Activity {
     private Releases releases;
     private String releaseError, pendingTag;
     private boolean busy, installingSelf, conflict, autoUpdate;
+    private volatile boolean replaceImport; // the chosen APKM was the wrong one and the user tapped Install again
     private volatile boolean inheriting, inheritFailed; // an update replacing base.apk alone; a failed one goes back to all five
     private Look look;
     private LinearLayout statusCard;
 
     private TextView spotifyStatus, apkmStatus, patchStatus, keyStatus, managerStatus, status;
-    private Button choose, patch, uninstall, managerUpdate, check, exportKey, importKey;
+    private Button choose, patch, uninstall, managerUpdate, check, exportKey, importKey, invite;
     private ProgressBar progress;
     private Switch developer, notify;
 
@@ -103,6 +104,7 @@ public final class MainActivity extends Activity {
         if (!look.dark) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         setContentView(layout());
         autoUpdate = getIntent().getBooleanExtra(UPDATE, false);
+        shared(getIntent());
         UpdateCheck.schedule(this, notify.isChecked());
         if (notify.isChecked() && android.os.Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("asked_notifications", false)) {
             prefs.edit().putBoolean("asked_notifications", true).apply();
@@ -128,6 +130,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        shared(intent);
         if (intent.getBooleanExtra(UPDATE, false)) {
             autoUpdate = true;
             checkUpdates();
@@ -187,6 +190,8 @@ public final class MainActivity extends Activity {
         spotify.addView(patch, look.spaced(8));
         choose = look.button("Choose Spotify APKM", "folder_open", Look.Kind.TONAL, v -> pickApkm());
         spotify.addView(choose, look.spaced(8));
+        invite = look.button("Add an invite", "link", Look.Kind.TEXT, v -> editInvite());
+        spotify.addView(invite, look.spaced(4));
         uninstall = look.button("Uninstall Spotify", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
         spotify.addView(uninstall, look.spaced(8));
 
@@ -245,17 +250,20 @@ public final class MainActivity extends Activity {
             : ours ? "Spatch is installed" + (installed != null ? ": patches " + installed.replaceFirst("^(patches-v|bundle-)", "") : "") + ". Spotify " + info.versionName + "."
             : "Spotify " + info.versionName + " is installed with another key. To install over it, import the key it was signed with (Signing key, Import key); otherwise it has to be uninstalled first.");
         File apkm = apkm();
-        apkmStatus.setText(apkm.isFile() ? "APKM saved (" + apkm.length() / (1 << 20) + " MB)."
+        Sources.Invite source = invite();
+        apkmStatus.setText(apkm.isFile() ? (prefs.getBoolean(DOWNLOADED, false) ? "Spotify downloaded (" : "APKM saved (") + apkm.length() / (1 << 20) + " MB)."
             : originalBase().isFile() ? "The original Spotify is kept, so no APKM is needed."
+            : source != null ? "Spotify downloads from " + source.host() + " when you install."
             : info != null && !ours ? "No APKM needed if the installed Spotify is the unmodified version Spatch supports."
-            : "Choose the Spotify APKM that Spatch supports.");
+            : "Choose the Spotify APKM that Spatch supports, or add an invite to a Spatch source.");
         Releases.Release bundle = releases == null ? null : releases.bundle;
         patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
             : releaseError != null ? releaseError : "Looking for patches…");
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
         Look.label(patch, !ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
         Look.label(choose, apkm.isFile() ? "Choose another APKM" : "Choose Spotify APKM");
-        look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null));
+        look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null || source != null));
+        Look.label(invite, source == null ? "Add an invite" : "Invite for " + source.host());
         developer.setEnabled(!busy);
         uninstall.setVisibility(conflict && info != null && !ours ? View.VISIBLE : View.GONE);
         try {
@@ -266,7 +274,7 @@ public final class MainActivity extends Activity {
         int own = ownCode(), newest = Releases.code(releases == null ? null : releases.manager);
         managerStatus.setText("Version " + ownName() + (newest > own ? ". Version " + Releases.version(releases.manager) + " is available." : "."));
         managerUpdate.setVisibility(newest > own ? View.VISIBLE : View.GONE);
-        for (Button b : Arrays.asList(choose, managerUpdate, check, importKey)) look.enable(b, !busy);
+        for (Button b : Arrays.asList(choose, managerUpdate, check, importKey, invite)) look.enable(b, !busy);
         look.enable(exportKey, !busy && keys != null);
     }
 
@@ -308,6 +316,8 @@ public final class MainActivity extends Activity {
                     Bundle.copy(in, out);
                 }
                 if (!tmp.renameTo(apkm())) throw new java.io.IOException("Couldn't save the APKM.");
+                prefs.edit().putBoolean(DOWNLOADED, false).apply();
+                replaceImport = false;
                 done("APKM saved. It's checked when you install.");
             });
         } else if (request == EXPORT_KEY) {
@@ -360,7 +370,8 @@ public final class MainActivity extends Activity {
             List<File> unsigned;
             try (Bundle b = new Bundle(bundle)) {
                 inheriting = keepsSplits(b);
-                unsigned = apkm().isFile() ? b.apply(apkm(), dir, inheriting, this::step) : fromInstalled(b, dir, inheriting);
+                File input = input(b);
+                unsigned = input != null ? b.apply(input, dir, inheriting, this::step) : fromInstalled(b, dir, inheriting);
             }
             List<File> signed = new ArrayList<>();
             for (int i = 0; i < unsigned.size(); i++) {
@@ -377,6 +388,96 @@ public final class MainActivity extends Activity {
             });
             Installer.install(this, signed, inheriting ? SPOTIFY : null);
         }, true);
+    }
+
+    /**
+     * The APKM to patch, or null to patch the installed Spotify instead. In order: a saved APKM
+     * that matches the bundle, an unmodified installed Spotify of the right version (or its kept
+     * original), then a download from the invite's source. A chosen APKM that doesn't match is never
+     * replaced silently: the first tap explains, a second one downloads over it.
+     */
+    private File input(spatch.manager.Bundle b) throws Exception {
+        File saved = apkm();
+        Sources.Invite source = invite();
+        if (saved.isFile()) {
+            step("Checking the saved APKM", 0, 1);
+            if (spatch.manager.Bundle.sha256(saved).equals(b.apkmSha)) return saved;
+            if (!prefs.getBoolean(DOWNLOADED, false) && !replaceImport) {
+                if (source == null) throw new java.io.IOException("The APKM you chose isn't the Spotify " + b.spotify + " one these patches need. Choose that one.");
+                replaceImport = true;
+                throw new java.io.IOException("The APKM you chose isn't the Spotify " + b.spotify + " one these patches need. Tap Install again to download the right one from " + source.host() + " instead.");
+            }
+        }
+        if (installedOriginal(b)) return null;
+        if (source == null) throw new java.io.IOException("Choose the Spotify " + b.spotify + " APKM, or add an invite to a Spatch source.");
+        step("Asking " + source.host() + " for Spotify " + b.spotify, 0, 1);
+        Sources.Entry entry = Sources.find(source, b);
+        Sources.download(source, entry, saved, this::step);
+        prefs.edit().putBoolean(DOWNLOADED, true).commit();
+        replaceImport = false;
+        return saved;
+    }
+
+    /** The installed Spotify is the right version and its original base.apk is at hand, kept or still installed. */
+    private boolean installedOriginal(spatch.manager.Bundle b) throws java.io.IOException {
+        PackageInfo info = spotify();
+        if (info == null || info.getLongVersionCode() != b.spotifyCode) return false;
+        if (originalBase().isFile()) return true;
+        step("Checking the installed Spotify", 0, 1);
+        return spatch.manager.Bundle.sha256(new File(info.applicationInfo.sourceDir)).equals(b.baseSha());
+    }
+
+    private Sources.Invite invite() {
+        return Sources.parse(prefs.getString(INVITE, null));
+    }
+
+    /** An invite shared to the manager (long-press the link, Share, Spatch Manager) is saved as it is. */
+    private void shared(Intent intent) {
+        if (!Intent.ACTION_SEND.equals(intent.getAction())) return;
+        String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+        java.util.regex.Matcher link = java.util.regex.Pattern.compile("https?://\\S+").matcher(text == null ? "" : text);
+        text = link.find() ? link.group() : null; // chat apps share the link with words around it
+        Sources.Invite shared = Sources.parse(text);
+        if (shared == null) {
+            say("That isn't an invite link. It looks like https://…/index.json#name.code.");
+            return;
+        }
+        prefs.edit().putString(INVITE, text.trim()).apply();
+        say("Invite saved. Install Spatch downloads Spotify from " + shared.host() + " when it needs to.");
+        refresh();
+    }
+
+    /** Paste, replace or remove the invite; the clipboard's is offered when it holds one. */
+    private void editInvite() {
+        EditText field = new EditText(this);
+        field.setSingleLine(true);
+        field.setHint("https://…/index.json#name.code");
+        String current = prefs.getString(INVITE, null);
+        android.content.ClipboardManager clips = getSystemService(android.content.ClipboardManager.class);
+        android.content.ClipData clip = clips == null ? null : clips.getPrimaryClip();
+        CharSequence pasted = clip != null && clip.getItemCount() > 0 ? clip.getItemAt(0).getText() : null;
+        field.setText(current != null ? current : pasted != null && Sources.parse(pasted.toString()) != null ? pasted : "");
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(look.dp(24), look.dp(8), look.dp(24), 0);
+        box.addView(field, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this).setTitle("Invite to a Spatch source")
+            .setMessage("Whoever runs the source gives you this link. With it, Install Spatch downloads Spotify for you.")
+            .setView(box).setNegativeButton("Cancel", null)
+            .setPositiveButton("Save", (d, w) -> {
+                if (Sources.parse(field.getText().toString()) == null) {
+                    say("That isn't an invite link. It looks like https://…/index.json#name.code.");
+                    return;
+                }
+                prefs.edit().putString(INVITE, field.getText().toString().trim()).apply();
+                say("Invite saved. Install Spatch downloads Spotify from " + invite().host() + " when it needs to.");
+                refresh();
+            });
+        if (current != null) dialog.setNeutralButton("Remove", (d, w) -> {
+            prefs.edit().remove(INVITE).apply();
+            say("Invite removed.");
+            refresh();
+        });
+        dialog.show();
     }
 
     /** Our own Spatch of the same Spotify version is installed, so its splits (never patched) can stay. */

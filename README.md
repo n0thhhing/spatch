@@ -71,6 +71,13 @@ Write a patch bundle for Spatch Manager instead (no signing; see [the manager](m
 ./target/release/spatch bundle <input.apkm> --out <new-file.zip>
 ```
 
+Prepare a private source that invited phones download the APKM from (see
+[docs/private-source.md](docs/private-source.md)):
+
+```bash
+./target/release/spatch source <input.apkm> --out <dir>
+```
+
 Add `--debug` for a Developer options page in Spatch settings: on-device self tests, a frame monitor,
 a touch inspector, a crash record and log reading. Other builds contain none of that code.
 
@@ -89,6 +96,7 @@ adb install-multiple -r base.apk split_config.*.apk
 | `src/helpers.rs` | The helper Java and stub file lists. |
 | `src/dex.rs` | The helper DEX build and reassembly. |
 | `src/bundle.rs` | Patch bundles for Spatch Manager. |
+| `src/source.rs` | Files for a private source: the checked APKM and its `index.json`. |
 | `manager/` | Spatch Manager, the Android app that patches, signs and installs on the phone. |
 | `src/theme.rs` | Theme colour roles. |
 | `theme/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |

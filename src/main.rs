@@ -7,6 +7,7 @@ mod helpers;
 mod input;
 mod lottie;
 mod patch;
+mod source;
 mod theme;
 mod theme_assets;
 mod tools;
@@ -22,6 +23,7 @@ usage:
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --dry-run
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --keystore <file> --alias <name> --ks-pass-env <VAR>
   spatch bundle <input.apkm> --out <new-file.zip> [--theme <name>] [--debug]
+  spatch source <input.apkm> --out <dir>
 
 Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula,
 gruvbox-material-dark.
@@ -31,6 +33,9 @@ Other builds contain none of that code.
 
 A bundle holds Spatch's changes as diffs against the APKM, for Spatch Manager to apply and sign on
 the phone; it contains none of Spotify's own files.
+
+source checks the APKM and writes it under an immutable name with an index.json beside it, for a
+private Spatch source that Spatch Manager downloads from with an invite. It publishes nothing.
 
 The input is never modified. The keystore password is read by apksigner from the named
 environment variable; spatch never reads or prints it.";
@@ -48,6 +53,11 @@ fn main() -> ExitCode {
 fn run(args: Vec<String>) -> Result<()> {
     match args.first().map(String::as_str) {
         Some("inspect") if args.len() == 2 => inspect(&PathBuf::from(&args[1])),
+        Some("source") if args.len() == 4 && args[2] == "--out" => {
+            let out = PathBuf::from(&args[3]);
+            std::fs::create_dir_all(&out)?;
+            source::stage(&PathBuf::from(&args[1]), &out, &tools::Tools::discover()?)
+        }
         Some(cmd @ ("patch" | "bundle")) if args.len() >= 2 => {
             let bundle = cmd == "bundle";
             let mut out = None;
