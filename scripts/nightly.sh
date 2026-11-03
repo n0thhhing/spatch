@@ -5,6 +5,7 @@
 #   scripts/nightly.sh [commit]
 set -eu
 repo=$(cd "$(dirname "$0")/.." && pwd)
+export GH_REPO=n0thhhing/spatch # gh runs outside the checkout below
 sha=$(git -C "$repo" rev-parse "${1:-HEAD}")
 short=$(echo "$sha" | cut -c1-7)
 if [ "$(gh release view nightly --json targetCommitish -q .targetCommitish 2>/dev/null || true)" = "$sha" ]; then
