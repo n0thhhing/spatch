@@ -109,10 +109,12 @@ public final class PlayerArt extends ImageView {
         // The title changes before the page moves: only a page that came in after it arrives, or the old art snaps away.
         turn = skipMotion ? Math.max(settle(turn, Math.abs(offset), now - turnAt), centredAt > songAt ? arriving(now - songAt) : 0) : 0;
         turnAt = now;
-        turnPage(canvas, skip, offset);
-        if (Wave.animationsEnabled()) motion.apply(canvas, now);
+        // An ad brings its own artwork and frame: reshaping it as well made the two fight over the shape.
+        boolean ad = SpatchWidget.adPlaying;
+        if (!ad) turnPage(canvas, skip, offset);
+        if (Wave.animationsEnabled() && !ad) motion.apply(canvas, now);
         if (!heroHidden) {
-            if (Settings.roundArt()) drawRound(canvas); else super.onDraw(canvas);
+            if (Settings.roundArt() && !ad) drawRound(canvas); else super.onDraw(canvas);
         }
         canvas.restoreToCount(scaled);
         // The carousel keeps three pages alive; only the centred one does per-frame work. The others

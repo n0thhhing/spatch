@@ -36,6 +36,8 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     private static final int VISIBLE = 0, GONE = 8;
     private static MediaController current;
     static volatile String nowTitle;
+    /** An ad is playing on a free account: Spatch leaves the player artwork to Spotify until it ends. */
+    static volatile boolean adPlaying;
     // Two track slots for the song-change flip: the shown one and the one that slid out.
     private static int shown;
     private static final String[] slotKey = new String[2], slotTitle = new String[2], slotArtist = new String[2];
@@ -116,11 +118,17 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         h.postDelayed(MINI, 60);
     }
 
+    /** Spotify's ads play as spotify:ad:<id> items. */
+    static boolean isAd(String mediaId) {
+        return mediaId != null && mediaId.startsWith("spotify:ad:");
+    }
+
     private static void updateMini() {
         MediaController c = current;
         if (c == null) return;
         MediaMetadata m = c.getMetadata();
         if (m != null) nowTitle = m.getString(MediaMetadata.METADATA_KEY_TITLE);
+        adPlaying = m != null && isAd(m.getString(MediaMetadata.METADATA_KEY_MEDIA_ID));
         MiniBar.update(m, c.getPlaybackState(), m == null ? null : cover(m));
     }
 
