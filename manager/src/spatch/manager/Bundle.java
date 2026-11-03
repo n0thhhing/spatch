@@ -34,6 +34,7 @@ final class Bundle implements AutoCloseable {
     private static final String BASIS = "resources.arsc";
 
     final String spotify, apkmSha;
+    final long spotifyCode;
     final List<String[]> apks = new ArrayList<>(); // {name, sha256}
     private final Map<String, String[]> replace = new HashMap<>(); // entry -> {"replace", entry, old sha, new sha, patch}
     private final List<String[]> add = new ArrayList<>(); // {entry, S|D, sha, patch}
@@ -43,12 +44,13 @@ final class Bundle implements AutoCloseable {
     Bundle(File file) throws IOException {
         zip = new ZipFile(file);
         String spotify = null, apkm = null;
+        long code = 0;
         String[] lines = new String(read(zip, zip.getEntry("bundle.txt")), StandardCharsets.UTF_8).split("\n");
         if (lines.length == 0 || !lines[0].equals("spatch-bundle 1")) throw new IOException("This patch bundle needs a newer Spatch Manager.");
         for (String line : lines) {
             String[] f = line.split(" ");
             switch (f[0]) {
-                case "spotify": spotify = f[1]; break;
+                case "spotify": spotify = f[1]; code = Long.parseLong(f[2]); break;
                 case "apkm": apkm = f[1]; break;
                 case "apk": apks.add(new String[] {f[1], f[2]}); break;
                 case "replace": replace.put(f[1], f); break;
@@ -60,6 +62,35 @@ final class Bundle implements AutoCloseable {
         if (spotify == null || apkm == null || apks.isEmpty()) throw new IOException("The patch bundle is incomplete.");
         this.spotify = spotify;
         this.apkmSha = apkm;
+        this.spotifyCode = code;
+    }
+
+    /** The original base.apk's SHA-256: any copy with it can stand in for the APKM. */
+    String baseSha() throws IOException {
+        for (String[] apk : apks) if (apk[0].equals("base.apk")) return apk[1];
+        throw new IOException("The patch bundle is incomplete.");
+    }
+
+    /**
+     * Without an APKM: patches an original base.apk and takes the splits from an installed Spotify of
+     * the same version (any device configuration; only base.apk is changed, splits are re-signed).
+     */
+    List<File> apply(File base, List<File> splits, File dir, Progress progress) throws IOException {
+        int total = splits.size() + 2, done = 0;
+        progress.step("Checking Spotify", done++, total);
+        if (!sha256(base).equals(baseSha())) throw new IOException("That copy of Spotify isn't the original " + spotify + ".");
+        List<File> out = new ArrayList<>();
+        progress.step("Patching base.apk", done++, total);
+        File patched = new File(dir, "base.apk");
+        rewrite(base, patched, true);
+        out.add(patched);
+        for (File split : splits) {
+            progress.step("Preparing " + split.getName(), done++, total);
+            File copy = new File(dir, split.getName());
+            rewrite(split, copy, false);
+            out.add(copy);
+        }
+        return out;
     }
 
     /** Writes each APK, unsigned, into dir and returns them in install order. */

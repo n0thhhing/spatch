@@ -42,6 +42,42 @@ public final class RoundTrip {
             System.out.println("PASS " + apk.getName());
         }
         System.out.println("PASS bundle reproduces the desktop build");
+
+        // No APKM: an original base.apk and loose splits, as read from an installed Spotify.
+        File loose = new File(work, "installed"), out = new File(work, "from-installed");
+        loose.mkdirs();
+        out.mkdirs();
+        List<File> splits = new java.util.ArrayList<>();
+        try (ZipFile z = new ZipFile(apkm)) {
+            for (Enumeration<? extends ZipEntry> e = z.entries(); e.hasMoreElements();) {
+                ZipEntry x = e.nextElement();
+                if (!x.getName().endsWith(".apk")) continue;
+                File f = new File(loose, x.getName());
+                try (InputStream in = z.getInputStream(x); OutputStream o = new FileOutputStream(f)) {
+                    Bundle.copy(in, o);
+                }
+                if (!x.getName().equals("base.apk")) splits.add(f);
+            }
+        }
+        try (Bundle bundle = new Bundle(new File(a[1]))) {
+            check(bundle.spotifyCode == 148115007L, "bundle names the Spotify version code");
+            unsigned = bundle.apply(new File(loose, "base.apk"), splits, out, (what, done, total) -> {});
+            File patchedBase = new File(loose, "patched-base.apk");
+            java.nio.file.Files.copy(unsigned.get(0).toPath(), patchedBase.toPath());
+            try {
+                bundle.apply(patchedBase, splits, new File(work, "refused"), (what, done, total) -> {});
+                check(false, "an already patched base.apk must be refused");
+            } catch (java.io.IOException expected) {
+                // patched base: no original to work from
+            }
+        }
+        check(unsigned.size() == 5, "base and four splits");
+        for (File apk : unsigned) {
+            File signed = new File(out, "signed-" + apk.getName());
+            keys.sign(apk, signed);
+            same(new File(ref, apk.getName()), signed);
+        }
+        System.out.println("PASS installed Spotify without an APKM reproduces the desktop build");
     }
 
     /** Same entries with the same bytes, signatures aside. */

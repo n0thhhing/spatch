@@ -177,12 +177,15 @@ public final class MainActivity extends Activity {
             : ours ? "Spatch " + (installed != null ? "(" + installed + ") " : "") + "is installed, Spotify " + info.versionName + "."
             : "Spotify " + info.versionName + " is installed with another key. To install over it, import the key it was signed with (Signing key, Import key); otherwise it has to be uninstalled first.");
         File apkm = apkm();
-        apkmStatus.setText(apkm.isFile() ? "APKM saved (" + apkm.length() / (1 << 20) + " MB)." : "Choose the Spotify APKM that Spatch supports to begin.");
+        apkmStatus.setText(apkm.isFile() ? "APKM saved (" + apkm.length() / (1 << 20) + " MB)."
+            : originalBase().isFile() ? "The original Spotify is kept, so no APKM is needed."
+            : info != null && !ours ? "No APKM needed if the installed Spotify is the unmodified version Spatch supports."
+            : "Choose the Spotify APKM that Spatch supports.");
         Releases.Release bundle = releases == null ? null : releases.bundle;
         patchStatus.setText(bundle != null ? "Newest patches: " + bundle.tag + "." : releaseError != null ? releaseError : "Looking for patches…");
         patch.setText(!ours ? "Install Spatch" : bundle != null && !bundle.tag.equals(installed) ? "Update Spatch" : "Reinstall Spatch");
         choose.setText(apkm.isFile() ? "Choose another APKM" : "Choose Spotify APKM");
-        patch.setEnabled(!busy && keys != null && apkm.isFile() && bundle != null);
+        patch.setEnabled(!busy && keys != null && bundle != null && (apkm.isFile() || info != null));
         uninstall.setVisibility(conflict && info != null && !ours ? View.VISIBLE : View.GONE);
         try {
             keyStatus.setText(keys == null ? "Making this phone's key…" : "Fingerprint " + keys.fingerprint().substring(0, 16) + "…");
@@ -281,7 +284,7 @@ public final class MainActivity extends Activity {
             signedDir.mkdirs();
             List<File> unsigned;
             try (Bundle b = new Bundle(bundle)) {
-                unsigned = b.apply(apkm(), dir, this::step);
+                unsigned = apkm().isFile() ? b.apply(apkm(), dir, this::step) : fromInstalled(b, dir);
             }
             List<File> signed = new ArrayList<>();
             for (int i = 0; i < unsigned.size(); i++) {
@@ -298,6 +301,34 @@ public final class MainActivity extends Activity {
             });
             Installer.install(this, signed);
         }, true);
+    }
+
+    /**
+     * No APKM: the original base.apk kept from an earlier install, or else the installed Spotify's
+     * own when it is still unmodified; the splits always come from the installed Spotify.
+     */
+    private List<File> fromInstalled(spatch.manager.Bundle b, File dir) throws Exception {
+        PackageInfo info = spotify();
+        if (info == null) throw new java.io.IOException("Choose the Spotify " + b.spotify + " APKM first.");
+        if (info.getLongVersionCode() != b.spotifyCode) {
+            throw new java.io.IOException("The Spotify on this phone is version " + info.versionName + ", and Spatch needs " + b.spotify + ". Choose the " + b.spotify + " APKM.");
+        }
+        File kept = originalBase();
+        if (!kept.isFile()) {
+            File base = new File(info.applicationInfo.sourceDir);
+            step("Checking the installed Spotify", 0, 1);
+            if (!spatch.manager.Bundle.sha256(base).equals(b.baseSha())) {
+                throw new java.io.IOException("The Spotify on this phone is already patched, so it has no original to patch. Choose the Spotify " + b.spotify + " APKM once; the manager keeps what it needs for later updates.");
+            }
+            File tmp = new File(getFilesDir(), "original-base.apk.part");
+            try (InputStream in = new java.io.FileInputStream(base); OutputStream out = new FileOutputStream(tmp)) {
+                spatch.manager.Bundle.copy(in, out);
+            }
+            if (!tmp.renameTo(kept)) throw new java.io.IOException("Couldn't keep the original Spotify.");
+        }
+        List<File> splits = new ArrayList<>();
+        if (info.applicationInfo.splitSourceDirs != null) for (String path : info.applicationInfo.splitSourceDirs) splits.add(new File(path));
+        return b.apply(kept, splits, dir, this::step);
     }
 
     private void updateManager() {
@@ -410,6 +441,11 @@ public final class MainActivity extends Activity {
 
     private File apkm() {
         return new File(getFilesDir(), "spotify.apkm");
+    }
+
+    /** The unmodified base.apk, kept so updates need neither an APKM nor a stock install. */
+    private File originalBase() {
+        return new File(getFilesDir(), "original-base.apk");
     }
 
     private static void delete(File f) {
