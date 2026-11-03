@@ -40,12 +40,13 @@ pub const EDITS: [Edit; 99] = [
         anchor: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    .line 26\n    iget-object p4, p0, Lp/S_InsetSpacer;->f:Lp/S_MainLayoutSpacer;\n",
         replacement: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    sget-boolean p5, Lspatch/Flourish;->barsGone:Z\n\n    if-eqz p5, :spatch_bars_shown\n\n    const/4 p3, 0x0\n\n    :spatch_bars_shown\n    .line 26\n    iget-object p4, p0, Lp/S_InsetSpacer;->f:Lp/S_MainLayoutSpacer;\n",
     },
-    // ...and the same for the strip behind the bars that blocks touches, which Your Library sizes
-    // itself by since 9.2.0.26; its view stays measured while Spatch hides it.
+    // ...and the strip behind the bars that blocks touches counts as nothing at all: since 9.2.0.26
+    // Your Library ends where that strip begins, which hid it behind the floating bars instead of
+    // letting it run underneath them like every other page. The bars' inset still pads its end.
     Edit {
         file: "smali_classes9/com/spotify/mainlayout/ui/view/MainLayout.smali",
         anchor: "    invoke-virtual {p2}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 43\n    .line 44\n    .line 45\n    move-result p2\n\n    .line 46\n    iget-object p3, p0, Lp/S_InsetSpacer;->g:Lp/S_MainLayoutSpacer;\n",
-        replacement: "    invoke-virtual {p2}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 43\n    .line 44\n    .line 45\n    move-result p2\n\n    sget-boolean p3, Lspatch/Flourish;->barsGone:Z\n\n    if-eqz p3, :spatch_overlap_shown\n\n    const/4 p2, 0x0\n\n    :spatch_overlap_shown\n    .line 46\n    iget-object p3, p0, Lp/S_InsetSpacer;->g:Lp/S_MainLayoutSpacer;\n",
+        replacement: "    invoke-virtual {p2}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 43\n    .line 44\n    .line 45\n    move-result p2\n\n    const/4 p2, 0x0\n\n    .line 46\n    iget-object p3, p0, Lp/S_InsetSpacer;->g:Lp/S_MainLayoutSpacer;\n",
     },
     // ...and lays the remaining tabs out across the whole bar: each tab's width comes from this count.
     Edit {
