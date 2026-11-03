@@ -83,8 +83,8 @@ public final class Palette {
         if(base==null || shown==null || android.os.Build.VERSION.SDK_INT<30 || !PaletteResources.swap(base,name,next==indexDefault()))return false;
         active=next;
         swapped=true;
-        p.ggx.rebuild();
-        p.kex.rebuild();
+        p.S_EncoreColorTokens.rebuild();
+        p.S_EncoreTheme.rebuild();
         reopen=true;
         RowCards.watch(shown.getApplication()); // too early at startup: there's no application to ask yet
         if(!OPEN.contains(shown))OPEN.add(shown);
@@ -112,7 +112,7 @@ public final class Palette {
         c.startActivity(android.content.Intent.makeRestartActivityTask(launch.getComponent()));
         Runtime.getRuntime().exit(0);
     }
-    /** Spotify brand greens in Encore's static Compose palette (p.gex): accent, then pale mints (badges). */
+    /** Spotify brand greens in Encore's static Compose palette (p.S_SearchFieldColors): accent, then pale mints (badges). */
     private static final int[] GREENS={0x1ed760,0x1db954,0x19e68c},MINTS={0x91eeda,0xc5f0c9};
     public static int color(int value){
         int rgb=value&0xffffff;

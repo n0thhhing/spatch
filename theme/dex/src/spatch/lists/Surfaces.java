@@ -1,21 +1,21 @@
 package spatch;
 
-import p.bv61;
-import p.i7h;
-import p.shc0;
-import p.ud5;
-import p.w6b1;
-import p.cxn1;
-import p.evx;
-import p.mtg;
-import p.rhm0;
-import p.vp31;
-import p.xp31;
-import p.z341;
-import p.zyq0;
+import p.S_ComposeShape;
+import p.S_ComposeColor;
+import p.S_ComposeLinearGradient;
+import p.S_ComposeAnimationSpec;
+import p.S_ComposeSpringSpec;
+import p.S_ComposePadding;
+import p.S_SidePanelItemStyle;
+import p.S_ComposeBackground;
+import p.S_ComposeModifier;
+import p.S_ComposeRoundedCornerShape;
+import p.S_ComposeShapes;
+import p.S_ComposeGraphicsLayer;
+import p.S_ComposePaddingSides;
 
 /**
- * Compose surface policy, called from yw9 (every background modifier), xp31.b (rounded shapes) and the
+ * Compose surface policy, called from yw9 (every background modifier), S_ComposeShapes.b (rounded shapes) and the
  * Search category tile o6e. Compose colours here are sRGB ARGB in the high 32 bits.
  */
 public final class Surfaces {
@@ -47,23 +47,23 @@ public final class Surfaces {
      * here is never reshaded again, as j060 hands its brushes back in.
      */
     public static androidx.compose.ui.graphics.Brush headerBrush(androidx.compose.ui.graphics.Brush brush) {
-        if (!(brush instanceof shc0) || !Settings.get(Settings.SOFT_HEADERS)) return brush;
+        if (!(brush instanceof S_ComposeLinearGradient) || !Settings.get(Settings.SOFT_HEADERS)) return brush;
         if (brush.equals(softenedFrom)) return softened;
         synchronized (MADE) {
             if (MADE.containsKey(brush)) return brush;
         }
-        shc0 gradient = (shc0) brush;
-        java.util.ArrayList<i7h> colors = new java.util.ArrayList<i7h>();
+        S_ComposeLinearGradient gradient = (S_ComposeLinearGradient) brush;
+        java.util.ArrayList<S_ComposeColor> colors = new java.util.ArrayList<S_ComposeColor>();
         boolean changed = false;
         for (Object color : gradient.d) {
-            long value = ((i7h) color).a;
+            long value = ((S_ComposeColor) color).a;
             int argb = (int) (value >>> 32);
             int themed = plain(value) ? shade(argb) : argb;
             changed |= themed != argb;
-            colors.add(themed == argb ? (i7h) color : new i7h((long) themed << 32));
+            colors.add(themed == argb ? (S_ComposeColor) color : new S_ComposeColor((long) themed << 32));
         }
         softenedFrom = brush;
-        softened = changed ? new shc0(gradient.h, gradient.f, gradient.g, colors, gradient.e) : brush;
+        softened = changed ? new S_ComposeLinearGradient(gradient.h, gradient.f, gradient.g, colors, gradient.e) : brush;
         synchronized (MADE) {
             MADE.put(softened, Boolean.TRUE);
         }
@@ -110,7 +110,7 @@ public final class Surfaces {
     }
 
     /** Side drawer rows (x571): tonal rounded surfaces; the clip keeps the row's ripple inside. */
-    public static rhm0 drawerRow(rhm0 row) {
+    public static S_ComposeModifier drawerRow(S_ComposeModifier row) {
         if (!Settings.sideCards()) return row;
         return card(row, 12f, 3f, 0xff2b2640);
     }
@@ -119,41 +119,41 @@ public final class Surfaces {
      * Your Library rows on their own rounded cards, the cover inset inside: 24dp corners less the 8dp
      * inset matches the cover's own 16dp corners, so the two curves run parallel.
      */
-    public static rhm0 libraryRow(rhm0 row) {
-        return Flourish.libraryRow(Settings.libraryCards() ? cxn1.D(card(row, 8f, 2f, 0xff1d1a2a, 24f), 8f, 8f) : row);
+    public static S_ComposeModifier libraryRow(S_ComposeModifier row) {
+        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.D(card(row, 8f, 2f, 0xff1d1a2a, 24f), 8f, 8f) : row);
     }
 
-    public static rhm0 trackRow(rhm0 row) {
+    public static S_ComposeModifier trackRow(S_ComposeModifier row) {
         return Flourish.trackRow(Settings.playlistCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row);
     }
 
-    private static rhm0 card(rhm0 row, float sides, float ends, int color) {
+    private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color) {
         return card(row, sides, ends, color, 20f);
     }
 
-    private static rhm0 card(rhm0 row, float sides, float ends, int color, float radius) {
-        vp31 shape = xp31.b(radius);
-        rhm0 inset = cxn1.D(row, sides, ends);
-        rhm0 clipped = z341.q(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
-        return mtg.n(clipped, (long) Palette.color(color) << 32, shape);
+    private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color, float radius) {
+        S_ComposeRoundedCornerShape shape = S_ComposeShapes.b(radius);
+        S_ComposeModifier inset = S_ComposePadding.D(row, sides, ends);
+        S_ComposeModifier clipped = S_ComposeGraphicsLayer.q(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
+        return S_ComposeBackground.n(clipped, (long) Palette.color(color) << 32, shape);
     }
 
     /** Selected toggle chips are full pills, like the Home filters; Compose eases the colour between them. */
-    public static bv61 chipShape(bv61 shape, boolean selected) {
-        return selected && Settings.libraryChips() ? xp31.a : shape;
+    public static S_ComposeShape chipShape(S_ComposeShape shape, boolean selected) {
+        return selected && Settings.libraryChips() ? S_ComposeShapes.a : shape;
     }
 
-    /** evx.a with mask 47 replaces only the outer padding. */
-    public static evx drawerItem(evx item) {
+    /** S_SidePanelItemStyle.a with mask 47 replaces only the outer padding. */
+    public static S_SidePanelItemStyle drawerItem(S_SidePanelItemStyle item) {
         if (!Settings.sideCards()) return item;
-        return evx.a(item, null, 0, null, new zyq0(0f, 0f, 0f, 0f), null, 47);
+        return S_SidePanelItemStyle.a(item, null, 0, null, new S_ComposePaddingSides(0f, 0f, 0f, 0f), null, 47);
     }
 
     /** if41's release: everything Encore makes pressable springs back past rest, or settles as stock. */
-    public static ud5 pressSpring() {
-        if (!Settings.get(Settings.BOUNCY_PRESS) || !Wave.animationsEnabled()) return new w6b1(1f, 1500f, null);
+    public static S_ComposeAnimationSpec pressSpring() {
+        if (!Settings.get(Settings.BOUNCY_PRESS) || !Wave.animationsEnabled()) return new S_ComposeSpringSpec(1f, 1500f, null);
         String bounce = Settings.choice(Settings.BOUNCE);
-        return "soft".equals(bounce) ? new w6b1(0.6f, 300f, null) : "wild".equals(bounce) ? new w6b1(0.24f, 520f, null) : new w6b1(0.38f, 420f, null);
+        return "soft".equals(bounce) ? new S_ComposeSpringSpec(0.6f, 300f, null) : "wild".equals(bounce) ? new S_ComposeSpringSpec(0.24f, 520f, null) : new S_ComposeSpringSpec(0.38f, 420f, null);
     }
 
     /** tsr, Compose's default press overlay: a light veil that reads on any theme surface. */

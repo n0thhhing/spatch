@@ -20,10 +20,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import kotlin.jvm.functions.Function0;
-import p.hqr0;
-import p.rhm0;
-import p.z341;
-import p.zpo;
+import p.S_ComposeMutableState;
+import p.S_ComposeModifier;
+import p.S_ComposeGraphicsLayer;
+import p.S_ComposeSnapshot;
 
 /**
  * Touch candy for Your Library and playlists, whose Compose rows Spatch can't reach individually: the
@@ -40,7 +40,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     private static final int CASCADE_ROWS = 10, CASCADE_MASK = 0xfffeb; // alpha and translationY only
     private static final long FRAME = 16;
 
-    private static final hqr0 TICK = zpo.q(Long.valueOf(0L));
+    private static final S_ComposeMutableState TICK = S_ComposeSnapshot.q(Long.valueOf(0L));
     private static final android.os.Handler MAIN = new android.os.Handler(android.os.Looper.getMainLooper());
     private static final Runnable FRAMES = new Runnable() {
         public void run() {
@@ -149,7 +149,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     }
 
     /** Called while a row composes; a frame tick recomposes the rows only while they are rising. */
-    private static rhm0 cascade(rhm0 row, boolean enabled) {
+    private static S_ComposeModifier cascade(S_ComposeModifier row, boolean enabled) {
         long tick = ((Long) TICK.getValue()).longValue();
         float alpha = 1, rise = 0;
         if (enabled && Wave.animationsEnabled()) {
@@ -173,15 +173,15 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             }
         }
         // Always the layer, even at rest: on the phone, rows that lost it lost their card too (cause unknown).
-        return z341.q(row, 1f, 1f, alpha, 0f, rise, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, CASCADE_MASK);
+        return S_ComposeGraphicsLayer.q(row, 1f, 1f, alpha, 0f, rise, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, CASCADE_MASK);
     }
 
-    static rhm0 libraryRow(rhm0 row) {
+    static S_ComposeModifier libraryRow(S_ComposeModifier row) {
         if (NavIndicator.tab() == LIBRARY_TAB) saw(LIBRARY);
         return cascade(row, Settings.get(Settings.LIBRARY_CASCADE));
     }
 
-    static rhm0 trackRow(rhm0 row) {
+    static S_ComposeModifier trackRow(S_ComposeModifier row) {
         saw(PLAYLIST);
         return cascade(row, Settings.get(Settings.PLAYLIST_CASCADE));
     }

@@ -7,7 +7,7 @@ import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewParent;
-import p.w2b1;
+import p.S_EncoreIconDrawable;
 
 /** Canvas control sharing native Transport/Scallop motion and the real Spotify action's state. */
 final class ImmersiveButton {
@@ -86,7 +86,7 @@ final class ImmersiveButton {
     }
 
     private static void drawIcon(Canvas c, Drawable icon, float size, int alpha, int color) {
-        if (icon instanceof w2b1) ((w2b1)icon).b(color);
+        if (icon instanceof S_EncoreIconDrawable) ((S_EncoreIconDrawable)icon).b(color);
         int half=Math.round(size/2);icon.setBounds(-half,-half,half,half);
         icon.setAlpha(alpha);icon.draw(c);
     }

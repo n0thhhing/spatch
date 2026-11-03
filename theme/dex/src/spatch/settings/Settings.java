@@ -9,26 +9,26 @@ import android.view.ViewParent;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
-import p.br20;
-import p.cg81;
-import p.eg81;
-import p.fg81;
-import p.ft01;
-import p.jg81;
-import p.nbd0;
-import p.ptd1;
-import p.upf;
-import p.vse1;
-import p.vtz;
-import p.wwm1;
-import p.zsx;
+import p.S_KotlinFlow;
+import p.S_DrawerRowContent;
+import p.S_DrawerRowLogSpec;
+import p.S_DrawerRowWrapper;
+import p.S_DrawerRowProvider;
+import p.S_DrawerRowSource;
+import p.S_MessagesRowProvider;
+import p.S_TasteProfileRowProvider;
+import p.S_MessagesRowSource;
+import p.S_ListeningStatsRowProvider;
+import p.S_KotlinFlowOf;
+import p.S_YourPlanRowProvider;
+import p.S_DrawerRowIcon;
 
 /**
  * Spatch's drawer row and preferences. hf81 (the profile side drawer) passes its row providers through
- * rows(), which adds this provider directly above Spotify's "Settings and privacy" (ft01 kind 1); the
+ * rows(), which adds this provider directly above Spotify's "Settings and privacy" (S_DrawerRowProvider kind 1); the
  * drawer's click handler (g7y0) asks open() first and Spatch shows SpatchSettings for its own URI.
  */
-public final class Settings implements jg81 {
+public final class Settings implements S_DrawerRowSource {
     static final String URI = "spotify:spatch:settings";
     static final String[] KEYS = {"wave", "buttons", "backdrop", "round_art", "immersive", "shapes", "reduce_motion", "visualizer", "viz_mirrored", "viz_smooth", "viz_thin", "viz_floating", "viz_side_margin", "hide_podcasts", "hide_audiobooks", "hide_messages", "mini_visualizer", "haptics", "haptic_playback", "haptic_navigation", "haptic_sliders", "hide_recents", "hide_listening_stats", "hide_your_plan", "hide_your_updates", "hide_taste_profile", "hide_company_info", "page_motion", "filter_slide", "side_style", "side_cards", "side_wash", "filter_custom", "filter_glow", "filter_drag", "soft_press", "playlist_motion", "profile_banner", "profile_theme_header", "library_style", "library_cards", "library_chips", "playlist_cards", "nav_style", "nav_drag", "nav_stretch", "nav_lift", "nav_press", "nav_pop", "art_press", "spring_press", "wave_thick", "buttons_bounce", "skip_nudge", "play_spin", "play_morph", "imm_titles", "imm_flight", "side_round", "side_scrim", "mini_pop", "mini_flight", "art_drift", "filter_anim", "library_cascade", "library_hold", "library_glow", "playlist_cascade", "playlist_hold", "playlist_glow", "burst", "burst_player", "burst_mini", "burst_immersive", "burst_lists", "art_tilt", "art_scratch", "hold_seek", "seek_bubble", "mini_album", "tap_ripple", "hero_touch", "bouncy_press", "hide_bars", "beat_bounce", "mini_hold_like", "mini_spin", "imm_swipe", "list_cards", "soft_headers", "list_rise", "wave_audio", "title_album", "lyrics_focus", "queue_shimmer", "widget_wallpaper", "hide_premium_tab", "hide_account_switcher", "hide_parental_controls"};
     static final boolean[] DEFAULTS = {true, true, true, true, true, true, false, true, true, false, false, false, true, false, false, false, true, true, true, true, true, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, false, false};
@@ -70,9 +70,9 @@ public final class Settings implements jg81 {
     public static final boolean[] on = DEFAULTS.clone(); // public: classes9 reads it directly, having no method references to spare
     private static SharedPreferences prefs;
     private static WeakReference<View> drawer;
-    private final jg81 settings;
+    private final S_DrawerRowSource settings;
 
-    private Settings(jg81 settings) {
+    private Settings(S_DrawerRowSource settings) {
         this.settings = settings;
     }
 
@@ -83,8 +83,8 @@ public final class Settings implements jg81 {
         }
         for (int i = 0; i < out.size(); i++) {
             Object row = out.get(i);
-            if (row instanceof ft01 && ((ft01) row).a == 1) {
-                out.add(i, new Settings((jg81) row));
+            if (row instanceof S_DrawerRowProvider && ((S_DrawerRowProvider) row).a == 1) {
+                out.add(i, new Settings((S_DrawerRowSource) row));
                 return out;
             }
         }
@@ -93,27 +93,27 @@ public final class Settings implements jg81 {
 
     /** The provider behind each optional drawer row; Settings and privacy and the profile card stay. */
     private static boolean hidden(Object row) {
-        if (row instanceof upf) return hideMessages();
-        if (row instanceof nbd0) return ((nbd0) row).a == 0 ? hideMessages() : on[24]; // chat list; Your Updates
-        if (row instanceof ft01) return ((ft01) row).a == 0 ? on[21] : ((ft01) row).a == 2 && on[26]; // Recents; Company Information
-        if (row instanceof vse1) return on[22];
-        if (row instanceof wwm1) return on[23];
-        return row instanceof ptd1 && on[25];
+        if (row instanceof S_MessagesRowSource) return hideMessages();
+        if (row instanceof S_MessagesRowProvider) return ((S_MessagesRowProvider) row).a == 0 ? hideMessages() : on[24]; // chat list; Your Updates
+        if (row instanceof S_DrawerRowProvider) return ((S_DrawerRowProvider) row).a == 0 ? on[21] : ((S_DrawerRowProvider) row).a == 2 && on[26]; // Recents; Company Information
+        if (row instanceof S_ListeningStatsRowProvider) return on[22];
+        if (row instanceof S_YourPlanRowProvider) return on[23];
+        return row instanceof S_TasteProfileRowProvider && on[25];
     }
 
     /** Same row shape as Settings and privacy, with Spatch's icon, title and URI. */
-    public br20 a() {
-        eg81 logSpec = null;
+    public S_KotlinFlow a() {
+        S_DrawerRowLogSpec logSpec = null;
         try {
-            br20 parentFlow = settings != null ? settings.a() : null;
-            if (parentFlow instanceof vtz && ((vtz) parentFlow).b instanceof fg81) {
-                fg81 fg = (fg81) ((vtz) parentFlow).b;
-                if (fg.a instanceof cg81) {
-                    logSpec = ((cg81) fg.a).e;
+            S_KotlinFlow parentFlow = settings != null ? settings.a() : null;
+            if (parentFlow instanceof S_KotlinFlowOf && ((S_KotlinFlowOf) parentFlow).b instanceof S_DrawerRowWrapper) {
+                S_DrawerRowWrapper fg = (S_DrawerRowWrapper) ((S_KotlinFlowOf) parentFlow).b;
+                if (fg.a instanceof S_DrawerRowContent) {
+                    logSpec = ((S_DrawerRowContent) fg.a).e;
                 }
             }
         } catch (Throwable ignored) {}
-        return new vtz(new fg81(zsx.c, CUSTOMIZE, URI, null, logSpec, null, 82), (byte) 10);
+        return new S_KotlinFlowOf(new S_DrawerRowWrapper(S_DrawerRowIcon.c, CUSTOMIZE, URI, null, logSpec, null, 82), (byte) 10);
     }
 
     public static void attach(View drawerView) {
@@ -133,11 +133,11 @@ public final class Settings implements jg81 {
         if (!on[29]) return;
         View panel = view;
         ViewParent up = view.getParent();
-        while (up instanceof View && !(up instanceof p.x7v)) {
+        while (up instanceof View && !(up instanceof p.S_DrawerLayout)) {
             panel = (View) up;
             up = up.getParent();
         }
-        if (!(up instanceof p.x7v)) return;
+        if (!(up instanceof p.S_DrawerLayout)) return;
         int surface = Palette.color(0xff14121c);
         float r = on[58] ? 28 * view.getResources().getDisplayMetrics().density : 0;
         GradientDrawable fill = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {on[31] ? Pill.blend(surface, Palette.color(0xffd0bcff), 0.16f) : surface, surface, surface});
@@ -145,7 +145,7 @@ public final class Settings implements jg81 {
         panel.setBackground(fill);
         panel.setClipToOutline(true);
         view.setBackgroundColor(0);
-        if (on[59]) ((p.x7v) up).setScrimColor(surface & 0xffffff | 0xb3000000);
+        if (on[59]) ((p.S_DrawerLayout) up).setScrimColor(surface & 0xffffff | 0xb3000000);
     }
 
     /** Called with every drawer row's URI before Spotify navigates; true = handled here. */
@@ -178,8 +178,8 @@ public final class Settings implements jg81 {
     static void closeDrawer() {
         View v = drawer == null ? null : drawer.get();
         for (ViewParent p = v == null ? null : v.getParent(); p != null; p = p.getParent()) {
-            if (p instanceof p.x7v) {
-                ((p.x7v) p).c(false);
+            if (p instanceof p.S_DrawerLayout) {
+                ((p.S_DrawerLayout) p).c(false);
                 return;
             }
         }

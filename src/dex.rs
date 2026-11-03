@@ -7,6 +7,7 @@ use crate::Result;
 use crate::edits::{EDITS, Edit};
 use crate::helpers::{STUBS, helpers};
 use crate::input;
+use crate::names;
 use crate::theme::Theme;
 use crate::tools::Tools;
 use std::ffi::OsStr;
@@ -64,31 +65,43 @@ pub const DEX_TARGETS: [(&str, &str); 11] = [
 pub const HELPER_DEX: &str = "classes16.dex";
 const MAX_REFS: u32 = 65536;
 
-/// Original classes moved into `HELPER_DEX` (smali folder, file, original DEX, descriptor) because
-/// their own DEX has no room for the references their edits add; behaviour and names are unchanged.
-const RELOCATED: [(&str, &str, &str, &str); 12] = [
+/// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
+/// their edits add; behaviour and names are unchanged. Each is an alias (`S_...`) or a smali path.
+const RELOCATED: [&str; 12] = [
     // Typography and the Home filter row: these DEX tables are full too.
-    ("smali", "p/jw21.smali", "classes.dex", "Lp/jw21;"),
-    ("smali_classes2", "p/tzb.smali", "classes2.dex", "Lp/tzb;"),
-    ("smali_classes2", "p/my50.smali", "classes2.dex", "Lp/my50;"),
+    "S_MixFontLoaderD",
+    "S_MixFontLoaderG",
+    "S_HomeFilterRow",
     // Compose surface and shape policy (spatch.Surfaces): both DEX tables are full.
-    ("smali", "p/yw9.smali", "classes.dex", "Lp/yw9;"),
-    ("smali", "p/xp31.smali", "classes.dex", "Lp/xp31;"),
+    "S_PageBackground",
+    "S_ComposeShapes",
     // Encore's press spring: classes.dex has no room for the hook's reference.
-    ("smali", "p/if41.smali", "classes.dex", "Lp/if41;"),
-    (
-        "smali_classes2",
-        "com/spotify/playbacknative/AudioEffectsListener.smali",
-        "classes2.dex",
-        "Lcom/spotify/playbacknative/AudioEffectsListener;",
-    ),
-    ("smali_classes4", "p/y2p1.smali", "classes4.dex", "Lp/y2p1;"),
+    "S_EncorePressable",
+    "smali_classes2/com/spotify/playbacknative/AudioEffectsListener.smali",
+    "S_EncoreTint",
     // Widget hooks: Glance's RemoteViews hand-off and an outlined MediaSession constructor.
-    ("smali", "p/rx5.smali", "classes.dex", "Lp/rx5;"),
-    ("smali", "p/bxh0.smali", "classes.dex", "Lp/bxh0;"),
-    ("smali_classes2", "p/xmc0.smali", "classes2.dex", "Lp/xmc0;"),
-    ("smali_classes2", "p/psn0.smali", "classes2.dex", "Lp/psn0;"),
+    "S_GlanceRemoteViews",
+    "S_MediaSessionSite",
+    "S_HomeFeedModel",
+    "S_NavBarTabState",
 ];
+
+/// Each relocated class as (smali folder, path in it, original DEX, descriptor).
+fn relocated() -> Result<Vec<(String, String, String, String)>> {
+    RELOCATED
+        .iter()
+        .map(|r| {
+            let file = names::smali_file(r)?;
+            let (folder, path) = file.split_once('/').ok_or("bad relocated path")?;
+            let dex = format!(
+                "classes{}.dex",
+                folder.strip_prefix("smali_classes").unwrap_or("")
+            );
+            let class = format!("L{};", path.trim_end_matches(".smali"));
+            Ok((folder.to_string(), path.to_string(), dex, class))
+        })
+        .collect()
+}
 
 /// Every Spatch method the edits call, as `invoke kind|class|method|descriptor`, for the on-device link test.
 fn hooks() -> String {
@@ -220,12 +233,13 @@ pub fn check_originals(base: &Path) -> Result<()> {
 
 /// Replaces the single occurrence of `anchor`; zero or several occurrences is a hard error.
 pub fn apply(text: &str, edit: &Edit, theme: &Theme) -> Result<String> {
-    match text.matches(edit.anchor).count() {
-        1 => Ok(text.replacen(edit.anchor, &theme.apply(edit.replacement), 1)),
+    let anchor = names::rewrite(edit.anchor)?;
+    match text.matches(&anchor).count() {
+        1 => Ok(text.replacen(&anchor, &names::rewrite(&theme.apply(edit.replacement))?, 1)),
         n => Err(format!(
             "{}: expected 1 anchor, found {n}: {:?}",
             edit.file,
-            edit.anchor.trim()
+            anchor.trim()
         )
         .into()),
     }
@@ -255,15 +269,16 @@ pub fn build(
         ],
     )?;
     for e in &EDITS {
-        let path = smali.join(e.file);
+        let path = smali.join(names::smali_file(e.file)?);
         fs::write(&path, apply(&fs::read_to_string(&path)?, e, theme)?)?;
     }
     // Their original DEX tables are full. Keep these classes' names and behavior in
     // the helper DEX so the new references they gain do not overflow them.
-    for (folder, name, _, _) in RELOCATED {
-        let relocated = smali.join("smali_classes16").join(name);
-        fs::create_dir_all(relocated.parent().unwrap())?;
-        fs::rename(smali.join(folder).join(name), relocated)?;
+    let relocated = relocated()?;
+    for (folder, name, _, _) in &relocated {
+        let moved = smali.join("smali_classes16").join(name);
+        fs::create_dir_all(moved.parent().unwrap())?;
+        fs::rename(smali.join(folder).join(name), moved)?;
     }
     // Only the edited DEX need reassembling; the rest are taken from the original APK unchanged.
     for d in fs::read_dir(&smali)? {
@@ -301,8 +316,8 @@ pub fn build(
         fs::write(&path, &bytes)?;
         let dump = tools.run(&tools.dexdump, &[OsStr::new("-f"), path.as_os_str()])?;
         check_ref_limits(entry, &dump)?;
-        let still_here = RELOCATED.iter().any(|(_, _, dex, class)| {
-            *dex == entry
+        let still_here = relocated.iter().any(|(_, _, dex, class)| {
+            dex == entry
                 && dump
                     .lines()
                     .any(|line| line.trim().starts_with("Class descriptor") && line.contains(class))
@@ -395,9 +410,12 @@ fn compile_helper(
         OsStr::new("-d"),
         stub_cls.as_os_str(),
     ];
-    let stub_paths: Vec<_> = STUBS.iter().map(|(n, _)| stub_src.join(n)).collect();
+    let stub_paths: Vec<_> = STUBS
+        .iter()
+        .map(|(n, _)| Ok(stub_src.join(names::rewrite(n)?)))
+        .collect::<Result<_>>()?;
     for ((_, src), p) in STUBS.iter().zip(&stub_paths) {
-        fs::write(p, src)?;
+        fs::write(p, names::rewrite(src)?)?;
         javac_stubs.push(p.as_os_str());
     }
     let javac = tools.java_home.join("bin/javac");
@@ -420,7 +438,7 @@ fn compile_helper(
             .replace("@OBFUSCATED@", &obfuscated_classes())
             .replace("@HOOKS@", &hooks())
             .replace("@MEMBERS@", &stub_members());
-        fs::write(p, source)?;
+        fs::write(p, names::rewrite(&source)?)?;
         javac_helpers.push(p.as_os_str());
     }
     tools.run(&javac, &javac_helpers)?;
@@ -462,7 +480,7 @@ fn compile_helper(
         .count();
     if classes.matches("Class descriptor").count() != helpers.len() + nested + RELOCATED.len()
         || !all_present
-        || !RELOCATED
+        || !relocated()?
             .iter()
             .all(|(_, _, _, class)| classes.contains(&format!("'{class}'")))
     {
@@ -504,7 +522,7 @@ mod tests {
 
     #[test]
     fn device_binding_test_lists_stub_members() {
-        let members = stub_members();
+        let members = names::rewrite(&stub_members()).unwrap();
         if let Ok(path) = std::env::var("SPATCH_DUMP_MEMBERS") {
             std::fs::write(path, members.replace(',', "\n")).unwrap();
         }
@@ -637,7 +655,11 @@ mod tests {
                 assert!(!source.contains(class), "{name} refers to {class}");
             }
         }
-        assert!(obfuscated_classes().contains("p.x7v"));
+        assert!(
+            names::rewrite(&obfuscated_classes())
+                .unwrap()
+                .contains("p.x7v")
+        );
     }
 
     #[test]

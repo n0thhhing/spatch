@@ -28,16 +28,16 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import p.ey50;
-import p.in60;
-import p.jn60;
-import p.ln60;
-import p.wt30;
+import p.S_HomeFilterClick;
+import p.S_HomeFilterGroup;
+import p.S_HomeFilterChild;
+import p.S_HomeFilterSelection;
+import p.S_KotlinFunction1;
 
 /**
- * Home's filter row (p.my50). Spotify's chips stay in their ComposeView and keep running; this row
+ * Home's filter row (p.S_HomeFilterRow). Spotify's chips stay in their ComposeView and keep running; this row
  * covers them once bound, so any failure here leaves the original row in place. Tapping sends the
- * same ey50 event as the Compose chip, and selection only ever comes from the bound model. One pill
+ * same S_HomeFilterClick event as the Compose chip, and selection only ever comes from the bound model. One pill
  * travels between chips, stretching on the way and nudging its neighbours when it lands; it can be
  * dragged across the row, and letting go on another chip selects that chip.
  */
@@ -58,7 +58,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
     private final Track chips;
     private final HashMap<String, Chip> byId = new HashMap<String, Chip>();
     private final float density;
-    private wt30 click;
+    private S_KotlinFunction1 click;
     private Chip shown;
     private String openParent, openChild;
     private boolean revealAnimated, grabbing;
@@ -84,7 +84,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         return (int) (value * density + 0.5f);
     }
 
-    /** my50.b, on the main thread: list of in60, selection mn60, click wt30. */
+    /** my50.b, on the main thread: list of S_HomeFilterGroup, selection mn60, click S_KotlinFunction1. */
     public static void bind(View header, List items, Object selection, Object click) {
         try {
             View compose = header.findViewById(CHIPS);
@@ -104,8 +104,8 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
                 row = new FilterRow(header.getContext());
                 parent.addView(row, 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             }
-            row.click = (wt30) click;
-            row.show(items, selection instanceof ln60 ? (ln60) selection : null, !first);
+            row.click = (S_KotlinFunction1) click;
+            row.show(items, selection instanceof S_HomeFilterSelection ? (S_HomeFilterSelection) selection : null, !first);
             compose.setVisibility(View.INVISIBLE);
         } catch (RuntimeException e) {
             View compose = header.findViewById(CHIPS);
@@ -113,7 +113,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         }
     }
 
-    private void show(List items, ln60 selection, boolean animate) {
+    private void show(List items, S_HomeFilterSelection selection, boolean animate) {
         String parent = selection != null && selection.a != null ? selection.a.f : null;
         String child = selection != null && selection.b != null ? selection.b.f : null;
         openParent = parent;
@@ -211,10 +211,10 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
     static ArrayList<String[]> rows(List items, String parent, String child) {
         ArrayList<String[]> out = new ArrayList<String[]>();
         for (Object item : items) {
-            in60 chip = (in60) item;
+            S_HomeFilterGroup chip = (S_HomeFilterGroup) item;
             out.add(new String[] {chip.f, chip.g});
             if (!chip.f.equals(parent) || chip.h == null) continue;
-            for (Object sub : chip.h) out.add(new String[] {((jn60) sub).f, ((jn60) sub).g, "sub"});
+            for (Object sub : chip.h) out.add(new String[] {((S_HomeFilterChild) sub).f, ((S_HomeFilterChild) sub).g, "sub"});
         }
         return out;
     }
@@ -287,7 +287,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         if (click == null) return;
         Haptics.navigation(v);
         turn((Chip) v);
-        click.invoke(new ey50(event(((Chip) v).id, openParent, openChild)));
+        click.invoke(new S_HomeFilterClick(event(((Chip) v).id, openParent, openChild)));
     }
 
     private void turn(Chip to) {
@@ -428,7 +428,7 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
             move(to, true);
             if (to == shown || click == null) return;
             turn(to);
-            click.invoke(new ey50(event(to.id, openParent, openChild)));
+            click.invoke(new S_HomeFilterClick(event(to.id, openParent, openChild)));
             postDelayed(this, CONFIRM_MILLIS);
         }
 

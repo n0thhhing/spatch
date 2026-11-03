@@ -42,6 +42,6 @@ public final class TapBounce {
         view.setScaleX(scale);view.setScaleY(scale);
     }
     private static boolean isScallop(Drawable drawable){
-        return drawable!=null && drawable.getClass().getName().equals("p.lbg");
+        return drawable!=null && drawable.getClass().getName().equals("p.S_PlayButtonShape");
     }
 }

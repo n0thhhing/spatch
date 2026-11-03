@@ -26,7 +26,7 @@ import java.util.Map;
 
 /**
  * Spatch's take on Spotify's resizable Now Playing widget (NpvWidgetProvider, 4x1 and 4x2). Glance's
- * RemoteViews are swapped for Spatch layouts at the hand-off (p.rx5 -> replace) and refreshed from
+ * RemoteViews are swapped for Spatch layouts at the hand-off (p.S_GlanceRemoteViews -> replace) and refreshed from
  * Spotify's own media session (attach, from MediaSessionImplApi23). The launcher animates the scallop
  * and equaliser itself (indeterminate progress drawables), so they move while no app code runs.
  */

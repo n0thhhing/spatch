@@ -3,22 +3,22 @@ package spatch;
 import android.animation.ValueAnimator;
 import android.view.animation.OvershootInterpolator;
 import java.util.HashMap;
-import p.fwq;
-import p.cxn1;
-import p.hqr0;
-import p.mtg;
-import p.n191;
-import p.psn0;
-import p.rhm0;
-import p.xp31;
-import p.z341;
-import p.zpo;
+import p.S_ComposeRotate;
+import p.S_ComposePadding;
+import p.S_ComposeMutableState;
+import p.S_ComposeBackground;
+import p.S_ComposeSize;
+import p.S_NavBarTabState;
+import p.S_ComposeModifier;
+import p.S_ComposeShapes;
+import p.S_ComposeGraphicsLayer;
+import p.S_ComposeSnapshot;
 
 /**
  * Floating, icon-only bottom-navigation destination. Replaces the tab icon's Modifier.size(24.dp) call
- * in p.psn0.a(): every tab has identical geometry and only a 64dp x 32dp indicator differs. Selection
+ * in p.S_NavBarTabState.a(): every tab has identical geometry and only a 64dp x 32dp indicator differs. Selection
  * springs on a snapshot state per tab position, so only that tab recomposes, only while it moves;
- * psn0 instances are rebuilt on every recomposition and can't hold it.
+ * S_NavBarTabState instances are rebuilt on every recomposition and can't hold it.
  */
 public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     private static int container() { return 0x40d0bcff; } // theme accent token at 25% alpha
@@ -27,9 +27,9 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     private static final float POP = 0.1f; // the selected icon sits this much larger
     private static final HashMap<Integer, Pill> TABS = new HashMap<Integer, Pill>();
     private static final float CLOSE_PILL = 32f;
-    private static final hqr0 CLOSE_ANGLE = zpo.q(Float.valueOf(0f));
+    private static final S_ComposeMutableState CLOSE_ANGLE = S_ComposeSnapshot.q(Float.valueOf(0f));
 
-    private final hqr0 shown;
+    private final S_ComposeMutableState shown;
     private final int position;
     private boolean target;
     private ValueAnimator animator;
@@ -39,10 +39,10 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         position = tab;
         target = selected;
         if (selected) NavIndicator.select(tab);
-        shown = zpo.q(Float.valueOf(selected ? 1f : 0f));
+        shown = S_ComposeSnapshot.q(Float.valueOf(selected ? 1f : 0f));
     }
 
-    private static Pill tab(psn0 item) {
+    private static Pill tab(S_NavBarTabState item) {
         Pill tab = TABS.get(item.b);
         if (tab == null) {
             tab = new Pill(Content.visualTab(item.b), item.g);
@@ -79,22 +79,22 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         return ((Float) shown.getValue()).floatValue();
     }
 
-    /** The icon's modifier. cxn1.D = padding(horizontal, vertical); cxn1.G masks 13/7 = top/bottom only. */
-    public static rhm0 a(rhm0 modifier, psn0 item) {
+    /** The icon's modifier. S_ComposePadding.D = padding(horizontal, vertical); S_ComposePadding.G masks 13/7 = top/bottom only. */
+    public static S_ComposeModifier a(S_ComposeModifier modifier, S_NavBarTabState item) {
         float spring = tab(item).progress(), t = Math.max(0f, Math.min(1f, spring));
-        modifier = rail() ? cxn1.D(modifier, 0f, 3f) : cxn1.G(cxn1.G(modifier, 0f, TOP, 0f, 0f, 13), 0f, 0f, 0f, BOTTOM, 7);
+        modifier = rail() ? S_ComposePadding.D(modifier, 0f, 3f) : S_ComposePadding.G(S_ComposePadding.G(modifier, 0f, TOP, 0f, 0f, 13), 0f, 0f, 0f, BOTTOM, 7);
         // The indicator grows from the icon's centre; the outer and inner padding always sum to 20dp.
-        modifier = cxn1.D(modifier, 20f * (1 - t), 0f);
+        modifier = S_ComposePadding.D(modifier, 20f * (1 - t), 0f);
         if (t > 0 && rail()) { // portrait: NavIndicator draws the moving indicator
             int alpha = Math.round((container() >>> 24) * t);
             long color = (long) (alpha << 24 | container() & 0xffffff) << 32; // Compose Color: sRGB ARGB, high 32 bits
-            modifier = mtg.n(modifier, color, xp31.a); // background(color, pill shape)
+            modifier = S_ComposeBackground.n(modifier, color, S_ComposeShapes.a); // background(color, pill shape)
         }
         float scale = Settings.navPop() ? 1 + POP * spring : 1;
         // graphicsLayer(scaleX, scaleY); the mask leaves every other parameter at its default.
-        modifier = z341.q(cxn1.D(modifier, 20f * t, 4f), scale, scale, 0f, 0f, 0f, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, 1048572);
-        if (Content.visualTab(item.b) == item.c - 1) modifier = fwq.t(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create, the last tab shown
-        return n191.r(modifier, 24f); // n191.r = size(dp), the call this replaces
+        modifier = S_ComposeGraphicsLayer.q(S_ComposePadding.D(modifier, 20f * t, 4f), scale, scale, 0f, 0f, 0f, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, 1048572);
+        if (Content.visualTab(item.b) == item.c - 1) modifier = S_ComposeRotate.t(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create, the last tab shown
+        return S_ComposeSize.r(modifier, 24f); // S_ComposeSize.r = size(dp), the call this replaces
     }
 
     /** jub's Create-open disc becomes a tonal pill behind the icon; it tops out at the indicator's top. */
@@ -102,8 +102,8 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         return top + (rail() ? 3f : TOP);
     }
 
-    public static rhm0 closePill(rhm0 modifier, float open) {
-        return n191.s(modifier, CLOSE_PILL * (1 + open), CLOSE_PILL);
+    public static S_ComposeModifier closePill(S_ComposeModifier modifier, float open) {
+        return S_ComposeSize.s(modifier, CLOSE_PILL * (1 + open), CLOSE_PILL);
     }
 
     public static long closeColor() {
@@ -121,14 +121,14 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     }
 
     /** Icon colour; also remembers the pair for the label, which composes right after the icon. */
-    public static long tint(psn0 item, long selected, long unselected) {
+    public static long tint(S_NavBarTabState item, long selected, long unselected) {
         Pill tab = tab(item);
         tab.on = selected;
         tab.off = unselected;
         return mix(unselected, selected, tab.progress());
     }
 
-    public static long labelTint(psn0 item, long fallback) {
+    public static long labelTint(S_NavBarTabState item, long fallback) {
         Pill tab = tab(item);
         return tab.on == tab.off ? fallback : mix(tab.off, tab.on, tab.progress());
     }

@@ -32,7 +32,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import kotlin.jvm.functions.Function0;
-import p.rhm0;
+import p.S_ComposeModifier;
 
 /** Self tests run inside the patched app, where they see the real classes, resources and audio. */
 final class DevTests {
@@ -263,9 +263,9 @@ final class DevTests {
         });
         test("Theme colours rebuild in place", new Test() {
             public String run() {
-                p.gsc before = p.kex.a;
-                p.kex.rebuild();
-                check(p.kex.a != before && p.kex.a != null, "the colour object stayed");
+                p.S_EncoreColorScheme before = p.S_EncoreTheme.a;
+                p.S_EncoreTheme.rebuild();
+                check(p.S_EncoreTheme.a != before && p.S_EncoreTheme.a != null, "the colour object stayed");
                 return "";
             }
         });
@@ -1020,14 +1020,14 @@ final class DevTests {
         test("Headers soften bright gradients only", new Test() {
             public String run() {
                 inApp();
-                ArrayList<p.i7h> colors = new ArrayList<p.i7h>();
-                colors.add(new p.i7h((long) 0xffe91e8c << 32));
-                colors.add(new p.i7h((long) 0xff101010 << 32));
+                ArrayList<p.S_ComposeColor> colors = new ArrayList<p.S_ComposeColor>();
+                colors.add(new p.S_ComposeColor((long) 0xffe91e8c << 32));
+                colors.add(new p.S_ComposeColor((long) 0xff101010 << 32));
                 boolean on = Settings.get(Settings.SOFT_HEADERS);
                 try {
                     Settings.set(Settings.SOFT_HEADERS, true);
-                    p.shc0 soft = (p.shc0) Surfaces.headerBrush(new p.shc0(0, 0, 0, colors, null));
-                    long bright = ((p.i7h) soft.d.get(0)).a, dark = ((p.i7h) soft.d.get(1)).a;
+                    p.S_ComposeLinearGradient soft = (p.S_ComposeLinearGradient) Surfaces.headerBrush(new p.S_ComposeLinearGradient(0, 0, 0, colors, null));
+                    long bright = ((p.S_ComposeColor) soft.d.get(0)).a, dark = ((p.S_ComposeColor) soft.d.get(1)).a;
                     check(Surfaces.chroma((int) (bright >>> 32)) < Surfaces.chroma(0xffe91e8c), "pink stayed loud");
                     check(dark == (long) 0xff101010 << 32, "a dark scrim changed");
                 } finally {
@@ -1327,8 +1327,8 @@ final class DevTests {
     }
 
     /** A Compose modifier that counts what joins it, so Spotify's real code builds on it. */
-    private static rhm0 row(final int[] added) {
-        return (rhm0) Proxy.newProxyInstance(rhm0.class.getClassLoader(), new Class<?>[] {rhm0.class}, new InvocationHandler() {
+    private static S_ComposeModifier row(final int[] added) {
+        return (S_ComposeModifier) Proxy.newProxyInstance(S_ComposeModifier.class.getClassLoader(), new Class<?>[] {S_ComposeModifier.class}, new InvocationHandler() {
             public Object invoke(Object self, Method method, Object[] args) {
                 if ("hashCode".equals(method.getName())) return Integer.valueOf(0);
                 if ("equals".equals(method.getName())) return Boolean.valueOf(self == args[0]);

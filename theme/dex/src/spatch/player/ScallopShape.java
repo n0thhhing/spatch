@@ -4,15 +4,15 @@ import android.graphics.Path;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import p.b971;
-import p.bv61;
-import p.hqr0;
-import p.ikb0;
-import p.iw4;
-import p.jsq0;
-import p.kat;
-import p.lw4;
-import p.zpo;
+import p.S_ComposeOutline;
+import p.S_ComposeShape;
+import p.S_ComposeMutableState;
+import p.S_ComposeLayoutDirection;
+import p.S_ComposeAndroidPath;
+import p.S_ComposeGenericOutline;
+import p.S_ComposeDensity;
+import p.S_ComposePathFactory;
+import p.S_ComposeSnapshot;
 
 /**
  * Compose Shape with the player's play-button contour (first bump at 12 o'clock; same curve as Scallop),
@@ -20,12 +20,12 @@ import p.zpo;
  * the state Spotify is showing: five bumps paused, nine and turning while playing. A frame tick only
  * continues while something composes it, so a button that scrolled away or went to the background stops.
  */
-public final class ScallopShape implements bv61 {
+public final class ScallopShape implements S_ComposeShape {
     private static final int STEPS = 180;
     static final int PLAYING = 1; // f1p1.m's first state, the pause glyph
     private static final float TURN_MILLIS = 12000f, MORPH_MILLIS = 440f;
     private static final long FRAME = 16, STALE = 250;
-    private static final hqr0 TICK = zpo.q(Long.valueOf(0L));
+    private static final S_ComposeMutableState TICK = S_ComposeSnapshot.q(Long.valueOf(0L));
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final Runnable FRAMES = new Runnable() {
         public void run() {
@@ -49,7 +49,7 @@ public final class ScallopShape implements bv61 {
         this.angle = angle;
     }
 
-    public static bv61 live(int state) {
+    public static S_ComposeShape live(int state) {
         TICK.getValue(); // subscribes this composition to the tick
         long now = SystemClock.uptimeMillis();
         float wanted = state == PLAYING ? 1 : 0;
@@ -76,11 +76,11 @@ public final class ScallopShape implements bv61 {
         return from + (to - from) * progress * progress * (3 - 2 * progress);
     }
 
-    public b971 a(long size, ikb0 direction, kat density) {
+    public S_ComposeOutline a(long size, S_ComposeLayoutDirection direction, S_ComposeDensity density) {
         float w = Float.intBitsToFloat((int) (size >> 32)), h = Float.intBitsToFloat((int) size);
-        iw4 outline = lw4.a();
+        S_ComposeAndroidPath outline = S_ComposePathFactory.a();
         trace(outline.a, w, h, mix, angle);
-        return new jsq0(outline);
+        return new S_ComposeGenericOutline(outline);
     }
 
     static void trace(Path path, float w, float h) {

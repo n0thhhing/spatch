@@ -153,8 +153,8 @@ public class PlayerRuntimeTest {
 
         // 1. Drawer row insertion
         java.util.ArrayList rows = new java.util.ArrayList();
-        p.ft01 settingsRow = new p.ft01((byte) 1);
-        p.ft01 otherRow = new p.ft01((byte) 0);
+        p.S_DrawerRowProvider settingsRow = new p.S_DrawerRowProvider((byte) 1);
+        p.S_DrawerRowProvider otherRow = new p.S_DrawerRowProvider((byte) 0);
         rows.add(otherRow);
         rows.add(settingsRow);
 
@@ -164,9 +164,9 @@ public class PlayerRuntimeTest {
         Settings spatchRow = (Settings) modified.get(1);
 
         // Check row presentation
-        p.vtz rowVtz = (p.vtz) spatchRow.a();
-        p.fg81 rowFg = (p.fg81) rowVtz.b;
-        p.cg81 rowCg = (p.cg81) rowFg.a;
+        p.S_KotlinFlowOf rowVtz = (p.S_KotlinFlowOf) spatchRow.a();
+        p.S_DrawerRowWrapper rowFg = (p.S_DrawerRowWrapper) rowVtz.b;
+        p.S_DrawerRowContent rowCg = (p.S_DrawerRowContent) rowFg.a;
         check(rowCg.c.equals("spotify:spatch:settings"), "drawer URI must be spotify:spatch:settings");
         check(rowCg.b.intValue() == 0x7f131b75, "drawer row title ID must match 0x7f131b75");
 
@@ -444,8 +444,8 @@ public class PlayerRuntimeTest {
         for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB&&i!=Settings.HIDE_ACCOUNT_SWITCHER&&i!=Settings.HIDE_PARENTAL_CONTROLS) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
         check(!Settings.DEFAULTS[Settings.HIDE_ACCOUNT_SWITCHER]&&!Settings.DEFAULTS[Settings.HIDE_PARENTAL_CONTROLS],"hiding the account switcher and Parental controls is opt-in");
         check(!Settings.DEFAULTS[Settings.HIDE_PREMIUM_TAB],"hiding the Premium tab is opt-in: it removes part of Spotify's own interface");
-        p.dsn0 premiumTab=new p.dsn0();premiumTab.b=3;premiumTab.c=new p.sgk1();premiumTab.c.a="spotify:upsell:premium_in_app_destination";
-        p.dsn0 createTab=new p.dsn0();createTab.b=4;createTab.c=new p.sgk1();createTab.c.a="spotify:create-menu";
+        p.S_NavTab premiumTab=new p.S_NavTab();premiumTab.b=3;premiumTab.c=new p.S_PageId();premiumTab.c.a="spotify:upsell:premium_in_app_destination";
+        p.S_NavTab createTab=new p.S_NavTab();createTab.b=4;createTab.c=new p.S_PageId();createTab.c.a="spotify:create-menu";
         Settings.set(Settings.HIDE_PREMIUM_TAB,true);
         check(Content.skipTab(premiumTab)&&!Content.skipTab(createTab)&&Content.visualTab(4)==3&&Content.visualTab(2)==2,"the Premium tab goes and later tabs close the gap");
         check(Content.tabCount(java.util.Arrays.asList(createTab,premiumTab,createTab))==2&&Content.hiddenTabs==1,"the bar lays out only the tabs it shows");
@@ -461,14 +461,14 @@ public class PlayerRuntimeTest {
 
         // Content: identity comes from URIs and types; mixed shelves keep music.
         java.util.ArrayList lib=new java.util.ArrayList();
-        p.ndy[] types={p.ndy.b,p.ndy.Y,p.ndy.a,p.ndy.g,new p.ndy()};
-        for(p.ndy t:types){p.dsm1 d=new p.dsm1(); d.e=t; lib.add(d);}
+        p.S_LibraryContentType[] types={p.S_LibraryContentType.b,p.S_LibraryContentType.Y,p.S_LibraryContentType.a,p.S_LibraryContentType.g,new p.S_LibraryContentType()};
+        for(p.S_LibraryContentType t:types){p.S_LibraryItem d=new p.S_LibraryItem(); d.e=t; lib.add(d);}
         check(Content.library(lib)==lib,"filters off must pass the list through");
         Settings.set(13,true);
         check(Content.library(lib).size()==3,"podcasts hidden: shows and new episodes go");
         check(!Content.blocked("spotify:album:x","mixed")&&Content.blocked("spotify:show:x","mixed"),"mixed shelf keeps music");
         check(!Content.blocked("spotify:show:x","popular-audiobooks"),"podcast filter must leave audiobook shelves");
-        java.util.ArrayList chips=new java.util.ArrayList(java.util.Arrays.asList(new p.e5c0(),new p.l4c0(),new p.u4c0(),new p.r4c0(),"music"));
+        java.util.ArrayList chips=new java.util.ArrayList(java.util.Arrays.asList(new p.S_LibraryPodcastChip(),new p.S_LibraryAudiobookChip(),new p.S_LibraryPodcastChipB(),new p.S_LibraryAudiobookChipB(),"music"));
         check(Content.libraryChips(chips).size()==3,"podcast chips go");
         Settings.set(14,true);
         check(Content.library(lib).size()==1&&Content.libraryChips(chips).size()==1,"both hidden: only music stays");
@@ -503,7 +503,7 @@ public class PlayerRuntimeTest {
         check(NavIndicator.dragPosition(250,400,4,false)==2&&Math.round(NavIndicator.dragPosition(210,400,4,false))==2,"a drag reads the tab under the finger");
         check(NavIndicator.dragPosition(-30,400,4,false)==0&&NavIndicator.dragPosition(430,400,4,false)==3,"a drag past the ends clamps to the outer tabs");
         check(NavIndicator.dragPosition(50,400,4,true)==3,"an RTL drag mirrors the tabs");
-        p.kk1 off=new p.kk1(),on=new p.kk1(); off.a=p.lk1.a; on.a=p.lk1.b;
+        p.S_SaveButtonState off=new p.S_SaveButtonState(),on=new p.S_SaveButtonState(); off.a=p.S_SaveButtonStage.a; on.a=p.S_SaveButtonStage.b;
         check(SaveBurst.celebrates(true,off,on),"a tapped save celebrates");
         check(!SaveBurst.celebrates(false,off,on)&&!SaveBurst.celebrates(true,on,off)&&!SaveBurst.celebrates(true,off,off)&&!SaveBurst.celebrates(true,null,on),"initial, unsave and failed states stay quiet");
         check(Surfaces.radius(0)==0&&Surfaces.radius(4)==8&&Surfaces.radius(500)==500,"corner scale");
@@ -562,9 +562,9 @@ public class PlayerRuntimeTest {
 
         // Side menu: hidden providers leave, Settings and privacy stays and the Spatch row sits above it.
         java.util.ArrayList menu = new java.util.ArrayList();
-        p.ft01 recents = new p.ft01((byte) 0), settings = new p.ft01((byte) 1);
-        p.nbd0 chats = new p.nbd0((byte) 0), updates = new p.nbd0((byte) 1);
-        p.vse1 stats = new p.vse1();
+        p.S_DrawerRowProvider recents = new p.S_DrawerRowProvider((byte) 0), settings = new p.S_DrawerRowProvider((byte) 1);
+        p.S_MessagesRowProvider chats = new p.S_MessagesRowProvider((byte) 0), updates = new p.S_MessagesRowProvider((byte) 1);
+        p.S_ListeningStatsRowProvider stats = new p.S_ListeningStatsRowProvider();
         menu.add(recents); menu.add(stats); menu.add(chats); menu.add(updates); menu.add(settings);
         check(Settings.rows(menu).size() == 6, "nothing is hidden by default");
         Settings.set(21, true); Settings.set(22, true); Settings.set(15, true);

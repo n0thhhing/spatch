@@ -163,7 +163,7 @@ public final class PlayerArt extends ImageView {
             TextSlide.attach(root.findViewById(ids[2]));
             TextSlide.attach(root.findViewById(ids[3]));
             if(headerProgress==null && root instanceof ViewGroup) {
-                // Collapsed-player header (built in code by p.s22, no id): its plain ProgressBar is
+                // Collapsed-player header (built in code by p.S_CollapsedPlayerHeader, no id): its plain ProgressBar is
                 // Spotify white; give it the theme accent. Exact class, so SeekBars are left alone.
                 headerProgress=findProgress((ViewGroup)root);
                 if(headerProgress!=null) {

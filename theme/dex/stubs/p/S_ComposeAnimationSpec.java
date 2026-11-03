@@ -1,0 +1,4 @@
+// p.S_ComposeAnimationSpec: Compose AnimationSpec.
+package p;
+// Compile-time stub of an obfuscated app class; never packaged (resolved against the app at runtime).
+public interface S_ComposeAnimationSpec {}

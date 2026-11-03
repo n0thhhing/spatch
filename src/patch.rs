@@ -83,7 +83,7 @@ macro_rules! target {
 
 /// Now Playing slice. Ownership: p.jcs inflates revised_template_page_layout (which includes
 /// revised_template_overlay); p.u1o inflates track_info_nowplaying_view; the seekbar drawables are
-/// reached only through the NowPlayingSeekBar style and p.ews.
+/// reached only through the NowPlayingSeekBar style and p.S_SeekbarTint.
 pub const TARGETS: [Target; 20] = [
     // Mini-player surface (also its live-room and hat variants): adds a faint outline.
     target!(
@@ -163,7 +163,7 @@ pub const TARGETS: [Target; 20] = [
         "res/layout/image_link_card_layout.xml",
         "03047e5a25eaf1cc87fe8549fb18682ad727128b276ad96f5fd8ab74af49fe5c"
     ),
-    // Player seekbar layout (p.ews inflates it): taller track for the wavy progress.
+    // Player seekbar layout (p.S_SeekbarTint inflates it): taller track for the wavy progress.
     target!(
         "res/layout/track_seekbar.xml",
         "9a52a0a29e1431dec55ba411335251410f94882e3226ecb8cef9b49940af4364"

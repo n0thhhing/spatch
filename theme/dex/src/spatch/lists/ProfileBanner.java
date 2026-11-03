@@ -10,16 +10,16 @@ import android.graphics.PorterDuff;
 import android.graphics.Shader;
 import androidx.compose.ui.graphics.Brush;
 import java.io.File;
-import p.e6x0;
-import p.l6x0;
-import p.tu61;
+import p.S_ProfileEditAction;
+import p.S_ProfileModel;
+import p.S_ComposeShaderBrush;
 
 /**
  * Local header for the signed-in user's own profile: bn31.h asks here for the brush over its colour.
  * Other people's profiles keep Spotify's. Nothing here reaches Spotify: the image stays in app-private
  * storage and only this device shows it.
  */
-public final class ProfileBanner extends tu61 {
+public final class ProfileBanner extends S_ComposeShaderBrush {
     static final String FILE = "spatch-profile-banner.jpg";
     private static final int DIM = 0x59;
     private static Bitmap image;
@@ -33,7 +33,7 @@ public final class ProfileBanner extends tu61 {
         this.position = position;
     }
 
-    public static Brush brush(Brush stock, l6x0 profile) {
+    public static Brush brush(Brush stock, S_ProfileModel profile) {
         if (!own(profile) || !Settings.profileBanner()) return stock;
         Bitmap banner = banner();
         if (banner == null && !Settings.profileThemeHeader()) return stock;
@@ -42,7 +42,7 @@ public final class ProfileBanner extends tu61 {
         return cached;
     }
 
-    public static long bar(long stock, l6x0 profile) {
+    public static long bar(long stock, S_ProfileModel profile) {
         if (!own(profile) || !Settings.profileBanner()) return stock;
         Bitmap banner = banner();
         if (banner == null && !Settings.profileThemeHeader()) return stock;
@@ -50,9 +50,9 @@ public final class ProfileBanner extends tu61 {
         return (long) (banner == null ? Pill.blend(surface, Palette.color(0xffd0bcff), 0.35f) : surface) << 32;
     }
 
-    /** e6x0 is the Edit action, only offered on the signed-in user's profile. */
-    private static boolean own(l6x0 profile) {
-        for (Object action : profile.f) if (action instanceof e6x0) return true;
+    /** S_ProfileEditAction is the Edit action, only offered on the signed-in user's profile. */
+    private static boolean own(S_ProfileModel profile) {
+        for (Object action : profile.f) if (action instanceof S_ProfileEditAction) return true;
         return false;
     }
 

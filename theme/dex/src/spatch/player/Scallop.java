@@ -11,7 +11,7 @@ import android.view.View;
 
 /**
  * Expressive play/pause background: a circle whose edge is modulated into rounded bumps
- * (5 while paused, 9 while playing). Called from the patched p.lbg.draw() in place of drawCircle.
+ * (5 while paused, 9 while playing). Called from the patched p.S_PlayButtonShape.draw() in place of drawCircle.
  */
 public final class Scallop implements Runnable {
     private static int accent() { return 0xd0bcff; } // theme accent token, resolved each call: the theme can change live

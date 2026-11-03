@@ -250,8 +250,14 @@ pub const STUBS: &[(&str, &str)] = &[
         "Application.java",
         include_str!("../theme/dex/stubs/android/app/Application.java"),
     ),
-    ("i7h.java", include_str!("../theme/dex/stubs/p/i7h.java")),
-    ("shc0.java", include_str!("../theme/dex/stubs/p/shc0.java")),
+    (
+        "S_ComposeColor.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeColor.java"),
+    ),
+    (
+        "S_ComposeLinearGradient.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeLinearGradient.java"),
+    ),
     (
         "LayerDrawable.java",
         include_str!("../theme/dex/stubs/android/graphics/drawable/LayerDrawable.java"),
@@ -264,11 +270,26 @@ pub const STUBS: &[(&str, &str)] = &[
         "IBinder.java",
         include_str!("../theme/dex/stubs/android/os/IBinder.java"),
     ),
-    ("ud5.java", include_str!("../theme/dex/stubs/p/ud5.java")),
-    ("kex.java", include_str!("../theme/dex/stubs/p/kex.java")),
-    ("ggx.java", include_str!("../theme/dex/stubs/p/ggx.java")),
-    ("gsc.java", include_str!("../theme/dex/stubs/p/gsc.java")),
-    ("w6b1.java", include_str!("../theme/dex/stubs/p/w6b1.java")),
+    (
+        "S_ComposeAnimationSpec.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeAnimationSpec.java"),
+    ),
+    (
+        "S_EncoreTheme.java",
+        include_str!("../theme/dex/stubs/p/S_EncoreTheme.java"),
+    ),
+    (
+        "S_EncoreColorTokens.java",
+        include_str!("../theme/dex/stubs/p/S_EncoreColorTokens.java"),
+    ),
+    (
+        "S_EncoreColorScheme.java",
+        include_str!("../theme/dex/stubs/p/S_EncoreColorScheme.java"),
+    ),
+    (
+        "S_ComposeSpringSpec.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeSpringSpec.java"),
+    ),
     (
         "Camera.java",
         include_str!("../theme/dex/stubs/android/graphics/Camera.java"),
@@ -377,15 +398,42 @@ pub const STUBS: &[(&str, &str)] = &[
         "LinearLayoutManager.java",
         include_str!("../theme/dex/stubs/androidx/recyclerview/widget/LinearLayoutManager.java"),
     ),
-    ("r411.java", include_str!("../theme/dex/stubs/p/r411.java")),
-    ("evx.java", include_str!("../theme/dex/stubs/p/evx.java")),
-    ("zyq0.java", include_str!("../theme/dex/stubs/p/zyq0.java")),
-    ("vyq0.java", include_str!("../theme/dex/stubs/p/vyq0.java")),
-    ("zfx.java", include_str!("../theme/dex/stubs/p/zfx.java")),
-    ("dvx.java", include_str!("../theme/dex/stubs/p/dvx.java")),
-    ("e6x0.java", include_str!("../theme/dex/stubs/p/e6x0.java")),
-    ("l6x0.java", include_str!("../theme/dex/stubs/p/l6x0.java")),
-    ("tu61.java", include_str!("../theme/dex/stubs/p/tu61.java")),
+    (
+        "S_RecyclerAdapter.java",
+        include_str!("../theme/dex/stubs/p/S_RecyclerAdapter.java"),
+    ),
+    (
+        "S_SidePanelItemStyle.java",
+        include_str!("../theme/dex/stubs/p/S_SidePanelItemStyle.java"),
+    ),
+    (
+        "S_ComposePaddingSides.java",
+        include_str!("../theme/dex/stubs/p/S_ComposePaddingSides.java"),
+    ),
+    (
+        "S_ComposePaddingValues.java",
+        include_str!("../theme/dex/stubs/p/S_ComposePaddingValues.java"),
+    ),
+    (
+        "S_SidePanelArgB.java",
+        include_str!("../theme/dex/stubs/p/S_SidePanelArgB.java"),
+    ),
+    (
+        "S_SidePanelArg.java",
+        include_str!("../theme/dex/stubs/p/S_SidePanelArg.java"),
+    ),
+    (
+        "S_ProfileEditAction.java",
+        include_str!("../theme/dex/stubs/p/S_ProfileEditAction.java"),
+    ),
+    (
+        "S_ProfileModel.java",
+        include_str!("../theme/dex/stubs/p/S_ProfileModel.java"),
+    ),
+    (
+        "S_ComposeShaderBrush.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeShaderBrush.java"),
+    ),
     (
         "Brush.java",
         include_str!("../theme/dex/stubs/androidx/compose/ui/graphics/Brush.java"),
@@ -434,18 +482,54 @@ pub const STUBS: &[(&str, &str)] = &[
         "BitmapFactory.java",
         include_str!("../theme/dex/stubs/android/graphics/BitmapFactory.java"),
     ),
-    ("t0d0.java", include_str!("../theme/dex/stubs/p/t0d0.java")),
-    ("x7v.java", include_str!("../theme/dex/stubs/p/x7v.java")),
-    ("xmc0.java", include_str!("../theme/dex/stubs/p/xmc0.java")),
-    ("ey50.java", include_str!("../theme/dex/stubs/p/ey50.java")),
-    ("in60.java", include_str!("../theme/dex/stubs/p/in60.java")),
-    ("jn60.java", include_str!("../theme/dex/stubs/p/jn60.java")),
-    ("ln60.java", include_str!("../theme/dex/stubs/p/ln60.java")),
-    ("wt30.java", include_str!("../theme/dex/stubs/p/wt30.java")),
-    ("vse1.java", include_str!("../theme/dex/stubs/p/vse1.java")),
-    ("wwm1.java", include_str!("../theme/dex/stubs/p/wwm1.java")),
-    ("ptd1.java", include_str!("../theme/dex/stubs/p/ptd1.java")),
-    ("nbd0.java", include_str!("../theme/dex/stubs/p/nbd0.java")),
+    (
+        "S_HomeList.java",
+        include_str!("../theme/dex/stubs/p/S_HomeList.java"),
+    ),
+    (
+        "S_DrawerLayout.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerLayout.java"),
+    ),
+    (
+        "S_HomeFeedModel.java",
+        include_str!("../theme/dex/stubs/p/S_HomeFeedModel.java"),
+    ),
+    (
+        "S_HomeFilterClick.java",
+        include_str!("../theme/dex/stubs/p/S_HomeFilterClick.java"),
+    ),
+    (
+        "S_HomeFilterGroup.java",
+        include_str!("../theme/dex/stubs/p/S_HomeFilterGroup.java"),
+    ),
+    (
+        "S_HomeFilterChild.java",
+        include_str!("../theme/dex/stubs/p/S_HomeFilterChild.java"),
+    ),
+    (
+        "S_HomeFilterSelection.java",
+        include_str!("../theme/dex/stubs/p/S_HomeFilterSelection.java"),
+    ),
+    (
+        "S_KotlinFunction1.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinFunction1.java"),
+    ),
+    (
+        "S_ListeningStatsRowProvider.java",
+        include_str!("../theme/dex/stubs/p/S_ListeningStatsRowProvider.java"),
+    ),
+    (
+        "S_YourPlanRowProvider.java",
+        include_str!("../theme/dex/stubs/p/S_YourPlanRowProvider.java"),
+    ),
+    (
+        "S_TasteProfileRowProvider.java",
+        include_str!("../theme/dex/stubs/p/S_TasteProfileRowProvider.java"),
+    ),
+    (
+        "S_MessagesRowProvider.java",
+        include_str!("../theme/dex/stubs/p/S_MessagesRowProvider.java"),
+    ),
     (
         "ViewConfiguration.java",
         include_str!("../theme/dex/stubs/android/view/ViewConfiguration.java"),
@@ -458,25 +542,64 @@ pub const STUBS: &[(&str, &str)] = &[
         "DecelerateInterpolator.java",
         include_str!("../theme/dex/stubs/android/view/animation/DecelerateInterpolator.java"),
     ),
-    ("kk1.java", include_str!("../theme/dex/stubs/p/kk1.java")),
-    ("lk1.java", include_str!("../theme/dex/stubs/p/lk1.java")),
+    (
+        "S_SaveButtonState.java",
+        include_str!("../theme/dex/stubs/p/S_SaveButtonState.java"),
+    ),
+    (
+        "S_SaveButtonStage.java",
+        include_str!("../theme/dex/stubs/p/S_SaveButtonStage.java"),
+    ),
     (
         "MotionLayout.java",
         include_str!(
             "../theme/dex/stubs/androidx/constraintlayout/motion/widget/MotionLayout.java"
         ),
     ),
-    ("upf.java", include_str!("../theme/dex/stubs/p/upf.java")),
-    ("e5c0.java", include_str!("../theme/dex/stubs/p/e5c0.java")),
-    ("l4c0.java", include_str!("../theme/dex/stubs/p/l4c0.java")),
-    ("u4c0.java", include_str!("../theme/dex/stubs/p/u4c0.java")),
-    ("r4c0.java", include_str!("../theme/dex/stubs/p/r4c0.java")),
-    ("ndy.java", include_str!("../theme/dex/stubs/p/ndy.java")),
-    ("psn0.java", include_str!("../theme/dex/stubs/p/psn0.java")),
-    ("dsn0.java", include_str!("../theme/dex/stubs/p/dsn0.java")),
-    ("sgk1.java", include_str!("../theme/dex/stubs/p/sgk1.java")),
-    ("z341.java", include_str!("../theme/dex/stubs/p/z341.java")),
-    ("k1b.java", include_str!("../theme/dex/stubs/p/k1b.java")),
+    (
+        "S_MessagesRowSource.java",
+        include_str!("../theme/dex/stubs/p/S_MessagesRowSource.java"),
+    ),
+    (
+        "S_LibraryPodcastChip.java",
+        include_str!("../theme/dex/stubs/p/S_LibraryPodcastChip.java"),
+    ),
+    (
+        "S_LibraryAudiobookChip.java",
+        include_str!("../theme/dex/stubs/p/S_LibraryAudiobookChip.java"),
+    ),
+    (
+        "S_LibraryPodcastChipB.java",
+        include_str!("../theme/dex/stubs/p/S_LibraryPodcastChipB.java"),
+    ),
+    (
+        "S_LibraryAudiobookChipB.java",
+        include_str!("../theme/dex/stubs/p/S_LibraryAudiobookChipB.java"),
+    ),
+    (
+        "S_LibraryContentType.java",
+        include_str!("../theme/dex/stubs/p/S_LibraryContentType.java"),
+    ),
+    (
+        "S_NavBarTabState.java",
+        include_str!("../theme/dex/stubs/p/S_NavBarTabState.java"),
+    ),
+    (
+        "S_NavTab.java",
+        include_str!("../theme/dex/stubs/p/S_NavTab.java"),
+    ),
+    (
+        "S_PageId.java",
+        include_str!("../theme/dex/stubs/p/S_PageId.java"),
+    ),
+    (
+        "S_ComposeGraphicsLayer.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeGraphicsLayer.java"),
+    ),
+    (
+        "S_GraphicsLayerArg.java",
+        include_str!("../theme/dex/stubs/p/S_GraphicsLayerArg.java"),
+    ),
     (
         "OvershootInterpolator.java",
         include_str!("../theme/dex/stubs/android/view/animation/OvershootInterpolator.java"),
@@ -489,24 +612,78 @@ pub const STUBS: &[(&str, &str)] = &[
         "RippleDrawable.java",
         include_str!("../theme/dex/stubs/android/graphics/drawable/RippleDrawable.java"),
     ),
-    ("hqr0.java", include_str!("../theme/dex/stubs/p/hqr0.java")),
-    ("zpo.java", include_str!("../theme/dex/stubs/p/zpo.java")),
-    ("dsm1.java", include_str!("../theme/dex/stubs/p/dsm1.java")),
-    ("s6e.java", include_str!("../theme/dex/stubs/p/s6e.java")),
-    ("j360.java", include_str!("../theme/dex/stubs/p/j360.java")),
-    ("w0x.java", include_str!("../theme/dex/stubs/p/w0x.java")),
-    ("bp80.java", include_str!("../theme/dex/stubs/p/bp80.java")),
-    ("tu70.java", include_str!("../theme/dex/stubs/p/tu70.java")),
-    ("cu70.java", include_str!("../theme/dex/stubs/p/cu70.java")),
-    ("tz71.java", include_str!("../theme/dex/stubs/p/tz71.java")),
-    ("uz71.java", include_str!("../theme/dex/stubs/p/uz71.java")),
-    ("oz71.java", include_str!("../theme/dex/stubs/p/oz71.java")),
-    ("ifi0.java", include_str!("../theme/dex/stubs/p/ifi0.java")),
-    ("jfi0.java", include_str!("../theme/dex/stubs/p/jfi0.java")),
-    ("bfi0.java", include_str!("../theme/dex/stubs/p/bfi0.java")),
-    ("np10.java", include_str!("../theme/dex/stubs/p/np10.java")),
-    ("aj00.java", include_str!("../theme/dex/stubs/p/aj00.java")),
-    ("q6k1.java", include_str!("../theme/dex/stubs/p/q6k1.java")),
+    (
+        "S_ComposeMutableState.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeMutableState.java"),
+    ),
+    (
+        "S_ComposeSnapshot.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeSnapshot.java"),
+    ),
+    (
+        "S_LibraryItem.java",
+        include_str!("../theme/dex/stubs/p/S_LibraryItem.java"),
+    ),
+    (
+        "S_BrowseTile.java",
+        include_str!("../theme/dex/stubs/p/S_BrowseTile.java"),
+    ),
+    (
+        "S_HomeTextTitle.java",
+        include_str!("../theme/dex/stubs/p/S_HomeTextTitle.java"),
+    ),
+    (
+        "S_HomeShelfMeta.java",
+        include_str!("../theme/dex/stubs/p/S_HomeShelfMeta.java"),
+    ),
+    (
+        "S_HomeSectionMeta.java",
+        include_str!("../theme/dex/stubs/p/S_HomeSectionMeta.java"),
+    ),
+    (
+        "S_HomeShelf.java",
+        include_str!("../theme/dex/stubs/p/S_HomeShelf.java"),
+    ),
+    (
+        "S_HomeShelfSection.java",
+        include_str!("../theme/dex/stubs/p/S_HomeShelfSection.java"),
+    ),
+    (
+        "S_HomeTile.java",
+        include_str!("../theme/dex/stubs/p/S_HomeTile.java"),
+    ),
+    (
+        "S_HomeTileShelf.java",
+        include_str!("../theme/dex/stubs/p/S_HomeTileShelf.java"),
+    ),
+    (
+        "S_HomeTileSection.java",
+        include_str!("../theme/dex/stubs/p/S_HomeTileSection.java"),
+    ),
+    (
+        "S_HomeListItem.java",
+        include_str!("../theme/dex/stubs/p/S_HomeListItem.java"),
+    ),
+    (
+        "S_HomeItemList.java",
+        include_str!("../theme/dex/stubs/p/S_HomeItemList.java"),
+    ),
+    (
+        "S_HomeItemSection.java",
+        include_str!("../theme/dex/stubs/p/S_HomeItemSection.java"),
+    ),
+    (
+        "S_SearchChip.java",
+        include_str!("../theme/dex/stubs/p/S_SearchChip.java"),
+    ),
+    (
+        "S_SearchChipCopy.java",
+        include_str!("../theme/dex/stubs/p/S_SearchChipCopy.java"),
+    ),
+    (
+        "S_KotlinPair.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinPair.java"),
+    ),
     (
         "Editable.java",
         include_str!("../theme/dex/stubs/android/text/Editable.java"),
@@ -579,13 +756,34 @@ pub const STUBS: &[(&str, &str)] = &[
         "ProgressBar.java",
         include_str!("../theme/dex/stubs/android/widget/ProgressBar.java"),
     ),
-    ("b971.java", include_str!("../theme/dex/stubs/p/b971.java")),
-    ("ikb0.java", include_str!("../theme/dex/stubs/p/ikb0.java")),
-    ("kat.java", include_str!("../theme/dex/stubs/p/kat.java")),
-    ("v7s0.java", include_str!("../theme/dex/stubs/p/v7s0.java")),
-    ("iw4.java", include_str!("../theme/dex/stubs/p/iw4.java")),
-    ("lw4.java", include_str!("../theme/dex/stubs/p/lw4.java")),
-    ("jsq0.java", include_str!("../theme/dex/stubs/p/jsq0.java")),
+    (
+        "S_ComposeOutline.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeOutline.java"),
+    ),
+    (
+        "S_ComposeLayoutDirection.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeLayoutDirection.java"),
+    ),
+    (
+        "S_ComposeDensity.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeDensity.java"),
+    ),
+    (
+        "S_ComposePath.java",
+        include_str!("../theme/dex/stubs/p/S_ComposePath.java"),
+    ),
+    (
+        "S_ComposeAndroidPath.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeAndroidPath.java"),
+    ),
+    (
+        "S_ComposePathFactory.java",
+        include_str!("../theme/dex/stubs/p/S_ComposePathFactory.java"),
+    ),
+    (
+        "S_ComposeGenericOutline.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeGenericOutline.java"),
+    ),
     (
         "Typeface.java",
         include_str!("../theme/dex/stubs/android/graphics/Typeface.java"),
@@ -602,31 +800,106 @@ pub const STUBS: &[(&str, &str)] = &[
         "DialogInterface.java",
         include_str!("../theme/dex/stubs/android/content/DialogInterface.java"),
     ),
-    ("cl61.java", include_str!("../theme/dex/stubs/p/cl61.java")),
-    ("reb1.java", include_str!("../theme/dex/stubs/p/reb1.java")),
-    ("knb1.java", include_str!("../theme/dex/stubs/p/knb1.java")),
-    ("s9d1.java", include_str!("../theme/dex/stubs/p/s9d1.java")),
-    ("q9d1.java", include_str!("../theme/dex/stubs/p/q9d1.java")),
-    ("lu30.java", include_str!("../theme/dex/stubs/p/lu30.java")),
-    ("h9d1.java", include_str!("../theme/dex/stubs/p/h9d1.java")),
-    ("nvo1.java", include_str!("../theme/dex/stubs/p/nvo1.java")),
-    ("cs61.java", include_str!("../theme/dex/stubs/p/cs61.java")),
-    ("bs61.java", include_str!("../theme/dex/stubs/p/bs61.java")),
-    ("bhh1.java", include_str!("../theme/dex/stubs/p/bhh1.java")),
-    ("r9d1.java", include_str!("../theme/dex/stubs/p/r9d1.java")),
-    ("j9d1.java", include_str!("../theme/dex/stubs/p/j9d1.java")),
-    ("qeb1.java", include_str!("../theme/dex/stubs/p/qeb1.java")),
-    ("r1i.java", include_str!("../theme/dex/stubs/p/r1i.java")),
-    ("ap00.java", include_str!("../theme/dex/stubs/p/ap00.java")),
-    ("lzf.java", include_str!("../theme/dex/stubs/p/lzf.java")),
-    ("kp61.java", include_str!("../theme/dex/stubs/p/kp61.java")),
-    ("qs61.java", include_str!("../theme/dex/stubs/p/qs61.java")),
-    ("hoo1.java", include_str!("../theme/dex/stubs/p/hoo1.java")),
-    ("b9.java", include_str!("../theme/dex/stubs/p/b9.java")),
-    ("p280.java", include_str!("../theme/dex/stubs/p/p280.java")),
-    ("vs61.java", include_str!("../theme/dex/stubs/p/vs61.java")),
-    ("rtx.java", include_str!("../theme/dex/stubs/p/rtx.java")),
-    ("cw21.java", include_str!("../theme/dex/stubs/p/cw21.java")),
+    (
+        "S_SettingsRowHolder.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsRowHolder.java"),
+    ),
+    (
+        "S_SettingsRowModel.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsRowModel.java"),
+    ),
+    (
+        "S_KotlinMutableStateFlow.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinMutableStateFlow.java"),
+    ),
+    (
+        "S_SettingsReadWritePair.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsReadWritePair.java"),
+    ),
+    (
+        "S_SettingsFlowWrite.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsFlowWrite.java"),
+    ),
+    (
+        "S_KotlinFunction3.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinFunction3.java"),
+    ),
+    (
+        "S_SettingsIntFlag.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsIntFlag.java"),
+    ),
+    (
+        "S_SettingsRowStateDefault.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsRowStateDefault.java"),
+    ),
+    (
+        "S_SettingsValue.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsValue.java"),
+    ),
+    (
+        "S_SettingsValueBox.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsValueBox.java"),
+    ),
+    (
+        "S_KotlinUnit.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinUnit.java"),
+    ),
+    (
+        "S_SettingsWriteValue.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsWriteValue.java"),
+    ),
+    (
+        "S_SettingsReadValue.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsReadValue.java"),
+    ),
+    (
+        "S_SettingsReadWrite.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsReadWrite.java"),
+    ),
+    (
+        "S_SettingsRowAction.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsRowAction.java"),
+    ),
+    (
+        "S_SettingsRowTrailing.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsRowTrailing.java"),
+    ),
+    (
+        "S_SettingsRowStateSource.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsRowStateSource.java"),
+    ),
+    (
+        "S_SettingsRowModelBase.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsRowModelBase.java"),
+    ),
+    (
+        "S_SettingsIconSpec.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsIconSpec.java"),
+    ),
+    (
+        "S_KotlinCollections.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinCollections.java"),
+    ),
+    (
+        "S_ComposeList.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeList.java"),
+    ),
+    (
+        "S_ComposePersistentList.java",
+        include_str!("../theme/dex/stubs/p/S_ComposePersistentList.java"),
+    ),
+    (
+        "S_SettingsIconTint.java",
+        include_str!("../theme/dex/stubs/p/S_SettingsIconTint.java"),
+    ),
+    (
+        "S_DrawerRowIconBase.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowIconBase.java"),
+    ),
+    (
+        "S_IntBox.java",
+        include_str!("../theme/dex/stubs/p/S_IntBox.java"),
+    ),
     (
         "Intent.java",
         include_str!("../theme/dex/stubs/android/content/Intent.java"),
@@ -715,20 +988,62 @@ pub const STUBS: &[(&str, &str)] = &[
         "Switch.java",
         include_str!("../theme/dex/stubs/android/widget/Switch.java"),
     ),
-    ("br20.java", include_str!("../theme/dex/stubs/p/br20.java")),
-    ("jg81.java", include_str!("../theme/dex/stubs/p/jg81.java")),
-    ("vtz.java", include_str!("../theme/dex/stubs/p/vtz.java")),
-    ("dg81.java", include_str!("../theme/dex/stubs/p/dg81.java")),
-    ("eg81.java", include_str!("../theme/dex/stubs/p/eg81.java")),
-    ("ql81.java", include_str!("../theme/dex/stubs/p/ql81.java")),
-    ("ig81.java", include_str!("../theme/dex/stubs/p/ig81.java")),
-    ("rtx.java", include_str!("../theme/dex/stubs/p/rtx.java")),
-    ("zsx.java", include_str!("../theme/dex/stubs/p/zsx.java")),
-    ("cg81.java", include_str!("../theme/dex/stubs/p/cg81.java")),
-    ("fg81.java", include_str!("../theme/dex/stubs/p/fg81.java")),
-    ("ft01.java", include_str!("../theme/dex/stubs/p/ft01.java")),
-    ("w2b1.java", include_str!("../theme/dex/stubs/p/w2b1.java")),
-    ("z2b1.java", include_str!("../theme/dex/stubs/p/z2b1.java")),
+    (
+        "S_KotlinFlow.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinFlow.java"),
+    ),
+    (
+        "S_DrawerRowSource.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowSource.java"),
+    ),
+    (
+        "S_KotlinFlowOf.java",
+        include_str!("../theme/dex/stubs/p/S_KotlinFlowOf.java"),
+    ),
+    (
+        "S_DrawerRowContentBase.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowContentBase.java"),
+    ),
+    (
+        "S_DrawerRowLogSpec.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowLogSpec.java"),
+    ),
+    (
+        "S_DrawerRowBadge.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowBadge.java"),
+    ),
+    (
+        "S_DrawerRowTrailing.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowTrailing.java"),
+    ),
+    (
+        "S_DrawerRowIconBase.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowIconBase.java"),
+    ),
+    (
+        "S_DrawerRowIcon.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowIcon.java"),
+    ),
+    (
+        "S_DrawerRowContent.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowContent.java"),
+    ),
+    (
+        "S_DrawerRowWrapper.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowWrapper.java"),
+    ),
+    (
+        "S_DrawerRowProvider.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerRowProvider.java"),
+    ),
+    (
+        "S_EncoreIconDrawable.java",
+        include_str!("../theme/dex/stubs/p/S_EncoreIconDrawable.java"),
+    ),
+    (
+        "S_EncoreIcon.java",
+        include_str!("../theme/dex/stubs/p/S_EncoreIcon.java"),
+    ),
     (
         "ViewParent.java",
         include_str!("../theme/dex/stubs/android/view/ViewParent.java"),
@@ -833,13 +1148,40 @@ pub const STUBS: &[(&str, &str)] = &[
         "ValueAnimator.java",
         include_str!("../theme/dex/stubs/android/animation/ValueAnimator.java"),
     ),
-    ("rhm0.java", include_str!("../theme/dex/stubs/p/rhm0.java")),
-    ("bv61.java", include_str!("../theme/dex/stubs/p/bv61.java")),
-    ("v7n.java", include_str!("../theme/dex/stubs/p/v7n.java")),
-    ("vp31.java", include_str!("../theme/dex/stubs/p/vp31.java")),
-    ("xp31.java", include_str!("../theme/dex/stubs/p/xp31.java")),
-    ("mtg.java", include_str!("../theme/dex/stubs/p/mtg.java")),
-    ("cxn1.java", include_str!("../theme/dex/stubs/p/cxn1.java")),
-    ("n191.java", include_str!("../theme/dex/stubs/p/n191.java")),
-    ("fwq.java", include_str!("../theme/dex/stubs/p/fwq.java")),
+    (
+        "S_ComposeModifier.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeModifier.java"),
+    ),
+    (
+        "S_ComposeShape.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeShape.java"),
+    ),
+    (
+        "S_ComposeCornerBasedShape.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeCornerBasedShape.java"),
+    ),
+    (
+        "S_ComposeRoundedCornerShape.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeRoundedCornerShape.java"),
+    ),
+    (
+        "S_ComposeShapes.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeShapes.java"),
+    ),
+    (
+        "S_ComposeBackground.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeBackground.java"),
+    ),
+    (
+        "S_ComposePadding.java",
+        include_str!("../theme/dex/stubs/p/S_ComposePadding.java"),
+    ),
+    (
+        "S_ComposeSize.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeSize.java"),
+    ),
+    (
+        "S_ComposeRotate.java",
+        include_str!("../theme/dex/stubs/p/S_ComposeRotate.java"),
+    ),
 ];

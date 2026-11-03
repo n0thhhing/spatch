@@ -9,8 +9,8 @@ import android.view.*;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
-import p.w2b1;
-import p.z2b1;
+import p.S_EncoreIconDrawable;
+import p.S_EncoreIcon;
 
 /**
  * Spatch fullscreen immersive player overlay.
@@ -505,18 +505,18 @@ public final class Immersive extends View implements Runnable {
     private void ensureIcons(float w) {
         if (icPrev != null) return;
         Context c = getContext();
-        icClose = encore(c, z2b1.J1, w * 0.06f, 0xfff3eeff);
-        icShuffle = encore(c, z2b1.a6, w * 0.06f, 0xddf3eeff);
-        icPrev = encore(c, z2b1.e6, w * 0.075f, 0xfff3eeff);
-        icNext = encore(c, z2b1.h6, w * 0.075f, 0xfff3eeff);
-        icRepeat = encore(c, z2b1.Q5, w * 0.06f, 0xddf3eeff);
-        icVolume = encore(c, z2b1.y7, w * 0.05f, 0xccf3eeff);
-        icPlay = encore(c, z2b1.L4, w * 0.07f, 0xff14121c);
-        icPause = encore(c, z2b1.E4, w * 0.07f, 0xff14121c);
+        icClose = encore(c, S_EncoreIcon.J1, w * 0.06f, 0xfff3eeff);
+        icShuffle = encore(c, S_EncoreIcon.a6, w * 0.06f, 0xddf3eeff);
+        icPrev = encore(c, S_EncoreIcon.e6, w * 0.075f, 0xfff3eeff);
+        icNext = encore(c, S_EncoreIcon.h6, w * 0.075f, 0xfff3eeff);
+        icRepeat = encore(c, S_EncoreIcon.Q5, w * 0.06f, 0xddf3eeff);
+        icVolume = encore(c, S_EncoreIcon.y7, w * 0.05f, 0xccf3eeff);
+        icPlay = encore(c, S_EncoreIcon.L4, w * 0.07f, 0xff14121c);
+        icPause = encore(c, S_EncoreIcon.E4, w * 0.07f, 0xff14121c);
     }
 
-    private static Drawable encore(Context c, z2b1 icon, float sizePx, int color) {
-        w2b1 d = new w2b1(c, icon, sizePx);
+    private static Drawable encore(Context c, S_EncoreIcon icon, float sizePx, int color) {
+        S_EncoreIconDrawable d = new S_EncoreIconDrawable(c, icon, sizePx);
         d.b(color);
         return d;
     }

@@ -1,9 +1,11 @@
 # Obfuscated Spotify classes
 
-Each file here is a compile-only stub for a class in Spotify 9.1.98.521. R8 renamed those classes into
-package `p`, so the names mean nothing and change with every Spotify release. The stubs are never
-packaged: the app provides the real classes at runtime.
+Each file here is a compile-only stub for a class Spotify's R8 build renamed into package `p`. The
+names R8 gives mean nothing and change with every Spotify release, so Spatch uses its own:
+`S_<alias>`, listed with each build's real name in `port/aliases.tsv`. Before anything is compiled
+or edited, `src/names.rs` swaps in the supported build's names, so stubs, Spatch's Java and the smali
+edits never mention them. The stubs are never packaged: the app provides the real classes at runtime.
 
 The comment on line 1 of each stub says what the class is. "Role not confirmed" means helper code
-never names it directly, so it was not traced. Every name is valid for this version only; `src/dex.rs`
-pins the app by SHA-256, so a new version fails loudly instead of binding the wrong class.
+never names it directly, so it was not traced. Field and method names inside a stub are still the
+build's own (R8 renames those too); `port/port.py` maps them when Spotify updates.

@@ -6,6 +6,7 @@ mod fonts;
 mod helpers;
 mod input;
 mod lottie;
+mod names;
 mod patch;
 mod source;
 mod theme;

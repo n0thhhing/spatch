@@ -8,8 +8,8 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.view.View;
-import p.kk1;
-import p.lk1;
+import p.S_SaveButtonState;
+import p.S_SaveButtonStage;
 
 /**
  * A completed save: AddToButtonView.g reports each real state it is given. Only a tap followed by
@@ -27,11 +27,11 @@ public final class SaveBurst extends Drawable implements ValueAnimator.AnimatorU
         paint.setColor(Palette.color(0xffd0bcff));
     }
 
-    static boolean celebrates(boolean tapped, kk1 before, kk1 now) {
-        return tapped && before != null && now != null && before.a == lk1.a && now.a != lk1.a;
+    static boolean celebrates(boolean tapped, S_SaveButtonState before, S_SaveButtonState now) {
+        return tapped && before != null && now != null && before.a == S_SaveButtonStage.a && now.a != S_SaveButtonStage.a;
     }
 
-    public static void changed(View button, boolean tapped, kk1 before, kk1 now) {
+    public static void changed(View button, boolean tapped, S_SaveButtonState before, S_SaveButtonState now) {
         if (!celebrates(tapped, before, now)) return;
         Haptics.saved(button);
         if (!Wave.animationsEnabled() || !button.isAttachedToWindow()) return;

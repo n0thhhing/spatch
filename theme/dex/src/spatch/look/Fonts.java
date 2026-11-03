@@ -28,7 +28,7 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
- * Every Spotify Mix load (p.jw21.c, p.n74.K, p.h4b1.a) asks here first; null keeps Spotify's own font.
+ * Every Spotify Mix load (p.S_MixFontLoaderD.c, p.S_MixFontLoaderE.K, p.S_MixFontLoaderC.a) asks here first; null keeps Spotify's own font.
  * Compose and laid-out text cache faces for the process, so a selection takes effect at the next start
  * (applied) while settings previews it at once (selected). Assets are stored uncompressed and mapped.
  */
