@@ -36,8 +36,8 @@ public final class Fonts {
     static final String DEFAULT = "default", SYSTEM = "system", CUSTOM = "custom:";
     private static final String ASSETS = "spatch-fonts/", DIR = "spatch-fonts", KEY = "font";
     /** Spotify's text roles, used for previews and for text Spatch draws itself under Default. */
-    static final int REGULAR = 0x7f09000d, BOLD = 0x7f090006;
-    private static final int SPOTIFY_MIX = 0x7f090002, TITLE_BOLD = 0x7f090012, TITLE_EXTRABOLD = 0x7f090015;
+    static final int REGULAR = R_font_spotify_mix_ui_regular, BOLD = R_font_spotify_mix_ui_bold;
+    private static final int SPOTIFY_MIX = R_font_spotify_mix, TITLE_BOLD = R_font_spotify_mix_ui_title_bold, TITLE_EXTRABOLD = R_font_spotify_mix_ui_title_extrabold;
     private static final int[] WEIGHTS = {400, 500, 700, 800};
     /** id, label, then one variable file or Regular and Bold statics. */
     static final String[][] BUILT_IN = {
@@ -94,15 +94,17 @@ public final class Fonts {
 
     /** The weight behind a Spotify text font, 0 for anything else (the spoticon icon font stays). */
     static int weight(int resource) {
-        if (resource == SPOTIFY_MIX || resource == 0x7f090003) return 400;
-        if (resource < 0x7f090004 || resource > 0x7f09001b) return 0;
         switch (resource) {
-            case 0x7f090005: case 0x7f090008: case 0x7f09000a: case 0x7f09000c: case 0x7f09000d: case 0x7f09000f:
+            case SPOTIFY_MIX: case R_font_spotify_mix_mono_regular:
+            case R_font_spotify_mix_ui_arab_regular: case R_font_spotify_mix_ui_cyrl_regular: case R_font_spotify_mix_ui_grek_regular: case R_font_spotify_mix_ui_hebr_regular: case R_font_spotify_mix_ui_regular: case R_font_spotify_mix_ui_thai_regular:
                 return 400;
-            case 0x7f090011: case 0x7f090014: case 0x7f090015: case 0x7f090017: case 0x7f090019: case 0x7f09001b:
+            case R_font_spotify_mix_ui_arab_bold: case R_font_spotify_mix_ui_bold: case R_font_spotify_mix_ui_cyrl_bold: case R_font_spotify_mix_ui_grek_bold: case R_font_spotify_mix_ui_hebr_bold: case R_font_spotify_mix_ui_thai_bold:
+            case R_font_spotify_mix_ui_title_arab_bold: case R_font_spotify_mix_ui_title_bold: case R_font_spotify_mix_ui_title_cyrl_bold: case R_font_spotify_mix_ui_title_grek_bold: case R_font_spotify_mix_ui_title_hebr_bold: case R_font_spotify_mix_ui_title_thai_bold:
+                return 700;
+            case R_font_spotify_mix_ui_title_arab_extrabold: case R_font_spotify_mix_ui_title_cyrl_extrabold: case R_font_spotify_mix_ui_title_extrabold: case R_font_spotify_mix_ui_title_grek_extrabold: case R_font_spotify_mix_ui_title_hebr_extrabold: case R_font_spotify_mix_ui_title_thai_extrabold:
                 return 800;
             default:
-                return 700;
+                return 0; // the icon font, and anything a later Spotify adds, stays Spotify's
         }
     }
 

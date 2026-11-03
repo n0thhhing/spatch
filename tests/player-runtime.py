@@ -8,6 +8,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 JAVA = Path(os.environ.get('JAVA_HOME', '/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home')) / 'bin'
+RESOURCE = re.compile(r'(?<!\w)R_(?:anim|array|attr|bool|color|dimen|drawable|font|id|integer|layout|string|style)_\w+')
+stand_in = {}
+
+
+def fill(text):
+    """The patcher swaps R_<type>_<name> for the build's resource ID; here each name gets a stand-in, the same one everywhere."""
+    return RESOURCE.sub(lambda m: '0x%08x' % stand_in.setdefault(m.group(), 0x7f700000 + len(stand_in)), text)
+
+
 with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
     out = Path(tmp)
     sources = []
@@ -74,19 +83,22 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('setState(int[] states){return false;}', 'setState(int[] states){return onStateChange(states);}')
             text = text.replace('getBounds() {return null;}', 'getBounds() {return bounds;}')
         target = out / source.name
-        target.write_text(text)
+        target.write_text(fill(text))
         sources.append(str(target))
     for source in (ROOT / 'theme/dex/src/spatch').rglob('*.java'):
         if source.name == 'Palette.java':
             rows = re.findall(r'theme\(\s*"[^"]+",\s*\[([^]]+)\]', (ROOT / 'src/theme.rs').read_text())
             palette = ','.join('{'+','.join(re.findall(r'0x[0-9a-f]+', row))+'}' for row in rows)
             assert len(rows) == 8
-            target=out/source.name
-            target.write_text(source.read_text().replace('@PALETTES@',palette).replace('@THEME@','lavender'))
-            sources.append(str(target))
-        else: sources.append(str(source))
+            text = source.read_text().replace('@PALETTES@',palette).replace('@THEME@','lavender')
+        else:
+            text = source.read_text()
+        target = out / 'src' / source.relative_to(ROOT / 'theme/dex/src')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(fill(text))
+        sources.append(str(target))
     harness = out / 'PlayerRuntimeTest.java'
-    harness.write_text(r'''
+    harness.write_text(fill(r'''
 package spatch;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
@@ -168,7 +180,7 @@ public class PlayerRuntimeTest {
         p.S_DrawerRowWrapper rowFg = (p.S_DrawerRowWrapper) rowVtz.b;
         p.S_DrawerRowContent rowCg = (p.S_DrawerRowContent) rowFg.a;
         check(rowCg.c.equals("spotify:spatch:settings"), "drawer URI must be spotify:spatch:settings");
-        check(rowCg.b.intValue() == 0x7f131b75, "drawer row title ID must match 0x7f131b75");
+        check(rowCg.b.intValue() == R_string_mixing_edit_page_customize_button, "drawer row title ID must match R_string_mixing_edit_page_customize_button");
 
         // Drawer without Settings and privacy: left untouched
         java.util.ArrayList noSettingsRows = new java.util.ArrayList();
@@ -554,10 +566,10 @@ public class PlayerRuntimeTest {
         check(FontFile.cleanName("  ../../evil\n ").equals("../../evil"), "names lose controls and stay display text");
         check(FontFile.cleanName(" \t ") == null, "blank names are refused");
         check(FontFile.cleanName("x".repeat(99)).length() == 48, "names are capped");
-        check(Fonts.weight(0x7f09000d) == 400 && Fonts.weight(0x7f090006) == 700 && Fonts.weight(0x7f090012) == 700 && Fonts.weight(0x7f090015) == 800, "Spotify roles keep their weights");
-        check(Fonts.weight(0x7f090001) == 0 && Fonts.weight(0x7f09001c) == 0, "the icon font is never replaced");
-        check(Fonts.resource(0x7f09000d) == null, "Default leaves Spotify's fonts alone");
-        check(Fonts.variable(800) == 0x7f090002, "Default keeps the variable font");
+        check(Fonts.weight(R_font_spotify_mix_ui_regular) == 400 && Fonts.weight(R_font_spotify_mix_ui_bold) == 700 && Fonts.weight(R_font_spotify_mix_ui_title_bold) == 700 && Fonts.weight(R_font_spotify_mix_ui_title_extrabold) == 800, "Spotify roles keep their weights");
+        check(Fonts.weight(R_font_spoticon) == 0 && Fonts.weight(0x7f09001c) == 0, "the icon font is never replaced");
+        check(Fonts.resource(R_font_spotify_mix_ui_regular) == null, "Default leaves Spotify's fonts alone");
+        check(Fonts.variable(800) == R_font_spotify_mix, "Default keeps the variable font");
         System.out.println("PASS fonts");
 
         // Side menu: hidden providers leave, Settings and privacy stays and the Spatch row sits above it.
@@ -756,7 +768,7 @@ public class PlayerRuntimeTest {
         Settings.set(6,true); Confetti.at(host,0,0); check(liveBursts.getInt(null)==before,"reduce motion must stop bursts"); Settings.set(6,false);
         View generated=new View(new android.content.Context()); generated.testId=0x1a;
         new ClickHaptic().sendAccessibilityEvent(generated,1); // a runtime id is not a play button and must not throw
-        generated.testId=0x7f0b0c19; boolean burstReached=false;
+        generated.testId=R_id_play_pause_button; boolean burstReached=false;
         try { new ClickHaptic().sendAccessibilityEvent(generated,1); } catch(NullPointerException noResources) { burstReached=true; }
         check(burstReached,"the mini player button must reach the burst");
         int[] clicks={0}; kotlin.jvm.functions.Function0 wrapped=Flourish.pressed(()->{clicks[0]++;return "done";},1);
@@ -782,6 +794,6 @@ public class PlayerRuntimeTest {
         System.out.println("PASS row cascade and hold ring");
     }
 }
-''')
+'''))
     subprocess.run([str(JAVA / 'javac'), '-d', str(out / 'classes'), *sources, str(harness)], check=True)
     subprocess.run([str(JAVA / 'java'), '-Dfonts=' + str(ROOT / 'theme/fonts'), '-cp', str(out / 'classes'), 'spatch.PlayerRuntimeTest'], check=True)

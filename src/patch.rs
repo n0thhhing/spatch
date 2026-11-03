@@ -430,6 +430,14 @@ pub fn run(
     input::extract_apks(apkm, &apks)?;
     let base = apks.join("base.apk");
     check_targets(&base)?;
+    crate::names::load_resources(&tools.run(
+        &tools.aapt2,
+        &[
+            OsStr::new("dump"),
+            OsStr::new("resources"),
+            base.as_os_str(),
+        ],
+    )?);
     let (mut compiled, new_entries) = compile_targets(&base, &staging.path, tools, theme)?;
     let mut dexes = dex::build(&base, &staging.path, tools, theme, debug)?;
     let helper = dexes.pop().expect("dex::build returns the helper last");

@@ -1,6 +1,7 @@
-//! Spatch's own names for the obfuscated Spotify classes it uses. Code, stubs and smali edits write
-//! `S_<alias>`; before anything is compiled or edited, `rewrite` swaps in the class's name in the
-//! supported build. `port/aliases.tsv` has a column per Spotify build, filled by `port/port.py`.
+//! Spatch's own names for what changes between Spotify builds. Code, stubs and smali edits write
+//! `S_<alias>` for an obfuscated class and `R_<type>_<name>` for a Spotify resource; before anything
+//! is compiled or edited, `rewrite` swaps in the class's name (from `port/aliases.tsv`, a column per
+//! build, filled by `port/port.py`) and the resource's ID (read from the build's own table).
 
 use crate::Result;
 use crate::input::VERSION_NAME;
@@ -8,6 +9,41 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 const ALIASES: &str = include_str!("../port/aliases.tsv");
+const TYPES: [&str; 13] = [
+    "anim", "array", "attr", "bool", "color", "dimen", "drawable", "font", "id", "integer",
+    "layout", "string", "style",
+];
+
+static RESOURCES: std::sync::Mutex<Option<HashMap<String, String>>> = std::sync::Mutex::new(None);
+
+/// Takes the build's resource IDs from `aapt2 dump resources` of its base.apk.
+pub fn load_resources(dump: &str) {
+    let ids: Vec<(String, String)> = dump
+        .lines()
+        .filter_map(|l| {
+            let mut words = l.trim().strip_prefix("resource ")?.split_whitespace();
+            let id = words.next()?;
+            let (ty, name) = words.next()?.split_once('/')?;
+            Some((format!("R_{ty}_{name}"), id.to_string()))
+        })
+        .collect();
+    RESOURCES
+        .lock()
+        .unwrap()
+        .get_or_insert_with(HashMap::new)
+        .extend(ids);
+}
+
+fn resource(token: &str) -> Result<String> {
+    RESOURCES
+        .lock()
+        .unwrap()
+        .as_ref()
+        .ok_or("resource IDs are not loaded")?
+        .get(token)
+        .cloned()
+        .ok_or_else(|| format!("{token}: no such resource in this Spotify build").into())
+}
 
 /// alias -> (smali folder, class) in the supported build.
 fn table() -> &'static Parsed<'static> {
@@ -50,30 +86,46 @@ fn parse<'a>(text: &'a str, build: &str) -> Parsed<'a> {
     Ok(table)
 }
 
-/// The text with every `S_<alias>` replaced by the class's name in the supported build.
+/// The text with every `S_<alias>` and `R_<type>_<name>` replaced by what it is in the supported build.
 pub fn rewrite(text: &str) -> Result<String> {
-    let table = table().as_ref().map_err(|e| e.clone())?;
+    let classes = rewrite_with(text, "S_", |alias| {
+        let table = table().as_ref().map_err(|e| e.clone())?;
+        let (_, class) = table
+            .get(alias)
+            .ok_or_else(|| format!("unknown Spotify class alias S_{alias}"))?;
+        Ok(class.to_string())
+    })?;
+    rewrite_with(&classes, "R_", |token| resource(&format!("R_{token}")))
+}
+
+/// Replaces each whole word `<prefix><rest>` whose rest is a token (an alias, or `<type>_<name>`).
+fn rewrite_with(text: &str, prefix: &str, find: impl Fn(&str) -> Result<String>) -> Result<String> {
     let bytes = text.as_bytes();
     let word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
     let (mut out, mut copied, mut i) = (String::with_capacity(text.len()), 0, 0);
-    while let Some(found) = text[i..].find("S_") {
+    while let Some(found) = text[i..].find(prefix) {
         let at = i + found;
-        let end = at
-            + 2
-            + text[at + 2..]
-                .find(|c: char| !c.is_ascii_alphanumeric())
-                .unwrap_or(text.len() - at - 2);
-        let starts_word = at == 0 || !word(bytes[at - 1]);
-        if starts_word && end > at + 2 && bytes[at + 2].is_ascii_uppercase() {
-            let alias = &text[at + 2..end];
-            let (_, class) = table
-                .get(alias)
-                .ok_or_else(|| format!("unknown Spotify class alias S_{alias}"))?;
+        let start = at + prefix.len();
+        let end = start
+            + text[start..]
+                .find(|c: char| !(c.is_ascii_alphanumeric() || (prefix == "R_" && c == '_')))
+                .unwrap_or(text.len() - start);
+        let token = &text[start..end];
+        let wanted = if prefix == "S_" {
+            token.starts_with(|c: char| c.is_ascii_uppercase())
+        } else {
+            TYPES.iter().any(|t| {
+                token
+                    .strip_prefix(t)
+                    .is_some_and(|r| r.starts_with('_') && r.len() > 1)
+            })
+        };
+        if (at == 0 || !word(bytes[at - 1])) && wanted {
             out.push_str(&text[copied..at]);
-            out.push_str(class);
+            out.push_str(&find(token)?);
             copied = end;
         }
-        i = end.max(at + 2);
+        i = end.max(start);
     }
     out.push_str(&text[copied..]);
     Ok(out)
@@ -151,6 +203,27 @@ mod tests {
         assert_eq!(
             smali_file("smali/p/abc.smali").unwrap(),
             "smali/p/abc.smali"
+        );
+    }
+
+    #[test]
+    fn resources_come_from_the_build() {
+        load_resources(
+            "Package name=com.spotify.music id=7f\n    resource 0x7f0b0c19 id/play_pause_button\n      () (file) x\n    resource 0x7f090002 font/spotify_mix\n",
+        );
+        assert_eq!(
+            rewrite("const v0, R_id_play_pause_button\nint f = R_font_spotify_mix;").unwrap(),
+            "const v0, 0x7f0b0c19\nint f = 0x7f090002;"
+        );
+        assert_eq!(
+            rewrite("SOME_R_id_x R_nope_x").unwrap(),
+            "SOME_R_id_x R_nope_x"
+        );
+        assert!(
+            rewrite("R_id_missing_view")
+                .unwrap_err()
+                .to_string()
+                .contains("R_id_missing_view")
         );
     }
 }

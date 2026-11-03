@@ -9,7 +9,7 @@ import android.view.ViewGroup;
  */
 final class ClickHaptic extends View.AccessibilityDelegate {
     private static final int CLICKED = 1; // AccessibilityEvent.TYPE_VIEW_CLICKED
-    static final int PLAYER_BUTTON = 0x7f0b0b46, MINI_BUTTON = 0x7f0b0c19; // R.id.nowplaying_elements_playpause_button, play_pause_button
+    static final int PLAYER_BUTTON = R_id_nowplaying_elements_playpause_button, MINI_BUTTON = R_id_play_pause_button; // R.id.nowplaying_elements_playpause_button, play_pause_button
     private static final ClickHaptic ONE = new ClickHaptic();
     private static boolean forwarding;
 

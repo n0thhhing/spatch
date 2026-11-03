@@ -573,9 +573,12 @@ mod tests {
     #[test]
     fn edits_require_exactly_one_anchor() {
         let lav = crate::theme::by_name("lavender").unwrap();
+        names::load_resources(
+            "    resource 0x7f06066c color/default_seekbar_color\n    resource 0x7f0605f6 color/dark_base_essential_brightaccent\n",
+        );
         let e = EDITS
             .iter()
-            .find(|e| e.anchor.contains("0x7f06066c"))
+            .find(|e| e.anchor.contains("R_color_default_seekbar_color"))
             .unwrap();
         assert_eq!(
             apply("x\n    const v1, 0x7f06066c\ny", e, lav).unwrap(),

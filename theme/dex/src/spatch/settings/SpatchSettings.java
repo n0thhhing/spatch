@@ -331,7 +331,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         ImageView backBtn = new ImageView(context, null);
         try {
-            backBtn.setImageResource(0x7f08008b); // abc_ic_ab_back_material
+            backBtn.setImageResource(R_drawable_abc_ic_ab_back_material); // abc_ic_ab_back_material
             backBtn.setColorFilter(text);
             backBtn.setScaleType(ImageView.ScaleType.CENTER);
         } catch (Throwable ignored) {}

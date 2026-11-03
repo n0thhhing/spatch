@@ -291,9 +291,9 @@ pub const EDITS: [Edit; 98] = [
     // p.S_SeekbarTint (classes9): progress tint default_seekbar_color -> m3_ref_palette_primary80 (#D0BCFF).
     Edit {
         file: "S_SeekbarTint",
-        anchor: "    const v1, 0x7f06066c\n",
+        anchor: "    const v1, R_color_default_seekbar_color\n",
         // dark_base_essential_brightaccent (#1ED760), which the arsc swap maps to the theme accent.
-        replacement: "    const v1, 0x7f0605f6\n",
+        replacement: "    const v1, R_color_dark_base_essential_brightaccent\n",
     },
     // Profile side drawer: insert Spatch row above Settings and privacy, handle URI, and display "Spatch".
     Edit {
@@ -328,7 +328,7 @@ pub const EDITS: [Edit; 98] = [
     Edit {
         file: "S_DrawerRowList",
         anchor: "    .line 55\n    invoke-static {v1, v0}, Lp/S_CardSpacing;->o0(Lp/S_Composer;I)Ljava/lang/String;\n\n    .line 56\n    .line 57\n    .line 58\n    move-result-object v7\n",
-        replacement: "    .line 55\n    invoke-static {v1, v0}, Lp/S_CardSpacing;->o0(Lp/S_Composer;I)Ljava/lang/String;\n\n    .line 56\n    .line 57\n    .line 58\n    move-result-object v7\n\n    const v3, 0x7f131b75\n\n    if-ne v0, v3, :spatch_not_custom\n\n    const-string v7, \"Spatch\"\n\n    :spatch_not_custom\n",
+        replacement: "    .line 55\n    invoke-static {v1, v0}, Lp/S_CardSpacing;->o0(Lp/S_Composer;I)Ljava/lang/String;\n\n    .line 56\n    .line 57\n    .line 58\n    move-result-object v7\n\n    const v3, R_string_mixing_edit_page_customize_button\n\n    if-ne v0, v3, :spatch_not_custom\n\n    const-string v7, \"Spatch\"\n\n    :spatch_not_custom\n",
     },
     // Search tab search bar (p.S_SearchBar.e, "search_bar_root"): Spotify's white 4dp box becomes a
     // Spatch field: highlight surface, pill shape, light icon and subdued hint text. Colours go
@@ -502,7 +502,7 @@ pub const EDITS: [Edit; 98] = [
     Edit {
         file: "S_MixFontLoaderC",
         anchor: ".method public static final a(Landroid/content/Context;)Landroid/graphics/Typeface;\n    .locals 3\n",
-        replacement: ".method public static final a(Landroid/content/Context;)Landroid/graphics/Typeface;\n    .locals 3\n\n    const v0, 0x7f090015\n\n    invoke-static {v0}, Lspatch/Fonts;->resource(I)Landroid/graphics/Typeface;\n\n    move-result-object v0\n\n    if-eqz v0, :spatch_stock\n\n    return-object v0\n\n    :spatch_stock\n",
+        replacement: ".method public static final a(Landroid/content/Context;)Landroid/graphics/Typeface;\n    .locals 3\n\n    const v0, R_font_spotify_mix_ui_title_extrabold\n\n    invoke-static {v0}, Lspatch/Fonts;->resource(I)Landroid/graphics/Typeface;\n\n    move-result-object v0\n\n    if-eqz v0, :spatch_stock\n\n    return-object v0\n\n    :spatch_stock\n",
     },
     Edit {
         file: "S_MixFontLoaderA",
@@ -511,7 +511,7 @@ pub const EDITS: [Edit; 98] = [
     },
     Edit {
         file: "S_MixFontLoaderG",
-        anchor: "    new-instance p0, Lp/S_MixFontLoaderF;\n\n    .line 12\n    .line 13\n    const v0, 0x7f090002\n",
+        anchor: "    new-instance p0, Lp/S_MixFontLoaderF;\n\n    .line 12\n    .line 13\n    const v0, R_font_spotify_mix\n",
         replacement: "    new-instance p0, Lp/S_MixFontLoaderF;\n\n    .line 12\n    .line 13\n    iget v0, p1, Landroidx/compose/ui/text/font/FontWeight;->a:I\n\n    invoke-static {v0}, Lspatch/Fonts;->variable(I)I\n\n    move-result v0\n",
     },
     // Home filter row: my50.b hands the same model to the native chips (spatch.FilterRow).
