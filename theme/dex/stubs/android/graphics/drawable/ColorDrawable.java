@@ -6,4 +6,5 @@ public class ColorDrawable extends Drawable {
     public void setAlpha(int alpha) {}
     public void setColorFilter(android.graphics.ColorFilter filter) {}
     public int getOpacity() { return 0; }
+    public int getColor() { return 0; }
 }

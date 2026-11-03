@@ -93,7 +93,9 @@ final class DevOverlay extends View implements Choreographer.FrameCallback {
         if (inspect && e.getActionMasked() == MotionEvent.ACTION_DOWN) {
             picked = deepest(getRootView(), e.getRawX(), e.getRawY()); // screen coordinates, as getLocationOnScreen
             if (picked == null) picked = getRootView();
-            pickedLines = describe(picked);
+            ArrayList<String> lines = new ArrayList<String>(java.util.Arrays.asList(describe(picked)));
+            painters(getRootView(), e.getRawX(), e.getRawY(), lines);
+            pickedLines = lines.toArray(new String[0]);
             invalidate();
         }
         return false;
@@ -109,9 +111,9 @@ final class DevOverlay extends View implements Choreographer.FrameCallback {
                 View hit = deepest(group.getChildAt(i), x, y);
                 if (hit != null) return hit;
             }
-            // A full-screen layer with nothing under the finger (tooltips, scrims) lets the search go on
-            // beneath it; Compose hosts are kept, since their content is not made of views.
-            if (group.getChildCount() > 0 && !view.getClass().getName().contains("Compose")) return null;
+            // A layer that paints nothing where the finger is (tooltips, empty containers) lets the search
+            // go on beneath it; one with a background painted that spot, and Compose hosts draw their own content.
+            if (group.getChildCount() > 0 && view.getBackground() == null && !view.getClass().getName().contains("Compose")) return null;
         }
         return view;
     }
@@ -122,6 +124,21 @@ final class DevOverlay extends View implements Choreographer.FrameCallback {
         } catch (RuntimeException generated) {
             return "generated id";
         }
+    }
+
+    /** Every view under the point that paints a background, top first: what colours that spot. */
+    private void painters(View view, float x, float y, ArrayList<String> out) {
+        if (view == this || view.getVisibility() != View.VISIBLE || out.size() > 12) return;
+        view.getLocationOnScreen(at);
+        if (x < at[0] || y < at[1] || x >= at[0] + view.getWidth() || y >= at[1] + view.getHeight()) return;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = group.getChildCount() - 1; i >= 0; i--) painters(group.getChildAt(i), x, y, out);
+        }
+        android.graphics.drawable.Drawable bg = view.getBackground();
+        if (bg == null) return;
+        String colour = bg instanceof android.graphics.drawable.ColorDrawable ? String.format(" #%08x", ((android.graphics.drawable.ColorDrawable) bg).getColor()) : "";
+        out.add("paint: " + view.getClass().getSimpleName() + " " + idName(view) + ", " + bg.getClass().getSimpleName() + colour);
     }
 
     private String[] describe(View view) {
