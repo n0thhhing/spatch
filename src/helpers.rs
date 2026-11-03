@@ -469,6 +469,8 @@ pub const STUBS: &[(&str, &str)] = &[
     ("r4c0.java", include_str!("../theme/dex/stubs/p/r4c0.java")),
     ("ndy.java", include_str!("../theme/dex/stubs/p/ndy.java")),
     ("psn0.java", include_str!("../theme/dex/stubs/p/psn0.java")),
+    ("dsn0.java", include_str!("../theme/dex/stubs/p/dsn0.java")),
+    ("sgk1.java", include_str!("../theme/dex/stubs/p/sgk1.java")),
     ("z341.java", include_str!("../theme/dex/stubs/p/z341.java")),
     ("k1b.java", include_str!("../theme/dex/stubs/p/k1b.java")),
     (

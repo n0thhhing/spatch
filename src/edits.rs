@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 93] = [
+pub const EDITS: [Edit; 94] = [
     // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {
@@ -39,6 +39,13 @@ pub const EDITS: [Edit; 93] = [
         file: "smali_classes9/com/spotify/mainlayout/ui/view/MainLayout.smali",
         anchor: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    .line 26\n    iget-object p4, p0, Lp/uyf0;->f:Lp/zd0;\n",
         replacement: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    sget-boolean p5, Lspatch/Flourish;->barsGone:Z\n\n    if-eqz p5, :spatch_bars_shown\n\n    const/4 p3, 0x0\n\n    :spatch_bars_shown\n    .line 26\n    iget-object p4, p0, Lp/uyf0;->f:Lp/zd0;\n",
+    },
+    // Bottom navigation: tsn0 skips a free account's Premium tab when "Hide the Premium tab" is on
+    // (spatch.Content.skipTab), before the tab's composition group opens.
+    Edit {
+        file: "smali_classes2/p/tsn0.smali",
+        anchor: "    check-cast v5, Lp/dsn0;\n",
+        replacement: "    check-cast v5, Lp/dsn0;\n\n    invoke-static {v5}, Lspatch/Content;->skipTab(Lp/dsn0;)Z\n\n    move-result v3\n\n    if-eqz v3, :spatch_tab_shown\n\n    move/from16 v17, v24\n\n    goto/16 :goto_2\n\n    :spatch_tab_shown\n",
     },
     // Playlist header (j060, drawn behind its Compose page): the same gradient policy as yw9 backgrounds.
     Edit {

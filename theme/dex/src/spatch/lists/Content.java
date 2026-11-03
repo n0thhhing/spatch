@@ -58,6 +58,30 @@ public final class Content {
     }
 
     /** xmc0's list. Anything that is not a Home section pair passes untouched. */
+    /** Position of the bottom-navigation tab "Hide the Premium tab" took away, or -1. */
+    static volatile int hiddenTab = -1;
+
+    /**
+     * tsn0 asks per tab: a free account's Premium tab (its page is an upsell destination) is skipped
+     * while the switch is on. Its position stays Spotify's, so taps still reach the right page.
+     */
+    public static boolean skipTab(p.dsn0 tab) {
+        if (!Settings.get(Settings.HIDE_PREMIUM_TAB)) {
+            hiddenTab = -1;
+            return false;
+        }
+        String page = tab.c == null ? null : tab.c.a;
+        if (page == null || !(page.contains("premium") || page.contains("upsell"))) return false;
+        hiddenTab = tab.b;
+        return true;
+    }
+
+    /** Where a tab sits on screen once the hidden one is gone, for the selection pill. */
+    static int visualTab(int position) {
+        int hidden = hiddenTab;
+        return hidden >= 0 && position > hidden ? position - 1 : position;
+    }
+
     public static List home(List list) {
         if (list.isEmpty() || !isSection(list.get(0))) return list;
         homeSource = list;

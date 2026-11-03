@@ -126,7 +126,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Title in album colour",
         "Focus the current lyric",
         "Queue shimmer",
-        "Widget follows wallpaper"
+        "Widget follows wallpaper",
+        "Hide the Premium tab"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -225,7 +226,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "The Now Playing title takes the cover's main colour",
         "Other lines shrink and the current one glows in the cover's colour",
         "A soft light passes over the playing song in the queue",
-        "The home screen widget takes your wallpaper's colours, light or dark (Android 12+)"
+        "The home screen widget takes your wallpaper's colours, light or dark (Android 12+)",
+        "Free accounts: takes the Premium tab out of the bottom bar"
     };
 
     /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
@@ -235,15 +237,15 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem"
     };
 
     /** Section layout: Settings indices per group. */
-    private static final int[] ARTWORK = {2, 5}, VISUALIZER = {8, 9, 10, 11, 12}, CONTENT = {13, 14}, SIDE_MENU = {15, 21, 22, 23, 24, 25, 26}, MOTION = {27, 35, 50, 6};
+    private static final int[] ARTWORK = {2, 5}, VISUALIZER = {8, 9, 10, 11, 12}, CONTENT = {13, 14, 96}, SIDE_MENU = {15, 21, 22, 23, 24, 25, 26}, MOTION = {27, 35, 50, 6};
     private static final int ROUND_ART = 3, NAV_STYLE = 43, FULL_VISUALIZER = 7, MINI_VISUALIZER = 16, SIDE_STYLE = 29, FILTERS = 32;
     private static final int[] SIDE_PARTS = {30, 31, 58, 59}, FILTER_PARTS = {33, 34, 63, 28}, NAV_PARTS = {44, 45, 46, 47, 48}, BURST_PLACES = {71, 72, 73, 74};
     /** Changes read once per process: chips and drawer rows at startup, press colours by the palette. */
-    private static final int[] NEEDS_RESTART = {13, 14, 15, 21, 22, 23, 24, 25, 26, 29, 30, 31, 35, 58, 59};
+    private static final int[] NEEDS_RESTART = {13, 14, 96, 15, 21, 22, 23, 24, 25, 26, 29, 30, 31, 35, 58, 59};
 
     private static final String[] THEME_TITLES = {
         "Lavender",

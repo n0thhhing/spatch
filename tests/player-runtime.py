@@ -440,7 +440,14 @@ public class PlayerRuntimeTest {
 
         // New settings keep today's look for anyone upgrading, and album colours stay readable.
         check(Settings.KEYS.length==Settings.DEFAULTS.length,"every key needs a default");
-        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        check(!Settings.DEFAULTS[Settings.HIDE_PREMIUM_TAB],"hiding the Premium tab is opt-in: it removes part of Spotify's own interface");
+        p.dsn0 premiumTab=new p.dsn0();premiumTab.b=3;premiumTab.c=new p.sgk1();premiumTab.c.a="spotify:upsell:premium_in_app_destination";
+        p.dsn0 createTab=new p.dsn0();createTab.b=4;createTab.c=new p.sgk1();createTab.c.a="spotify:create-menu";
+        Settings.set(Settings.HIDE_PREMIUM_TAB,true);
+        check(Content.skipTab(premiumTab)&&!Content.skipTab(createTab)&&Content.visualTab(4)==3&&Content.visualTab(2)==2,"the Premium tab goes and later tabs close the gap");
+        Settings.set(Settings.HIDE_PREMIUM_TAB,false);
+        check(!Content.skipTab(premiumTab)&&Content.visualTab(4)==4,"with the switch off every tab stays where it was");
         check(!Settings.DEFAULTS[Settings.WIDGET_WALLPAPER],"the wallpaper widget is opt-in: on by default it would recolour an existing widget");
         check(Settings.choice(Settings.ART_SKIP).equals("slide")&&Settings.choice(Settings.ART_OUTLINE).equals("wavy")&&Settings.choice(Settings.IMM_CHANGE).equals("pop")&&Settings.choice(Settings.GLOW_COLOR).equals("accent"),"defaults must match the existing look");
         check(Tint.vivid(new int[] {0xff202020,0xff400808,0xff101010})==(0xff000000|220<<16|28<<8|28),"the most colourful pixel wins and is lifted");

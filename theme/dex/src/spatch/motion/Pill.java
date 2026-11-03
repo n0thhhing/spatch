@@ -45,7 +45,7 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     private static Pill tab(psn0 item) {
         Pill tab = TABS.get(item.b);
         if (tab == null) {
-            tab = new Pill(item.b, item.g);
+            tab = new Pill(Content.visualTab(item.b), item.g);
             NavIndicator.tabs(TABS.size() + 1);
             TABS.put(item.b, tab);
         } else if (tab.target != item.g) {
