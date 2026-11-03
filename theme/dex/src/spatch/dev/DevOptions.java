@@ -5,8 +5,6 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
-import android.net.Uri;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,14 +24,12 @@ import java.util.List;
 public final class DevOptions implements View.OnClickListener, DialogInterface.OnClickListener {
     private static final String CRASH_FILE = "spatch_last_crash.txt";
     private static final int LOG_CHARS = 8000;
-    // The repo is private, so the browser's GitHub sign-in fetches it and no token lives in the app.
-    private static final String LATEST_BUILD = "https://github.com/n0thhhing/spatch-builds/releases/latest";
     static File crashFile;
 
     private final SpatchSettings page;
     private final Context context;
     private final TextView status, results, crash, log;
-    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, update, restart, frames, inspect, sampler;
+    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, restart, frames, inspect, sampler;
     private final M3Switch framesSwitch, inspectSwitch, samplerSwitch;
     private String report = "Not run yet";
 
@@ -107,7 +103,6 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
 
         page.addSectionHeader("App");
         LinearLayout app = page.addGroup();
-        update = row(app, "external_link", "Update to latest build", "Opens the newest release on GitHub to download and install");
         restart = row(app, "repeat", "Restart Spotify", null);
         page.finish(app);
         page.finishCategory(root);
@@ -243,18 +238,6 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         return out.length() == 0 ? "Nothing logged" : out.substring(start);
     }
 
-    /** The selector skips Spotify's own link handling; the application context skips its activities' startActivity. */
-    private void openInBrowser() {
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(LATEST_BUILD)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.setSelector(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER));
-        try {
-            context.getApplicationContext().startActivity(intent);
-        } catch (RuntimeException noBrowser) {
-            intent.setSelector(null);
-            context.getApplicationContext().startActivity(intent);
-        }
-    }
-
     public void onClick(View v) {
         if (v == run) {
             runTests();
@@ -279,8 +262,6 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         } else if (v == testCrash) {
             new AlertDialog.Builder(context, 0x010302d1).setTitle("Crash Spotify now?").setMessage("It closes straight away. Reopen it to see the record here.")
                 .setPositiveButton("Crash", this).setNegativeButton("Cancel", this).show();
-        } else if (v == update) {
-            openInBrowser();
         } else if (v == restart) {
             Palette.restart(context);
         }

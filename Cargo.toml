@@ -6,5 +6,6 @@ description = "Guarded UI redesign patcher for one exact Spotify Android APKM"
 license = "MIT"
 
 [dependencies]
+bsdiff = "0.2"
 sha2 = "0.10"
 zip = { version = "2.6", default-features = false, features = ["deflate"] }

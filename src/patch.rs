@@ -264,8 +264,8 @@ pub const NEW_IMAGES: [arsc::NewFile; 1] = [arsc::NewFile {
 
 /// The sample song in `spatch_widget_preview` (its title and artist are written in that layout).
 /// Only the link lives in the repo; the cover is fetched at build time. Empty: plain tile.
-const PREVIEW_TRACK: &str = "https://open.spotify.com/track/3CWhQE4dYKzAC0qpbGJANW";
-const PREVIEW_FALLBACK: &[u8] =
+pub const PREVIEW_TRACK: &str = "https://open.spotify.com/track/3CWhQE4dYKzAC0qpbGJANW";
+pub const PREVIEW_FALLBACK: &[u8] =
     include_bytes!("../theme/player/res/drawable/spatch_widget_preview_fallback.jpg");
 
 /// The sample song's cover from Spotify's public oEmbed endpoint, cached in `.cache/`; with no
@@ -343,10 +343,20 @@ pub fn check_targets(base: &Path) -> Result<()> {
     dex::check_originals(base)
 }
 
+/// What `run` makes of the patched entries.
+pub enum Output<'a> {
+    /// Verify everything, write nothing.
+    DryRun,
+    /// A signed split-APK set in the output directory.
+    Signed(&'a Signing),
+    /// A patch bundle for Spatch Manager (`bundle::write`), at the output path.
+    Bundle,
+}
+
 pub fn run(
     apkm: &Path,
     out: &Path,
-    signing: Option<&Signing>,
+    output: Output,
     tools: &Tools,
     theme: &Theme,
     debug: bool,
@@ -358,7 +368,7 @@ pub fn run(
         )
         .into());
     }
-    if let Some(s) = signing {
+    if let Output::Signed(s) = output {
         if std::env::var_os(&s.pass_env).is_none() {
             return Err(format!(
                 "environment variable {} (keystore password) is not set",
@@ -395,11 +405,19 @@ pub fn run(
             .iter()
             .map(|(name, bytes)| (*name, bytes.to_vec())),
     );
-    let Some(signing) = signing else {
-        println!(
-            "dry run: input, targets, resource compilation and DEX reassembly verified; no output written"
-        );
-        return Ok(());
+    let signing = match output {
+        Output::DryRun => {
+            println!(
+                "dry run: input, targets, resource compilation and DEX reassembly verified; no output written"
+            );
+            return Ok(());
+        }
+        Output::Bundle => {
+            crate::bundle::write(&apks, &compiled, &added, out)?;
+            println!("wrote {}", out.display());
+            return Ok(());
+        }
+        Output::Signed(s) => s,
     };
 
     let result = staging.path.join("result");
@@ -690,7 +708,7 @@ pub fn check_references(
     Ok(())
 }
 
-fn is_signature_entry(name: &str) -> bool {
+pub fn is_signature_entry(name: &str) -> bool {
     let Some(rest) = name.strip_prefix("META-INF/") else {
         return false;
     };
@@ -1021,7 +1039,7 @@ mod tests {
         let err = run(
             &d.join("missing.apkm"),
             &out,
-            None,
+            Output::DryRun,
             &tools,
             &crate::theme::THEMES[0],
             false,
@@ -1045,7 +1063,7 @@ mod tests {
         run(
             &apkm,
             &out,
-            None,
+            Output::DryRun,
             &Tools::discover().unwrap(),
             crate::theme::by_name("gruvbox").unwrap(),
             false,

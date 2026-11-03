@@ -1,4 +1,5 @@
 mod arsc;
+mod bundle;
 mod dex;
 mod edits;
 mod fonts;
@@ -20,12 +21,16 @@ usage:
   spatch inspect <input.apkm>
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --dry-run
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --keystore <file> --alias <name> --ks-pass-env <VAR>
+  spatch bundle <input.apkm> --out <new-file.zip> [--theme <name>] [--debug]
 
 Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula,
 gruvbox-material-dark.
 
 --debug adds Developer options to Spatch settings: on-device tests, logs and inspection tools.
 Other builds contain none of that code.
+
+A bundle holds Spatch's changes as diffs against the APKM, for Spatch Manager to apply and sign on
+the phone; it contains none of Spotify's own files.
 
 The input is never modified. The keystore password is read by apksigner from the named
 environment variable; spatch never reads or prints it.";
@@ -43,7 +48,8 @@ fn main() -> ExitCode {
 fn run(args: Vec<String>) -> Result<()> {
     match args.first().map(String::as_str) {
         Some("inspect") if args.len() == 2 => inspect(&PathBuf::from(&args[1])),
-        Some("patch") if args.len() >= 2 => {
+        Some(cmd @ ("patch" | "bundle")) if args.len() >= 2 => {
+            let bundle = cmd == "bundle";
             let mut out = None;
             let (mut keystore, mut alias, mut pass_env, mut dry_run) = (None, None, None, false);
             let mut debug = false;
@@ -63,28 +69,35 @@ fn run(args: Vec<String>) -> Result<()> {
                 }
             }
             let out = out.ok_or(format!("--out is required\n{USAGE}"))?;
-            let signing =
-                match (dry_run, keystore, alias, pass_env) {
-                    (true, None, None, None) => None,
-                    (false, Some(keystore), Some(alias), Some(pass_env)) => Some(patch::Signing {
+            let signing = match (bundle, dry_run, keystore, alias, pass_env) {
+                (true, false, None, None, None) => None,
+                (false, true, None, None, None) => None,
+                (false, false, Some(keystore), Some(alias), Some(pass_env)) => {
+                    Some(patch::Signing {
                         keystore,
                         alias,
                         pass_env,
-                    }),
-                    _ => return Err(format!(
+                    })
+                }
+                (true, ..) => {
+                    return Err(
+                        format!("bundle takes no signing or --dry-run flags\n{USAGE}").into(),
+                    );
+                }
+                _ => {
+                    return Err(format!(
                         "use either --dry-run or all of --keystore, --alias, --ks-pass-env\n{USAGE}"
                     )
-                    .into()),
-                };
+                    .into());
+                }
+            };
+            let output = match &signing {
+                Some(s) => patch::Output::Signed(s),
+                None if bundle => patch::Output::Bundle,
+                None => patch::Output::DryRun,
+            };
             let tools = tools::Tools::discover()?;
-            patch::run(
-                &PathBuf::from(&args[1]),
-                &out,
-                signing.as_ref(),
-                &tools,
-                theme,
-                debug,
-            )
+            patch::run(&PathBuf::from(&args[1]), &out, output, &tools, theme, debug)
         }
         _ => Err(USAGE.into()),
     }

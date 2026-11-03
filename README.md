@@ -4,6 +4,9 @@ A Rust command-line patcher that gives one exact build of Spotify for Android (9
 code 148115007) a Material You redesign. It takes the APKM, applies guarded edits and writes a signed
 split-APK set. It never modifies the input.
 
+[Spatch Manager](manager/README.md) does the same on the phone: it applies a published patch bundle
+to your own APKM and signs it with a key that never leaves the phone.
+
 This is a personal project. It supports only the build pinned in `src/input.rs`: any other input is
 refused rather than patched blindly.
 
@@ -60,6 +63,12 @@ Build a signed set. The password is read by `apksigner` from the environment var
 ./target/release/spatch patch <input.apkm> --out <new-dir> --theme gruvbox --keystore <file> --alias <name> --ks-pass-env SPATCH_KS_PASS
 ```
 
+Write a patch bundle for Spatch Manager instead (no signing; see [the manager](manager/README.md)):
+
+```bash
+./target/release/spatch bundle <input.apkm> --out <new-file.zip>
+```
+
 Add `--debug` for a Developer options page in Spatch settings: on-device self tests, a frame monitor,
 a touch inspector, a crash record and log reading. Other builds contain none of that code.
 
@@ -77,6 +86,8 @@ adb install-multiple -r base.apk split_config.*.apk
 | `src/edits.rs` | Guarded smali edits. Each must match its anchor exactly once. |
 | `src/helpers.rs` | The helper Java and stub file lists. |
 | `src/dex.rs` | The helper DEX build and reassembly. |
+| `src/bundle.rs` | Patch bundles for Spatch Manager. |
+| `manager/` | Spatch Manager, the Android app that patches, signs and installs on the phone. |
 | `src/theme.rs` | Theme colour roles. |
 | `theme/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |
 | `theme/dex/stubs/` | Compile-only stubs. `p/` holds Spotify's obfuscated classes; see [its README](theme/dex/stubs/p/README.md). |
