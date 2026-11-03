@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 88] = [
+pub const EDITS: [Edit; 91] = [
     // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {
@@ -62,6 +62,11 @@ pub const EDITS: [Edit; 88] = [
     // Encore's colours are built once from Palette: a live theme change builds them again.
     Edit { file: "smali/p/ggx.smali", anchor: ".field public static final a:Lp/sex;\n", replacement: ".field public static a:Lp/sex;\n" },
     Edit { file: "smali/p/ggx.smali", anchor: ".method static constructor <clinit>()V\n    .locals 62\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/ggx;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 62\n" },
+    // Encore's tinted surfaces (Home shortcut tiles and the like) are white at 10/14/21% over the
+    // page; they become the theme accent through Palette, about 1.4x as strong so they stay as bright.
+    Edit { file: "smali/p/ggx.smali", anchor: "    const v0, 0x1affffff\n", replacement: "    const v0, 0x24d0bcff\n\n    invoke-static {v0}, Lspatch/Palette;->color(I)I\n\n    move-result v0\n" },
+    Edit { file: "smali/p/ggx.smali", anchor: "    const v0, 0x24ffffff\n", replacement: "    const v0, 0x32d0bcff\n\n    invoke-static {v0}, Lspatch/Palette;->color(I)I\n\n    move-result v0\n" },
+    Edit { file: "smali/p/ggx.smali", anchor: "    const v0, 0x36ffffff\n", replacement: "    const v0, 0x4cd0bcff\n\n    invoke-static {v0}, Lspatch/Palette;->color(I)I\n\n    move-result v0\n" },
     Edit { file: "smali/p/kex.smali", anchor: ".field public static final a:Lp/gsc;\n", replacement: ".field public static a:Lp/gsc;\n" },
     Edit { file: "smali/p/kex.smali", anchor: ".method static constructor <clinit>()V\n    .locals 6\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/kex;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 6\n" },
     Edit { file: "smali_classes4/p/y2p1.smali", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },

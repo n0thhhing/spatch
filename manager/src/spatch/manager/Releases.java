@@ -12,8 +12,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Spatch's public GitHub releases: patch bundles are tagged bundle-*, manager builds manager-v<code>.
- * The newest published release of each kind wins.
+ * Spatch's public GitHub releases: patch bundles are tagged bundle-* (spatch-bundle.zip, plus
+ * spatch-bundle-debug.zip with Developer options), manager builds manager-v<code>. The newest
+ * published release of each kind wins.
  */
 final class Releases {
     static final String REPO = "n0thhhing/spatch";
@@ -21,11 +22,12 @@ final class Releases {
 
     /** A release's tag and the download URL of its asset. */
     static final class Release {
-        final String tag, url;
+        final String tag, url, debugUrl; // debugUrl: the developer bundle, or null
 
-        Release(String tag, String url) {
+        Release(String tag, String url, String debugUrl) {
             this.tag = tag;
             this.url = url;
+            this.debugUrl = debugUrl;
         }
     }
 
@@ -42,8 +44,10 @@ final class Releases {
                 JSONObject release = list.getJSONObject(i);
                 if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
                 String tag = release.getString("tag_name");
-                if (r.bundle == null && tag.startsWith("bundle-")) r.bundle = asset(release, ".zip");
-                if (r.manager == null && tag.startsWith("manager-v")) r.manager = asset(release, ".apk");
+                if (r.bundle == null && tag.startsWith("bundle-")) r.bundle = new Release(tag, asset(release, "spatch-bundle.zip"), asset(release, "spatch-bundle-debug.zip"));
+                if (r.manager == null && tag.startsWith("manager-v")) r.manager = new Release(tag, asset(release, "spatch-manager.apk"), null);
+                if (r.bundle != null && r.bundle.url == null) r.bundle = null;
+                if (r.manager != null && r.manager.url == null) r.manager = null;
             }
             return r;
         } catch (JSONException e) {
@@ -62,11 +66,12 @@ final class Releases {
         }
     }
 
-    private static Release asset(JSONObject release, String suffix) throws JSONException {
+    /** The download URL of the release's asset with that name, or null. */
+    private static String asset(JSONObject release, String name) throws JSONException {
         JSONArray assets = release.getJSONArray("assets");
         for (int i = 0; i < assets.length(); i++) {
             JSONObject a = assets.getJSONObject(i);
-            if (a.getString("name").endsWith(suffix)) return new Release(release.getString("tag_name"), a.getString("browser_download_url"));
+            if (a.getString("name").equals(name)) return a.getString("browser_download_url");
         }
         return null;
     }

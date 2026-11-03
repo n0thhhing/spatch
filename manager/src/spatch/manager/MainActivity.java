@@ -27,6 +27,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -43,7 +44,7 @@ import java.util.concurrent.Executors;
  * own updates. Patching, signing and installing all happen here; nothing leaves the phone.
  */
 public final class MainActivity extends Activity {
-    private static final String SPOTIFY = "com.spotify.music", INSTALLED = "installed_bundle";
+    private static final String SPOTIFY = "com.spotify.music", INSTALLED = "installed_bundle", DEBUG = "developer_build";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -58,6 +59,7 @@ public final class MainActivity extends Activity {
     private TextView spotifyStatus, apkmStatus, patchStatus, keyStatus, managerStatus, status;
     private Button choose, patch, uninstall, managerUpdate, check, exportKey, importKey;
     private ProgressBar progress;
+    private Switch developer;
 
     private final BroadcastReceiver installResult = new BroadcastReceiver() {
         @Override
@@ -142,6 +144,15 @@ public final class MainActivity extends Activity {
         spotifyStatus = line(spotify);
         apkmStatus = line(spotify);
         patchStatus = line(spotify);
+        developer = new Switch(this);
+        developer.setText("Developer build (adds Developer options: self tests, frame monitor, logs)");
+        developer.setTextColor(text);
+        developer.setChecked(prefs.getBoolean(DEBUG, false));
+        developer.setOnCheckedChangeListener((v, on) -> {
+            prefs.edit().putBoolean(DEBUG, on).apply();
+            refresh();
+        });
+        spotify.addView(developer);
         choose = button(spotify, "Choose Spotify APKM", v -> pickApkm());
         patch = button(spotify, "Install Spatch", v -> patch());
         uninstall = button(spotify, "Uninstall Spotify", v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
@@ -173,6 +184,7 @@ public final class MainActivity extends Activity {
         PackageInfo info = spotify();
         boolean ours = info != null && keys != null && signedByUs(info);
         String installed = prefs.getString(INSTALLED, null);
+        boolean debug = developer.isChecked();
         spotifyStatus.setText(info == null ? "Spotify isn't installed."
             : ours ? "Spatch " + (installed != null ? "(" + installed + ") " : "") + "is installed, Spotify " + info.versionName + "."
             : "Spotify " + info.versionName + " is installed with another key. To install over it, import the key it was signed with (Signing key, Import key); otherwise it has to be uninstalled first.");
@@ -182,10 +194,13 @@ public final class MainActivity extends Activity {
             : info != null && !ours ? "No APKM needed if the installed Spotify is the unmodified version Spatch supports."
             : "Choose the Spotify APKM that Spatch supports.");
         Releases.Release bundle = releases == null ? null : releases.bundle;
-        patchStatus.setText(bundle != null ? "Newest patches: " + bundle.tag + "." : releaseError != null ? releaseError : "Looking for patches…");
-        patch.setText(!ours ? "Install Spatch" : bundle != null && !bundle.tag.equals(installed) ? "Update Spatch" : "Reinstall Spatch");
+        patchStatus.setText(bundle != null ? "Newest patches: " + bundle.tag + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
+            : releaseError != null ? releaseError : "Looking for patches…");
+        String wanted = bundle == null ? null : variant(bundle.tag, debug);
+        patch.setText(!ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
         choose.setText(apkm.isFile() ? "Choose another APKM" : "Choose Spotify APKM");
-        patch.setEnabled(!busy && keys != null && bundle != null && (apkm.isFile() || info != null));
+        patch.setEnabled(!busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null));
+        developer.setEnabled(!busy);
         uninstall.setVisibility(conflict && info != null && !ours ? View.VISIBLE : View.GONE);
         try {
             keyStatus.setText(keys == null ? "Making this phone's key…" : "Fingerprint " + keys.fingerprint().substring(0, 16) + "…");
@@ -271,13 +286,15 @@ public final class MainActivity extends Activity {
             return;
         }
         final Releases.Release release = releases.bundle;
+        final boolean debug = developer.isChecked();
+        final String tag = variant(release.tag, debug);
         conflict = false;
         work("Getting the patches", () -> {
-            File bundle = new File(getCacheDir(), release.tag + ".zip");
+            File bundle = new File(getCacheDir(), release.tag + (debug ? "-debug" : "") + ".zip");
             if (!bundle.isFile()) {
                 File[] old = getCacheDir().listFiles((dir, name) -> name.endsWith(".zip"));
                 if (old != null) for (File f : old) f.delete();
-                Releases.download(release.url, bundle, this::step, "Downloading the patches");
+                Releases.download(debug ? release.debugUrl : release.url, bundle, this::step, "Downloading the patches");
             }
             File dir = new File(getCacheDir(), "build"), signedDir = new File(dir, "signed");
             delete(dir);
@@ -296,7 +313,7 @@ public final class MainActivity extends Activity {
             }
             step("Installing", 1, 1);
             main.post(() -> {
-                pendingTag = release.tag;
+                pendingTag = tag;
                 installingSelf = false;
             });
             Installer.install(this, signed);
@@ -437,6 +454,11 @@ public final class MainActivity extends Activity {
         } catch (PackageManager.NameNotFoundException e) {
             return 0;
         }
+    }
+
+    /** What is installed: the bundle's tag, marked when it is the developer build. */
+    private static String variant(String tag, boolean debug) {
+        return debug ? tag + " (developer)" : tag;
     }
 
     private File apkm() {

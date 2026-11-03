@@ -35,6 +35,10 @@ openssl pkcs12 -export -legacy -in key.pem -out spatch-key.p12
 
 Delete `key.pem` afterwards: it holds the key unencrypted.
 
+**Developer build** installs the variant with Developer options in Spatch settings (self tests, a
+frame monitor, a touch inspector, logs). Switching it and tapping **Switch build** reinstalls in
+place; settings stay.
+
 **Update manager** appears when a newer manager release is out.
 
 ## Releases
@@ -43,7 +47,7 @@ Two kinds of release, both found by tag:
 
 | Tag | Asset | Made with |
 | --- | --- | --- |
-| `bundle-<name>` | a `.zip` patch bundle | `spatch bundle <input.apkm> --out <file.zip>` |
+| `bundle-<name>` | `spatch-bundle.zip` and `spatch-bundle-debug.zip` | `spatch bundle <input.apkm> --out <file.zip>`, adding `--debug` for the second |
 | `manager-v<code>` | `spatch-manager.apk` | `manager/build.sh <code> <out.apk> --keystore ... --alias ... --ks-pass-env ...` |
 
 The manager's version code is the number in its tag, and every manager release must be signed
