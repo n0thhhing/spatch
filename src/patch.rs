@@ -88,7 +88,7 @@ pub const TARGETS: [Target; 20] = [
     // Mini-player surface (also its live-room and hat variants): adds a faint outline.
     target!(
         "res/drawable/floating_layout_bg.xml",
-        "38a2e453dfa04a41bffa7966adb27596cf18b7ded105fe8929513d9d372be2a3"
+        "f90e14c0385085195ea639bdb7f157f7c5c5b387b9ba1d886a8d29432712ce82"
     ),
     // Encore PlayButtonView header background (albums, shows): spatch.ScallopFill.
     target!(
@@ -97,19 +97,19 @@ pub const TARGETS: [Target; 20] = [
     ),
     target!(
         "res/layout/square_cover_art_content.xml",
-        "be430f822bf1505cb7ec73f65dee5f6c4c6cfd82b7a90654357fcbbfaf581d97"
+        "458b7efeee492a6da6b24950b7468a81abddbcd87472e4f618c3f30cb027f9be"
     ),
     target!(
         "res/layout/revised_template_page_layout.xml",
-        "c616ffbf6aa8f51c453385870ce03efc2576578c8b7cfe93b6bbb3aa25fa9361"
+        "e117f445f1c51e87dbaa3a8ce16ac25da49097d8f07ca7a00960c6209b74fa8a"
     ),
     target!(
         "res/layout/revised_template_overlay.xml",
-        "973d7edf5612c7c730b0ebd8888f62115a28af9cf1f9f5967a7e345ee36f35f9"
+        "ef8a5a337e413850b71b4b0cc40588ef562b222158d5ffbe2b397dfaaae38277"
     ),
     target!(
         "res/layout/track_info_nowplaying_view.xml",
-        "9bf266faf8b65235ca469fd81c2f5baa03339d7224f1788158ed0b290bfb614e"
+        "810522ba98b10a4bdda974b6596dd144cc4d9438463b2da4102d75fe7dd9fbde"
     ),
     target!(
         "res/drawable/nowplaying_overlay_gradient.xml",
@@ -128,15 +128,15 @@ pub const TARGETS: [Target; 20] = [
     // Compose host (device check 2026-10-28), so floating_layout_bg is deliberately left alone.
     target!(
         "res/layout/now_playing_bar.xml",
-        "d82f2e66955a6be84614c0de863aa8bdcdd2346e5bdf22f8fa3fdbd402a2b9b5"
+        "30fe15ae6d232df25871d8118eb3ee05bd6e3b27a0faa168700dab6c40068237"
     ),
     target!(
         "res/xml/now_playing_bar_scene.xml",
-        "9afe1830631736ef1f7b32b4c413360d41a2e0d42a134c005b700b10e038aad6"
+        "16bd1cb3f454f5104fdf3c3f811f2272733e774a0a0eb5e693f405073d80603c"
     ),
     target!(
         "res/layout/now_playing_bar_track_info_view.xml",
-        "b12f9503969c41ebb1996f6343e17b0bc1498276543f71c8c5f67fea71b4938c"
+        "3005e9d451493def337cac2861bca9023d1c03d02693d44a305d90bb496d934a"
     ),
     // Library's add rows (gra0): the icon tile matched the page, so it showed on a held row.
     target!(
@@ -156,40 +156,40 @@ pub const TARGETS: [Target; 20] = [
     // gradients. horizontal_main / large_main (landscape, tablets) are not patched.
     target!(
         "res/layout/vertical_main.xml",
-        "e31f403f6ac29a03d5c656ff1a25159f7230c1b4eff56f2838a9a86769469545"
+        "e905808d28a5081548a5417aaa73522273422970d2f782bbf7262b68819c2523"
     ),
     // Home shelf card (p.a2s inflates image_link_card_layout); the same Encore card appears in other shelves.
     target!(
         "res/layout/image_link_card_layout.xml",
-        "03047e5a25eaf1cc87fe8549fb18682ad727128b276ad96f5fd8ab74af49fe5c"
+        "a2f0e0915852d33ebc5c22a5d66249f558e1585b0439f67a3adec0c0788628cb"
     ),
     // Player seekbar layout (p.S_SeekbarTint inflates it): taller track for the wavy progress.
     target!(
         "res/layout/track_seekbar.xml",
-        "9a52a0a29e1431dec55ba411335251410f94882e3226ecb8cef9b49940af4364"
+        "302c0d8dae5138258dc6e15002134135d8897e63655d0ed44753d6115e1233b6"
     ),
     // MainActivity window background (Theme.Glue.Launcher windowBackground); shows behind the
     // transparent Compose Search and Home pages.
     target!(
         "res/drawable/launcher_screen.xml",
-        "78d71eb64c7fd787d8595ce19a1be21a6d555a0bca45bc71b1b624fa08aadfcb"
+        "80beb693d332799a6250beeda1401020a1af164bc1e36a17472547e43cfe8370"
     ),
     // Now Playing widget's picker entry: previewLayout shows Spatch's widget instead of Spotify's
     // stock picture, which stays as previewImage for launchers before Android 12.
     target!(
         "res/xml/dynamic_npv_widget_info.xml",
-        "07a21e2d672462203f14d8e1cd71d51bc89a76c3d41254b1b51a833f27498253"
+        "701948cfec508dce9c647fe8489250e8f8792d183a7566a083b110a4c13b1ed2"
     ),
 ];
 
 /// Resources defined only in the density splits that a patched entry must keep referencing. apktool
-/// cannot see them from base (it writes `@null`), so the staging copy declares each with its exact ID
-/// and a placeholder value; only the compiled XML is shipped, never the staging resource table.
-pub const SPLIT_REFS: [(&str, &str, &str); 4] = [
-    ("drawable", "ic_spotify_icon_rgb_green", "0x7f080a71"),
-    ("drawable", "npv_widget_preview", "0x7f080bbe"),
-    ("dimen", "square_cover_art_size", "0x7f070755"),
-    ("dimen", "square_cover_art_top_margin", "0x7f070756"),
+/// cannot see them from base (it writes `@null`), so the staging copy declares each with the ID the
+/// splits give it and a placeholder value; only the compiled XML is shipped, never the staging table.
+pub const SPLIT_REFS: [(&str, &str); 4] = [
+    ("drawable", "ic_spotify_icon_rgb_green"),
+    ("drawable", "npv_widget_preview"),
+    ("dimen", "square_cover_art_size"),
+    ("dimen", "square_cover_art_top_margin"),
 ];
 /// The APKM's density splits, which define `SPLIT_REFS`.
 fn density_splits() -> impl Iterator<Item = &'static str> {
@@ -578,7 +578,8 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
     let public = decoded.join("res/values/public.xml");
     // New resources get the IDs the table append will give them, so compiled references agree.
     let new_ids = arsc::append_files(&input::read_entry(base, "resources.arsc")?, &new_files())?.1;
-    let mut declared = declare_split_refs(&fs::read_to_string(&public)?, &split_dumps)?;
+    let (mut declared, split_ids) =
+        declare_split_refs(&fs::read_to_string(&public)?, &split_dumps)?;
     let lines: String = new_files()
         .iter()
         .zip(&new_ids)
@@ -606,7 +607,7 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
     fs::write(decoded.join(NEW_IMAGES[0].path), &art)?;
     let placeholders: String = SPLIT_REFS
         .iter()
-        .map(|(ty, name, _)| {
+        .map(|(ty, name)| {
             let value = if *ty == "dimen" { "0dp" } else { "#00000000" };
             format!("    <{ty} name=\"{name}\">{value}</{ty}>\n")
         })
@@ -638,7 +639,7 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
         ],
     )?;
     let mut known = resource_ids(&dump_resources(base)?);
-    known.extend(SPLIT_REFS.iter().map(|(_, _, id)| id.to_string()));
+    known.extend(split_ids);
     known.extend(new_ids.iter().map(|id| format!("{id:#010x}")));
     let mut compiled = Vec::new();
     for t in &TARGETS {
@@ -679,30 +680,40 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
 /// Replaced entries, then new ones.
 type Compiled = (Vec<(&'static str, Vec<u8>)>, Vec<(&'static str, Vec<u8>)>);
 
-/// Adds `SPLIT_REFS` to the decoded public.xml after checking each is absent from base and defined
-/// with the same type/name/ID in every density split.
-pub fn declare_split_refs(public: &str, split_dumps: &[String]) -> Result<String> {
-    let mut decls = String::new();
-    for (ty, name, id) in SPLIT_REFS {
+/// Adds `SPLIT_REFS` to the decoded public.xml, each with the ID every density split gives it, after
+/// checking it is absent from base. Returns the new public.xml and those IDs.
+pub fn declare_split_refs(public: &str, split_dumps: &[String]) -> Result<(String, Vec<String>)> {
+    let (mut decls, mut ids) = (String::new(), Vec::new());
+    for (ty, name) in SPLIT_REFS {
+        let line = |dump: &str| {
+            dump.lines().find_map(|l| {
+                let rest = l.trim().strip_prefix("resource ")?;
+                let (id, what) = rest.split_once(' ')?;
+                (what == format!("{ty}/{name}")).then(|| id.to_string())
+            })
+        };
+        let id = split_dumps
+            .first()
+            .and_then(|d| line(d))
+            .ok_or_else(|| format!("{ty}/{name} is not defined in the density splits"))?;
+        if !split_dumps.iter().all(|d| line(d).as_deref() == Some(&id)) {
+            return Err(
+                format!("{ty}/{name} ({id}) not defined alike in every density split").into(),
+            );
+        }
         if public.contains(&format!("name=\"{name}\"")) || public.contains(&format!("id=\"{id}\""))
         {
             return Err(format!("{ty}/{name} ({id}) unexpectedly present in base").into());
         }
-        let want = format!("resource {id} {ty}/{name}");
-        if !split_dumps
-            .iter()
-            .all(|d| d.lines().any(|l| l.trim() == want))
-        {
-            return Err(format!("{ty}/{name} ({id}) not defined in every density split").into());
-        }
         decls.push_str(&format!(
             "    <public type=\"{ty}\" name=\"{name}\" id=\"{id}\" />\n"
         ));
+        ids.push(id);
     }
     let end = public
         .rfind("</resources>")
         .ok_or("public.xml has no </resources>")?;
-    Ok(format!("{}{decls}{}", &public[..end], &public[end..]))
+    Ok((format!("{}{decls}{}", &public[..end], &public[end..]), ids))
 }
 
 pub fn strip_manifest_workaround(manifest: &str) -> Result<String> {
@@ -924,18 +935,21 @@ mod tests {
 
     #[test]
     fn split_refs_require_every_density_split() {
-        let (_, name, id) = SPLIT_REFS[0];
         let dump: String = SPLIT_REFS
             .iter()
-            .map(|(ty, name, id)| {
-                format!("    resource {id} {ty}/{name}\n      (xxhdpi) placeholder\n")
+            .enumerate()
+            .map(|(i, (ty, name))| {
+                format!("    resource 0x7f0800{i:02x} {ty}/{name}\n      (xxhdpi) placeholder\n")
             })
             .collect();
         let public = "<resources>\n</resources>\n";
-        let out = declare_split_refs(public, &[dump.clone(), dump.clone()]).unwrap();
-        assert!(out.contains(&format!("name=\"{name}\" id=\"{id}\"")));
+        let (out, ids) = declare_split_refs(public, &[dump.clone(), dump.clone()]).unwrap();
+        assert!(out.contains(&format!("name=\"{}\" id=\"0x7f080000\"", SPLIT_REFS[0].1)));
+        assert_eq!(ids.len(), SPLIT_REFS.len());
         assert!(out.trim_end().ends_with("</resources>"));
         assert!(declare_split_refs(public, &[dump.clone(), String::new()]).is_err());
+        let other = dump.replace("0x7f080000", "0x7f080099");
+        assert!(declare_split_refs(public, &[dump.clone(), other]).is_err());
         assert!(declare_split_refs(&out, &[dump.clone(), dump]).is_err());
     }
 

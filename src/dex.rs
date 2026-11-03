@@ -67,7 +67,7 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Each is an alias (`S_...`) or a smali path.
-const RELOCATED: [&str; 12] = [
+const RELOCATED: [&str; 13] = [
     // Typography and the Home filter row: these DEX tables are full too.
     "S_MixFontLoaderD",
     "S_MixFontLoaderG",
@@ -84,6 +84,8 @@ const RELOCATED: [&str; 12] = [
     "S_MediaSessionSite",
     "S_HomeFeedModel",
     "S_NavBarTabState",
+    // Toggle chips: since 9.2.0.26 they sit in classes7, which has no room for Pill's references.
+    "S_ToggleChip",
 ];
 
 /// Each relocated class as (smali folder, path in it, original DEX, descriptor).
@@ -696,7 +698,7 @@ mod tests {
             assert!(
                 crate::patch::SPLIT_REFS
                     .iter()
-                    .any(|(ty, n, _)| *ty == "dimen" && *n == name)
+                    .any(|(ty, n)| *ty == "dimen" && *n == name)
             );
         }
     }
