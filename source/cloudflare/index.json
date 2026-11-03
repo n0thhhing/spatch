@@ -3,6 +3,15 @@
   "package": "com.spotify.music",
   "sources": [
     {
+      "versionName": "9.2.0.26",
+      "versionCode": 148373686,
+      "sha256": "186e251a3d4998b0a8182916c55be2ade2d7b9444efc6e8e8cc79bde08ed1ee2",
+      "size": 60078314,
+      "minSdk": 24,
+      "abis": ["arm64-v8a"],
+      "urls": ["spotify-148373686-186e251a3d4998b0.apkm"]
+    },
+    {
       "versionName": "9.1.98.521",
       "versionCode": 148115007,
       "sha256": "1b966decbcaaa5d1473f38cc8ae0f562f41bc90d76b671eb3726773ad36cbd8b",
