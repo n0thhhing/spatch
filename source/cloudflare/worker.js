@@ -1,26 +1,32 @@
 // A private Spatch source on Cloudflare Workers. It answers only people with a login you gave them:
-// /index.json describes the APKM, and the APKM's path redirects to a short-lived GitHub download of
-// it from a private release. Logins and the GitHub token are Worker secrets; nothing here unlocks it.
+// /index.json lists every Spotify version the source keeps, and each version's APKM path redirects to
+// a short-lived GitHub download of it from a private release. Logins and the GitHub token are Worker
+// secrets; nothing here unlocks it.
 //
 // Secrets: GITHUB_TOKEN (read-only Contents on the private repo), and one CODE_<name> per person
-// holding the SHA-256 hex of their code. Vars (wrangler.toml): REPO, TAG, ASSET.
+// holding the SHA-256 hex of their code. Var (wrangler.toml): REPO. Each version's APKM is release
+// apkm-<versionName>, asset spotify-<versionName>.apkm, so adding a version needs no edit here.
 
 import index from "./index.json" with { type: "json" };
 
-const OBJECT = index.sources[0].urls[0];
+/** The Worker for a given index; the deployed one uses index.json. */
+export function serve(index) {
+  return {
+    async fetch(request, env) {
+      const path = new URL(request.url).pathname;
+      if (request.method !== "GET" && request.method !== "HEAD") return reply(405);
+      if (!(await allowed(request.headers.get("Authorization"), env))) return reply(401);
+      if (path === "/index.json") {
+        return new Response(JSON.stringify(index), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
+      const entry = index.sources.find((s) => "/" + s.urls[0] === path);
+      if (entry) return download(entry, env);
+      return reply(404);
+    },
+  };
+}
 
-export default {
-  async fetch(request, env) {
-    const path = new URL(request.url).pathname;
-    if (request.method !== "GET" && request.method !== "HEAD") return reply(405);
-    if (!(await allowed(request.headers.get("Authorization"), env))) return reply(401);
-    if (path === "/index.json") {
-      return new Response(JSON.stringify(index), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
-    }
-    if (path === "/" + OBJECT) return download(env);
-    return reply(404);
-  },
-};
+export default serve(index);
 
 /** Basic name:code, where CODE_<name> holds the code's SHA-256. */
 export async function allowed(header, env) {
@@ -40,12 +46,12 @@ export async function allowed(header, env) {
 }
 
 /** The release asset's own download: GitHub answers the API with a redirect to a link that expires in minutes. */
-async function download(env) {
+async function download(entry, env) {
   const headers = { Authorization: "Bearer " + env.GITHUB_TOKEN, "User-Agent": "spatch-source", "X-GitHub-Api-Version": "2022-11-28" };
-  const release = await fetch(`https://api.github.com/repos/${env.REPO}/releases/tags/${env.TAG}`, { headers: { ...headers, Accept: "application/vnd.github+json" } });
+  const release = await fetch(`https://api.github.com/repos/${env.REPO}/releases/tags/apkm-${entry.versionName}`, { headers: { ...headers, Accept: "application/vnd.github+json" } });
   if (!release.ok) return reply(502);
-  const asset = (await release.json()).assets?.find((a) => a.name === env.ASSET);
-  if (!asset || asset.size !== index.sources[0].size) return reply(502);
+  const asset = (await release.json()).assets?.find((a) => a.name === `spotify-${entry.versionName}.apkm`);
+  if (!asset || asset.size !== entry.size) return reply(502);
   const file = await fetch(asset.url, { headers: { ...headers, Accept: "application/octet-stream" }, redirect: "manual" });
   const location = file.headers.get("Location");
   if (file.status < 300 || file.status >= 400 || !location?.startsWith("https://")) return reply(502);

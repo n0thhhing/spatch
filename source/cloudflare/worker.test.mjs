@@ -2,26 +2,38 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import worker, { allowed } from "./worker.js";
-import index from "./index.json" with { type: "json" };
+import { serve, allowed } from "./worker.js";
 
-const OBJECT = "/" + index.sources[0].urls[0];
+// Two versions, as after a Spotify update: the older one stays downloadable.
+const index = {
+  schema: 1,
+  package: "com.spotify.music",
+  sources: [
+    { versionName: "9.2.0.26", versionCode: 148373686, sha256: "b".repeat(64), size: 60078314, minSdk: 24, abis: ["arm64-v8a"], urls: ["spotify-148373686-bbbbbbbbbbbbbbbb.apkm"] },
+    { versionName: "9.1.98.521", versionCode: 148115007, sha256: "a".repeat(64), size: 60589740, minSdk: 24, abis: ["arm64-v8a"], urls: ["spotify-148115007-aaaaaaaaaaaaaaaa.apkm"] },
+  ],
+};
+const worker = serve(index);
+const OBJECT = "/" + index.sources[0].urls[0], OLDER = "/" + index.sources[1].urls[0];
 const env = {
   GITHUB_TOKEN: "test-token",
   REPO: "owner/private",
-  TAG: "apkm-1",
-  ASSET: "spotify.apkm",
   CODE_alex: createHash("sha256").update("k7m2p9").digest("hex"),
 };
 const login = (name, code) => "Basic " + Buffer.from(`${name}:${code}`).toString("base64");
 const get = (path, auth) => worker.fetch(new Request("https://source.example" + path, { headers: auth ? { Authorization: auth } : {} }), env);
 
 let calls;
-function github({ size = index.sources[0].size, status = 302, location = "https://objects.example/signed?x=1" } = {}) {
+function github({ size, status = 302, location = "https://objects.example/signed?x=1" } = {}) {
   calls = [];
   globalThis.fetch = async (url, init) => {
     calls.push({ url: String(url), init });
-    if (String(url).includes("/releases/tags/")) return Response.json({ assets: [{ name: "spotify.apkm", size, url: "https://api.github.com/repos/owner/private/releases/assets/9" }] });
+    const tag = String(url).match(/releases\/tags\/apkm-(.+)$/);
+    if (tag) {
+      const entry = index.sources.find((s) => s.versionName === tag[1]);
+      if (!entry) return new Response(null, { status: 404 });
+      return Response.json({ assets: [{ name: `spotify-${entry.versionName}.apkm`, size: size ?? entry.size, url: "https://api.github.com/repos/owner/private/releases/assets/9" }] });
+    }
     return new Response(null, { status, headers: location ? { Location: location } : {} });
   };
 }
@@ -56,6 +68,15 @@ test("the APKM redirects to GitHub's own short-lived link", async () => {
   assert.equal(calls[1].init.headers.Authorization, "Bearer test-token");
   assert.equal(calls[1].init.redirect, "manual");
   assert.equal(calls[1].init.headers.Accept, "application/octet-stream");
+});
+
+test("every listed version downloads from its own release", async () => {
+  github();
+  assert.equal((await get(OLDER, login("alex", "k7m2p9"))).status, 302);
+  assert.equal(calls[0].url, "https://api.github.com/repos/owner/private/releases/tags/apkm-9.1.98.521");
+  github();
+  assert.equal((await get(OBJECT, login("alex", "k7m2p9"))).status, 302);
+  assert.equal(calls[0].url, "https://api.github.com/repos/owner/private/releases/tags/apkm-9.2.0.26");
 });
 
 test("a release that doesn't match the index is refused", async () => {

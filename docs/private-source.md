@@ -51,9 +51,10 @@ link expires within minutes, and the file never passes through the Worker. Cloud
 covers it (100,000 requests a day, no card), and an install costs two requests.
 
 1. Make a free Cloudflare account at dash.cloudflare.com.
-2. Put the exact APKM in a release of a private repository. `wrangler.toml` points at
-   `n0thhhing/spatch-builds`, tag `apkm-9.1.98.521`, asset `spotify-9.1.98.521.apkm`; change them if
-   yours differ. The Worker refuses an asset whose size doesn't match `index.json`.
+2. Put each APKM in its own release of a private repository: tag `apkm-<versionName>`, asset
+   `spotify-<versionName>.apkm`, as in `apkm-9.1.98.521` / `spotify-9.1.98.521.apkm`.
+   `wrangler.toml` names the repository (`n0thhhing/spatch-builds`). The Worker refuses an asset
+   whose size doesn't match `index.json`.
 3. Log in and deploy; wrangler prints the Worker's address, `https://spatch-source.<you>.workers.dev`:
 
    ```bash
@@ -78,9 +79,28 @@ covers it (100,000 requests a day, no card), and an install costs two requests.
 
    `npx wrangler secret delete CODE_alex` takes alex's access away.
 
-`index.json` there comes from `spatch source`; when the supported Spotify changes, run it again, copy
-the new `index.json` over, update the release and `wrangler.toml`, and deploy. `node --test
+`index.json` there comes from `spatch source <input.apkm> --out source/cloudflare --index-only`,
+which keeps one file per version in `source/cloudflare/entries/` and lists them all, newest first, so
+older versions stay downloadable after a new one ships. `node --test
 source/cloudflare/worker.test.mjs` checks the Worker against a fake GitHub.
+
+## When Spotify updates
+
+Patches are made per Spotify build, never for "any version":
+
+1. Get the new APKM. Port the patches: the pinned hashes in `src/input.rs`, then every edit in
+   `src/edits.rs` and target in `src/patch.rs` whose anchor moved. Each one is guarded, so the build
+   names whatever no longer matches instead of producing a broken Spotify.
+2. Build the debug variant, install it on a phone, and run Spatch settings, Developer options, Run
+   all tests, then look over the screens the patches change.
+3. Add the APKM to the source **before** releasing patches for it, so no phone gets a bundle it can't
+   download for: upload release `apkm-<versionName>` to the private repository, run `spatch source
+   ... --index-only` into `source/cloudflare/`, and `npx wrangler deploy`.
+4. Release `patches-v<version>` from the new APKM. Phones get the update notification, download the
+   new Spotify from the source, and install it as an update with the same key, keeping their data.
+
+Older APKMs and their releases stay where they are; the manager only takes the entry matching its
+bundle, so anyone pointed at an older bundle can still install it.
 
 ## Serving it yourself with Caddy
 

@@ -23,7 +23,7 @@ usage:
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --dry-run
   spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --keystore <file> --alias <name> --ks-pass-env <VAR>
   spatch bundle <input.apkm> --out <new-file.zip> [--theme <name>] [--debug]
-  spatch source <input.apkm> --out <dir>
+  spatch source <input.apkm> --out <dir> [--index-only]
 
 Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula,
 gruvbox-material-dark.
@@ -35,7 +35,9 @@ A bundle holds Spatch's changes as diffs against the APKM, for Spatch Manager to
 the phone; it contains none of Spotify's own files.
 
 source checks the APKM and writes it under an immutable name with an index.json beside it, for a
-private Spatch source that Spatch Manager downloads from with an invite. It publishes nothing.
+private Spatch source that Spatch Manager downloads from with an invite. Versions staged into the
+same folder before stay listed. --index-only skips the copy, for a source that serves the APKM from
+elsewhere. It publishes nothing.
 
 The input is never modified. The keystore password is read by apksigner from the named
 environment variable; spatch never reads or prints it.";
@@ -53,10 +55,20 @@ fn main() -> ExitCode {
 fn run(args: Vec<String>) -> Result<()> {
     match args.first().map(String::as_str) {
         Some("inspect") if args.len() == 2 => inspect(&PathBuf::from(&args[1])),
-        Some("source") if args.len() == 4 && args[2] == "--out" => {
+        Some("source") if (4..=5).contains(&args.len()) && args[2] == "--out" => {
+            let index_only = match args.get(4).map(String::as_str) {
+                None => false,
+                Some("--index-only") => true,
+                Some(other) => return Err(format!("unknown argument {other}\n{USAGE}").into()),
+            };
             let out = PathBuf::from(&args[3]);
             std::fs::create_dir_all(&out)?;
-            source::stage(&PathBuf::from(&args[1]), &out, &tools::Tools::discover()?)
+            source::stage(
+                &PathBuf::from(&args[1]),
+                &out,
+                index_only,
+                &tools::Tools::discover()?,
+            )
         }
         Some(cmd @ ("patch" | "bundle")) if args.len() >= 2 => {
             let bundle = cmd == "bundle";
