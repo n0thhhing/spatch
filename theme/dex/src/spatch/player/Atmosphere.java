@@ -62,7 +62,7 @@ public final class Atmosphere extends Drawable implements Runnable {
         String fx=Settings.choice(Settings.BACKDROP_FX);
         boolean motes=!"none".equals(fx);
         if(motes) drawMotes(c,w,h,"stars".equals(fx),mix(fromColors[0],colors[0],blend));
-        if(Wave.animationsEnabled() && (Settings.artDrift()||motes) && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+(motes?16:66));
+        if(Wave.animationsEnabled() && (blend<1||Settings.artDrift()||motes) && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+(blend<1||motes?16:66));
     }
     public void run(){invalidateSelf();}
 

@@ -77,6 +77,8 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('protected void onDraw(android.graphics.Canvas c){}', 'protected void onDraw(android.graphics.Canvas c){if(art!=null)art.draw(c);}')
             text = text.replace('getDrawable(){return null;}', 'getDrawable(){return art;}').replace('setImageDrawable(android.graphics.drawable.Drawable d){}', 'setImageDrawable(android.graphics.drawable.Drawable d){art=d;}')
         if source.name == 'Drawable.java':
+            text = text.replace('public interface Callback', 'public long nextFrame; public interface Callback')
+            text = text.replace('scheduleSelf(Runnable what, long when) {}', 'scheduleSelf(Runnable what, long when) {nextFrame=when;}')
             text = text.replace('public interface Callback', 'private final android.graphics.Rect bounds = new android.graphics.Rect(); public interface Callback')
             text = text.replace('setBounds(int l,int t,int r,int b){}', 'setBounds(int l,int t,int r,int b){bounds.left=l;bounds.top=t;bounds.right=r;bounds.bottom=b;}')
             text = text.replace('setBounds(android.graphics.Rect r){}', 'setBounds(android.graphics.Rect r){setBounds(r.left,r.top,r.right,r.bottom);}')
@@ -715,6 +717,30 @@ public class PlayerRuntimeTest {
         atTint.setLong(null,android.os.SystemClock.uptimeMillis()-450); int midTone=Tint.color(Settings.GLOW_COLOR)&255;
         atTint.setLong(null,android.os.SystemClock.uptimeMillis()-5000); int endTone=Tint.color(Settings.GLOW_COLOR)&255;
         check(midTone>60 && midTone<200 && endTone==255,"album colour must fade between songs, mid "+midTone+" end "+endTone);
+        fromTint.setInt(null,0xff000000);toTint.setInt(null,0xffffffff);
+        atTint.setLong(null,android.os.SystemClock.uptimeMillis()-450);
+        Tint.follow(0xffff0000);
+        int continued=fromTint.getInt(null)&255;
+        check(continued>60 && continued<200 && toTint.getInt(null)==0xffff0000,"a quick skip must continue from the visible colour");
+        long fadeStarted=atTint.getLong(null);
+        Tint.follow(0xffff0000);
+        check(atTint.getLong(null)==fadeStarted,"repeated artwork colours must not restart the fade");
+        check(Tint.fading(),"a new album colour must request animation frames");
+        Settings.set(Settings.MINI_ALBUM,true);
+        MiniSurface albumSurface=new MiniSurface(0xff2b2640,28);
+        albumSurface.draw(new Canvas());
+        check(albumSurface.nextFrame>0,"the mini player must redraw during a colour fade even when paused");
+        Settings.set(6,true);
+        check(!Tint.fading() && Tint.album()==0xffff0000,"reduced motion must apply the new album colour immediately");
+        albumSurface.nextFrame=0;
+        albumSurface.draw(new Canvas());
+        check(albumSurface.nextFrame==0,"reduced motion must not schedule colour animation");
+        Settings.set(6,false);
+        atTint.setLong(null,android.os.SystemClock.uptimeMillis()-5000);
+        check(!Tint.fading(),"a completed colour fade must stop requesting frames");
+        albumSurface.nextFrame=0;
+        albumSurface.draw(new Canvas());
+        check(albumSurface.nextFrame==0,"the mini player must stop redrawing after the fade");
         Settings.setChoice(Settings.GLOW_COLOR,"accent");
         System.out.println("PASS decoration colours");
 

@@ -29,10 +29,20 @@ public final class Tint {
         PlayerArt.drawArtwork(new Canvas(SAMPLE), art, 0, 0, 12, 12);
         int[] pixels = new int[144];
         SAMPLE.getPixels(pixels, 0, 12, 0, 0, 12, 12);
+        follow(vivid(pixels));
+    }
+
+    /** Artwork from the session reaches the mini player even when the full player is closed. */
+    static void follow(int color) {
+        if (color == to) return;
         from = album();
-        to = vivid(pixels);
+        to = color;
         changedAt = SystemClock.uptimeMillis();
         glowLyrics();
+    }
+
+    static boolean fading() {
+        return Wave.animationsEnabled() && from != to && SystemClock.uptimeMillis() - changedAt < FADE_MILLIS;
     }
 
     /** Spotify's lyric code reads its glow from a field: classes9 has no method references to spare. */

@@ -23,6 +23,8 @@ public final class MiniBar extends MotionLayout implements Runnable {
     private static WeakReference<MiniBar> bar;
     private static Bitmap accentSource;
     private static int accent;
+    private static volatile int album;
+    private int lastAlbum;
     private static final long EXPAND_WINDOW = 1800; // the player can take a while to open on a track with lyrics
     private static float[] expandFrom;
     private static long expandAt;
@@ -176,6 +178,11 @@ public final class MiniBar extends MotionLayout implements Runnable {
     private static final float SPIN = 360f / 9000; // degrees per millisecond
 
     public void run() {
+        if (album != 0 && album != lastAlbum) {
+            lastAlbum = album;
+            Tint.follow(lastAlbum);
+        }
+        if (getBackground() != null) getBackground().invalidateSelf();
         roundCover();
         if (!spinning) {
             spinning = true;
@@ -207,6 +214,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
             Bitmap tiny = Bitmap.createScaledBitmap(art, 16, 16, true);
             int[] pixels = new int[256];
             tiny.getPixels(pixels, 0, 16, 0, 0, 16, 16);
+            album = Tint.vivid(pixels);
             return MiniEq.accent(pixels, Palette.color(0xff2b2640), Palette.color(0xffd0bcff));
         } catch (RuntimeException e) {
             return 0; // a recycled cover: the theme accent stands in

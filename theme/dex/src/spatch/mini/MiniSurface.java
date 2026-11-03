@@ -4,7 +4,7 @@ import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 
 /** The mini-player's theme surface: Spotify's artwork tint (tro0, gah) and its 8dp radius stop here. */
-final class MiniSurface extends GradientDrawable {
+final class MiniSurface extends GradientDrawable implements Runnable {
     private static final float ALBUM = 0.2f;
     private final int surface;
     private int shown;
@@ -24,7 +24,10 @@ final class MiniSurface extends GradientDrawable {
             setColor(wanted);
         }
         super.draw(canvas);
+        if (Settings.get(Settings.MINI_ALBUM) && Tint.fading() && isVisible()) scheduleSelf(this, android.os.SystemClock.uptimeMillis() + 16);
     }
+
+    public void run() { invalidateSelf(); }
 
     public void setCornerRadius(float radius) {}
 
