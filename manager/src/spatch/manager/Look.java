@@ -111,7 +111,8 @@ final class Look {
         b.setGravity(Gravity.CENTER);
         b.setMinHeight(dp(48));
         b.setMinimumHeight(dp(48));
-        b.setPadding(dp(24), 0, dp(24), 0);
+        b.setPadding(dp(kind == Kind.TEXT ? 12 : 24), 0, dp(kind == Kind.TEXT ? 12 : 24), 0);
+        b.setSingleLine(true);
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(ink & 0xffffff | 0x1f000000), fill == 0 ? null : shape(fill, 24), shape(0xffffffff, 24)));
         b.setOnClickListener(click);
         return b;

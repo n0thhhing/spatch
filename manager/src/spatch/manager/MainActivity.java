@@ -88,6 +88,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(android.os.Bundle state) {
         super.onCreate(state);
+        requestWindowFeature(android.view.Window.FEATURE_NO_TITLE); // the page draws its own heading
         prefs = getSharedPreferences("manager", MODE_PRIVATE);
         look = new Look(this);
         getWindow().getDecorView().setBackgroundColor(look.surface);
@@ -197,7 +198,7 @@ public final class MainActivity extends Activity {
         String installed = prefs.getString(INSTALLED, null);
         boolean debug = developer.isChecked();
         spotifyStatus.setText(info == null ? "Spotify isn't installed."
-            : ours ? "Spatch " + (installed != null ? "(" + installed + ") " : "") + "is installed, Spotify " + info.versionName + "."
+            : ours ? "Spatch is installed" + (installed != null ? ": " + installed : "") + ". Spotify " + info.versionName + "."
             : "Spotify " + info.versionName + " is installed with another key. To install over it, import the key it was signed with (Signing key, Import key); otherwise it has to be uninstalled first.");
         File apkm = apkm();
         apkmStatus.setText(apkm.isFile() ? "APKM saved (" + apkm.length() / (1 << 20) + " MB)."
