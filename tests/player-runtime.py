@@ -660,6 +660,7 @@ public class PlayerRuntimeTest {
         check(Settings.importText("nonsense\nart_shape=hexagon\nart_tilt=maybe\n=true")==0 && Settings.choice(Settings.ART_SHAPE).equals("circle"),"bad text must change nothing");
         check(RowCards.fits(56,1000,1000)&&!RowCards.fits(39,1000,1000)&&!RowCards.fits(216,1000,1000)&&!RowCards.fits(56,400,1000),"cards fit list rows, not headings, shelves or tiles");
         check(Surfaces.chroma(Surfaces.soften(0xffe91e8c))<Surfaces.chroma(0xffe91e8c)&&(Surfaces.soften(0x80e91e8c)>>>24)==0x80,"softening quiets a colour and keeps its opacity");
+        check(Surfaces.grey(0xff383838)&&!Surfaces.grey(0xff101010)&&!Surfaces.grey(0x80383838)&&!Surfaces.grey(0xffe91e8c)&&Surfaces.chroma(Surfaces.tintGrey(0xff383838))>0,"flat grey headers take a theme tint, scrims and colours do not");
         System.out.println("PASS skip animations");
 
         // Decoration colours.
