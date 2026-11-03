@@ -4,6 +4,8 @@ A Rust command-line patcher that gives one exact build of Spotify for Android (9
 code 148115007) a Material You redesign. It takes the APKM, applies guarded edits and writes a signed
 split-APK set. It never modifies the input.
 
+**Website:** [n0thhhing.github.io/spatch](https://n0thhhing.github.io/spatch/), with features, themes, an install guide and screenshots.
+
 [Spatch Manager](manager/README.md) does the same on the phone: it applies a published patch bundle
 to your own APKM and signs it with a key that never leaves the phone.
 
