@@ -30,12 +30,16 @@ public final class Surfaces {
         return (c & 0xffffffffL) == 0;
     }
 
-    /** Spotify's fixed grey cards and white skeletons take the theme's surface and accent. */
+    /**
+     * Spotify's fixed grey cards and white skeletons take the theme's surface and accent; other flat
+     * greys (page headers built from black-and-white art, About panels) take a theme tint.
+     */
     public static long bg(long c) {
         if (!plain(c)) return c;
         int argb = (int) (c >>> 32);
         if (argb == GREY_CARD) return (long) Palette.color(0xff2b2640) << 32;
         if (argb == SKELETON) return (long) (Palette.color(0xffd0bcff) & 0xffffff | 0x24000000) << 32;
+        if (grey(argb) && Settings.get(Settings.SOFT_HEADERS)) return (long) tintGrey(argb) << 32;
         return c;
     }
 
