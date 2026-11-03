@@ -97,6 +97,28 @@ final class Look {
         return t;
     }
 
+    /** A button led by a Material Symbol from res/drawable, kept centred with its label. */
+    Button button(String label, String icon, Kind kind, View.OnClickListener click) {
+        Button b = button(label, kind, click);
+        android.graphics.drawable.Drawable d = context.getDrawable(context.getResources().getIdentifier("ic_" + icon, "drawable", context.getPackageName())).mutate();
+        d.setTint(b.getCurrentTextColor());
+        d.setBounds(0, 0, dp(18), dp(18));
+        b.setTag(d);
+        label(b, label);
+        return b;
+    }
+
+    /** Sets a button's label, keeping its icon. */
+    static void label(Button b, String label) {
+        if (!(b.getTag() instanceof android.graphics.drawable.Drawable)) {
+            b.setText(label);
+            return;
+        }
+        android.text.SpannableString text = new android.text.SpannableString("\u00a0\u00a0" + label);
+        text.setSpan(new android.text.style.ImageSpan((android.graphics.drawable.Drawable) b.getTag(), android.text.style.ImageSpan.ALIGN_CENTER), 0, 1, 0);
+        b.setText(text);
+    }
+
     /** A pill button: filled for the one main action, tonal for the rest, text for minor links. */
     Button button(String label, Kind kind, View.OnClickListener click) {
         Button b = new Button(context);

@@ -183,19 +183,19 @@ public final class MainActivity extends Activity {
             refresh();
         });
         spotify.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer), look.spaced(6));
-        patch = look.button("Install Spatch", Look.Kind.FILLED, v -> patch());
+        patch = look.button("Install Spatch", "download", Look.Kind.FILLED, v -> patch());
         spotify.addView(patch, look.spaced(8));
-        choose = look.button("Choose Spotify APKM", Look.Kind.TONAL, v -> pickApkm());
+        choose = look.button("Choose Spotify APKM", "folder_open", Look.Kind.TONAL, v -> pickApkm());
         spotify.addView(choose, look.spaced(8));
-        uninstall = look.button("Uninstall Spotify", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
+        uninstall = look.button("Uninstall Spotify", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
         spotify.addView(uninstall, look.spaced(8));
 
         LinearLayout key = look.card(page, "Signing key");
         keyStatus = look.text("", 14, look.onSurfaceVariant, false);
         keyStatus.setTypeface(android.graphics.Typeface.MONOSPACE);
         key.addView(keyStatus);
-        exportKey = look.button("Export", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
-        importKey = look.button("Import", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
+        exportKey = look.button("Export", "key", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
+        importKey = look.button("Import", "file_open", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
         key.addView(look.row(exportKey, importKey), look.spaced(12));
 
         LinearLayout manager = look.card(page, "Manager");
@@ -209,10 +209,10 @@ public final class MainActivity extends Activity {
             if (on && android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
         });
         manager.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify), look.spaced(4));
-        managerUpdate = look.button("Update manager", Look.Kind.FILLED, v -> updateManager());
+        managerUpdate = look.button("Update manager", "system_update", Look.Kind.FILLED, v -> updateManager());
         manager.addView(managerUpdate, look.spaced(12));
-        check = look.button("Check for updates", Look.Kind.TEXT, v -> checkUpdates());
-        Button page2 = look.button("Releases", Look.Kind.TEXT, v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
+        check = look.button("Check for updates", "refresh", Look.Kind.TEXT, v -> checkUpdates());
+        Button page2 = look.button("Releases", "open_in_new", Look.Kind.TEXT, v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
         manager.addView(look.row(check, page2), look.spaced(4));
 
         ScrollView scroll = new ScrollView(this);
@@ -253,8 +253,8 @@ public final class MainActivity extends Activity {
         patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
             : releaseError != null ? releaseError : "Looking for patches…");
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
-        patch.setText(!ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
-        choose.setText(apkm.isFile() ? "Choose another APKM" : "Choose Spotify APKM");
+        Look.label(patch, !ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
+        Look.label(choose, apkm.isFile() ? "Choose another APKM" : "Choose Spotify APKM");
         look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null));
         developer.setEnabled(!busy);
         uninstall.setVisibility(conflict && info != null && !ours ? View.VISIBLE : View.GONE);
