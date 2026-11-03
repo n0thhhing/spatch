@@ -32,11 +32,6 @@ step is finding Encore's contained button.
 - Swipe between tabs from the page content (rows that scroll sideways need an exclusion).
 - Hold the play button to set a sleep timer by dragging around it.
 
-## Settings
-
-- Named presets of your own, beyond Calm and Everything.
-- Strength sliders for tilt, ripple size and hide distance instead of fixed values.
-
 ## Speed
 
 Spatch is now a small part of main-thread time during skips, around 4% of busy samples. What remains

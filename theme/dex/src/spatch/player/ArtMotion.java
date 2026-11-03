@@ -15,7 +15,7 @@ import android.view.ViewParent;
 /** Playing with the artwork: it tilts toward a finger, and held still it becomes a record to scratch through the song. */
 final class ArtMotion implements Runnable {
     private static final long HOLD = 380, MILLIS_PER_TURN = 30000, DETENT = 5000;
-    private static final float TILT = 11f, SPIN_SPRING = 0.18f;
+    private static final float SPIN_SPRING = 0.18f;
 
     private final PlayerArt art;
     private final float[] tiltX = {0, 0}, tiltY = {0, 0};
@@ -79,8 +79,8 @@ final class ArtMotion implements Runnable {
         }
         float half = Math.max(1, art.getWidth() / 2f);
         if (Settings.get(Settings.ART_TILT) && !scratching) {
-            targetX = Math.max(-1, Math.min(1, (fingerY - half) / half)) * -TILT;
-            targetY = Math.max(-1, Math.min(1, (fingerX - half) / half)) * TILT;
+            targetX = Math.max(-1, Math.min(1, (fingerY - half) / half)) * -Settings.strength(Settings.TILT_STRENGTH);
+            targetY = Math.max(-1, Math.min(1, (fingerX - half) / half)) * Settings.strength(Settings.TILT_STRENGTH);
         }
     }
 

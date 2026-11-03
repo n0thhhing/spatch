@@ -59,10 +59,15 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
         if source.name == 'DisplayMetrics.java':
             text=text.replace('float density;', 'float density=1;').replace('int heightPixels;', 'int heightPixels=2000;')
         if source.name == 'SeekBar.java':
-            text=text.replace('getProgress() { return 0; }', 'getProgress() { return 50; }').replace('getMax() { return 0; }', 'getMax() { return 100; }')
+            text=text.replace('public class SeekBar extends android.view.View {', 'public class SeekBar extends android.view.View { private int progress=50,max=100; public OnSeekBarChangeListener testListener;')
+            text=text.replace('getProgress() { return 0; }', 'getProgress() { return progress; }').replace('getMax() { return 0; }', 'getMax() { return max; }')
+            text=text.replace('setMax(int max) {}', 'setMax(int value) {max=value;}')
+            text=text.replace('setProgress(int p) {}', 'setProgress(int p) {int next=Math.max(0,Math.min(max,p));if(next==progress)return;progress=next;if(testListener!=null)testListener.onProgressChanged(this,progress,false);}')
+            text=text.replace('setOnSeekBarChangeListener(OnSeekBarChangeListener listener) {}', 'setOnSeekBarChangeListener(OnSeekBarChangeListener listener) {testListener=listener;}')
         if source.name == 'Resources.java':
             text = text.replace('getDisplayMetrics(){return null;}', 'getDisplayMetrics(){return new android.util.DisplayMetrics();}')
         if source.name == 'ViewGroup.java':
+            text = text.replace('public void removeAllViews() {}', 'public void removeAllViews() {while(getChildCount()>0)removeView(getChildAt(0));}')
             text = text.replace('public int getChildCount() { return 0; }', 'private final java.util.List<View> children = new java.util.ArrayList<View>(); public int getChildCount() { return children.size(); }')
             text = text.replace('public View getChildAt(int i) { return null; }', 'public View getChildAt(int i) { return children.get(i); }')
             text = text.replace('public void addView(View v) {}', 'public void addView(View v) { children.add(v); try { java.lang.reflect.Field pf = View.class.getDeclaredField("parent"); pf.setAccessible(true); pf.set(v, this); } catch (Exception ignored) {} }')
@@ -111,14 +116,15 @@ public class PlayerRuntimeTest {
     static class Prefs implements android.content.SharedPreferences, android.content.SharedPreferences.Editor {
         java.util.Map<String,String> data=new java.util.HashMap<>();
         java.util.Map<String,Boolean> booleans=new java.util.HashMap<>();
+        java.util.Map<String,java.util.Set<String>> sets=new java.util.HashMap<>();
         public String getString(String k,String d){return data.getOrDefault(k,d);}
         public boolean getBoolean(String k,boolean d){return booleans.getOrDefault(k,d);}
         public Editor edit(){return this;}
         public Editor putString(String k,String v){data.put(k,v);return this;}
-        public Editor remove(String k){data.remove(k);booleans.remove(k);return this;}
+        public Editor remove(String k){data.remove(k);booleans.remove(k);sets.remove(k);return this;}
         public Editor putBoolean(String k,boolean v){booleans.put(k,v);return this;}
-        public java.util.Set<String> getStringSet(String k,java.util.Set<String> d){return d;}
-        public Editor putStringSet(String k,java.util.Set<String> v){return this;}
+        public java.util.Set<String> getStringSet(String k,java.util.Set<String> d){return sets.getOrDefault(k,d);}
+        public Editor putStringSet(String k,java.util.Set<String> v){sets.put(k,new java.util.HashSet<String>(v));return this;}
         public void apply(){} public boolean commit(){return true;}
     }
     static int clicks;
@@ -603,6 +609,12 @@ public class PlayerRuntimeTest {
         for(int i=0;i<rowsByFeature.length;i++) check(masters.containsKey(Integer.valueOf(i)) || rowsByFeature[i].getParent()!=null,"no page shows setting "+Settings.KEYS[i]);
         View[] choices=(View[])field(full,"choiceRows");
         for(int i=0;i<choices.length;i++) check(choices[i]!=null,"no page shows choice "+Settings.CHOICE_KEYS[i]);
+        android.widget.SeekBar[] strengthControls=(android.widget.SeekBar[])field(full,"strengthSliders");
+        for(int i=0;i<strengthControls.length;i++) {
+            check(strengthControls[i]!=null,"no slider shows "+Settings.STRENGTH_KEYS[i]);
+            strengthControls[i].testListener.onProgressChanged(strengthControls[i],Settings.STRENGTH_MAX[i]-Settings.STRENGTH_MIN[i],true);
+            check(Settings.strength(i)==Settings.STRENGTH_MAX[i],"dragging the slider must update "+Settings.STRENGTH_KEYS[i]);
+        }
         System.out.println("PASS every setting and choice is on a page");
         for(int i=0;i<Settings.KEYS.length;i++) Settings.set(i,!Settings.DEFAULTS[i]);
         for(int i=0;i<Settings.CHOICES.length;i++) Settings.setChoice(i,Settings.CHOICES[i][Settings.CHOICES[i].length-1]);
@@ -612,6 +624,7 @@ public class PlayerRuntimeTest {
         for(TextView reset:resets) check(reset.performClick(),"reset must have a handler");
         for(int i=0;i<Settings.KEYS.length;i++) check(Settings.get(i)==Settings.DEFAULTS[i],"no page resets "+Settings.KEYS[i]);
         for(int i=0;i<Settings.CHOICES.length;i++) check(Settings.choice(i).equals(Settings.CHOICES[i][0]),"no page resets "+Settings.CHOICE_KEYS[i]);
+        for(int i=0;i<strengthControls.length;i++) check(Settings.strength(i)==Settings.STRENGTH_DEFAULTS[i] && strengthControls[i].getProgress()==Settings.STRENGTH_DEFAULTS[i]-Settings.STRENGTH_MIN[i],"page reset must restore slider "+Settings.STRENGTH_KEYS[i]);
         System.out.println("PASS every setting has a scoped reset");
 
         android.os.Build.VERSION.SDK_INT=0; // an earlier test left system animations off
@@ -682,9 +695,44 @@ public class PlayerRuntimeTest {
         for(int setting:SpatchSettings.PRESET) check(Settings.DEFAULTS[setting]||setting==Settings.LIBRARY_HOLD||setting==Settings.PLAYLIST_HOLD||setting==Settings.LIBRARY_GLOW||setting==Settings.PLAYLIST_GLOW||setting==Settings.LIBRARY_CASCADE||setting==Settings.PLAYLIST_CASCADE||setting==Settings.BURST,"a preset covers only playful extras, got "+Settings.KEYS[setting]);
         check(!SpatchWidget.skips(5),"an unknown widget stays Glance's");
         String saved=Settings.export(); Settings.set(Settings.ART_TILT,false); Settings.setChoice(Settings.ART_SHAPE,"soft");
-        check(Settings.importText(saved)==Settings.KEYS.length+Settings.CHOICES.length,"export must round trip");
+        check(Settings.importText(saved)==Settings.KEYS.length+Settings.CHOICES.length+Settings.STRENGTH_KEYS.length,"export must round trip");
         check(Settings.get(Settings.ART_TILT)&&Settings.choice(Settings.ART_SHAPE).equals("circle"),"import must restore");
         check(Settings.importText("nonsense\nart_shape=hexagon\nart_tilt=maybe\n=true")==0 && Settings.choice(Settings.ART_SHAPE).equals("circle"),"bad text must change nothing");
+        check(Settings.importText("tilt_strength=21\nripple_size=oops\nhide_distance=0\nripple_size=9999999999999")==0,"invalid strengths must not be imported");
+        for(int i=0;i<Settings.STRENGTH_KEYS.length;i++) {
+            Settings.setStrength(i,-1);check(Settings.strength(i)==Settings.STRENGTH_MIN[i],"strength minimum");
+            Settings.setStrength(i,999);check(Settings.strength(i)==Settings.STRENGTH_MAX[i],"strength maximum");
+        }
+        Object oldPrefs=spatchPrefsField.get(null);
+        Prefs presetPrefs=new Prefs();spatchPrefsField.set(null,presetPrefs);
+        Settings.resetAll();
+        check(!Settings.savePreset("  ")&&!Settings.savePreset("bad\nname")&&!Settings.savePreset("x".repeat(41)),"invalid preset names must not be saved");
+        Settings.set(6,true);Settings.set(Settings.ART_TILT,false);Settings.setChoice(Settings.ART_SHAPE,"soft");Settings.setStrength(Settings.TILT_STRENGTH,18);
+        check(Settings.savePreset("  Evening  ")&&Settings.presets()[0].equals("Evening"),"preset names must be trimmed and stored");
+        Settings.resetAll();
+        check(Settings.applyPreset("Evening")&&!Settings.get(Settings.ART_TILT)&&Settings.choice(Settings.ART_SHAPE).equals("soft")&&Settings.strength(Settings.TILT_STRENGTH)==18,"presets survive reset and restore switches, choices and strengths");
+        Settings.setStrength(Settings.TILT_STRENGTH,7);Settings.savePreset("Evening");
+        check(Settings.presets().length==1,"updating a preset must not duplicate its name");
+        Settings.savePreset("names");
+        check(Settings.presets().length==2 && presetPrefs.data.get("preset_value:names")!=null,"a preset name must not collide with the stored name list");
+        // Reload from the same preferences, as a new app process would.
+        spatchPrefsField.set(null,null);
+        Settings.load(new android.content.Context(){public android.content.SharedPreferences getSharedPreferences(String n,int mode){return presetPrefs;}});
+        check(Settings.strength(Settings.TILT_STRENGTH)==7 && Settings.presets().length==2,"strengths and presets must persist across reloads");
+        Settings.resetAll();
+        SpatchSettings presetPage=new SpatchSettings(new android.content.Context());
+        android.widget.LinearLayout presetRows=new android.widget.LinearLayout(new android.content.Context());
+        Method renderPresets=SpatchSettings.class.getDeclaredMethod("renderPresets",android.widget.LinearLayout.class);renderPresets.setAccessible(true);renderPresets.invoke(presetPage,presetRows);
+        check(presetRows.getChildCount()==3 && presetRows.getChildAt(1).performClick(),"saved presets must be reachable from the UI");
+        android.app.AlertDialog.Builder.lastPositive.onClick(null,-1);
+        android.widget.SeekBar[] restoredControls=(android.widget.SeekBar[])field(presetPage,"strengthSliders");
+        check(Settings.strength(Settings.TILT_STRENGTH)==7 && restoredControls[0].getProgress()==7,"applying a preset must refresh its sliders");
+        presetRows.getChildAt(1).performClick();android.app.AlertDialog.Builder.lastNegative.onClick(null,-2);
+        check(Settings.presets().length==1 && !Settings.applyPreset("Evening") && presetRows.getChildCount()==2,"deleting a preset must remove its snapshot and row");
+        Settings.deletePreset("names");Settings.deletePreset("missing");
+        check(Settings.presets().length==0 && !Settings.applyPreset("missing"),"missing presets leave settings alone");
+        Settings.resetAll();spatchPrefsField.set(null,oldPrefs);
+        System.out.println("PASS named presets, persistence and strength sliders");
         check(RowCards.fits(56,1000,1000)&&!RowCards.fits(39,1000,1000)&&!RowCards.fits(216,1000,1000)&&!RowCards.fits(56,400,1000),"cards fit list rows, not headings, shelves or tiles");
         check(Surfaces.chroma(Surfaces.soften(0xffe91e8c))<Surfaces.chroma(0xffe91e8c)&&(Surfaces.soften(0x80e91e8c)>>>24)==0x80,"softening quiets a colour and keeps its opacity");
         check(!MiniRing.moved(5000,5005,60)&&MiniRing.moved(5000,5020,60)&&MiniRing.moved(5000,4999,60)&&MiniRing.moved(0,10000,60),"the mini ring redraws once its arc visibly moves");

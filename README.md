@@ -31,8 +31,9 @@ refused rather than patched blindly.
 
 Everything is configured in the app: open the side panel and choose **Spatch**. Each feature has a
 main switch and a page of finer options, and settings carry over between updates. Search finds any
-setting by name, presets turn the playful extras on or off together, and Copy and Paste move a whole
-setup between installs.
+setting by name, Calm and Everything turn the playful extras off or on together, and your own named
+presets save toggles, choices and strengths. Sliders adjust artwork tilt, ripple size and the scroll
+distance before the bars hide. Copy and Paste move those settings between installs.
 
 ## Requirements
 

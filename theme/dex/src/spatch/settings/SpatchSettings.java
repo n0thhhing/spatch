@@ -270,6 +270,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         text = Palette.color(0xfff3eeff), subdued = Palette.color(0xffbcb3dc), accent = Palette.color(0xffd0bcff);
     private final java.util.ArrayList<TextView> pillViews = new java.util.ArrayList<TextView>();
     private final View[] choiceRows = new View[Settings.CHOICES.length];
+    private final android.widget.SeekBar[] strengthSliders = new android.widget.SeekBar[Settings.STRENGTH_KEYS.length];
     private SpectrumPreview preview;
     private final java.util.ArrayList<View> homeRows = new java.util.ArrayList<View>();
     private final View backButton;
@@ -498,6 +499,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         artRows.addView(master(2, backdropPage));
         addChoice(artRows, Settings.ART_SKIP, "Skip animation", "Spin rolls the artwork over like a record", new String[] {"Slide", "Spin", "Shrink", "Fade"});
         artRows.addView(featureRows[Settings.ART_TILT]);
+        addStrength(artRows, Settings.TILT_STRENGTH, "Tilt strength", "Maximum artwork lean", "°");
         artRows.addView(featureRows[Settings.ART_SCRATCH]);
         artRows.addView(featureRows[Settings.BEAT_BOUNCE]);
         addChoice(artRows, Settings.ART_SHAPE, "Artwork shape", "With Circular album art on", new String[] {"Circle", "Scallop", "Squircle", "Soft"});
@@ -642,9 +644,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout motion = addGroup();
         for (int i : MOTION) motion.addView(featureRows[i]);
         motion.addView(featureRows[Settings.TAP_RIPPLE]);
+        addStrength(motion, Settings.RIPPLE_SIZE, "Ripple size", "Radius at the end of a tap ripple", " dp");
         motion.addView(featureRows[Settings.HERO_TOUCH]);
         motion.addView(featureRows[Settings.BOUNCY_PRESS]);
         motion.addView(featureRows[Settings.HIDE_BARS]);
+        addStrength(motion, Settings.HIDE_DISTANCE, "Hide distance", "Scroll this far before the bottom bars slide away", " dp");
         addChoice(motion, Settings.BOUNCE, "Bounce", "How far tiles spring back", new String[] {"Normal", "Soft", "Wild"});
         addColors(motion, Settings.RIPPLE_COLOR, "Ripple colour");
         refreshChoices();
@@ -875,6 +879,63 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout.LayoutParams under = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         under.bottomMargin = dp(14);
         home.addView(presets, under);
+        LinearLayout savedPage = subPage("Your presets");
+        renderPresets(savedPage);
+        link(home, "playlist", "Your presets", "Save and restore your own settings", savedPage);
+        inside(home);
+    }
+
+    private void renderPresets(final LinearLayout page) {
+        page.removeAllViews();
+        View save = createSettingRow("plus", "Save current settings", "Toggles, choices and strengths; themes and fonts stay as they are", icon("chevron_right"));
+        save.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                final android.widget.EditText name = new android.widget.EditText(getContext());
+                name.setHint("Preset name");
+                name.setContentDescription("Preset name");
+                name.setSingleLine(true);
+                final AlertDialog dialog = new AlertDialog.Builder(getContext(), 0x010302d1)
+                    .setTitle("Save preset").setMessage("Use a new name, or an existing name to replace its saved settings.")
+                    .setView(name).setPositiveButton("Save", null).setNegativeButton("Cancel", null).create();
+                dialog.show();
+                dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View button) {
+                        if (!Settings.savePreset(name.getText().toString())) {
+                            name.setError("Use 1–40 characters without line breaks");
+                            return;
+                        }
+                        dialog.dismiss();
+                        renderPresets(page);
+                    }
+                });
+            }
+        });
+        page.addView(save);
+        for (final String name : Settings.presets()) {
+            View row = createSettingRow("playlist", name, "Apply, update or delete", icon("chevron_right"));
+            row.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    new AlertDialog.Builder(getContext(), 0x010302d1).setTitle(name)
+                        .setMessage("Apply the saved settings, update this preset with your current settings, or delete it.")
+                        .setPositiveButton("Apply", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface d, int which) {
+                                Settings.applyPreset(name);
+                                syncFeatures();
+                                MiniBar.settingsChanged();
+                            }
+                        }).setNeutralButton("Update", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface d, int which) { Settings.savePreset(name); }
+                        }).setNegativeButton("Delete", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface d, int which) {
+                                Settings.deletePreset(name);
+                                renderPresets(page);
+                            }
+                        }).show();
+                }
+            });
+            page.addView(row);
+        }
+        Fonts.restyle(page);
     }
 
     static boolean matches(int setting, String wanted) {
@@ -952,6 +1013,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             public void onClick(View v) {
                 for (int i : features) Settings.set(i, Settings.DEFAULTS[i]);
                 for (int i : choices) Settings.setChoice(i, Settings.CHOICES[i][0]);
+                for (int i : features) {
+                    int strength = i == Settings.ART_TILT ? Settings.TILT_STRENGTH : i == Settings.TAP_RIPPLE ? Settings.RIPPLE_SIZE : i == Settings.HIDE_BARS ? Settings.HIDE_DISTANCE : -1;
+                    if (strength >= 0) Settings.setStrength(strength, Settings.STRENGTH_DEFAULTS[strength]);
+                }
                 syncFeatures();
                 MiniBar.settingsChanged();
                 Haptics.toggle(v, true);
@@ -1087,6 +1152,43 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         }
     }
 
+    /** Native range and keyboard handling, with the same labels and spacing as choice rows. */
+    private void addStrength(LinearLayout parent, final int setting, final String title, String subtitle, final String unit) {
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(16), dp(14), dp(16), dp(14));
+        final TextView label = new TextView(getContext());
+        label.setTextSize(16f);
+        label.setTextColor(text);
+        row.addView(label);
+        TextView note = new TextView(getContext());
+        note.setText(subtitle);
+        note.setTextSize(13f);
+        note.setTextColor(subdued);
+        row.addView(note);
+        final android.widget.SeekBar slider = new android.widget.SeekBar(getContext(), null);
+        slider.setMax(Settings.STRENGTH_MAX[setting] - Settings.STRENGTH_MIN[setting]);
+        slider.setProgressTintList(ColorStateList.valueOf(accent));
+        slider.setThumbTintList(ColorStateList.valueOf(accent));
+        slider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean fromUser) {
+                int amount = progress + Settings.STRENGTH_MIN[setting];
+                if (fromUser) Settings.setStrength(setting, amount);
+                label.setText(title + ": " + amount + unit);
+                slider.setContentDescription(title + ", " + amount + unit);
+            }
+            public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+            public void onStopTrackingTouch(android.widget.SeekBar bar) { Haptics.detent(bar); }
+        });
+        int amount = Settings.strength(setting);
+        label.setText(title + ": " + amount + unit);
+        slider.setContentDescription(title + ", " + amount + unit);
+        slider.setProgress(amount - Settings.STRENGTH_MIN[setting]);
+        row.addView(slider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
+        strengthSliders[setting] = slider;
+        parent.addView(row);
+    }
+
     /** A titled connected button group, one button per stable option in Settings.CHOICES[setting]. */
     private void addChoice(LinearLayout parent, int setting, String title, String subtitle, String[] labels) {
         Context c = getContext();
@@ -1140,6 +1242,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     /** Selected buttons, and rows and switches that do not apply to the current choices. */
     private void refreshChoices() {
+        for (int i = 0; i < strengthSliders.length; i++) {
+            if (strengthSliders[i] != null) strengthSliders[i].setProgress(Settings.strength(i) - Settings.STRENGTH_MIN[i]);
+        }
         for (TextView pill : pillViews) {
             String[] tag = (String[]) pill.getTag();
             boolean selected = tag[1].equals(Settings.choice(Integer.parseInt(tag[0])));

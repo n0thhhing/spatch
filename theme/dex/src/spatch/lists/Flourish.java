@@ -34,7 +34,6 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     static final int NONE = 0, LIBRARY = 1, PLAYLIST = 2;
     private static final int LIBRARY_TAB = 2;
     private static final long HOLD_START = 130, HOLD_END = 400, OPEN_WINDOW = 1500, RIPPLE_MILLIS = 340;
-    private static final float BAR_PULL = 40; // dp // ms
     private static final float GLOW = 120, RING = 34, RING_WIDTH = 4, FOLLOW = 0.3f; // dp
     private static final float CASCADE_MILLIS = 340, CASCADE_STAGGER = 45, CASCADE_RISE = 26; // ms, dp
     private static final int CASCADE_ROWS = 10, CASCADE_MASK = 0xfffeb; // alpha and translationY only
@@ -223,8 +222,8 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             if (Settings.get(Settings.HIDE_BARS)) {
                 pulled += y - lastY;
                 if (Math.abs(x - downX) < Math.abs(y - downY)) {
-                    if (pulled < -BAR_PULL * dp) bars(1);
-                    else if (pulled > BAR_PULL * dp / 3) bars(-1);
+                    if (pulled < -Settings.strength(Settings.HIDE_DISTANCE) * dp) bars(1);
+                    else if (pulled > Settings.strength(Settings.HIDE_DISTANCE) * dp / 3) bars(-1);
                 }
                 lastY = y;
             }
@@ -332,7 +331,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             paint.setStrokeWidth((3 - 2 * ripple) * dp);
             paint.setColor(Tint.color(Settings.RIPPLE_COLOR));
             paint.setAlpha(Math.round(120 * (1 - ripple)));
-            c.drawCircle(rippleX, rippleY, (10 + 44 * eased) * dp, paint);
+            c.drawCircle(rippleX, rippleY, (10 + (Settings.strength(Settings.RIPPLE_SIZE) - 10) * eased) * dp, paint);
         }
         if (glowAlpha > 0) {
             int save = c.save();

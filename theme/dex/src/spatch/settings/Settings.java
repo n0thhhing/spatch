@@ -70,6 +70,10 @@ public final class Settings implements S_DrawerRowSource {
         {"normal", "subtle", "strong"},
     };
     private static final String[] chosen = new String[CHOICES.length];
+    static final int TILT_STRENGTH = 0, RIPPLE_SIZE = 1, HIDE_DISTANCE = 2;
+    static final String[] STRENGTH_KEYS = {"tilt_strength", "ripple_size", "hide_distance"};
+    static final int[] STRENGTH_DEFAULTS = {11, 54, 40}, STRENGTH_MIN = {0, 16, 16}, STRENGTH_MAX = {20, 120, 160};
+    private static final int[] strengths = STRENGTH_DEFAULTS.clone();
     public static final boolean[] on = DEFAULTS.clone(); // public: classes9 reads it directly, having no method references to spare
     private static SharedPreferences prefs;
     private static WeakReference<View> drawer;
@@ -212,7 +216,52 @@ public final class Settings implements S_DrawerRowSource {
         dev("start", new Class<?>[] {Context.class}, c);
         for (int i = 0; i < KEYS.length; i++) on[i] = prefs.getBoolean(KEYS[i], DEFAULTS[i]);
         for (int i = 0; i < CHOICES.length; i++) chosen[i] = valid(i, prefs.getString(CHOICE_KEYS[i], null));
+        for (int i = 0; i < strengths.length; i++) {
+            try {
+                strengths[i] = Math.max(STRENGTH_MIN[i], Math.min(STRENGTH_MAX[i], Integer.parseInt(prefs.getString(STRENGTH_KEYS[i], String.valueOf(STRENGTH_DEFAULTS[i])))));
+            } catch (NumberFormatException e) {
+                strengths[i] = STRENGTH_DEFAULTS[i];
+            }
+        }
         loadSections();
+    }
+
+    static int strength(int i) {
+        return strengths[i];
+    }
+
+    static void setStrength(int i, int value) {
+        strengths[i] = Math.max(STRENGTH_MIN[i], Math.min(STRENGTH_MAX[i], value));
+        if (prefs != null) prefs.edit().putString(STRENGTH_KEYS[i], String.valueOf(strengths[i])).apply();
+    }
+
+    static String[] presets() {
+        java.util.TreeSet<String> names = new java.util.TreeSet<String>();
+        if (prefs != null) names.addAll(prefs.getStringSet("preset_names", new java.util.HashSet<String>()));
+        return names.toArray(new String[0]);
+    }
+
+    /** Presets reuse the portable settings format; their names and snapshots survive resets. */
+    static boolean savePreset(String name) {
+        name = name.trim();
+        if (prefs == null || name.isEmpty() || name.length() > 40) return false;
+        for (int i = 0; i < name.length(); i++) if (Character.isISOControl(name.charAt(i))) return false;
+        java.util.HashSet<String> names = new java.util.HashSet<String>(java.util.Arrays.asList(presets()));
+        names.add(name);
+        prefs.edit().putStringSet("preset_names", names).putString("preset_value:" + name, export()).apply();
+        return true;
+    }
+
+    static boolean applyPreset(String name) {
+        String saved = prefs == null ? null : prefs.getString("preset_value:" + name, null);
+        return saved != null && importText(saved) > 0;
+    }
+
+    static void deletePreset(String name) {
+        if (prefs == null) return;
+        java.util.HashSet<String> names = new java.util.HashSet<String>(java.util.Arrays.asList(presets()));
+        names.remove(name);
+        prefs.edit().putStringSet("preset_names", names).remove("preset_value:" + name).apply();
     }
 
     /** Unknown stored values (older or newer builds) fall back to the default. */
@@ -455,6 +504,7 @@ public final class Settings implements S_DrawerRowSource {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < KEYS.length; i++) out.append(KEYS[i]).append('=').append(on[i]).append('\n');
         for (int i = 0; i < CHOICES.length; i++) out.append(CHOICE_KEYS[i]).append('=').append(choice(i)).append('\n');
+        for (int i = 0; i < strengths.length; i++) out.append(STRENGTH_KEYS[i]).append('=').append(strengths[i]).append('\n');
         return out.toString();
     }
 
@@ -477,6 +527,15 @@ public final class Settings implements S_DrawerRowSource {
                     applied++;
                 }
             }
+            for (int i = 0; i < strengths.length; i++) {
+                if (!STRENGTH_KEYS[i].equals(key)) continue;
+                try {
+                    int amount = Integer.parseInt(value);
+                    if (amount < STRENGTH_MIN[i] || amount > STRENGTH_MAX[i]) continue;
+                    setStrength(i, amount);
+                    applied++;
+                } catch (NumberFormatException ignored) {}
+            }
         }
         return applied;
     }
@@ -484,6 +543,7 @@ public final class Settings implements S_DrawerRowSource {
     static void resetAll() {
         for (int i = 0; i < KEYS.length; i++) set(i, DEFAULTS[i]);
         for (int i = 0; i < CHOICES.length; i++) setChoice(i, CHOICES[i][0]);
+        for (int i = 0; i < strengths.length; i++) setStrength(i, STRENGTH_DEFAULTS[i]);
         for (String id : new java.util.ArrayList<String>(hidden)) hideSection(id, false);
     }
 }
