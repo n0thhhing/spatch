@@ -263,6 +263,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         if (selected < 0 || rail() || !Settings.navStyle()) return; // landscape rail: Pill draws it
         paint.setColor(Tint.color(Settings.NAV_COLOR));
         float d = getResources().getDisplayMetrics().density, cell = getWidth() / (float) count;
+        float width = Math.min(WIDTH * d, cell - 2 * TOP * d); // five tabs (free accounts) leave narrow slots: keep off the bar's ends
         boolean rtl = rtl();
         long now = SystemClock.uptimeMillis();
         float dt = Math.min(48, now - drawn), stretch = 0, left, right;
@@ -273,12 +274,12 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             float lag = (finger - shown) * cell * (rtl ? -1 : 1);
             stretch = Math.min(1, Math.abs(lag) / (STRETCH * d));
             float centre = (rtl ? getWidth() - (shown + .5f) * cell : (shown + .5f) * cell);
-            left = centre - WIDTH * d / 2 - (lag < 0 ? stretch * STRETCH * d : 0);
-            right = centre + WIDTH * d / 2 + (lag > 0 ? stretch * STRETCH * d : 0);
+            left = centre - width / 2 - (lag < 0 ? stretch * STRETCH * d : 0);
+            right = centre + width / 2 + (lag > 0 ? stretch * STRETCH * d : 0);
             if (Math.abs(finger - shown) > .002f) invalidate();
         } else {
             float eased = settle.getInterpolation(t);
-            float[] edge = Settings.navStretch() ? edges(from, to, eased, cell, WIDTH * d) : edges(from, to, 1, cell, WIDTH * d, from + (to - from) * eased);
+            float[] edge = Settings.navStretch() ? edges(from, to, eased, cell, width) : edges(from, to, 1, cell, width, from + (to - from) * eased);
             left = rtl ? getWidth() - edge[1] : edge[0];
             right = rtl ? getWidth() - edge[0] : edge[1];
         }
@@ -292,7 +293,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         else press = pressAim;
         boolean onPill = !dragging && pressTab == Math.round(position());
         if (press > 0 && !onPill) { // state layer on a tab without the pill, growing from its icon
-            float half = WIDTH * d * (.4f + .1f * press), centre = (pressTab + .5f) * cell;
+            float half = width * (.4f + .1f * press), centre = (pressTab + .5f) * cell;
             if (rtl) centre = getWidth() - centre;
             paint.setAlpha(Math.round(PRESS_ALPHA * press));
             rect.set(centre - half, TOP * d, centre + half, (TOP + HEIGHT) * d);
