@@ -83,6 +83,7 @@ public final class Content {
         int count = 0;
         for (Object tab : tabs) if (!premium((p.dsn0) tab)) count++;
         hiddenTabs = tabs.size() - count;
+        NavIndicator.tabs(count);
         return count;
     }
 

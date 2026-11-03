@@ -54,8 +54,11 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         if (v != null) v.invalidate();
     }
 
+    /** The tabs the bar shows, from Spotify's own list each time it is built (hidden ones left out). */
     static void tabs(int total) {
-        count = Math.max(count, total);
+        if (total < 1 || total == count) return;
+        count = total;
+        refresh();
     }
 
     /** Called once per real selection change; the first call only records where the app started. */

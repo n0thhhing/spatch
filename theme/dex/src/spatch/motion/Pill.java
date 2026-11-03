@@ -46,7 +46,6 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         Pill tab = TABS.get(item.b);
         if (tab == null) {
             tab = new Pill(Content.visualTab(item.b), item.g);
-            NavIndicator.tabs(TABS.size() + 1);
             TABS.put(item.b, tab);
         } else if (tab.target != item.g) {
             tab.select(item.g);
@@ -94,7 +93,7 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
         float scale = Settings.navPop() ? 1 + POP * spring : 1;
         // graphicsLayer(scaleX, scaleY); the mask leaves every other parameter at its default.
         modifier = z341.q(cxn1.D(modifier, 20f * t, 4f), scale, scale, 0f, 0f, 0f, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, 1048572);
-        if (item.b == TABS.size() - 1) modifier = fwq.t(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create
+        if (Content.visualTab(item.b) == item.c - 1) modifier = fwq.t(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create, the last tab shown
         return n191.r(modifier, 24f); // n191.r = size(dp), the call this replaces
     }
 

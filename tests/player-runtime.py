@@ -447,6 +447,8 @@ public class PlayerRuntimeTest {
         Settings.set(Settings.HIDE_PREMIUM_TAB,true);
         check(Content.skipTab(premiumTab)&&!Content.skipTab(createTab)&&Content.visualTab(4)==3&&Content.visualTab(2)==2,"the Premium tab goes and later tabs close the gap");
         check(Content.tabCount(java.util.Arrays.asList(createTab,premiumTab,createTab))==2&&Content.hiddenTabs==1,"the bar lays out only the tabs it shows");
+        java.lang.reflect.Field navCount=NavIndicator.class.getDeclaredField("count");navCount.setAccessible(true);
+        check(navCount.getInt(null)==2,"the selection pill counts the tabs the bar shows");
         Settings.set(Settings.HIDE_PREMIUM_TAB,false);
         check(!Content.skipTab(premiumTab)&&Content.visualTab(4)==4&&Content.tabCount(java.util.Arrays.asList(createTab,premiumTab))==2,"with the switch off every tab stays where it was");
         check(!Settings.DEFAULTS[Settings.WIDGET_WALLPAPER],"the wallpaper widget is opt-in: on by default it would recolour an existing widget");
