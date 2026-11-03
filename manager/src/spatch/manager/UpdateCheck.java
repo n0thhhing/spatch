@@ -23,18 +23,23 @@ public final class UpdateCheck extends JobService {
     private static final long EVERY = 12L * 60 * 60 * 1000;
     private static final String CHANNEL = "updates", NOTIFIED = "notified_bundle";
 
+    /** Never throws: the check is a convenience, and a refusal must not take the screen down with it. */
     static void schedule(Context context, boolean on) {
-        JobScheduler jobs = context.getSystemService(JobScheduler.class);
-        if (!on) {
-            jobs.cancel(JOB);
-            return;
+        try {
+            JobScheduler jobs = context.getSystemService(JobScheduler.class);
+            if (!on) {
+                jobs.cancel(JOB);
+                return;
+            }
+            if (jobs.getPendingJob(JOB) != null) return;
+            jobs.schedule(new JobInfo.Builder(JOB, new ComponentName(context, UpdateCheck.class))
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .setPeriodic(EVERY)
+                .setPersisted(true)
+                .build());
+        } catch (RuntimeException refused) {
+            android.util.Log.w("SpatchManager", "update check not scheduled", refused);
         }
-        if (jobs.getPendingJob(JOB) != null) return;
-        jobs.schedule(new JobInfo.Builder(JOB, new ComponentName(context, UpdateCheck.class))
-            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-            .setPeriodic(EVERY)
-            .setPersisted(true)
-            .build());
     }
 
     @Override
