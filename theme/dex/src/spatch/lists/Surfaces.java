@@ -120,7 +120,7 @@ public final class Surfaces {
      * inset matches the cover's own 16dp corners, so the two curves run parallel.
      */
     public static S_ComposeModifier libraryRow(S_ComposeModifier row) {
-        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.D(card(row, 8f, 2f, 0xff1d1a2a, 24f), 8f, 8f) : row);
+        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 8f, 2f, 0xff1d1a2a, 24f), 8f, 8f) : row);
     }
 
     public static S_ComposeModifier trackRow(S_ComposeModifier row) {
@@ -133,9 +133,9 @@ public final class Surfaces {
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color, float radius) {
         S_ComposeRoundedCornerShape shape = S_ComposeShapes.b(radius);
-        S_ComposeModifier inset = S_ComposePadding.D(row, sides, ends);
-        S_ComposeModifier clipped = S_ComposeGraphicsLayer.q(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
-        return S_ComposeBackground.n(clipped, (long) Palette.color(color) << 32, shape);
+        S_ComposeModifier inset = S_ComposePadding.y(row, sides, ends);
+        S_ComposeModifier clipped = S_ComposeGraphicsLayer.D(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
+        return S_ComposeBackground.f(clipped, (long) Palette.color(color) << 32, shape);
     }
 
     /** Selected toggle chips are full pills, like the Home filters; Compose eases the colour between them. */
@@ -146,7 +146,7 @@ public final class Surfaces {
     /** S_SidePanelItemStyle.a with mask 47 replaces only the outer padding. */
     public static S_SidePanelItemStyle drawerItem(S_SidePanelItemStyle item) {
         if (!Settings.sideCards()) return item;
-        return S_SidePanelItemStyle.a(item, null, 0, null, new S_ComposePaddingSides(0f, 0f, 0f, 0f), null, 47);
+        return S_SidePanelItemStyle.a(item, null, 0, null, new S_ComposePaddingSides(0f, 0f, 0f, 0f), null, null, 47 | 0x100); // 0x100 keeps the link style
     }
 
     /** if41's release: everything Encore makes pressable springs back past rest, or settles as stock. */

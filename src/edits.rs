@@ -50,8 +50,8 @@ pub const EDITS: [Edit; 98] = [
     // no method reference to spare). tsn0 sets the count as it composes the row.
     Edit {
         file: "S_NavBarLayout",
-        anchor: "    iget-object v4, v10, Lp/S_NavBar;->a:Lp/S_ComposePersistentList;\n\n    .line 1700\n    .line 1701\n    invoke-interface {v4}, Ljava/util/List;->size()I\n\n    .line 1702\n    .line 1703\n    .line 1704\n    move-result v6\n",
-        replacement: "    iget-object v4, v10, Lp/S_NavBar;->a:Lp/S_ComposePersistentList;\n\n    .line 1700\n    .line 1701\n    invoke-interface {v4}, Ljava/util/List;->size()I\n\n    .line 1702\n    .line 1703\n    .line 1704\n    move-result v6\n\n    sget v7, Lspatch/Content;->hiddenTabs:I\n\n    sub-int/2addr v6, v7\n",
+        anchor: "    iget-object v7, v9, Lp/S_NavBar;->a:Lp/S_ComposePersistentList;\n\n    .line 1452\n    .line 1453\n    invoke-interface {v7}, Ljava/util/List;->size()I\n\n    .line 1454\n    .line 1455\n    .line 1456\n    move-result v8\n",
+        replacement: "    iget-object v7, v9, Lp/S_NavBar;->a:Lp/S_ComposePersistentList;\n\n    .line 1452\n    .line 1453\n    invoke-interface {v7}, Ljava/util/List;->size()I\n\n    .line 1454\n    .line 1455\n    .line 1456\n    move-result v8\n\n    sget v11, Lspatch/Content;->hiddenTabs:I\n\n    sub-int/2addr v8, v11\n",
     },
     // Bottom navigation: tsn0 skips a free account's Premium tab when "Hide the Premium tab" is on
     // (spatch.Content.skipTab), before the tab's composition group opens.
@@ -103,7 +103,7 @@ pub const EDITS: [Edit; 98] = [
     Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x36ffffff\n", replacement: "    const v0, 0x4cd0bcff\n\n    invoke-static {v0}, Lspatch/Palette;->color(I)I\n\n    move-result v0\n" },
     Edit { file: "S_EncoreTheme", anchor: ".field public static final a:Lp/S_EncoreColorScheme;\n", replacement: ".field public static a:Lp/S_EncoreColorScheme;\n" },
     Edit { file: "S_EncoreTheme", anchor: ".method static constructor <clinit>()V\n    .locals 6\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/S_EncoreTheme;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 6\n" },
-    Edit { file: "S_EncoreTint", anchor: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final f(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
+    Edit { file: "S_EncoreTint", anchor: ".method public static final g(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final g(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "S_EncoreSurfaces", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 
     Edit { file: "smali_classes2/com/spotify/playbacknative/AudioEffectsListener.smali", anchor: ".method public onPaused(ZI)V\n    .locals 0\n\n    .line 1\n    invoke-static {p2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;", replacement: ".method public onPaused(ZI)V\n    .locals 0\n\n    invoke-static {p1, p2}, Lspatch/AudioSpectrum;->paused(ZI)V\n\n    .line 1\n    invoke-static {p2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;" },
@@ -322,8 +322,8 @@ pub const EDITS: [Edit; 98] = [
     },
     Edit {
         file: "S_CardSection",
-        anchor: "    const/4 v2, 0x0\n\n    .line 1197\n    invoke-static {v0, v1, v3, v2}, Lp/S_CardRows;->r(Lp/S_CardSurface;Ljava/lang/String;Lp/S_CardChrome;Landroid/os/Bundle;)V\n",
-        replacement: "    invoke-static {v1}, Lspatch/Settings;->open(Ljava/lang/String;)Z\n\n    move-result v2\n\n    if-nez v2, :spatch_open\n\n    const/4 v2, 0x0\n\n    .line 1197\n    invoke-static {v0, v1, v3, v2}, Lp/S_CardRows;->r(Lp/S_CardSurface;Ljava/lang/String;Lp/S_CardChrome;Landroid/os/Bundle;)V\n\n    :spatch_open\n",
+        anchor: "    const/4 v2, 0x0\n\n    .line 1197\n    invoke-static {v0, v1, v3, v2}, Lp/S_Navigator;->q(Lp/S_CardSurface;Ljava/lang/String;Lp/S_CardChrome;Landroid/os/Bundle;)V\n",
+        replacement: "    invoke-static {v1}, Lspatch/Settings;->open(Ljava/lang/String;)Z\n\n    move-result v2\n\n    if-nez v2, :spatch_open\n\n    const/4 v2, 0x0\n\n    .line 1197\n    invoke-static {v0, v1, v3, v2}, Lp/S_Navigator;->q(Lp/S_CardSurface;Ljava/lang/String;Lp/S_CardChrome;Landroid/os/Bundle;)V\n\n    :spatch_open\n",
     },
     Edit {
         file: "S_DrawerRowList",
@@ -363,8 +363,8 @@ pub const EDITS: [Edit; 98] = [
     // The play button around it (p.S_MixPlayButton.j): its click also reports the press for the burst.
     Edit {
         file: "S_MixPlayButton",
-        anchor: ".method public static final j(Lkotlin/jvm/functions/Function0;IZLp/S_ComposeModifier;FZZLjava/lang/String;Lp/S_Composer;I)V\n    .locals 28\n",
-        replacement: ".method public static final j(Lkotlin/jvm/functions/Function0;IZLp/S_ComposeModifier;FZZLjava/lang/String;Lp/S_Composer;I)V\n    .locals 28\n\n    invoke-static/range {p0 .. p1}, Lspatch/Flourish;->pressed(Lkotlin/jvm/functions/Function0;I)Lkotlin/jvm/functions/Function0;\n\n    move-result-object p0\n",
+        anchor: ".method public static final g(Lkotlin/jvm/functions/Function0;IZLp/S_ComposeModifier;FZZLjava/lang/String;Lp/S_Composer;I)V\n    .locals 28\n",
+        replacement: ".method public static final g(Lkotlin/jvm/functions/Function0;IZLp/S_ComposeModifier;FZZLjava/lang/String;Lp/S_Composer;I)V\n    .locals 28\n\n    invoke-static/range {p0 .. p1}, Lspatch/Flourish;->pressed(Lkotlin/jvm/functions/Function0;I)Lkotlin/jvm/functions/Function0;\n\n    move-result-object p0\n",
     },
     // Press release of everything Encore makes pressable (p.S_EncorePressable): the spec comes from spatch.Surfaces.
     Edit {
@@ -436,8 +436,8 @@ pub const EDITS: [Edit; 98] = [
     // Toggle chips (n0k0.c, Library filters among them): the selected chip turns into a pill.
     Edit {
         file: "S_ToggleChip",
-        anchor: ".method public static final c(ZLp/S_KotlinFunction1;Lp/S_ToggleChipColors;Lp/S_ToggleChipColor;Lp/S_ComposeShape;Lp/S_ToggleChipShape;ZLp/S_ToggleChipStyle;Lp/S_ToggleChipBorder;Lp/S_ComposeModifier;Lp/S_ComposeLambda;Lp/S_Composer;I)V\n    .locals 29\n",
-        replacement: ".method public static final c(ZLp/S_KotlinFunction1;Lp/S_ToggleChipColors;Lp/S_ToggleChipColor;Lp/S_ComposeShape;Lp/S_ToggleChipShape;ZLp/S_ToggleChipStyle;Lp/S_ToggleChipBorder;Lp/S_ComposeModifier;Lp/S_ComposeLambda;Lp/S_Composer;I)V\n    .locals 29\n\n    move/from16 v0, p0\n\n    move-object/from16 v1, p4\n\n    invoke-static {v1, v0}, Lspatch/Surfaces;->chipShape(Lp/S_ComposeShape;Z)Lp/S_ComposeShape;\n\n    move-result-object v1\n\n    move-object/from16 p4, v1\n",
+        anchor: ".method public static final d(ZLp/S_KotlinFunction1;Lp/S_ToggleChipColors;Lp/S_ToggleChipColor;Lp/S_ComposeShape;Lp/S_ToggleChipShape;ZLp/S_ToggleChipStyle;Lp/S_ToggleChipBorder;Lp/S_ComposeModifier;Lp/S_ComposeLambda;Lp/S_Composer;I)V\n    .locals 29\n",
+        replacement: ".method public static final d(ZLp/S_KotlinFunction1;Lp/S_ToggleChipColors;Lp/S_ToggleChipColor;Lp/S_ComposeShape;Lp/S_ToggleChipShape;ZLp/S_ToggleChipStyle;Lp/S_ToggleChipBorder;Lp/S_ComposeModifier;Lp/S_ComposeLambda;Lp/S_Composer;I)V\n    .locals 29\n\n    move/from16 v0, p0\n\n    move-object/from16 v1, p4\n\n    invoke-static {v1, v0}, Lspatch/Surfaces;->chipShape(Lp/S_ComposeShape;Z)Lp/S_ComposeShape;\n\n    move-result-object v1\n\n    move-object/from16 p4, v1\n",
     },
     // Playlist track rows (eeb1, via kro1.d): spatch.Surfaces lays each on a card.
     Edit {
@@ -479,13 +479,13 @@ pub const EDITS: [Edit; 98] = [
     // and an overlay fills the square tab cell. Compose draws none; NavIndicator draws a pill state layer.
     Edit {
         file: "S_NavBarTab",
-        anchor: "    const/16 v19, 0x7b8\n\n    .line 235\n",
-        replacement: "    const/16 v19, 0x6b8\n\n    .line 235\n",
+        anchor: "    const/16 v19, 0x7b8\n\n    .line 236\n",
+        replacement: "    const/16 v19, 0x6b8\n\n    .line 236\n",
     },
     Edit {
         file: "S_NavBarTab",
-        anchor: "    .line 242\n    const/4 v12, 0x0\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
-        replacement: "    .line 242\n    const/4 v12, 0x0\n\n    .line 243\n    const/4 v13, 0x0\n\n    .line 244\n    const/16 v17, 0x0\n",
+        anchor: "    .line 243\n    const/4 v12, 0x0\n\n    .line 244\n    const/4 v13, 0x0\n\n    .line 245\n    const/16 v17, 0x0\n",
+        replacement: "    .line 243\n    const/4 v12, 0x0\n\n    .line 244\n    const/4 v13, 0x0\n\n    .line 245\n    const/16 v17, 0x0\n",
     },
 
     // Typography: the three Spotify Mix loaders ask spatch.Fonts first (docs/targets.md).

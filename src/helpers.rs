@@ -407,6 +407,10 @@ pub const STUBS: &[(&str, &str)] = &[
         include_str!("../theme/dex/stubs/p/S_SidePanelItemStyle.java"),
     ),
     (
+        "S_DrawerLinkStyle.java",
+        include_str!("../theme/dex/stubs/p/S_DrawerLinkStyle.java"),
+    ),
+    (
         "S_ComposePaddingSides.java",
         include_str!("../theme/dex/stubs/p/S_ComposePaddingSides.java"),
     ),

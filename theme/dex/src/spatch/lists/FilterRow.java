@@ -114,8 +114,8 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
     }
 
     private void show(List items, S_HomeFilterSelection selection, boolean animate) {
-        String parent = selection != null && selection.a != null ? selection.a.f : null;
-        String child = selection != null && selection.b != null ? selection.b.f : null;
+        String parent = selection != null && selection.a != null ? selection.a.b : null;
+        String child = selection != null && selection.b != null ? selection.b.b : null;
         openParent = parent;
         openChild = child;
         ArrayList<String[]> rows = rows(items, parent, child);
@@ -212,9 +212,9 @@ public final class FilterRow extends HorizontalScrollView implements View.OnClic
         ArrayList<String[]> out = new ArrayList<String[]>();
         for (Object item : items) {
             S_HomeFilterGroup chip = (S_HomeFilterGroup) item;
-            out.add(new String[] {chip.f, chip.g});
-            if (!chip.f.equals(parent) || chip.h == null) continue;
-            for (Object sub : chip.h) out.add(new String[] {((S_HomeFilterChild) sub).f, ((S_HomeFilterChild) sub).g, "sub"});
+            out.add(new String[] {chip.b, chip.c});
+            if (!chip.b.equals(parent) || chip.d == null) continue;
+            for (Object sub : chip.d) out.add(new String[] {((S_HomeFilterChild) sub).b, ((S_HomeFilterChild) sub).c, "sub"});
         }
         return out;
     }

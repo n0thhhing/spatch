@@ -5,7 +5,7 @@ package p;
 public final class S_SettingsRowStateDefault implements S_SettingsRowStateSource {
     public static final S_SettingsRowStateDefault P0 = new S_SettingsRowStateDefault();
 
-    public S_KotlinFlow c(boolean b) {
+    public S_KotlinFlow e(boolean b) {
         return null;
     }
 }

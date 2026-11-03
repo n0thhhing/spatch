@@ -82,18 +82,18 @@ public final class Pill implements ValueAnimator.AnimatorUpdateListener {
     /** The icon's modifier. S_ComposePadding.D = padding(horizontal, vertical); S_ComposePadding.G masks 13/7 = top/bottom only. */
     public static S_ComposeModifier a(S_ComposeModifier modifier, S_NavBarTabState item) {
         float spring = tab(item).progress(), t = Math.max(0f, Math.min(1f, spring));
-        modifier = rail() ? S_ComposePadding.D(modifier, 0f, 3f) : S_ComposePadding.G(S_ComposePadding.G(modifier, 0f, TOP, 0f, 0f, 13), 0f, 0f, 0f, BOTTOM, 7);
+        modifier = rail() ? S_ComposePadding.y(modifier, 0f, 3f) : S_ComposePadding.B(S_ComposePadding.B(modifier, 0f, TOP, 0f, 0f, 13), 0f, 0f, 0f, BOTTOM, 7);
         // The indicator grows from the icon's centre; the outer and inner padding always sum to 20dp.
-        modifier = S_ComposePadding.D(modifier, 20f * (1 - t), 0f);
+        modifier = S_ComposePadding.y(modifier, 20f * (1 - t), 0f);
         if (t > 0 && rail()) { // portrait: NavIndicator draws the moving indicator
             int alpha = Math.round((container() >>> 24) * t);
             long color = (long) (alpha << 24 | container() & 0xffffff) << 32; // Compose Color: sRGB ARGB, high 32 bits
-            modifier = S_ComposeBackground.n(modifier, color, S_ComposeShapes.a); // background(color, pill shape)
+            modifier = S_ComposeBackground.f(modifier, color, S_ComposeShapes.a); // background(color, pill shape)
         }
         float scale = Settings.navPop() ? 1 + POP * spring : 1;
         // graphicsLayer(scaleX, scaleY); the mask leaves every other parameter at its default.
-        modifier = S_ComposeGraphicsLayer.q(S_ComposePadding.D(modifier, 20f * t, 4f), scale, scale, 0f, 0f, 0f, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, 1048572);
-        if (Content.visualTab(item.b) == item.c - 1) modifier = S_ComposeRotate.t(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create, the last tab shown
+        modifier = S_ComposeGraphicsLayer.D(S_ComposePadding.y(modifier, 20f * t, 4f), scale, scale, 0f, 0f, 0f, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, 1048572);
+        if (Content.visualTab(item.b) == item.c - 1) modifier = S_ComposeRotate.u(modifier, ((Float) CLOSE_ANGLE.getValue()).floatValue()); // Create, the last tab shown
         return S_ComposeSize.r(modifier, 24f); // S_ComposeSize.r = size(dp), the call this replaces
     }
 

@@ -173,7 +173,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             }
         }
         // Always the layer, even at rest: on the phone, rows that lost it lost their card too (cause unknown).
-        return S_ComposeGraphicsLayer.q(row, 1f, 1f, alpha, 0f, rise, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, CASCADE_MASK);
+        return S_ComposeGraphicsLayer.D(row, 1f, 1f, alpha, 0f, rise, 0f, 0f, 0L, null, false, 0L, 0L, 0, null, CASCADE_MASK);
     }
 
     static S_ComposeModifier libraryRow(S_ComposeModifier row) {
