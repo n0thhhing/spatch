@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 92] = [
+pub const EDITS: [Edit; 93] = [
     // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {
@@ -31,6 +31,14 @@ pub const EDITS: [Edit; 92] = [
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
         anchor: ".method public final a(Lp/kk1;)V\n    .locals 3\n",
         replacement: ".method public final a(Lp/kk1;)V\n    .locals 3\n\n    iget-boolean v0, p0, Lcom/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView;->e:Z\n\n    iget-object v1, p0, Lcom/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView;->d:Lp/kk1;\n\n    invoke-static {p0, v0, v1, p1}, Lspatch/SaveBurst;->changed(Landroid/view/View;ZLp/kk1;Lp/kk1;)V\n",
+    },
+    // MainLayout tells pages how much of the bottom the bars cover (the inset spacer's height); while
+    // Spatch has slid the bars away it reports none, so lists reach the bottom. classes9 has no method
+    // reference to spare, so this reads a public field.
+    Edit {
+        file: "smali_classes9/com/spotify/mainlayout/ui/view/MainLayout.smali",
+        anchor: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    .line 26\n    iget-object p4, p0, Lp/uyf0;->f:Lp/zd0;\n",
+        replacement: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    sget-boolean p5, Lspatch/Flourish;->barsGone:Z\n\n    if-eqz p5, :spatch_bars_shown\n\n    const/4 p3, 0x0\n\n    :spatch_bars_shown\n    .line 26\n    iget-object p4, p0, Lp/uyf0;->f:Lp/zd0;\n",
     },
     // Playlist header (j060, drawn behind its Compose page): the same gradient policy as yw9 backgrounds.
     Edit {

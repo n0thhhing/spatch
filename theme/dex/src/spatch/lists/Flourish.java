@@ -67,6 +67,8 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     private float rippleX, rippleY, lastY, pulled;
     private View nav, pill, mini;
     private boolean barsHidden;
+    /** The bars are slid away: MainLayout.onLayout (classes9, no method references to spare) reads this and gives pages the bottom. */
+    public static volatile boolean barsGone;
     private boolean down, dragging, popped, running;
 
     private Flourish(View root, Window.Callback next) {
@@ -254,6 +256,8 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
         boolean hide = way > 0;
         if (hide == barsHidden || hide && (nav == null || !nav.isShown())) return;
         barsHidden = hide;
+        barsGone = hide;
+        reflow(hide);
         pulled = 0;
         for (View bar : new View[] {nav, pill, mini}) {
             if (bar == null) continue;
@@ -263,6 +267,24 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             if (Wave.animationsEnabled()) bar.animate().translationY(by).setDuration(hide ? 240 : 320).start();
             else bar.setTranslationY(by);
         }
+    }
+
+    /**
+     * What sat behind the bars follows them: the fade that shaded content under them, and the strip that
+     * swallowed touches there. The layout pass that follows hands pages the freed space.
+     */
+    private void reflow(boolean hide) {
+        if (nav == null || !(nav.getParent() instanceof View)) return;
+        View main = (View) nav.getParent();
+        String pkg = main.getContext().getPackageName();
+        for (String name : new String[] {"bottom_gradient", "bottom_gradient_black_fade", "fragment_container_bottom_overlap_touch_event_consumer"}) {
+            View v = main.findViewById(main.getResources().getIdentifier(name, "id", pkg));
+            if (v == null) continue;
+            if (name.endsWith("consumer")) v.setVisibility(hide ? View.INVISIBLE : View.VISIBLE);
+            else if (Wave.animationsEnabled()) v.animate().alpha(hide ? 0f : 1f).setDuration(hide ? 240 : 320).start();
+            else v.setAlpha(hide ? 0f : 1f);
+        }
+        main.requestLayout();
     }
 
     private void start() {
