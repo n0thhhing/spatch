@@ -39,6 +39,10 @@ Delete `key.pem` afterwards: it holds the key unencrypted.
 frame monitor, a touch inspector, logs). Switching it and tapping **Switch build** reinstalls in
 place; settings stay.
 
+Updates replace only `base.apk` (the other APKs never change) and, on Android 12 and newer, install
+without the confirmation screen once the manager has installed Spotify. **Tell me about new patches**
+checks twice a day and posts a notification; tapping it opens the manager straight into the update.
+
 **Update manager** appears when a newer manager release is out.
 
 ## Releases

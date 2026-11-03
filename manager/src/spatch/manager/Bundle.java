@@ -93,14 +93,18 @@ final class Bundle implements AutoCloseable {
         return out;
     }
 
-    /** Writes each APK, unsigned, into dir and returns them in install order. */
-    List<File> apply(File apkm, File dir, Progress progress) throws IOException {
-        int total = apks.size() * 2 + 1, done = 0;
+    /**
+     * Writes each APK, unsigned, into dir and returns them in install order. baseOnly writes just
+     * base.apk, for an update that keeps the splits already installed (they never change).
+     */
+    List<File> apply(File apkm, File dir, boolean baseOnly, Progress progress) throws IOException {
+        int total = (baseOnly ? 1 : apks.size()) * 2 + 1, done = 0;
         progress.step("Checking the APKM", done++, total);
         if (!sha256(apkm).equals(apkmSha)) throw new IOException("That file isn't the Spotify " + spotify + " APKM this version of Spatch is made for.");
         List<File> out = new ArrayList<>();
         try (ZipFile in = new ZipFile(apkm)) {
             for (String[] apk : apks) {
+                if (baseOnly && !apk[0].equals("base.apk")) continue;
                 File original = new File(dir, apk[0] + ".original");
                 progress.step("Unpacking " + apk[0], done++, total);
                 try (InputStream s = in.getInputStream(entry(in, apk[0])); OutputStream o = new FileOutputStream(original)) {

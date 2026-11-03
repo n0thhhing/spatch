@@ -33,7 +33,7 @@ public final class RoundTrip {
 
         List<File> unsigned;
         try (Bundle bundle = new Bundle(new File(a[1]))) {
-            unsigned = bundle.apply(apkm, work, (what, done, total) -> System.out.println(done + "/" + total + " " + what));
+            unsigned = bundle.apply(apkm, work, false, (what, done, total) -> System.out.println(done + "/" + total + " " + what));
         }
         for (File apk : unsigned) {
             File signed = new File(work, "signed-" + apk.getName());
@@ -78,6 +78,18 @@ public final class RoundTrip {
             same(new File(ref, apk.getName()), signed);
         }
         System.out.println("PASS installed Spotify without an APKM reproduces the desktop build");
+
+        // An update that keeps the installed splits patches and signs base.apk alone.
+        File only = new File(work, "base-only");
+        only.mkdirs();
+        try (Bundle bundle = new Bundle(new File(a[1]))) {
+            unsigned = bundle.apply(apkm, only, true, (what, done, total) -> {});
+        }
+        check(unsigned.size() == 1 && unsigned.get(0).getName().equals("base.apk"), "base-only writes just base.apk");
+        File signedBase = new File(only, "signed-base.apk");
+        keys.sign(unsigned.get(0), signedBase);
+        same(new File(ref, "base.apk"), signedBase);
+        System.out.println("PASS a base-only update reproduces the desktop base.apk");
     }
 
     /** Same entries with the same bytes, signatures aside. */

@@ -40,7 +40,8 @@ import java.util.concurrent.Executors;
  * own updates. Patching, signing and installing all happen here; nothing leaves the phone.
  */
 public final class MainActivity extends Activity {
-    private static final String SPOTIFY = "com.spotify.music", INSTALLED = "installed_bundle", DEBUG = "developer_build";
+    private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates";
+    static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", UPDATE = "start_update";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -49,14 +50,15 @@ public final class MainActivity extends Activity {
     private Keys keys;
     private Releases releases;
     private String releaseError, pendingTag;
-    private boolean busy, installingSelf, conflict;
+    private boolean busy, installingSelf, conflict, autoUpdate;
+    private volatile boolean inheriting, inheritFailed; // an update replacing base.apk alone; a failed one goes back to all five
     private Look look;
     private LinearLayout statusCard;
 
     private TextView spotifyStatus, apkmStatus, patchStatus, keyStatus, managerStatus, status;
     private Button choose, patch, uninstall, managerUpdate, check, exportKey, importKey;
     private ProgressBar progress;
-    private Switch developer;
+    private Switch developer, notify;
 
     private final BroadcastReceiver installResult = new BroadcastReceiver() {
         @Override
@@ -70,6 +72,7 @@ public final class MainActivity extends Activity {
             busy = false;
             delete(new File(getCacheDir(), "build"));
             if (code == PackageInstaller.STATUS_SUCCESS) {
+                inheritFailed = false;
                 if (!installingSelf && pendingTag != null) prefs.edit().putString(INSTALLED, pendingTag).apply();
                 say(installingSelf ? "Spatch Manager is up to date." : "Spatch is installed. Open Spotify to use it.");
             } else if (code == PackageInstaller.STATUS_FAILURE_CONFLICT || code == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE) {
@@ -78,6 +81,9 @@ public final class MainActivity extends Activity {
                     : "Spotify on this phone is signed with a different key. Uninstall it first (that removes its downloads), or import the key it was signed with.");
             } else if (code == PackageInstaller.STATUS_FAILURE_ABORTED) {
                 say("Install cancelled.");
+            } else if (inheriting && !installingSelf) {
+                inheritFailed = true;
+                say("The quick update didn't take (" + intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) + "). Tap again to reinstall all of Spatch.");
             } else {
                 say("Install failed: " + intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE));
             }
@@ -96,6 +102,12 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(look.surface);
         if (!look.dark) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         setContentView(layout());
+        autoUpdate = getIntent().getBooleanExtra(UPDATE, false);
+        UpdateCheck.schedule(this, notify.isChecked());
+        if (notify.isChecked() && android.os.Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("asked_notifications", false)) {
+            prefs.edit().putBoolean("asked_notifications", true).apply();
+            requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
+        }
         registerReceiver(installResult, new IntentFilter(Installer.ACTION), Context.RECEIVER_NOT_EXPORTED);
         refresh();
         worker.execute(() -> {
@@ -110,6 +122,16 @@ public final class MainActivity extends Activity {
             }
         });
         checkUpdates();
+    }
+
+    /** The update notification, tapped while the manager was already open. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent.getBooleanExtra(UPDATE, false)) {
+            autoUpdate = true;
+            checkUpdates();
+        }
     }
 
     @Override
@@ -179,6 +201,14 @@ public final class MainActivity extends Activity {
         LinearLayout manager = look.card(page, "Manager");
         managerStatus = look.text("", 14, look.onSurfaceVariant, false);
         manager.addView(managerStatus);
+        notify = new Switch(this);
+        notify.setChecked(prefs.getBoolean(NOTIFY, true));
+        notify.setOnCheckedChangeListener((v, on) -> {
+            prefs.edit().putBoolean(NOTIFY, on).apply();
+            UpdateCheck.schedule(this, on);
+            if (on && android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
+        });
+        manager.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify), look.spaced(4));
         managerUpdate = look.button("Update manager", Look.Kind.FILLED, v -> updateManager());
         manager.addView(managerUpdate, look.spaced(12));
         check = look.button("Check for updates", Look.Kind.TEXT, v -> checkUpdates());
@@ -236,6 +266,8 @@ public final class MainActivity extends Activity {
                     releases = r;
                     if (r.bundle == null) releaseError = "No patches are published yet.";
                     refresh();
+                    if (autoUpdate && !busy && patch.isEnabled()) patch(); // from the notification
+                    autoUpdate = false;
                 });
             } catch (Exception e) {
                 main.post(() -> {
@@ -313,7 +345,8 @@ public final class MainActivity extends Activity {
             signedDir.mkdirs();
             List<File> unsigned;
             try (Bundle b = new Bundle(bundle)) {
-                unsigned = apkm().isFile() ? b.apply(apkm(), dir, this::step) : fromInstalled(b, dir);
+                inheriting = keepsSplits(b);
+                unsigned = apkm().isFile() ? b.apply(apkm(), dir, inheriting, this::step) : fromInstalled(b, dir, inheriting);
             }
             List<File> signed = new ArrayList<>();
             for (int i = 0; i < unsigned.size(); i++) {
@@ -328,15 +361,22 @@ public final class MainActivity extends Activity {
                 pendingTag = tag;
                 installingSelf = false;
             });
-            Installer.install(this, signed);
+            Installer.install(this, signed, inheriting ? SPOTIFY : null);
         }, true);
+    }
+
+    /** Our own Spatch of the same Spotify version is installed, so its splits (never patched) can stay. */
+    private boolean keepsSplits(spatch.manager.Bundle b) {
+        PackageInfo info = spotify();
+        return !inheritFailed && info != null && keys != null && signedByUs(info) && info.getLongVersionCode() == b.spotifyCode
+            && info.applicationInfo.splitNames != null && info.applicationInfo.splitNames.length > 0;
     }
 
     /**
      * No APKM: the original base.apk kept from an earlier install, or else the installed Spotify's
      * own when it is still unmodified; the splits always come from the installed Spotify.
      */
-    private List<File> fromInstalled(spatch.manager.Bundle b, File dir) throws Exception {
+    private List<File> fromInstalled(spatch.manager.Bundle b, File dir, boolean baseOnly) throws Exception {
         PackageInfo info = spotify();
         if (info == null) throw new java.io.IOException("Choose the Spotify " + b.spotify + " APKM first.");
         if (info.getLongVersionCode() != b.spotifyCode) {
@@ -356,7 +396,7 @@ public final class MainActivity extends Activity {
             if (!tmp.renameTo(kept)) throw new java.io.IOException("Couldn't keep the original Spotify.");
         }
         List<File> splits = new ArrayList<>();
-        if (info.applicationInfo.splitSourceDirs != null) for (String path : info.applicationInfo.splitSourceDirs) splits.add(new File(path));
+        if (!baseOnly && info.applicationInfo.splitSourceDirs != null) for (String path : info.applicationInfo.splitSourceDirs) splits.add(new File(path));
         return b.apply(kept, splits, dir, this::step);
     }
 
@@ -370,7 +410,7 @@ public final class MainActivity extends Activity {
             File apk = new File(getCacheDir(), "manager.apk");
             Releases.download(release.url, apk, this::step, "Downloading the manager");
             main.post(() -> installingSelf = true);
-            Installer.install(this, java.util.Collections.singletonList(apk));
+            Installer.install(this, java.util.Collections.singletonList(apk), null);
         }, true);
     }
 
@@ -477,7 +517,7 @@ public final class MainActivity extends Activity {
     }
 
     /** What is installed: the bundle's tag, marked when it is the developer build. */
-    private static String variant(String tag, boolean debug) {
+    static String variant(String tag, boolean debug) {
         return debug ? tag + " (developer)" : tag;
     }
 
