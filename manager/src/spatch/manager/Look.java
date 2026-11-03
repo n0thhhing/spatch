@@ -140,7 +140,7 @@ final class Look {
         row.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         int[][] states = {{android.R.attr.state_checked}, {}};
         toggle.setThumbTintList(new ColorStateList(states, new int[] {onPrimary, outline}));
-        toggle.setTrackTintList(new ColorStateList(states, new int[] {primary, containerHigh}));
+        toggle.setTrackTintList(new ColorStateList(states, new int[] {primary, blend(container, outline, 0.45f)})); // an off track still shows against the card
         row.addView(toggle);
         row.setOnClickListener(v -> {
             if (toggle.isEnabled()) toggle.toggle();

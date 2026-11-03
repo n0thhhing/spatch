@@ -58,10 +58,7 @@ public final class Surfaces {
         for (Object color : gradient.d) {
             long value = ((i7h) color).a;
             int argb = (int) (value >>> 32);
-            int themed = !plain(value) || Palette.ours(argb) ? argb
-                : chroma(argb) >= VIVID ? soften(argb)
-                : black(argb) ? argb & 0xff000000 | Palette.color(0xff14121c) & 0xffffff
-                : grey(argb) ? tintGrey(argb) : argb;
+            int themed = plain(value) ? shade(argb) : argb;
             changed |= themed != argb;
             colors.add(themed == argb ? (i7h) color : new i7h((long) themed << 32));
         }
@@ -76,6 +73,14 @@ public final class Surfaces {
     static int chroma(int argb) {
         int r = argb >> 16 & 255, g = argb >> 8 & 255, b = argb & 255;
         return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+    }
+
+    /** The header policy for one server colour; the theme's own colours are left as they are. */
+    static int shade(int argb) {
+        return Palette.ours(argb) ? argb
+            : chroma(argb) >= VIVID ? soften(argb)
+            : black(argb) ? argb & 0xff000000 | Palette.color(0xff14121c) & 0xffffff
+            : grey(argb) ? tintGrey(argb) : argb;
     }
 
     /** Spotify's fixed page blacks, as header gradients and their scrims use them. */
