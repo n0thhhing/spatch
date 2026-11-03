@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 95] = [
+pub const EDITS: [Edit; 96] = [
     // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {
@@ -45,6 +45,13 @@ pub const EDITS: [Edit; 95] = [
         file: "smali_classes2/p/tsn0.smali",
         anchor: "    invoke-interface {v13}, Ljava/util/List;->size()I\n\n    .line 89\n    .line 90\n    .line 91\n    move-result v18\n",
         replacement: "    invoke-static {v13}, Lspatch/Content;->tabCount(Ljava/util/List;)I\n\n    .line 89\n    .line 90\n    .line 91\n    move-result v18\n",
+    },
+    // ...and the bar's layout divides its width among the shown tabs only (a field read: classes4 has
+    // no method reference to spare). tsn0 sets the count as it composes the row.
+    Edit {
+        file: "smali_classes4/p/xjm0.smali",
+        anchor: "    iget-object v4, v10, Lp/tsn0;->a:Lp/p280;\n\n    .line 1700\n    .line 1701\n    invoke-interface {v4}, Ljava/util/List;->size()I\n\n    .line 1702\n    .line 1703\n    .line 1704\n    move-result v6\n",
+        replacement: "    iget-object v4, v10, Lp/tsn0;->a:Lp/p280;\n\n    .line 1700\n    .line 1701\n    invoke-interface {v4}, Ljava/util/List;->size()I\n\n    .line 1702\n    .line 1703\n    .line 1704\n    move-result v6\n\n    sget v7, Lspatch/Content;->hiddenTabs:I\n\n    sub-int/2addr v6, v7\n",
     },
     // Bottom navigation: tsn0 skips a free account's Premium tab when "Hide the Premium tab" is on
     // (spatch.Content.skipTab), before the tab's composition group opens.

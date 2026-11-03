@@ -58,6 +58,9 @@ public final class Content {
     }
 
     /** xmc0's list. Anything that is not a Home section pair passes untouched. */
+    /** How many tabs are hidden right now: the bar's layout (xjm0, classes4, no method references to spare) reads it. */
+    public static volatile int hiddenTabs;
+
     /** Position of the bottom-navigation tab "Hide the Premium tab" took away, or -1. */
     static volatile int hiddenTab = -1;
 
@@ -79,6 +82,7 @@ public final class Content {
     public static int tabCount(List tabs) {
         int count = 0;
         for (Object tab : tabs) if (!premium((p.dsn0) tab)) count++;
+        hiddenTabs = tabs.size() - count;
         return count;
     }
 
