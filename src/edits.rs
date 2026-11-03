@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 94] = [
+pub const EDITS: [Edit; 95] = [
     // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {
@@ -39,6 +39,12 @@ pub const EDITS: [Edit; 94] = [
         file: "smali_classes9/com/spotify/mainlayout/ui/view/MainLayout.smali",
         anchor: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    .line 26\n    iget-object p4, p0, Lp/uyf0;->f:Lp/zd0;\n",
         replacement: "    invoke-virtual {p3}, Landroid/view/View;->getMeasuredHeight()I\n\n    .line 23\n    .line 24\n    .line 25\n    move-result p3\n\n    sget-boolean p5, Lspatch/Flourish;->barsGone:Z\n\n    if-eqz p5, :spatch_bars_shown\n\n    const/4 p3, 0x0\n\n    :spatch_bars_shown\n    .line 26\n    iget-object p4, p0, Lp/uyf0;->f:Lp/zd0;\n",
+    },
+    // ...and lays the remaining tabs out across the whole bar: each tab's width comes from this count.
+    Edit {
+        file: "smali_classes2/p/tsn0.smali",
+        anchor: "    invoke-interface {v13}, Ljava/util/List;->size()I\n\n    .line 89\n    .line 90\n    .line 91\n    move-result v18\n",
+        replacement: "    invoke-static {v13}, Lspatch/Content;->tabCount(Ljava/util/List;)I\n\n    .line 89\n    .line 90\n    .line 91\n    move-result v18\n",
     },
     // Bottom navigation: tsn0 skips a free account's Premium tab when "Hide the Premium tab" is on
     // (spatch.Content.skipTab), before the tab's composition group opens.

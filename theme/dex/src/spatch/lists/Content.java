@@ -70,10 +70,21 @@ public final class Content {
             hiddenTab = -1;
             return false;
         }
-        String page = tab.c == null ? null : tab.c.a;
-        if (page == null || !(page.contains("premium") || page.contains("upsell"))) return false;
+        if (!premium(tab)) return false;
         hiddenTab = tab.b;
         return true;
+    }
+
+    /** How many tabs the bar lays out: Spotify sizes each from the list's length, so the hidden one must not count. */
+    public static int tabCount(List tabs) {
+        int count = 0;
+        for (Object tab : tabs) if (!premium((p.dsn0) tab)) count++;
+        return count;
+    }
+
+    private static boolean premium(p.dsn0 tab) {
+        String page = tab.c == null ? null : tab.c.a;
+        return Settings.get(Settings.HIDE_PREMIUM_TAB) && page != null && (page.contains("premium") || page.contains("upsell"));
     }
 
     /** Where a tab sits on screen once the hidden one is gone, for the selection pill. */
