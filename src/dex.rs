@@ -14,7 +14,7 @@ use std::fs;
 use std::path::Path;
 
 /// Original DEX entries that get reassembled, with their pinned SHA-256.
-pub const DEX_TARGETS: [(&str, &str); 10] = [
+pub const DEX_TARGETS: [(&str, &str); 11] = [
     (
         "classes5.dex",
         "a26cf01d4128da9d07d952b8608c5c764af46566b359ffc95e9aa19a66fa6cb9",
@@ -54,6 +54,10 @@ pub const DEX_TARGETS: [(&str, &str); 10] = [
     (
         "classes11.dex",
         "4182af06a411edb9a02a1f9d104dd1bdfdc7b31d197fe8da6803aa6f58aafb90",
+    ),
+    (
+        "classes10.dex",
+        "d791a807bfd5ddeb03c4d46cb5dbb2d65a29c2b7d9e49726400ababf861b3fd1",
     ),
 ];
 /// Next free multidex slot (base ships classes.dex..classes15.dex).
@@ -265,18 +269,12 @@ pub fn build(
     for d in fs::read_dir(&smali)? {
         let d = d?;
         let name = d.file_name();
-        if name.to_string_lossy().starts_with("smali")
-            && name != "smali"
-            && name != "smali_classes2"
-            && name != "smali_classes3"
-            && name != "smali_classes4"
-            && name != "smali_classes5"
-            && name != "smali_classes7"
-            && name != "smali_classes8"
-            && name != "smali_classes9"
-            && name != "smali_classes11"
-            && name != "smali_classes12"
+        let name = name.to_string_lossy();
+        // smali -> classes.dex, smali_classesN -> classesN.dex; classes16 is the helper.
+        let dex = format!("classes{}.dex", name.strip_prefix("smali_classes").unwrap_or(""));
+        if name.starts_with("smali")
             && name != "smali_classes16"
+            && !DEX_TARGETS.iter().any(|(entry, _)| *entry == dex)
         {
             fs::remove_dir_all(d.path())?;
         }

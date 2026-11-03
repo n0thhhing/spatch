@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 91] = [
+pub const EDITS: [Edit; 92] = [
     // Lyric lines (p.wkf0.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {
@@ -31,6 +31,12 @@ pub const EDITS: [Edit; 91] = [
         file: "smali_classes7/com/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView.smali",
         anchor: ".method public final a(Lp/kk1;)V\n    .locals 3\n",
         replacement: ".method public final a(Lp/kk1;)V\n    .locals 3\n\n    iget-boolean v0, p0, Lcom/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView;->e:Z\n\n    iget-object v1, p0, Lcom/spotify/encoreconsumermobile/elements/addtobutton/AddToButtonView;->d:Lp/kk1;\n\n    invoke-static {p0, v0, v1, p1}, Lspatch/SaveBurst;->changed(Landroid/view/View;ZLp/kk1;Lp/kk1;)V\n",
+    },
+    // Playlist header (j060, drawn behind its Compose page): the same gradient policy as yw9 backgrounds.
+    Edit {
+        file: "smali_classes10/p/j060.smali",
+        anchor: ".method public synthetic constructor <init>(Landroidx/compose/ui/graphics/Brush;Landroidx/compose/ui/graphics/Brush;Lkotlin/jvm/functions/Function0;B)V\n    .locals 0\n",
+        replacement: ".method public synthetic constructor <init>(Landroidx/compose/ui/graphics/Brush;Landroidx/compose/ui/graphics/Brush;Lkotlin/jvm/functions/Function0;B)V\n    .locals 0\n\n    invoke-static {p1}, Lspatch/Surfaces;->headerBrush(Landroidx/compose/ui/graphics/Brush;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object p1\n\n    invoke-static {p2}, Lspatch/Surfaces;->headerBrush(Landroidx/compose/ui/graphics/Brush;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object p2\n",
     },
     Edit {
         file: "smali/p/yw9.smali",

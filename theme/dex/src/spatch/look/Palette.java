@@ -119,5 +119,7 @@ public final class Palette {
         for(int g:MINTS)if(rgb==g)return (value&0xff000000)|row(active)[7];
         return value;
     }
+    /** One of the running theme's own colours (alpha ignored), so policy that reshades server colours leaves it be. */
+    static boolean ours(int argb){for(int c:row(active))if(c==(argb&0xffffff))return true;return false;}
     public static long compose(long argb){return (argb & ~0xffffffffL)==0 ? color((int)argb)&0xffffffffL : argb;}
 }
