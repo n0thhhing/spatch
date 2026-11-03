@@ -659,7 +659,7 @@ mod tests {
             .iter()
             .find(|t| t.entry == "res/layout/square_cover_art_content.xml")
             .unwrap()
-            .source;
+            .diff;
         assert!(layout.contains("<spatch.PlayerArt "));
         assert!(HELPERS.iter().any(|(name, _)| *name == "PlayerArt"));
         for name in ["square_cover_art_size", "square_cover_art_top_margin"] {

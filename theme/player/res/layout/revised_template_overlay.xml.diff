@@ -1,0 +1,11 @@
+a1 4
+<!-- Spatch: the footer becomes a floating rounded "now playing" card and the transport row a pill tray
+     (av_rounded_background: 36dp, opaque fill, so backgroundTint keeps its full colour).
+     The footer stays a direct child: survey-ad code (p.zxd) measures player_overlay_footer.getBottom()
+     against carousel_item_safe_barrier_top, and the barriers are read by p.lzf0. All ids are preserved. -->
+d7 1
+a7 1
+    <LinearLayout android:orientation="vertical" android:id="@id/player_overlay_footer" android:background="@drawable/av_rounded_background" android:backgroundTint="#eb1d1a2a" android:paddingTop="20.0dp" android:paddingBottom="4.0dp" android:clipChildren="false" android:clipToPadding="false" android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/player_controls_bottom_margin" android:layout_marginStart="12.0dp" android:layout_marginEnd="12.0dp" android:animateLayoutChanges="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent">
+d17 1
+a17 1
+        <androidx.constraintlayout.widget.ConstraintLayout android:id="@id/playback_controls_container" android:background="@drawable/av_rounded_background" android:backgroundTint="#ff2b2640" android:paddingLeft="@dimen/playback_controls_margin" android:paddingTop="12.0dp" android:paddingRight="@dimen/playback_controls_margin" android:paddingBottom="12.0dp" android:clipChildren="false" android:clipToPadding="false" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginLeft="12.0dp" android:layout_marginTop="4.0dp" android:layout_marginRight="12.0dp" android:layout_marginBottom="4.0dp" android:animateLayoutChanges="true" android:layoutDirection="ltr" android:paddingHorizontal="@dimen/playback_controls_margin" android:paddingVertical="12.0dp" />

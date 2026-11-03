@@ -1,0 +1,8 @@
+a1 3
+<!-- Spatch: the whole progress is spatch.Wave: wavy played part (flows while playing, flat when paused,
+     thicker while dragging) and a thin flat track only for the part not yet played. Colours are theme tokens
+     inside Wave. Also the mini-player progress drawable (layout/now_playing_bar). -->
+d4 14
+d19 6
+a24 1
+        <drawable class="spatch.Wave" />

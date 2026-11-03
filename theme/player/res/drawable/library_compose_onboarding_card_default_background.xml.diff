@@ -1,0 +1,6 @@
+d2 4
+a5 4
+<!-- Spatch: translucent, so a held row's highlight shows through instead of a dark square. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#1fd0bcff" />
+    <corners android:radius="8dp" />

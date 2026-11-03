@@ -1,0 +1,10 @@
+a1 2
+<!-- Spatch: MainActivity window background (Theme.Glue.Launcher) in the deep violet surface instead of gray_7.
+     The splash logo is a density-split-only drawable (0x7f080a71), kept via SPLIT_REFS. -->
+d4 1
+d6 1
+a6 4
+        <color android:color="#ff14121c" />
+    </item>
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/ic_spotify_icon_rgb_green" />

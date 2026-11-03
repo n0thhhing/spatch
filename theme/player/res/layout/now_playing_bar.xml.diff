@@ -1,0 +1,14 @@
+d2 1
+a2 2
+<!-- Spatch: a full pill in line with the nav bar (8dp added to the host margin); MiniBar shapes the surface, cover and progress ring. Geometry lives in xml/now_playing_bar_scene. -->
+<spatch.MiniBar android:layout_gravity="bottom" android:id="@id/now_playing_bar_layout" android:background="@drawable/floating_layout_bg" android:layout_width="match_parent" android:layout_height="@dimen/floating_now_playing_bar_height" android:layout_marginStart="8.0dp" android:layout_marginEnd="8.0dp" android:contentDescription="@string/content_desc_now_playing_bar" android:layoutDirection="ltr" android:clipToOutline="true" sp:layoutDescription="@xml/now_playing_bar_scene"
+d5 1
+a5 1
+        <spatch.MiniArt android:id="@id/cover_image" android:background="@drawable/image_bg" android:backgroundTint="#ff2b2640" android:clipToOutline="true" android:layout_width="0.0dp" android:layout_height="0.0dp" android:layout_marginTop="@dimen/floating_now_playing_bar_content_padding" android:layout_marginBottom="@dimen/floating_now_playing_bar_content_padding" android:scaleType="centerCrop" android:contentDescription="@string/content_desc_cover_art" android:layout_marginStart="@dimen/floating_now_playing_bar_content_padding" android:layout_marginVertical="@dimen/floating_now_playing_bar_content_padding" sp:layout_constraintBottom_toBottomOf="parent" sp:layout_constraintDimensionRatio="1:1" sp:layout_constraintEnd_toEndOf="parent" sp:layout_constraintStart_toStartOf="parent" sp:layout_constraintTop_toTopOf="parent" />
+d15 2
+a16 5
+    <ProgressBar android:id="@id/progress_bar" android:padding="0.0dp" android:layout_width="48.0dp" android:layout_height="48.0dp" android:layoutDirection="ltr" sp:layout_constraintBottom_toBottomOf="parent" sp:layout_constraintEnd_toEndOf="parent" sp:layout_constraintStart_toStartOf="parent" style="?pasteProgressBarStyleHorizontal" />
+    <spatch.MiniSkip android:id="@id/previous_button" android:tag="previous" android:contentDescription="Previous" android:layout_width="48.0dp" android:layout_height="48.0dp" />
+    <spatch.MiniSkip android:id="@id/next_button" android:tag="next" android:contentDescription="Next" android:layout_width="48.0dp" android:layout_height="48.0dp" />
+    <spatch.MiniEq android:id="@id/mini" android:layout_width="24.0dp" android:layout_height="16.0dp" />
+</spatch.MiniBar>

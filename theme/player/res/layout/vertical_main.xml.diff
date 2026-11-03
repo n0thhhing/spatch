@@ -1,0 +1,12 @@
+a1 2
+<!-- Spatch: floating, fully rounded navigation bar (MainLayoutContentContainerView draws contentBackground
+     with contentCornerRadius itself) and violet instead of black bottom gradients. Tabs and their selected state are Compose code. -->
+d15 3
+a17 3
+    <com.spotify.mainlayout.ui.view.gradient.MainLayoutGradientView android:id="@id/bottom_gradient" android:layout_width="match_parent" android:layout_height="0.0dp" app:bottomColor="#e614121c" app:easing="bezier" app:layout_constraintBottom_toTopOf="@id/navigation_bar_bottom_barrier" app:layout_constraintTop_toTopOf="@id/bottom_gradient_barrier" app:topColor="#00000000" />
+    <FrameLayout android:id="@id/bottom_gradient_window_insets" android:background="#e614121c" android:layout_width="match_parent" android:layout_height="0.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintTop_toBottomOf="@id/bottom_gradient" />
+    <com.spotify.mainlayout.ui.view.gradient.MainLayoutGradientView android:id="@id/bottom_gradient_black_fade" android:layout_width="match_parent" android:layout_height="48.0dp" app:bottomColor="#ff14121c" app:easing="accelerate" app:layout_constraintBottom_toTopOf="@id/limited_experience_indicator_container" app:topColor="#00000000" />
+d23 1
+a23 2
+    <com.spotify.mainlayout.ui.view.containers.MainLayoutContentContainerView android:id="@id/navigation_bar" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/bottom_navigation_bar_top_margin" android:layout_marginBottom="10.0dp" android:layout_marginStart="16.0dp" android:layout_marginEnd="16.0dp" app:contentBackground="#f22b2640" app:contentCornerRadius="32.0dp" app:layout_constraintBottom_toBottomOf="@id/navigation_bar_bottom_barrier" />
+    <spatch.NavIndicator android:id="@id/indicator" android:layout_width="0.0dp" android:layout_height="0.0dp" app:layout_constraintBottom_toBottomOf="@id/navigation_bar" app:layout_constraintEnd_toEndOf="@id/navigation_bar" app:layout_constraintStart_toStartOf="@id/navigation_bar" app:layout_constraintTop_toTopOf="@id/navigation_bar" />

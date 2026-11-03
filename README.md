@@ -80,7 +80,7 @@ adb install-multiple -r base.apk split_config.*.apk
 | `src/theme.rs` | Theme colour roles. |
 | `theme/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |
 | `theme/dex/stubs/` | Compile-only stubs. `p/` holds Spotify's obfuscated classes; see [its README](theme/dex/stubs/p/README.md). |
-| `theme/player/` | Pinned resource overrides. |
+| `theme/player/` | Spatch's own resources, and diffs (`*.diff`) applied to the decoded originals. The diffs hold only Spatch's added lines. |
 | `docs/targets.md` | Which app code owns each screen and why each target was chosen. |
 
 ## Checks
@@ -112,7 +112,11 @@ python3 tests/device-settings.py <base.apk>
 
 Add `--static-only` to run just the icon check without a phone.
 
-## License
+## License and disclaimer
 
-MIT, as declared in `Cargo.toml`. Spotify is a trademark of Spotify AB, and this project is not
-affiliated with it. No Spotify code or assets are stored in this repository.
+MIT; see [LICENSE](LICENSE). Bundled fonts keep their own licences in `theme/fonts/licenses/`.
+
+Spatch is unofficial and not affiliated with or endorsed by Spotify AB; Spotify is its trademark. No
+Spotify code or assets are stored in this repository: you supply your own APKM, and builds are never
+distributed here. Spatch changes only how the app looks and moves. Modified clients are against
+Spotify's terms of use, so use it at your own risk.

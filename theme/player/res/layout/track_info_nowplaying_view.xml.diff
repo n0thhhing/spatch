@@ -1,0 +1,9 @@
+a1 2
+<!-- Spatch: heavy display title and lavender subtitle. Explicit sizes replace the original
+     density-split-only dimens (0x7f0707c5 / 0x7f0707c4) that apktool cannot resolve from base. -->
+d4 1
+a4 1
+    <TextView android:textAppearance="@style/TextAppearance.Encore.TitleSmall" android:textSize="24.0sp" android:textColor="#fff3eeff" android:fontFamily="sans-serif-black" android:letterSpacing="-0.01" android:gravity="start" android:id="@id/track_info_view_title" android:layout_width="0.0dp" android:layout_height="wrap_content" android:textDirection="locale" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" style="@style/TrackInfoText" />
+d10 1
+a10 1
+    <TextView android:textAppearance="@style/TextAppearance.Encore.BodyMedium" android:textSize="16.0sp" android:textColor="#ffc6b8ff" android:gravity="start" android:id="@id/track_info_view_subtitle" android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_marginTop="2.0dp" android:textDirection="locale" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toEndOf="@id/track_info_view_speed_badge_icon" app:layout_constraintTop_toBottomOf="@id/track_info_view_title" style="@style/TrackInfoText" />

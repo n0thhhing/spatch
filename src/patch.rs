@@ -23,7 +23,52 @@ pub struct Target {
     pub entry: &'static str,
     /// SHA-256 of the original compiled entry; anything else (other build, already patched) is rejected.
     pub original_sha256: &'static str,
-    pub source: &'static str,
+    /// Spatch's changes to the decoded original, as an RCS diff (`diff -n`): only the added lines are
+    /// stored, so the repo holds none of Spotify's own markup.
+    pub diff: &'static str,
+}
+
+/// Applies an RCS diff: `dL N` drops N lines from original line L, `aL N` adds the next N diff lines
+/// after original line L. Commands refer to original line numbers in ascending order; the original is
+/// pinned by `original_sha256`, so a diff that does not fit is an error, never a fuzzy match.
+pub fn apply_diff(original: &str, diff: &str) -> Result<String> {
+    let old: Vec<&str> = original.split_inclusive('\n').collect();
+    let mut out = String::with_capacity(original.len() + diff.len());
+    let mut next = 0; // original lines already handled
+    let mut lines = diff.split_inclusive('\n');
+    while let Some(cmd) = lines.next() {
+        let bad = || {
+            format!(
+                "diff command {:?} does not fit the original",
+                cmd.trim_end()
+            )
+        };
+        let mut parts = cmd
+            .get(1..)
+            .unwrap_or("")
+            .trim_end()
+            .split(' ')
+            .map(str::parse::<usize>);
+        let (Some(Ok(at)), Some(Ok(n)), None) = (parts.next(), parts.next(), parts.next()) else {
+            return Err(bad().into());
+        };
+        match cmd.as_bytes()[0] {
+            b'd' if at > next && at - 1 + n <= old.len() => {
+                old[next..at - 1].iter().for_each(|l| out.push_str(l));
+                next = at - 1 + n;
+            }
+            b'a' if at >= next && at <= old.len() => {
+                old[next..at].iter().for_each(|l| out.push_str(l));
+                next = at;
+                for _ in 0..n {
+                    out.push_str(lines.next().ok_or_else(bad)?);
+                }
+            }
+            _ => return Err(bad().into()),
+        }
+    }
+    old[next..].iter().for_each(|l| out.push_str(l));
+    Ok(out)
 }
 
 macro_rules! target {
@@ -31,7 +76,7 @@ macro_rules! target {
         Target {
             entry: $entry,
             original_sha256: $sha,
-            source: include_str!(concat!("../theme/player/", $entry)),
+            diff: include_str!(concat!("../theme/player/", $entry, ".diff")),
         }
     };
 }
@@ -210,22 +255,75 @@ pub const NEW_RESOURCES: [(arsc::NewFile, &str); 27] = [
     new_file!("layout", "spatch_widget_preview"),
 ];
 
-/// New bitmap resources, shipped as they are: the cover in the widget picker's sample song.
-pub const NEW_IMAGES: [(arsc::NewFile, &[u8]); 1] = [(
-    arsc::NewFile {
-        type_name: "drawable",
-        name: "spatch_widget_preview_art",
-        path: "res/drawable/spatch_widget_preview_art.jpg",
-    },
-    include_bytes!("../theme/player/res/drawable/spatch_widget_preview_art.jpg"),
-)];
+/// New bitmap resources: the cover of the widget picker's sample song (`preview_art`).
+pub const NEW_IMAGES: [arsc::NewFile; 1] = [arsc::NewFile {
+    type_name: "drawable",
+    name: "spatch_widget_preview_art",
+    path: "res/drawable/spatch_widget_preview_art.jpg",
+}];
+
+/// The sample song in `spatch_widget_preview` (its title and artist are written in that layout).
+/// Only the link lives in the repo; the cover is fetched at build time. Empty: plain tile.
+const PREVIEW_TRACK: &str = "";
+const PREVIEW_FALLBACK: &[u8] =
+    include_bytes!("../theme/player/res/drawable/spatch_widget_preview_fallback.jpg");
+
+/// The sample song's cover from Spotify's public oEmbed endpoint, cached in `.cache/`; with no
+/// network and no cached copy the preview shows a plain tile rather than failing the build.
+fn preview_art() -> Vec<u8> {
+    if PREVIEW_TRACK.is_empty() {
+        return PREVIEW_FALLBACK.to_vec();
+    }
+    let id = PREVIEW_TRACK
+        .rsplit('/')
+        .next()
+        .unwrap_or("")
+        .split('?')
+        .next()
+        .unwrap_or("");
+    let cached = Path::new(".cache").join(format!("widget-preview-{id}.jpg"));
+    if let Ok(bytes) = fs::read(&cached) {
+        return bytes;
+    }
+    let fetch = |url: &str| {
+        std::process::Command::new("curl")
+            .args(["-sfL", "--max-time", "20", url])
+            .output()
+            .ok()
+            .filter(|o| o.status.success() && !o.stdout.is_empty())
+            .map(|o| o.stdout)
+    };
+    let cover = fetch(&format!(
+        "https://open.spotify.com/oembed?url={PREVIEW_TRACK}"
+    ))
+    .and_then(|json| thumbnail(&String::from_utf8_lossy(&json)))
+    .and_then(|url| fetch(&url))
+    .filter(|b| b.starts_with(&[0xff, 0xd8])); // JPEG
+    match cover {
+        Some(bytes) => {
+            let _ = fs::create_dir_all(".cache").and_then(|_| fs::write(&cached, &bytes));
+            bytes
+        }
+        None => {
+            println!("widget preview cover not fetched; using the plain tile");
+            PREVIEW_FALLBACK.to_vec()
+        }
+    }
+}
+
+/// `thumbnail_url` from an oEmbed response, without a JSON dependency.
+fn thumbnail(json: &str) -> Option<String> {
+    let rest = &json[json.find("\"thumbnail_url\"")? + 15..];
+    let rest = &rest[rest.find('"')? + 1..];
+    Some(rest[..rest.find('"')?].replace("\\/", "/"))
+}
 
 /// Every new file, XML first; `append_files` hands out IDs in this order.
 fn new_files() -> Vec<arsc::NewFile> {
     NEW_RESOURCES
         .iter()
         .map(|(f, _)| f)
-        .chain(NEW_IMAGES.iter().map(|(f, _)| f))
+        .chain(NEW_IMAGES.iter())
         .map(|f| arsc::NewFile { ..*f })
         .collect()
 }
@@ -429,9 +527,8 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
         }
         fs::write(path, theme.apply(source))?;
     }
-    for (f, bytes) in &NEW_IMAGES {
-        fs::write(decoded.join(f.path), bytes)?;
-    }
+    let art = preview_art();
+    fs::write(decoded.join(NEW_IMAGES[0].path), &art)?;
     let placeholders: String = SPLIT_REFS
         .iter()
         .map(|(ty, name, _)| {
@@ -450,7 +547,9 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
         if !path.is_file() {
             return Err(format!("decoded target {} missing", t.entry).into());
         }
-        fs::write(path, theme.apply(t.source))?;
+        let patched = apply_diff(&fs::read_to_string(&path)?, t.diff)
+            .map_err(|e| format!("{}: {e}", t.entry))?;
+        fs::write(path, theme.apply(&patched))?;
     }
     tools.run(
         &tools.apktool,
@@ -498,7 +597,7 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
         check_references(f.path, &tree, "", &known)?;
         added.push((f.path, input::read_entry(&rebuilt, f.path)?));
     }
-    added.extend(NEW_IMAGES.iter().map(|(f, bytes)| (f.path, bytes.to_vec())));
+    added.push((NEW_IMAGES[0].path, art));
     Ok((compiled, added))
 }
 
@@ -856,12 +955,43 @@ mod tests {
     }
 
     #[test]
+    fn reads_the_oembed_thumbnail() {
+        let json = r#"{"html":"x","thumbnail_url":"https:\/\/i.scdn.co\/image\/ab67","thumbnail_width":300}"#;
+        assert_eq!(thumbnail(json).unwrap(), "https://i.scdn.co/image/ab67");
+        assert!(thumbnail("{}").is_none());
+    }
+
+    #[test]
+    fn diffs_apply_exactly_or_not_at_all() {
+        let original = "a\nb\nc\nd\n";
+        assert_eq!(
+            apply_diff(original, "d2 1\na3 2\nx\ny\n").unwrap(),
+            "a\nc\nx\ny\nd\n"
+        );
+        assert_eq!(
+            apply_diff(original, "a0 1\nz\nd4 1\n").unwrap(),
+            "z\na\nb\nc\n"
+        );
+        assert_eq!(apply_diff(original, "").unwrap(), original);
+        for bad in [
+            "d4 2\n",
+            "a5 1\nx\n",
+            "a2 2\nx\n",
+            "d3 1\nd2 1\n",
+            "x1 1\n",
+            "d1\n",
+        ] {
+            assert!(apply_diff(original, bad).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
     fn targets_reject_patched_or_foreign_base() {
         let d = temp_dir("targets");
         let base = d.join("base.apk");
         let entries: Vec<(&str, &[u8])> = TARGETS
             .iter()
-            .map(|t| (t.entry, t.source.as_bytes()))
+            .map(|t| (t.entry, t.diff.as_bytes()))
             .collect();
         write_zip(&base, &entries);
         assert!(

@@ -29,6 +29,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('getLocationOnScreen(int[] out) {}', 'getLocationOnScreen(int[] out) {out[0]=screenX;}')
             text = text.replace('public void setSelected(boolean selected) {}', 'private boolean selected; public void setSelected(boolean value) {selected=value;}').replace('isSelected() { return false; }', 'isSelected() { return selected; }')
             text = text.replace('postInvalidateDelayed(long delay) {}', 'postInvalidateDelayed(long delay) { nextDraw = delay; }')
+            text = text.replace('public void postInvalidateOnAnimation() {}', 'public void postInvalidateOnAnimation() { nextDraw = 16; }') # the next display frame
             text = text.replace('public void setAlpha(float a) {}', 'public float testAlpha=1; public void setAlpha(float a) {testAlpha=a;}')
             text = text.replace('public void setScaleX(float s) {}', 'public float testScale=1; public void setScaleX(float s) {testScale=s;}')
             text = text.replace('public void setOnClickListener(OnClickListener l) {}', 'private OnClickListener click; public void setOnClickListener(OnClickListener l) {click=l;}')
@@ -222,6 +223,7 @@ public class PlayerRuntimeTest {
         Method selectTheme = SpatchSettings.class.getDeclaredMethod("onThemeSelected", int.class, String.class);
         selectTheme.setAccessible(true);
         android.app.AlertDialog.Builder.shown = false;
+        Settings.set(6, true); // reduce motion: the dialog path; the colour reveal runs only on a device
         selectTheme.invoke(spatchPage, 1, "gruvbox");
 
         check(thmSwitches[1].isSelected(), "Gruvbox switch must be checked after selection");
@@ -247,6 +249,7 @@ public class PlayerRuntimeTest {
         android.app.AlertDialog.Builder.shown = false;
         selectTheme.invoke(spatchPage, 0, "lavender");
         check(!android.app.AlertDialog.Builder.shown, "selecting already active theme must not show restart dialog");
+        Settings.set(6, false);
 
         // 5. Back navigation: close() removes page from root view
         spatchPage.close(); // starts the slide-out
@@ -733,7 +736,7 @@ public class PlayerRuntimeTest {
         check(burstReached,"the mini player button must reach the burst");
         int[] clicks={0}; kotlin.jvm.functions.Function0 wrapped=Flourish.pressed(()->{clicks[0]++;return "done";},1);
         check("done".equals(wrapped.invoke())&&clicks[0]==1,"a play button's click must still run, once");
-        java.nio.file.Path spatchSrc=java.nio.file.Path.of(System.getProperty("fonts")).getParent().resolve("dex/src/spatch/ScallopShape.java");
+        java.nio.file.Path spatchSrc=java.nio.file.Path.of(System.getProperty("fonts")).getParent().resolve("dex/src/spatch/player/ScallopShape.java");
         check(!new String(java.nio.file.Files.readAllBytes(spatchSrc)).contains("Flourish."),"a play state change alone must never burst: paused, tapping a song or skipping starts playback too");
         System.out.println("PASS play button burst");
 

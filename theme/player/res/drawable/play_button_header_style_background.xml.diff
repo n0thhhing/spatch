@@ -1,0 +1,5 @@
+d2 1
+a2 3
+<!-- Spatch: album/show header play button background (Encore PlayButtonView, tinted at runtime with
+     encore_play_button_bg) is the player's scallop instead of an oval. -->
+<drawable class="spatch.ScallopFill"

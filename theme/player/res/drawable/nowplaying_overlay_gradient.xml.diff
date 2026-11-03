@@ -1,0 +1,5 @@
+a1 1
+<!-- Spatch: artwork stays clear at the top, fading into the deep violet player surface. -->
+d4 1
+a4 1
+    <gradient android:startColor="#0014121c" android:centerColor="#5c1d1a2a" android:endColor="#f214121c" android:angle="270.0" android:type="linear" android:centerY="0.45" />

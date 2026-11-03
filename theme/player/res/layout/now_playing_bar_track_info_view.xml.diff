@@ -1,0 +1,8 @@
+a1 1
+<!-- Spatch: heavy mini-player title and lavender subtitle, matching the full player. -->
+d4 1
+a4 1
+    <TextView android:textAppearance="@style/TextAppearance.NowPlayingBar.SingleLineTitle" android:ellipsize="end" android:fontFamily="sans-serif-black" android:id="@id/track_info_view_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:singleLine="true" android:marqueeRepeatLimit="marquee_forever" />
+d11 1
+a11 1
+            <TextView android:textAppearance="@style/TextAppearance.NowPlayingBar.SingleLineSubtitle" android:textColor="#ffbcb3dc" android:ellipsize="end" android:id="@id/track_info_view_subtitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:singleLine="true" android:marqueeRepeatLimit="marquee_forever" android:fontFeatureSettings="tnum" />

@@ -1,0 +1,9 @@
+d2 4
+a5 3
+<FrameLayout android:id="@id/music_container" android:background="@color/opacity_white_0" android:layout_width="match_parent" android:layout_height="match_parent" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <FrameLayout android:layout_gravity="center_horizontal" android:id="@id/cover_art_container" android:layout_width="@dimen/square_cover_art_size" android:layout_height="@dimen/square_cover_art_size" android:layout_marginTop="@dimen/square_cover_art_top_margin">
+        <spatch.PlayerArt android:id="@id/image" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="centerCrop" />
+d7 2
+a8 2
+            <com.spotify.encoremobile.component.icons.IconTrack android:id="@id/track_icon" android:background="@android:drawable/dialog_holo_light_frame" android:layout_width="60dp" android:layout_height="wrap_content" android:scaleType="centerCrop" android:adjustViewBounds="true" app:tint="?baseTextSubdued" />
+            <TextView android:textColor="@color/white" android:padding="10dp" android:layout_width="170dp" android:layout_height="wrap_content" android:text="@string/player_radio_no_forecasting" style="@style/TextAppearance.Cat.Secondary" />

@@ -1,0 +1,4 @@
+d2 1
+a2 2
+<!-- Spatch: deep violet player surface replaces ?pasteColorBackground; hierarchy and ids unchanged. -->
+<androidx.coordinatorlayout.widget.CoordinatorLayout android:id="@id/content" android:background="#ff14121c" android:layout_width="match_parent" android:layout_height="match_parent"
