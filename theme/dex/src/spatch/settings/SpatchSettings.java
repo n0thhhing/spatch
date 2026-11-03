@@ -230,7 +230,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Free accounts: takes the Premium tab out of the bottom bar"
     };
 
-    /** encore_icon_<name>_24 for each feature row; a missing name just leaves its tile empty. */
+    /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
     static final String[] FEATURE_ICONS = {
         "soundwave", "enhance", "image", "album", "fullscreen", "star", "pause", "soundwave",
         "repeat", "time", "list_view", "arrow_up", "minimize", "podcasts", "audiobook", "group", "now_playing", "notifications_active", "play", "home", "filter", "time", "sort", "gem", "notification_new", "heart", "information_alt",
@@ -1038,7 +1038,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     ImageView icon(String name) {
         ImageView image = new ImageView(getContext(), null);
         image.setScaleType(ImageView.ScaleType.CENTER);
-        int id = getContext().getResources().getIdentifier("encore_icon_" + name + "_24", "drawable", getContext().getPackageName());
+        String pkg = getContext().getPackageName();
+        int id = getContext().getResources().getIdentifier("spatch_ms_" + name, "drawable", pkg); // Material Symbols, bundled
+        if (id == 0) id = getContext().getResources().getIdentifier("encore_icon_" + name + "_24", "drawable", pkg);
         if (id != 0) {
             image.setImageResource(id);
             image.setColorFilter(accent);

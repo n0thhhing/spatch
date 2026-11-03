@@ -127,7 +127,8 @@ Add `--static-only` to run just the icon check without a phone.
 
 ## License and disclaimer
 
-MIT; see [LICENSE](LICENSE). Bundled fonts keep their own licences in `theme/fonts/licenses/`.
+MIT; see [LICENSE](LICENSE). Bundled fonts keep their own licences in `theme/fonts/licenses/`. The icons in
+Spatch settings are [Material Symbols](https://github.com/google/material-design-icons) (Google, Apache 2.0).
 
 Spatch is unofficial and not affiliated with or endorsed by Spotify AB; Spotify is its trademark. No
 Spotify code or assets are stored in this repository, and no Spotify APKs are distributed here: you

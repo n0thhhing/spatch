@@ -225,7 +225,7 @@ macro_rules! new_file {
     };
 }
 
-pub const NEW_RESOURCES: [(arsc::NewFile, &str); 27] = [
+pub const NEW_RESOURCES: [(arsc::NewFile, &str); 69] = [
     new_file!("drawable", "spatch_widget_bg"),
     new_file!("drawable", "spatch_widget_art"),
     new_file!("drawable", "spatch_widget_scallop"),
@@ -253,6 +253,49 @@ pub const NEW_RESOURCES: [(arsc::NewFile, &str); 27] = [
     new_file!("layout", "spatch_widget"),
     new_file!("layout", "spatch_widget_large"),
     new_file!("layout", "spatch_widget_preview"),
+    // Material Symbols Rounded (Google, Apache 2.0) for Spatch settings' icons.
+    new_file!("drawable", "spatch_ms_album"),
+    new_file!("drawable", "spatch_ms_arrow_left"),
+    new_file!("drawable", "spatch_ms_arrow_top_left"),
+    new_file!("drawable", "spatch_ms_arrow_up"),
+    new_file!("drawable", "spatch_ms_audiobook"),
+    new_file!("drawable", "spatch_ms_check"),
+    new_file!("drawable", "spatch_ms_chevron_right"),
+    new_file!("drawable", "spatch_ms_collection_active"),
+    new_file!("drawable", "spatch_ms_device_mobile"),
+    new_file!("drawable", "spatch_ms_edit"),
+    new_file!("drawable", "spatch_ms_enhance"),
+    new_file!("drawable", "spatch_ms_external_link"),
+    new_file!("drawable", "spatch_ms_filter"),
+    new_file!("drawable", "spatch_ms_filter_active"),
+    new_file!("drawable", "spatch_ms_fullscreen"),
+    new_file!("drawable", "spatch_ms_gem"),
+    new_file!("drawable", "spatch_ms_group"),
+    new_file!("drawable", "spatch_ms_heart"),
+    new_file!("drawable", "spatch_ms_hidden"),
+    new_file!("drawable", "spatch_ms_home"),
+    new_file!("drawable", "spatch_ms_image"),
+    new_file!("drawable", "spatch_ms_information_alt"),
+    new_file!("drawable", "spatch_ms_list_view"),
+    new_file!("drawable", "spatch_ms_minimize"),
+    new_file!("drawable", "spatch_ms_notification_new"),
+    new_file!("drawable", "spatch_ms_notifications_active"),
+    new_file!("drawable", "spatch_ms_now_playing"),
+    new_file!("drawable", "spatch_ms_pause"),
+    new_file!("drawable", "spatch_ms_play"),
+    new_file!("drawable", "spatch_ms_playlist"),
+    new_file!("drawable", "spatch_ms_plus"),
+    new_file!("drawable", "spatch_ms_podcasts"),
+    new_file!("drawable", "spatch_ms_repeat"),
+    new_file!("drawable", "spatch_ms_shuffle"),
+    new_file!("drawable", "spatch_ms_skip_forward"),
+    new_file!("drawable", "spatch_ms_sort"),
+    new_file!("drawable", "spatch_ms_soundwave"),
+    new_file!("drawable", "spatch_ms_star"),
+    new_file!("drawable", "spatch_ms_t_shirt"),
+    new_file!("drawable", "spatch_ms_time"),
+    new_file!("drawable", "spatch_ms_track"),
+    new_file!("drawable", "spatch_ms_user"),
 ];
 
 /// New bitmap resources: the cover of the widget picker's sample song (`preview_art`).
