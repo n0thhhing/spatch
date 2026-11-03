@@ -332,9 +332,8 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         v.setViewVisibility(id(r, pkg, "frame"), GONE);
         for (String name : new String[] {"title", "title2"}) v.setColor(id(r, pkg, name), "setTextColor", title);
         for (String name : new String[] {"subtitle", "subtitle2"}) v.setColor(id(r, pkg, name), "setTextColor", artist);
-        for (String name : new String[] {"previous_button", "next_button", "icon"}) {
-            v.setInt(id(r, pkg, name), "setColorFilter", 0); // transparent: the tint below shows through
-            v.setColorStateList(id(r, pkg, name), "setImageTintList", name.equals("icon") ? onAccent : title);
+        for (String name : new String[] {"previous_button", "next_button", "icon"}) { // a colour filter outranks a tint, so set the filter itself
+            v.setColor(id(r, pkg, name), "setColorFilter", name.equals("icon") ? onAccent : title);
         }
         for (String name : new String[] {"spinner", "image", "text1", "text2", "icon_view", "image_view"}) {
             v.setColorStateList(id(r, pkg, name), "setIndeterminateTintList", accent);
