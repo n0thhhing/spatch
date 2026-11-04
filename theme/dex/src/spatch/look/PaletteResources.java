@@ -21,10 +21,16 @@ final class PaletteResources {
 
     /** A rebuilt screen keeps the Resources it had, loaders included, so each one is brought over itself. */
     static void sync(android.content.res.Resources resources){
+        if (resources == null) return;
         try{
-            resources.clearLoaders();
-            if(current!=null)resources.addLoaders(current);
-        }catch(RuntimeException e){
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                java.util.List<ResourcesLoader> loaders = resources.getLoaders();
+                if (loaders != null && !loaders.isEmpty()) {
+                    resources.removeLoaders(loaders.toArray(new ResourcesLoader[loaders.size()]));
+                }
+                if(current!=null) resources.addLoaders(current);
+            }
+        }catch(Throwable e){
             android.util.Log.i("Spatch","screen overlay: "+e); // a rebuilt screen normally inherits it from the application
         }
     }

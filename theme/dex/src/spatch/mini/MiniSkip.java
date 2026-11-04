@@ -36,10 +36,13 @@ public final class MiniSkip extends ImageView implements View.OnClickListener {
 
     public void onClick(View v) {
         MediaController c = SpatchWidget.controller();
-        if (c == null) return;
-        if (next) c.getTransportControls().skipToNext();
-        else c.getTransportControls().skipToPrevious();
-        Haptics.playback(this);
+        if (c != null) {
+            if (next) c.getTransportControls().skipToNext();
+            else c.getTransportControls().skipToPrevious();
+            Haptics.playback(this);
+        } else {
+            PlayerSwipe.skip(this, next);
+        }
         if (Wave.animationsEnabled() && Settings.buttons()) {
             float nudge = (next ? 3 : -3) * getResources().getDisplayMetrics().density;
             setTranslationX(nudge);

@@ -108,23 +108,39 @@ public final class MiniBar extends MotionLayout implements Runnable {
     }
 
     private boolean onCover(float x) {
-        if (shapedCover == null) return false;
-        View box = shapedCover.getParent() instanceof View && shapedCover.getParent() != this ? (View) shapedCover.getParent() : shapedCover;
-        float right = box.getRight() > 0 ? box.getRight() : 64 * getResources().getDisplayMetrics().density;
-        return x >= 0 && x <= right;
+        if (shapedCover == null) roundCover();
+        float boundary;
+        if (previous != null && previous.getLeft() > 0) {
+            boundary = previous.getLeft() - 4 * getResources().getDisplayMetrics().density;
+        } else {
+            View carousel = findViewById(id("tracks_carousel_view"));
+            if (carousel != null && carousel.getRight() > 0) boundary = carousel.getRight();
+            else boundary = getWidth() > 0 ? getWidth() - 144 * getResources().getDisplayMetrics().density : 96 * getResources().getDisplayMetrics().density;
+        }
+        return x >= -16 * getResources().getDisplayMetrics().density && x <= boundary;
     }
 
     private void skip(boolean toNext) {
+        PlayerSwipe.skip(this, toNext);
         MiniSkip btn = toNext ? next : previous;
-        if (btn != null) {
-            btn.onClick(btn);
-            return;
+        if (btn != null && Wave.animationsEnabled() && Settings.buttons()) {
+            float nudge = (toNext ? 3 : -3) * getResources().getDisplayMetrics().density;
+            btn.setTranslationX(nudge);
+            btn.animate().translationX(0).setDuration(200).start();
         }
-        android.media.session.MediaController c = SpatchWidget.controller();
-        if (c == null) return;
-        if (toNext) c.getTransportControls().skipToNext();
-        else c.getTransportControls().skipToPrevious();
-        Haptics.playback(this);
+    }
+
+    private void flingCover(float dx, float deg) {
+        if (shapedCover instanceof MiniArt) {
+            ((MiniArt) shapedCover).fling(dx, deg);
+        } else if (shapedCover != null) {
+            int[] at = new int[2];
+            shapedCover.getLocationOnScreen(at);
+            float dp = getResources().getDisplayMetrics().density;
+            float size = Math.max(shapedCover.getWidth(), 36 * dp);
+            android.graphics.drawable.Drawable art = shapedCover instanceof android.widget.ImageView ? ((android.widget.ImageView) shapedCover).getDrawable() : null;
+            MiniArt.flingAt(shapedCover, art, at[0] + shapedCover.getWidth() / 2f, at[1] + shapedCover.getHeight() / 2f, size, dx, deg);
+        }
     }
 
     private boolean likeTouch(MotionEvent e) {
@@ -160,6 +176,8 @@ public final class MiniBar extends MotionLayout implements Runnable {
             flinging = true;
             removeCallbacks(holdLike);
             requestDisallowInterceptTouchEvent(true);
+            android.view.ViewParent p = getParent();
+            if (p != null) p.requestDisallowInterceptTouchEvent(true);
             MotionEvent cancel = MotionEvent.obtain(e);
             cancel.setAction(MotionEvent.ACTION_CANCEL);
             if (coverSpring != null) coverSpring.onTouch(shapedCover, cancel);
@@ -177,7 +195,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
                 float deg = shapedCover.getRotation();
                 shapedCover.setTranslationX(0);
                 if (action == MotionEvent.ACTION_UP && flingCommits(dx, dp, actions)) {
-                    if (shapedCover instanceof MiniArt) ((MiniArt) shapedCover).fling(dx, deg);
+                    flingCover(dx, deg);
                     skip(dx < 0);
                 }
             }
@@ -208,6 +226,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
     /** m1p0 swaps the cover view after inflation; a circle sits concentric in the pill's end. */
     private void roundCover() {
         View cover = findViewById(id("cover_image"));
+        if (cover == null) cover = findCover(this);
         if (cover == null || cover == shapedCover) return;
         shapedCover = cover;
         coverSpring = new Springy(cover);
@@ -216,11 +235,30 @@ public final class MiniBar extends MotionLayout implements Runnable {
         circle.setColor(Palette.color(0xff1d1a2a));
         cover.setBackground(circle);
         cover.setClipToOutline(true);
+        setClipChildren(false);
+        setClipToPadding(false);
         if (cover.getParent() instanceof android.view.ViewGroup) {
             android.view.ViewGroup box = (android.view.ViewGroup) cover.getParent();
             box.setClipChildren(false);
             box.setClipToPadding(false);
         }
+    }
+
+    private View findCover(View v) {
+        if (v == null) return null;
+        if (v instanceof MiniArt) return v;
+        if (v instanceof android.widget.ImageView && v != previous && v != next) {
+            CharSequence desc = v.getContentDescription();
+            if (desc != null && desc.toString().toLowerCase(java.util.Locale.ROOT).contains("cover")) return v;
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                View found = findCover(g.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     /** Paced by the display's frame time: the clock at callback time wobbles with whatever else the main thread is doing. */
@@ -272,7 +310,8 @@ public final class MiniBar extends MotionLayout implements Runnable {
         }
         int state = s == null ? 0 : s.getState();
         view.playing = state == PlaybackState.STATE_PLAYING;
-        view.actions = s == null ? 0 : s.getActions();
+        long reported = s == null ? 0 : s.getActions();
+        view.actions = (reported & 48L) != 0 ? reported : 48L;
         view.post(view);
     }
 

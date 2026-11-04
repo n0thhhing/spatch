@@ -79,7 +79,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
 
     public static void attach(MediaSession session) {
         Context app = Settings.app;
-        if (app == null || session == null || Build.VERSION.SDK_INT < 31) return;
+        if (app == null || session == null) return;
         try {
             MediaController c = new MediaController(app, session.getSessionToken());
             c.registerCallback(new SpatchWidget(c), worker());

@@ -69,7 +69,7 @@ public final class PlayerSwipe {
         View root = host == null ? null : host.getRootView();
         View button = findButton(root, next);
         if (button == null && host != null && host != root) button = findButton(host, next);
-        if (button != null && button.isEnabled()) {
+        if (button != null && !(button instanceof MiniSkip) && button.isEnabled()) {
             ClickHaptic.forward(button);
             return;
         }

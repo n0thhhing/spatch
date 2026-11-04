@@ -51,7 +51,7 @@ public final class MiniArt extends ImageView {
     }
 
     static void flingAt(View host, Drawable art, float x, float y, float size, float dx, float deg) {
-        if (!Settings.get(Settings.MINI_FLING) || !Wave.animationsEnabled() || !host.isShown() || !host.hasWindowFocus() || live >= 2) return;
+        if (!Settings.get(Settings.MINI_FLING) || !Wave.animationsEnabled() || !host.isShown() || live >= 2) return;
         View root = host.getRootView();
         int[] origin = new int[2];
         root.getLocationOnScreen(origin);
@@ -118,7 +118,7 @@ public final class MiniArt extends ImageView {
 
         public void run() {
             if (finished) return;
-            if (SystemClock.uptimeMillis() - started >= FLING_MS || !Wave.animationsEnabled() || !Settings.get(Settings.MINI_FLING) || !root.isShown() || !root.hasWindowFocus()) {
+            if (SystemClock.uptimeMillis() - started >= FLING_MS || !Wave.animationsEnabled() || !Settings.get(Settings.MINI_FLING) || !root.isShown()) {
                 finish();
                 return;
             }

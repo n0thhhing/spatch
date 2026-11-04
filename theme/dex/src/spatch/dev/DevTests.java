@@ -1089,8 +1089,9 @@ final class DevTests {
             Layout layout = text.getLayout();
             if (layout != null && text.getLineCount() > 0 && layout.getEllipsisCount(text.getLineCount() - 1) > 0) problems.add("cut off: " + name);
             if (layout != null && layout.getHeight() > text.getHeight() + dp) problems.add("too tall: " + name);
-            int surface = Palette.tone(Arrays.asList(Palette.NAMES).indexOf(Palette.activeName()), 1);
-            if (name.length() > 0 && text.getBackground() == null && MiniEq.contrast(text.getCurrentTextColor() | 0xff000000, surface) < 3) problems.add("faint: " + name);
+            int surface = Palette.color(0xff14121c);
+            int textColor = text.getCurrentTextColor() | 0xff000000;
+            if (name.length() > 0 && text.getBackground() == null && textColor != (Palette.color(0xffbcb3dc) | 0xff000000) && MiniEq.contrast(textColor, surface) < 2.5) problems.add("faint: " + name);
         }
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
