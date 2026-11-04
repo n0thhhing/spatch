@@ -218,7 +218,19 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             played.setStrokeWidth(stroke);
             canvas.drawPath(path, played);
         }
-        boolean settling = (amp > 0f && amp < 1f) || (thick > 0f && thick < 1f);
+        if (end > x0 && thick > 0.05f) {
+            float dropRadius = stroke * (0.6f + 0.45f * thick);
+            played.setStyle(Paint.Style.FILL);
+            canvas.drawCircle(px, cy, dropRadius, played);
+            if (seeking && motion) {
+                float beadR = dropRadius * 0.35f;
+                float drift = (float) Math.sin(now * 0.015f) * dropRadius * 0.8f;
+                canvas.drawCircle(px - dropRadius * 1.4f, cy + drift, beadR, played);
+                canvas.drawCircle(px + dropRadius * 1.3f, cy - drift * 0.7f, beadR * 0.8f, played);
+            }
+            played.setStyle(Paint.Style.STROKE);
+        }
+        boolean settling = (amp > 0f && amp < 1f) || (thick > 0f && thick < 1f) || (seeking && motion);
         if (amp > 0f || settling) {
             if (onScreen(this)) scheduleSelf(this, now + 16);
         }

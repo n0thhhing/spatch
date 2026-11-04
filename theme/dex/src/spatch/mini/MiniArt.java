@@ -66,6 +66,7 @@ public final class MiniArt extends ImageView {
         long t = SystemClock.uptimeMillis() - popAt;
         if (t >= POP_MS) {
             super.onDraw(canvas);
+            drawVinyl(canvas);
             return;
         }
         float[] step = dropStep(t / (float) POP_MS, getHeight(), popAt == dropAt);
@@ -73,8 +74,32 @@ public final class MiniArt extends ImageView {
         canvas.translate(0, step[1]);
         canvas.scale(step[0], step[0], getWidth() / 2f, getHeight() / 2f);
         super.onDraw(canvas);
+        drawVinyl(canvas);
         canvas.restoreToCount(save);
         postInvalidateDelayed(16);
+    }
+
+    private void drawVinyl(Canvas canvas) {
+        if (!Settings.get(Settings.MINI_SPIN) && !"circle".equals(Settings.choice(Settings.ART_SHAPE))) return;
+        float cx = getWidth() / 2f, cy = getHeight() / 2f, radius = Math.min(cx, cy) * 0.94f;
+        if (radius <= 0) return;
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(1f);
+        for (float r = radius * 0.52f; r < radius * 0.95f; r += radius * 0.14f) {
+            p.setColor(0x18ffffff);
+            canvas.drawCircle(cx, cy, r, p);
+        }
+        p.setStyle(Paint.Style.FILL);
+        long now = SystemClock.uptimeMillis();
+        float rot = ((now % 10000) * 0.036f) % 360f;
+        p.setShader(new android.graphics.SweepGradient(cx, cy,
+            new int[] {0x00ffffff, 0x18ffffff, 0x00ffffff, 0x00ffffff, 0x18ffffff, 0x00ffffff},
+            new float[] {0f, 0.12f, 0.25f, 0.5f, 0.62f, 0.75f}));
+        int s = canvas.save();
+        canvas.rotate(rot, cx, cy);
+        canvas.drawCircle(cx, cy, radius, p);
+        canvas.restoreToCount(s);
     }
 
     /** {scale, dy} for the incoming cover; a fling-skip drops in with a stronger elastic overshoot. */

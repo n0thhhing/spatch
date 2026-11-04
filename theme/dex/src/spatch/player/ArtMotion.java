@@ -6,6 +6,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.Shader;
+import android.graphics.SweepGradient;
 import android.media.session.MediaController;
 import android.os.SystemClock;
 import android.view.MotionEvent;
@@ -139,9 +140,34 @@ final class ArtMotion implements Runnable {
         if (spin != 0) canvas.rotate(spin, cx, cy);
     }
 
-    /** A soft glare under the finger, inside the art's clip. */
+    /** A soft glare under the finger, inside the art's clip, plus vinyl grooves & specular shimmer on circular art. */
     void sheen(Canvas canvas, float radius) {
+        float cx = art.getWidth() / 2f, cy = art.getHeight() / 2f;
+        if ("circle".equals(Settings.choice(Settings.ART_SHAPE)) && (art.isCurrentPage() || art.preview)) {
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1f, radius * 0.003f));
+            for (float r = radius * 0.45f; r < radius * 0.95f; r += radius * 0.075f) {
+                paint.setColor(0x18ffffff);
+                canvas.drawCircle(cx, cy, r, paint);
+                paint.setColor(0x16000000);
+                canvas.drawCircle(cx, cy, r + radius * 0.035f, paint);
+            }
+            long now = SystemClock.uptimeMillis();
+            float rot = (spin + (Wave.animationsEnabled() ? (now % 16000) * 0.0225f : 0f)) % 360f;
+            SweepGradient sweep = new SweepGradient(cx, cy,
+                new int[] {0x00ffffff, 0x1affffff, 0x00ffffff, 0x00ffffff, 0x1affffff, 0x00ffffff},
+                new float[] {0f, 0.12f, 0.25f, 0.5f, 0.62f, 0.75f});
+            Matrix m = new Matrix();
+            m.setRotate(rot, cx, cy);
+            sweep.setLocalMatrix(m);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setShader(sweep);
+            canvas.drawCircle(cx, cy, radius, paint);
+            paint.setShader(null);
+        }
         if (!down || scratching || !Settings.get(Settings.ART_TILT)) return;
+        paint.setStyle(Paint.Style.FILL);
         paint.setShader(new RadialGradient(fingerX, fingerY, radius, new int[] {0x38ffffff, 0}, null, Shader.TileMode.CLAMP));
         canvas.drawCircle(fingerX, fingerY, radius, paint);
         paint.setShader(null);

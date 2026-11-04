@@ -91,7 +91,7 @@ public final class Atmosphere extends Drawable implements Runnable {
         boolean shocks=drawShockwaves(c,w,h);
         String fx=Settings.choice(Settings.BACKDROP_FX);
         boolean motes=!"none".equals(fx);
-        if(motes) drawMotes(c,w,h,"stars".equals(fx),mix(fromColors[0],colors[0],blend));
+        if(motes) drawMotes(c,w,h,fx,mix(fromColors[0],colors[0],blend));
         if(Wave.animationsEnabled() && (blend<1||flow>0&&(Settings.artDrift()||motes)||shocks) && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+(blend<1||motes||shocks?16:66));
     }
     public void run(){invalidateSelf();}
@@ -131,19 +131,29 @@ public final class Atmosphere extends Drawable implements Runnable {
     static float shockProgress(long elapsed){return Math.max(0,Math.min(1,elapsed/420f));}
 
     /** Slow specks rising through the backdrop, swelling with the bass when audio is being read. */
-    private void drawMotes(Canvas c,float w,float h,boolean stars,int tint){
+    private void drawMotes(Canvas c,float w,float h,String fx,int tint){
         float dp=Math.max(1,w/400f);
         // Double: after days of uptime a float of seconds only moves in steps of an eighth of a second.
         double now=Wave.animationsEnabled()?SystemClock.uptimeMillis()/1000.0*flow/100:0;
         float energy=Spectrum.alpha*(Spectrum.bands[0]+Spectrum.bands[1])/2;
-        int light=mix(tint,0xffffffff,.65f)&0xffffff;
+        boolean stars="stars".equals(fx), embers="embers".equals(fx);
+        long kickElapsed = SystemClock.uptimeMillis() - Spectrum.kickAt;
+        float kick = (Spectrum.kickAt > 0 && kickElapsed >= 0 && kickElapsed < 320) ? (1f - kickElapsed / 320f) * Spectrum.alpha : 0f;
+        int light=embers ? 0xff9933 : mix(tint,0xffffffff,.65f)&0xffffff;
         for(int i=0;i<MOTES;i++){
-            float seed=(i*2654435761L&0xffffffffL)/4294967296f, speed=.012f+seed*.03f;
-            float rise=rise(now,speed,seed*7+i*.13f), x=(seed*97%1f)*w+(float)Math.sin(now*.3+i)*14*dp;
-            float twinkle=.5f+.5f*(float)Math.sin(now*(.7+seed)+i), size=(1+seed*2)*dp*(1+energy);
-            paint.setColor(light|(int)((stars?70+150*twinkle:30+60*twinkle)*(1-rise*.5f))<<24);
+            float seed=(i*2654435761L&0xffffffffL)/4294967296f, speed=.012f+seed*.03f + (embers ? 0.035f + 0.08f * kick : 0f);
+            float rise=rise(now,speed,seed*7+i*.13f);
+            float swirl = (embers ? (float) Math.sin(now * 1.5 + i * 1.7) * (18 + 25 * kick) : (float)Math.sin(now*.3+i)*14) * dp;
+            float x=(seed*97%1f)*w + swirl;
+            float twinkle=.5f+.5f*(float)Math.sin(now*(.7+seed)+i), size=(1+seed*2)*dp*(1+energy + (embers ? 1.2f * kick : 0f));
+            int baseAlpha = embers ? (int)((110 + 145 * twinkle) * (1 - rise * 0.4f)) : (int)((stars?70+150*twinkle:30+60*twinkle)*(1-rise*.5f));
+            paint.setColor(light | (Math.min(255, baseAlpha) << 24));
             float y=h*(1-rise);
             c.drawCircle(x,y,size,paint);
+            if(embers && seed > 0.6f){
+                paint.setColor((0x40 << 24) | 0xff5500);
+                c.drawCircle(x, y, size * 2.2f, paint);
+            }
             if(stars&&seed>.7f){c.drawRect(x-size*3,y-size*.2f,x+size*3,y+size*.2f,paint);c.drawRect(x-size*.2f,y-size*3,x+size*.2f,y+size*3,paint);}
         }
     }

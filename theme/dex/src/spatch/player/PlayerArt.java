@@ -12,7 +12,7 @@ import android.os.SystemClock;
 
 /** Player-only circular art. Keeps Spotify's image loading, gestures and accessibility. */
 public final class PlayerArt extends ImageView {
-    private boolean preview; // settings sample: draws with the live settings, never touches the player or audio
+    boolean preview; // settings sample: draws with the live settings, never touches the player or audio
     private final Paint ink = new Paint(3);
     private final Path outline = new Path();
     // Shared by every carousel page, so a song change crossfades from the old colours rather than
@@ -46,6 +46,8 @@ public final class PlayerArt extends ImageView {
     private static final float TITLE_ALBUM=.7f;
     private float beatLevel;
     private final ArtMotion motion = new ArtMotion(this);
+    private final Camera flipCamera = new Camera();
+    private final Matrix flipMatrix = new Matrix();
     private Expansion expansion;
     private static Drawable original; // controls background before any page's backdrop replaced it
     public PlayerArt(Context c, AttributeSet a) { super(c, a); Settings.load(c); }
@@ -197,6 +199,17 @@ public final class PlayerArt extends ImageView {
             canvas.rotate(offset * 200f, getWidth() / 2f, getHeight() / 2f);
             return;
         }
+        if ("flip".equals(skip)) {
+            float cx = getWidth() / 2f, cy = getHeight() / 2f;
+            flipCamera.save();
+            flipCamera.rotateY(offset * 90f);
+            flipCamera.getMatrix(flipMatrix);
+            flipCamera.restore();
+            flipMatrix.preTranslate(-cx, -cy);
+            flipMatrix.postTranslate(cx, cy);
+            canvas.concat(flipMatrix);
+            return;
+        }
         float scale = 1 - 0.35f * Math.min(1, turn);
         canvas.scale(scale, scale, getWidth() / 2f, getHeight() / 2f);
     }
@@ -342,6 +355,7 @@ public final class PlayerArt extends ImageView {
         long now = SystemClock.uptimeMillis();
         float strength = "soft".equals(Settings.choice(Settings.ART_GLOW)) ? 0.5f : 1f;
         if ("fade".equals(style) && motion) strength *= 0.55f + 0.45f * (float) Math.sin(now / 700.0);
+        if (motion && beatLevel > 0.01f) strength *= (1f + 0.35f * beatLevel);
         if(glow==null || glowSize!=radius || glowTint!=tint || !style.equals(glowStyle)) {
             glowSize=radius; glowTint=tint; glowStyle=style;
             int on = 0x55000000 | tint, off = tint;
@@ -351,6 +365,8 @@ public final class PlayerArt extends ImageView {
                     new SweepGradient(cx,cy,new int[]{on,off,second,off,on},null),PorterDuff.Mode.SRC_IN);
             } else if ("wide".equals(style)) {
                 glow=new RadialGradient(cx,cy,edge,new int[]{off,on,0x33000000|tint,off},new float[]{0,.8f,.92f,1},Shader.TileMode.CLAMP);
+            } else if ("aura".equals(style)) {
+                glow=new RadialGradient(cx,cy,edge,new int[]{off,0x66000000|tint,0x35000000|tint,0x10000000|tint,off},new float[]{0,.72f,.85f,.94f,1},Shader.TileMode.CLAMP);
             } else {
                 glow=new RadialGradient(cx,cy,edge,new int[]{off,on,off},new float[]{0,.86f,1},Shader.TileMode.CLAMP);
             }

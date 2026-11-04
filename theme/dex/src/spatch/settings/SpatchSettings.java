@@ -481,7 +481,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addSectionHeader("Glow");
         LinearLayout glowRows = addGroup();
         addChoice(glowRows, Settings.ART_GLOW, "Strength", null, new String[] {"Full", "Soft", "Off"});
-        addChoice(glowRows, Settings.GLOW_STYLE, "Style", "Fade breathes in and out; Sweep circles the artwork", new String[] {"Halo", "Wide", "Fade", "Sweep"});
+        addChoice(glowRows, Settings.GLOW_STYLE, "Style", "Fade breathes in and out; Sweep circles the artwork", new String[] {"Halo", "Wide", "Fade", "Sweep", "Aura"});
         addColors(glowRows, Settings.GLOW_COLOR, "Colour");
         finish(glowRows);
         addSectionHeader("Feel");
@@ -520,7 +520,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         resetFor(new int[] {1, 52, 53}, new int[0]);
         LinearLayout immersivePage = subPage("Immersive player");
         LinearLayout immersiveRows = addGroup();
-        addChoice(immersiveRows, Settings.IMM_CHANGE, "New song", "How the artwork changes", new String[] {"Pop", "Spin", "Fade", "None"});
+        addChoice(immersiveRows, Settings.IMM_CHANGE, "New song", "How the artwork changes", new String[] {"Pop", "Spin", "Fade", "Flip", "None"});
         immersiveRows.addView(featureRows[56]);
         immersiveRows.addView(featureRows[57]);
         immersiveRows.addView(featureRows[Settings.IMM_LYRICS]);
@@ -576,8 +576,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         artRows.addView(master(ROUND_ART, artworkPage));
         addChoice(artRows, Settings.ART_SHAPE, "Artwork shape", "With Circular album art on", new String[] {"Circle", "Scallop", "Squircle", "Soft"});
         artRows.addView(master(2, backdropPage));
-        addChoice(artRows, Settings.BACKDROP_FX, "Backdrop motes", "Specks drifting behind the player", new String[] {"None", "Dust", "Stars"});
-        addChoice(artRows, Settings.ART_SKIP, "Skip animation", "Spin rolls the artwork over like a record", new String[] {"Slide", "Spin", "Shrink", "Fade"});
+        addChoice(artRows, Settings.BACKDROP_FX, "Backdrop motes", "Specks drifting behind the player", new String[] {"None", "Dust", "Stars", "Embers"});
+        addChoice(artRows, Settings.ART_SKIP, "Skip animation", "Spin rolls the artwork over like a record", new String[] {"Slide", "Spin", "Shrink", "Fade", "Flip"});
         artRows.addView(featureRows[Settings.BEAT_BOUNCE]);
         finish(artRows);
         addSectionHeader("Controls");

@@ -269,9 +269,32 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
             glint(canvas, (now - glintAt) / (float) GLINT_MILLIS);
             active = true;
         }
-        if (row && queue && Settings.get(Settings.QUEUE_SHIMMER) && !Wave.paused && Wave.animationsEnabled() && shows((View) owner, SpatchWidget.nowTitle)) shimmer(canvas, (View) owner);
+        if (row && !Wave.paused && Wave.animationsEnabled() && shows((View) owner, SpatchWidget.nowTitle)) {
+            if (queue && Settings.get(Settings.QUEUE_SHIMMER)) shimmer(canvas, (View) owner);
+            drawMiniEq(canvas, (View) owner);
+        }
         canvas.restoreToCount(save);
         if (active && owner instanceof View) ((View) owner).postInvalidateDelayed(16);
+    }
+
+    private void drawMiniEq(Canvas canvas, View row) {
+        float h = 14 * dp, barW = 2.2f * dp, gap = 2f * dp;
+        float right = card.right - 14 * dp, cy = (card.top + card.bottom) / 2f, bottom = cy + h / 2f;
+        long now = android.os.SystemClock.uptimeMillis();
+        int accent = Tint.album();
+        if (accent == 0 || (accent & 0xffffff) == 0) accent = Palette.color(0xffd0bcff);
+        paint.setColor(accent);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setShader(null);
+        int[] bands = {1, 5, 10, 16};
+        for (int i = 0; i < 4; i++) {
+            float energy = Spectrum.alpha * (Spectrum.bands != null && Spectrum.bands.length > bands[i] ? Spectrum.bands[bands[i]] : 0f);
+            float level = Math.max(0.2f, Math.min(1f, energy + 0.16f * (float) Math.sin(now * 0.009 + i * 1.3)));
+            float barH = Math.max(2.5f * dp, h * level);
+            float x = right - (4 - i) * (barW + gap);
+            canvas.drawRoundRect(x, bottom - barH, x + barW, bottom, barW / 2f, barW / 2f, paint);
+        }
+        row.postInvalidateDelayed(33);
     }
 
     private void glint(Canvas canvas, float t) {

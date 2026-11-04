@@ -407,6 +407,18 @@ public final class Immersive extends View implements Runnable {
         canvas.translate(artDrag, 0);
         canvas.rotate(artDrag / w * 14, cxArt, cyArt);
         if (changing && "spin".equals(change)) canvas.rotate(360f * Transport.outCubic((now - popAt) / 640f), cxArt, cyArt);
+        if (changing && "flip".equals(change)) {
+            float prog = Transport.outCubic((now - popAt) / 540f);
+            android.graphics.Camera cam = new android.graphics.Camera();
+            Matrix m = new Matrix();
+            cam.save();
+            cam.rotateY((1f - prog) * 90f);
+            cam.getMatrix(m);
+            cam.restore();
+            m.preTranslate(-cxArt, -cyArt);
+            m.postTranslate(cxArt, cyArt);
+            canvas.concat(m);
+        }
         int artLayer = changing && "fade".equals(change) ? canvas.saveLayerAlpha(0, 0, w, h, Math.round(255 * clamp01((now - popAt) / 420f))) : canvas.save();
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, false);
         // Soft depth instead of a hard border: an accent glow, then a dark drop shadow under the art.
