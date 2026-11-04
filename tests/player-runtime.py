@@ -984,6 +984,34 @@ public class PlayerRuntimeTest {
         sawRows.invoke(null,Flourish.PLAYLIST); check(armedNow.getBoolean(null),"a tap that opens a playlist rises");
         Flourish.tab(0); check(!armedNow.getBoolean(null),"leaving for another tab must not leave a rise waiting");
         System.out.println("PASS row cascade and hold ring");
+
+        // Mini-player fling-to-skip, gooey tab pill and 3D card tilt/glint.
+        check(MiniBar.flingCommits(-32,1,48) && MiniBar.flingCommits(32,1,48) && !MiniBar.flingCommits(-20,1,48) && !MiniBar.flingCommits(-32,1,16) && !MiniBar.flingCommits(32,1,32),"mini fling commits only past threshold when that skip direction is allowed");
+        float[] f0=MiniArt.flingStep(50,30,-40,15,48,0), f1=MiniArt.flingStep(50,30,-40,15,48,1);
+        check(f0[0]==10 && f0[1]==30 && f0[2]==15 && f0[3]==1 && f0[4]==1,"fling starts at the released cover position and angle");
+        check(f1[0]<f0[0]-80 && f1[1]>f0[1] && f1[2]==15-480 && f1[3]<1 && f1[4]==0,"flung disc spins off in the swipe direction and fades out");
+        float[] dropStart=MiniArt.dropStep(0,48,true), dropMid=MiniArt.dropStep(.55f,48,true), dropEnd=MiniArt.dropStep(1,48,true), popStart=MiniArt.dropStep(0,48,false);
+        check(dropStart[0]<popStart[0] && dropStart[1]<-15 && dropMid[0]>1 && dropMid[1]>0 && Math.abs(dropEnd[0]-1)<.001f && Math.abs(dropEnd[1])<.001f,"incoming flung disc drops from above, overshoots and settles");
+        MiniArt.flingAt(splashRoot,art,40,30,48,-40,10);MiniArt.flingAt(splashRoot,art,40,30,48,-40,10);MiniArt.flingAt(splashRoot,art,40,30,48,-40,10);
+        check(MiniArt.live==2 && splashRoot.layers.size()==2,"mini fling overlays are bounded to two");
+        MiniArt.Fling flyer=(MiniArt.Fling)splashRoot.layers.get(0);flyer.draw(new TraceCanvas());flyer.finish();flyer.finish();
+        check(MiniArt.live==1,"mini fling cleanup is idempotent");
+        android.os.SystemClock.now+=400;((MiniArt.Fling)splashRoot.layers.get(0)).run();android.os.SystemClock.now-=400;
+        check(MiniArt.live==0 && splashRoot.layers.isEmpty() && splashRoot.pending==null,"finished mini fling removes its overlay and callbacks");
+        check(NavIndicator.gooeyPinch(64,64)==0 && NavIndicator.gooeyPinch(90,64)>0 && NavIndicator.gooeyPinch(200,64)==1,"gooey waist pinches only while stretched");
+        TracePath gooeyPath=new TracePath();NavIndicator.gooey(gooeyPath,100,14,220,46,.8f);
+        check(gooeyPath.closes==1 && gooeyPath.points.size()==7 && Math.abs(gooeyPath.area(0,7))>0,"gooey pill is a closed contour");
+        check(RowCards.fitsGrid(180,160,480,1000) && !RowCards.fitsGrid(56,1000,1000,1000) && !RowCards.fitsGrid(216,1000,1000,1000) && !RowCards.fitsGrid(56,80,80,1000),"grid card fit matches multi-column cards only");
+        float[] tiltTR=RowCards.tiltTarget(180,20,200,100), tiltBL=RowCards.tiltTarget(20,80,200,100), tiltC=RowCards.tiltTarget(100,50,200,100);
+        check(tiltTR[0]>0 && tiltTR[1]>0 && tiltBL[0]<0 && tiltBL[1]<0 && tiltC[0]==0 && tiltC[1]==0,"3D card tilt leans toward the pressed corner");
+        check(RowCards.glintX(10,210,60,0)==-50 && RowCards.glintX(10,210,60,.5f)>RowCards.glintX(10,210,60,0) && RowCards.glintX(10,210,60,1)>210,"diagonal glint sweeps across the card");
+        RowCards pressCard=new RowCards(1,false);pressCard.setBounds(0,0,1000,64);
+        ViewGroup cardList=new ViewGroup(new android.content.Context(),null);View cardRow=new View(new android.content.Context());cardList.addView(cardRow);
+        pressCard.onTouch(cardRow,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,800,16,0));
+        check((Float)field(pressCard,"targetX")>0 && (Float)field(pressCard,"targetY")>0 && (Long)field(pressCard,"glintAt")==android.os.SystemClock.now,"pressing a card aims 3D tilt and starts its glint");
+        pressCard.onTouch(cardRow,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,800,16,0));
+        check((Float)field(pressCard,"targetX")==0 && (Float)field(pressCard,"targetY")==0,"releasing a card returns its tilt target to rest");
+        System.out.println("PASS mini fling-to-skip, gooey tab pill and 3D card glint");
     }
 }
 '''))

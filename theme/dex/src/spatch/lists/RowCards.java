@@ -1,36 +1,45 @@
 package spatch;
 
+import android.graphics.Camera;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
+import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.LinearGradient;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
 /**
  * Lists built as RecyclerViews (search results, albums, artist pages) hold one view per row, so each
  * row can wear the same card as Library rows. The card measures itself: headings and shelves are the
- * wrong height and draw nothing, so it can sit behind every child.
+ * wrong height and draw nothing, so it can sit behind every child. Pressing a row or grid card tilts
+ * it in 3D with a fast diagonal specular glint across its surface.
  */
-public final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeListener {
-    private static final float MIN = 48, MAX = 100, SIDES = 8, ENDS = 3, RADIUS = 20; // dp
+public final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeListener, View.OnTouchListener {
+    private static final float MIN = 48, MAX = 100, SIDES = 8, ENDS = 3, RADIUS = 20, MAX_TILT = 4.5f; // dp, degrees
     private final float dp;
     private final boolean queue;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF card = new RectF();
-    private long fillingUntil;
+    private final Camera camera = new Camera();
+    private final Matrix matrix = new Matrix();
+    private final float[] tiltX = new float[2], tiltY = new float[2];
+    private float targetX, targetY, touchX = -1, touchY = -1;
+    private boolean pressed;
+    private long fillingUntil, glintAt = -GLINT_MILLIS, drawnAt;
     private int filled;
-    private static final long FILL_MILLIS = 350;
+    private static final long FILL_MILLIS = 350, GLINT_MILLIS = 380;
     private static final int RISE_ROWS = 10;
     private static final float RISE = 22; // dp
     private static final long SHIMMER_MILLIS = 2800;
 
-    private RowCards(float dp, boolean queue) {
+    RowCards(float dp, boolean queue) {
         this.dp = dp;
         this.queue = queue;
     }
@@ -38,6 +47,25 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
     /** A row's height decides whether it gets a card, and it must span most of its list. */
     static boolean fits(float heightDp, float width, float listWidth) {
         return heightDp >= MIN && heightDp <= MAX && width >= listWidth * .9f;
+    }
+
+    /** Multi-column album or library grid cards: taller than a row and at most two-thirds of the list wide. */
+    static boolean fitsGrid(float heightDp, float widthDp, float width, float listWidth) {
+        return heightDp > MAX && heightDp <= 280 && widthDp >= 110 && width <= listWidth * .65f;
+    }
+
+    /** Subtle 3D lean {rotateX, rotateY} toward the pressed point on a card. */
+    static float[] tiltTarget(float x, float y, float width, float height) {
+        if (width <= 0 || height <= 0) return new float[] {0f, 0f};
+        float hw = width / 2f, hh = height / 2f;
+        return new float[] {Math.max(-1f, Math.min(1f, (y - hh) / hh)) * -MAX_TILT, Math.max(-1f, Math.min(1f, (x - hw) / hw)) * MAX_TILT};
+    }
+
+    /** Leading edge of the diagonal specular sheen as it sweeps from left to right over t in 0..1. */
+    static float glintX(float left, float right, float band, float t) {
+        t = Math.max(0f, Math.min(1f, t));
+        float ease = 1f - (1f - t) * (1f - t);
+        return left - band + (right - left + band * 1.6f) * ease;
     }
 
     private static boolean watching;
@@ -77,7 +105,7 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
         final Runnable look = new Runnable() {
             public void run() {
                 looking = false;
-                if (Settings.get(Settings.LIST_CARDS)) scan(decor);
+                if (Settings.get(Settings.LIST_CARDS) || Settings.get(Settings.CARD_GLINT)) scan(decor);
             }
         };
         decor.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
@@ -131,29 +159,129 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
 
     public void onChildViewAdded(View parent, View child) {
         rise(parent, child);
+        RowCards rowCard = new RowCards(dp, queue);
+        child.setOnTouchListener(rowCard);
         Drawable was = child.getBackground();
-        if (was == null) child.setBackground(new RowCards(dp, queue));
+        if (was == null) child.setBackground(rowCard);
         else if (!(was instanceof android.graphics.drawable.LayerDrawable)) { // rows keep their press ripple
             child.setBackground(null); // releases it, so the layer can take it without a second owner
-            child.setBackground(new android.graphics.drawable.LayerDrawable(new Drawable[] {new RowCards(dp, queue), was}));
+            child.setBackground(new android.graphics.drawable.LayerDrawable(new Drawable[] {rowCard, was}));
         }
     }
 
     public void onChildViewRemoved(View parent, View child) {}
+
+    public boolean onTouch(View v, MotionEvent e) {
+        int action = e.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) {
+            touchX = e.getX();
+            touchY = e.getY();
+            if (action == MotionEvent.ACTION_DOWN) setPressedState(true, v.getWidth(), v.getHeight());
+            else if (pressed) aimTilt(v.getWidth(), v.getHeight());
+            v.invalidate();
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            setPressedState(false, v.getWidth(), v.getHeight());
+            v.invalidate();
+        }
+        return false;
+    }
+
+    public boolean isStateful() {
+        return true;
+    }
+
+    protected boolean onStateChange(int[] state) {
+        boolean down = false;
+        if (state != null) for (int s : state) if (s == 0x010100a7) down = true;
+        if (down == pressed) return false;
+        Rect b = getBounds();
+        if (down && touchX < 0) {
+            touchX = b.width() * 0.72f;
+            touchY = b.height() * 0.28f;
+        }
+        setPressedState(down, b.width(), b.height());
+        return true;
+    }
+
+    private void setPressedState(boolean down, float w, float h) {
+        if (down && !pressed && Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled()) {
+            glintAt = android.os.SystemClock.uptimeMillis();
+        }
+        pressed = down;
+        aimTilt(w, h);
+    }
+
+    private void aimTilt(float w, float h) {
+        if (pressed && Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled()) {
+            float[] t = tiltTarget(touchX, touchY, w, h);
+            targetX = t[0];
+            targetY = t[1];
+        } else {
+            targetX = targetY = 0;
+        }
+    }
 
     public void draw(Canvas canvas) {
         Rect b = getBounds();
         Object owner = getCallback();
         while (owner instanceof Drawable) owner = ((Drawable) owner).getCallback();
         View parent = owner instanceof View && ((View) owner).getParent() instanceof View ? (View) ((View) owner).getParent() : null;
-        if (parent == null || !fits(b.height() / dp, b.width(), parent.getWidth())) return;
-        card.set(b.left + SIDES * dp, b.top + ENDS * dp, b.right - SIDES * dp, b.bottom - ENDS * dp);
-        if (Settings.get(Settings.LIST_CARDS)) {
+        if (parent == null) return;
+        boolean row = fits(b.height() / dp, b.width(), parent.getWidth());
+        boolean grid = !row && fitsGrid(b.height() / dp, b.width() / dp, b.width(), parent.getWidth());
+        if (!row && !grid) return;
+        float padX = (row ? SIDES : ENDS) * dp, padY = ENDS * dp;
+        card.set(b.left + padX, b.top + padY, b.right - padX, b.bottom - padY);
+        long now = android.os.SystemClock.uptimeMillis();
+        boolean active = false;
+        if (Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled()) {
+            long dt = drawnAt == 0 ? 16 : now - drawnAt;
+            PlayerArt.spring(tiltX, targetX, dt);
+            PlayerArt.spring(tiltY, targetY, dt);
+            if (Math.abs(tiltX[0] - targetX) > 0.02f || Math.abs(tiltY[0] - targetY) > 0.02f || Math.abs(tiltX[1]) > 0.02f || Math.abs(tiltY[1]) > 0.02f) active = true;
+            else {
+                tiltX[0] = targetX;
+                tiltY[0] = targetY;
+                tiltX[1] = tiltY[1] = 0;
+            }
+        } else {
+            tiltX[0] = tiltY[0] = tiltX[1] = tiltY[1] = targetX = targetY = 0;
+        }
+        drawnAt = now;
+        int save = canvas.save();
+        if (tiltX[0] != 0 || tiltY[0] != 0) {
+            float cx = (card.left + card.right) / 2f, cy = (card.top + card.bottom) / 2f;
+            camera.save();
+            camera.rotateX(tiltX[0]);
+            camera.rotateY(tiltY[0]);
+            camera.getMatrix(matrix);
+            camera.restore();
+            matrix.preTranslate(-cx, -cy);
+            matrix.postTranslate(cx, cy);
+            canvas.concat(matrix);
+        }
+        if (row && Settings.get(Settings.LIST_CARDS)) {
             paint.setShader(null);
             paint.setColor(Palette.color(0xff1d1a2a));
             canvas.drawRoundRect(card, RADIUS * dp, RADIUS * dp, paint);
         }
-        if (queue && Settings.get(Settings.QUEUE_SHIMMER) && !Wave.paused && Wave.animationsEnabled() && shows((View) owner, SpatchWidget.nowTitle)) shimmer(canvas, (View) owner);
+        if (Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled() && now - glintAt >= 0 && now - glintAt < GLINT_MILLIS) {
+            glint(canvas, (now - glintAt) / (float) GLINT_MILLIS);
+            active = true;
+        }
+        if (row && queue && Settings.get(Settings.QUEUE_SHIMMER) && !Wave.paused && Wave.animationsEnabled() && shows((View) owner, SpatchWidget.nowTitle)) shimmer(canvas, (View) owner);
+        canvas.restoreToCount(save);
+        if (active && owner instanceof View) ((View) owner).postInvalidateDelayed(16);
+    }
+
+    private void glint(Canvas canvas, float t) {
+        float width = card.right - card.left, height = card.bottom - card.top, band = Math.max(height, width * 0.32f);
+        float x = glintX(card.left, card.right, band, t);
+        int peak = (Math.round(0x38 * (1f - t * 0.6f)) << 24) | 0xffffff;
+        paint.setColor(0xffffffff);
+        paint.setShader(new LinearGradient(x, card.top, x + band * 0.7f, card.bottom, new int[] {0x00ffffff, peak, 0x00ffffff}, null, Shader.TileMode.CLAMP));
+        canvas.drawRoundRect(card, RADIUS * dp, RADIUS * dp, paint);
+        paint.setShader(null);
     }
 
     /** Queue rows hold their title in a TextView; a Compose row would simply never match. */

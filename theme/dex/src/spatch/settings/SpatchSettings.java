@@ -131,7 +131,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Hide account switcher",
         "Hide Parental controls",
         "Seek splash",
-        "Bass shockwaves"
+        "Bass shockwaves",
+        "Fling cover to skip",
+        "Card tilt and glint"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -235,7 +237,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Your other accounts and Add account, from the profile card",
         "From the profile card; the controls themselves stay as they are",
         "Droplets and a ripple when a seek or record scratch lands",
-        "Bass kicks send rings through the backdrop; uses the audio permission"
+        "Bass kicks send rings through the backdrop; uses the audio permission",
+        "Swipe the mini-player cover sideways to fling it off and skip",
+        "Rows and cards tilt in 3D with a diagonal sheen when pressed"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -245,7 +249,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance"
     };
 
     /** Section layout: Settings indices per group. */
@@ -289,7 +293,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private static final long SWAP = 220;
     private static final int RISE_ROWS = 8;
     /** The playful extras a preset turns off or on together; choices and everything else stay as they are. */
-    static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIST_RISE, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST, Settings.SEEK_SPLASH, Settings.BASS_SHOCKWAVE};
+    static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIST_RISE, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST, Settings.SEEK_SPLASH, Settings.BASS_SHOCKWAVE, Settings.MINI_FLING, Settings.CARD_GLINT};
     private static final android.view.animation.DecelerateInterpolator RISE = new android.view.animation.DecelerateInterpolator(2f);
     final FrameLayout pages;
     private final int bottom;
@@ -496,8 +500,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         miniRows.addView(featureRows[Settings.MINI_ALBUM]);
         miniRows.addView(featureRows[Settings.MINI_HOLD_LIKE]);
         miniRows.addView(featureRows[Settings.MINI_SPIN]);
+        miniRows.addView(featureRows[Settings.MINI_FLING]);
         finish(miniRows);
-        resetFor(new int[] {60, 61, Settings.MINI_ALBUM, Settings.MINI_HOLD_LIKE, Settings.MINI_SPIN}, new int[0]);
+        resetFor(new int[] {60, 61, Settings.MINI_ALBUM, Settings.MINI_HOLD_LIKE, Settings.MINI_SPIN, Settings.MINI_FLING}, new int[0]);
         inside(playerPage);
         addSectionHeader("Artwork");
         LinearLayout artRows = addGroup();
@@ -635,6 +640,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         link(screenRows, "playlist", "Playlists", "Track cards and the play button", playlistPage);
         screenRows.addView(master(37, profilePage));
         screenRows.addView(featureRows[Settings.LIST_CARDS]);
+        screenRows.addView(featureRows[Settings.CARD_GLINT]);
         screenRows.addView(featureRows[Settings.SOFT_HEADERS]);
         screenRows.addView(featureRows[Settings.LIST_RISE]);
         screenRows.addView(featureRows[Settings.TITLE_ALBUM]);
@@ -642,7 +648,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         screenRows.addView(featureRows[Settings.QUEUE_SHIMMER]);
         screenRows.addView(featureRows[Settings.WIDGET_WALLPAPER]);
         finish(screenRows);
-        resetFor(new int[] {Settings.LIST_CARDS, Settings.SOFT_HEADERS, Settings.LIST_RISE, Settings.TITLE_ALBUM, Settings.LYRICS_FOCUS, Settings.QUEUE_SHIMMER, Settings.WIDGET_WALLPAPER}, new int[0]);
+        resetFor(new int[] {Settings.LIST_CARDS, Settings.CARD_GLINT, Settings.SOFT_HEADERS, Settings.LIST_RISE, Settings.TITLE_ALBUM, Settings.LYRICS_FOCUS, Settings.QUEUE_SHIMMER, Settings.WIDGET_WALLPAPER}, new int[0]);
         finishCategory(screens);
 
         View navigation = category(categories, "notifications_active", "Motion & haptics", "Transitions, springs and feedback", "Motion & haptics");

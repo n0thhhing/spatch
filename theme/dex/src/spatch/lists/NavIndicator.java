@@ -4,6 +4,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.os.SystemClock;
 import android.util.AttributeSet;
@@ -29,6 +30,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private static int selected = -1, count = 1;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
+    private final Path path = new Path();
     private final OvershootInterpolator settle = new OvershootInterpolator(1.4f);
     private ValueAnimator animator;
     private float from, to, t = 1;
@@ -262,6 +264,27 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         return 1 - (1 - t) * (1 - t) * (1 - t);
     }
 
+    /** Waist pinch (0 at rest, up to 1 mid-flight) from how far the pill has stretched past its resting width. */
+    static float gooeyPinch(float span, float width) {
+        return span <= width ? 0f : Math.min(1f, (span - width) / Math.max(1f, width * 0.85f));
+    }
+
+    /** Viscous metaball outline: two rounded end lobes joined by a pinched waist that snaps flat at pinch = 0. */
+    static void gooey(Path path, float left, float top, float right, float bottom, float pinch) {
+        float r = (bottom - top) / 2f, yM = (top + bottom) / 2f;
+        float xL = left + r, xR = Math.max(xL, right - r), xM = (xL + xR) / 2f;
+        float dip = r * 0.62f * Math.max(0f, Math.min(1f, pinch));
+        path.reset();
+        path.moveTo(xL, top);
+        path.quadTo(xM, top + dip, xR, top);
+        path.quadTo(right, top, right, yM);
+        path.quadTo(right, bottom, xR, bottom);
+        path.quadTo(xM, bottom - dip, xL, bottom);
+        path.quadTo(left, bottom, left, yM);
+        path.quadTo(left, top, xL, top);
+        path.close();
+    }
+
     protected void onDraw(Canvas canvas) {
         if (selected < 0 || rail() || !Settings.navStyle()) return; // landscape rail: Pill draws it
         paint.setColor(Tint.color(Settings.NAV_COLOR));
@@ -305,6 +328,12 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         float height = (HEIGHT + lift * LIFT_HEIGHT - stretch * SQUASH) * d, middle = (TOP + HEIGHT / 2) * d;
         paint.setAlpha(ALPHA + Math.round(lift * LIFT_ALPHA + (onPill ? press * PRESS_ALPHA : 0)));
         rect.set(left - lift * LIFT_WIDTH * d / 2, middle - height / 2, right + lift * LIFT_WIDTH * d / 2, middle + height / 2);
-        canvas.drawRoundRect(rect, height / 2, height / 2, paint);
+        float pinch = !calm && Settings.navStretch() ? gooeyPinch(right - left, width) : 0f;
+        if (pinch > 0.01f) {
+            gooey(path, rect.left, rect.top, rect.right, rect.bottom, pinch);
+            canvas.drawPath(path, paint);
+        } else {
+            canvas.drawRoundRect(rect, height / 2, height / 2, paint);
+        }
     }
 }

@@ -99,9 +99,33 @@ public final class MiniBar extends MotionLayout implements Runnable {
             return null;
         }
     };
-    private boolean liked;
+    private boolean liked, downOnCover, flinging;
     private static final java.util.HashMap<String, Integer> IDS = new java.util.HashMap<String, Integer>();
-    private float pressX, pressY;
+    private float pressX, pressY, flingBaseDeg;
+
+    static boolean flingCommits(float dx, float dp, long actions) {
+        return Math.abs(dx) >= 28 * dp && (actions & (dx < 0 ? 32L : 16L)) != 0;
+    }
+
+    private boolean onCover(float x) {
+        if (shapedCover == null) return false;
+        View box = shapedCover.getParent() instanceof View && shapedCover.getParent() != this ? (View) shapedCover.getParent() : shapedCover;
+        float right = box.getRight() > 0 ? box.getRight() : 64 * getResources().getDisplayMetrics().density;
+        return x >= 0 && x <= right;
+    }
+
+    private void skip(boolean toNext) {
+        MiniSkip btn = toNext ? next : previous;
+        if (btn != null) {
+            btn.onClick(btn);
+            return;
+        }
+        android.media.session.MediaController c = SpatchWidget.controller();
+        if (c == null) return;
+        if (toNext) c.getTransportControls().skipToNext();
+        else c.getTransportControls().skipToPrevious();
+        Haptics.playback(this);
+    }
 
     private boolean likeTouch(MotionEvent e) {
         int action = e.getActionMasked();
@@ -109,6 +133,10 @@ public final class MiniBar extends MotionLayout implements Runnable {
             liked = false;
             pressX = e.getX();
             pressY = e.getY();
+            roundCover();
+            downOnCover = onCover(pressX);
+            flinging = false;
+            flingBaseDeg = shapedCover != null ? shapedCover.getRotation() : 0;
             if (Settings.get(Settings.MINI_HOLD_LIKE) && previous != null && pressX < previous.getLeft()) postDelayed(holdLike, 450);
         } else if (action == MotionEvent.ACTION_MOVE) {
             if (Math.hypot(e.getX() - pressX, e.getY() - pressY) > 24) removeCallbacks(holdLike);
@@ -125,8 +153,40 @@ public final class MiniBar extends MotionLayout implements Runnable {
 
     public boolean dispatchTouchEvent(MotionEvent e) {
         if (likeTouch(e)) return true;
-        if (coverSpring != null && (e.getActionMasked() != MotionEvent.ACTION_DOWN || previous != null && e.getX() < findViewById(id("tracks_carousel_view")).getRight())) coverSpring.onTouch(shapedCover, e);
-        if (e.getActionMasked() == MotionEvent.ACTION_UP && previous != null && e.getX() < findViewById(id("tracks_carousel_view")).getRight()) {
+        int action = e.getActionMasked();
+        float dx = e.getX() - pressX, dy = e.getY() - pressY, dp = getResources().getDisplayMetrics().density;
+        if (action == MotionEvent.ACTION_MOVE && !flinging && downOnCover && shapedCover != null
+                && Settings.get(Settings.MINI_FLING) && Wave.animationsEnabled() && Math.abs(dx) > 12 * dp && Math.abs(dx) > Math.abs(dy)) {
+            flinging = true;
+            removeCallbacks(holdLike);
+            requestDisallowInterceptTouchEvent(true);
+            MotionEvent cancel = MotionEvent.obtain(e);
+            cancel.setAction(MotionEvent.ACTION_CANCEL);
+            if (coverSpring != null) coverSpring.onTouch(shapedCover, cancel);
+            super.dispatchTouchEvent(cancel);
+            cancel.recycle();
+        }
+        if (flinging) {
+            if (action == MotionEvent.ACTION_MOVE) {
+                shapedCover.setPivotX(shapedCover.getWidth() / 2f);
+                shapedCover.setPivotY(shapedCover.getHeight() / 2f);
+                shapedCover.setTranslationX(dx);
+                shapedCover.setRotation(flingBaseDeg + dx / dp * 2.4f);
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                flinging = false;
+                float deg = shapedCover.getRotation();
+                shapedCover.setTranslationX(0);
+                if (action == MotionEvent.ACTION_UP && flingCommits(dx, dp, actions)) {
+                    if (shapedCover instanceof MiniArt) ((MiniArt) shapedCover).fling(dx, deg);
+                    skip(dx < 0);
+                }
+            }
+            return true;
+        }
+        View carousel = findViewById(id("tracks_carousel_view"));
+        int right = carousel != null ? carousel.getRight() : 0;
+        if (coverSpring != null && (action != MotionEvent.ACTION_DOWN || previous != null && e.getX() < right)) coverSpring.onTouch(shapedCover, e);
+        if (action == MotionEvent.ACTION_UP && previous != null && e.getX() < right) {
             View cover = findViewById(id("cover_image"));
             if (cover != null && cover.getWidth() > 0) {
                 int[] at = new int[2];
@@ -156,6 +216,11 @@ public final class MiniBar extends MotionLayout implements Runnable {
         circle.setColor(Palette.color(0xff1d1a2a));
         cover.setBackground(circle);
         cover.setClipToOutline(true);
+        if (cover.getParent() instanceof android.view.ViewGroup) {
+            android.view.ViewGroup box = (android.view.ViewGroup) cover.getParent();
+            box.setClipChildren(false);
+            box.setClipToPadding(false);
+        }
     }
 
     /** Paced by the display's frame time: the clock at callback time wobbles with whatever else the main thread is doing. */
@@ -163,12 +228,14 @@ public final class MiniBar extends MotionLayout implements Runnable {
         public void doFrame(long frame) {
             spinning = playing && Settings.get(Settings.MINI_SPIN) && Wave.animationsEnabled() && isShown() && shapedCover != null;
             if (!spinning) {
-                if (shapedCover != null && !Settings.get(Settings.MINI_SPIN)) shapedCover.setRotation(0);
+                if (shapedCover != null && !flinging && !Settings.get(Settings.MINI_SPIN)) shapedCover.setRotation(0);
                 return;
             }
-            shapedCover.setPivotX(shapedCover.getWidth() / 2f); // Spotify leaves it off-centre, which swings the cover out of the bar
-            shapedCover.setPivotY(shapedCover.getHeight() / 2f);
-            shapedCover.setRotation((shapedCover.getRotation() + Math.min(100f, (frame - turnedAt) / 1e6f) * SPIN) % 360);
+            if (!flinging) {
+                shapedCover.setPivotX(shapedCover.getWidth() / 2f); // Spotify leaves it off-centre, which swings the cover out of the bar
+                shapedCover.setPivotY(shapedCover.getHeight() / 2f);
+                shapedCover.setRotation((shapedCover.getRotation() + Math.min(100f, (frame - turnedAt) / 1e6f) * SPIN) % 360);
+            }
             turnedAt = frame;
             Choreographer.getInstance().postFrameCallback(this);
         }
