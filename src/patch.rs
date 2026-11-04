@@ -491,12 +491,26 @@ pub fn run(
                     ],
                 )
             })?;
-            crate::bundle::write(&apks, &compiled, &added, &clone, out)?;
+            crate::bundle::write(
+                &apks,
+                &compiled,
+                &added,
+                &clone,
+                out,
+                zip::CompressionMethod::Deflated,
+            )?;
             println!("wrote {}", out.display());
             return Ok(());
         }
         Output::Signed(s) => s,
     };
+
+    if let Some((_, bytes)) = added
+        .iter_mut()
+        .find(|(name, _)| *name == NEW_IMAGES[0].path)
+    {
+        *bytes = preview_art(); // bundles use the plain tile and let the manager fetch the cover
+    }
 
     let result = staging.path.join("result");
     fs::create_dir(&result)?;
@@ -566,6 +580,47 @@ pub fn run(
 
 /// Decodes base in staging, applies the theme sources and returns the compiled replacement entries.
 fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) -> Result<Compiled> {
+    let apktool = tools.run(&tools.apktool, &[OsStr::new("--version")])?;
+    let aapt = tools.run(&tools.aapt2, &[OsStr::new("version")])?;
+    let mut sources: Vec<&[u8]> = vec![
+        include_bytes!("patch.rs"),
+        include_bytes!("arsc.rs"),
+        include_bytes!("theme.rs"),
+        theme.name.as_bytes(),
+        apktool.as_bytes(),
+        aapt.as_bytes(),
+    ];
+    sources.extend(TARGETS.iter().map(|t| t.diff.as_bytes()));
+    sources.extend(NEW_RESOURCES.iter().map(|(_, source)| source.as_bytes()));
+    let cache = crate::cache::path("resources", &sources);
+    let names: Vec<_> = TARGETS
+        .iter()
+        .map(|t| t.entry)
+        .chain(NEW_RESOURCES.iter().map(|(f, _)| f.path))
+        .collect();
+    if let Some(bytes) = cache
+        .as_ref()
+        .and_then(|p| crate::cache::load(p, base, &names).ok())
+    {
+        println!("Resource rebuild: verified cache hit");
+        let mut entries: Vec<_> = names.into_iter().zip(bytes).collect();
+        let mut added = entries.split_off(TARGETS.len());
+        added.push((NEW_IMAGES[0].path, PREVIEW_FALLBACK.to_vec()));
+        return Ok((entries, added));
+    }
+    let (compiled, added) = rebuild_resources(base, staging, tools, theme)?;
+    if let Some(path) = &cache {
+        let _ = crate::cache::save(path, base, &compiled, &added[..NEW_RESOURCES.len()]);
+    }
+    Ok((compiled, added))
+}
+
+fn rebuild_resources(
+    base: &Path,
+    staging: &Path,
+    tools: &Tools,
+    theme: &Theme,
+) -> Result<Compiled> {
     let fw = staging.join("framework");
     let decoded = staging.join("decoded");
     let rebuilt = staging.join("rebuilt.apk");
@@ -628,7 +683,7 @@ fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) ->
         }
         fs::write(path, theme.apply(source))?;
     }
-    let art = preview_art();
+    let art = PREVIEW_FALLBACK.to_vec();
     fs::write(decoded.join(NEW_IMAGES[0].path), &art)?;
     let placeholders: String = SPLIT_REFS
         .iter()

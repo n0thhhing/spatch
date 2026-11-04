@@ -259,6 +259,58 @@ pub fn build(
     theme: &Theme,
     debug: bool,
 ) -> Result<Vec<(&'static str, Vec<u8>)>> {
+    let version = tools.run(&tools.apktool, &[OsStr::new("--version")])?;
+    let cache = crate::cache::path(
+        "dex",
+        &[
+            include_bytes!("dex.rs"),
+            include_bytes!("edits.rs"),
+            include_bytes!("names.rs"),
+            include_bytes!("theme.rs"),
+            include_bytes!("../scripts/port/aliases.tsv"),
+            theme.name.as_bytes(),
+            version.as_bytes(),
+        ],
+    );
+    let names: Vec<_> = DEX_TARGETS
+        .iter()
+        .map(|(name, _)| *name)
+        .chain([HELPER_DEX])
+        .collect();
+    let cached = cache
+        .as_ref()
+        .and_then(|p| crate::cache::load(p, base, &names).ok());
+    let mut entries = if let Some(bytes) = cached {
+        println!("DEX rebuild: verified cache hit");
+        names.into_iter().zip(bytes).collect()
+    } else {
+        let entries = rebuild(base, staging, tools, theme)?;
+        if let Some(path) = &cache {
+            let _ = crate::cache::save(
+                path,
+                base,
+                &entries[..DEX_TARGETS.len()],
+                &entries[DEX_TARGETS.len()..],
+            );
+        }
+        entries
+    };
+    let listener = entries.pop().ok_or("missing relocated DEX")?.1;
+    let path = staging.join("audio-listener.dex");
+    fs::write(&path, listener)?;
+    entries.push((
+        HELPER_DEX,
+        compile_helper(staging, tools, theme, &path, debug)?,
+    ));
+    Ok(entries)
+}
+
+fn rebuild(
+    base: &Path,
+    staging: &Path,
+    tools: &Tools,
+    theme: &Theme,
+) -> Result<Vec<(&'static str, Vec<u8>)>> {
     let fw = staging.join("dex-framework");
     let smali = staging.join("smali");
     let built = staging.join("dex.apk");
@@ -340,12 +392,7 @@ pub fn build(
         }
         out.push((entry, bytes));
     }
-    let relocated_dex = staging.join("audio-listener.dex");
-    fs::write(&relocated_dex, input::read_entry(&built, HELPER_DEX)?)?;
-    out.push((
-        HELPER_DEX,
-        compile_helper(staging, tools, theme, &relocated_dex, debug)?,
-    ));
+    out.push((HELPER_DEX, input::read_entry(&built, HELPER_DEX)?));
     Ok(out)
 }
 

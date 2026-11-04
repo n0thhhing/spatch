@@ -57,6 +57,12 @@ jobs:
         with:
           path: ~/bin/apktool.jar
           key: ${{ runner.os }}-apktool-3.0.3
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/spatch/build-v1
+          key: ${{ runner.os }}-spatch-build-v1-${{ github.sha }}-${{ matrix.bundle }}
+          restore-keys: |
+            ${{ runner.os }}-spatch-build-v1-
       - name: Android build-tools and apktool
         run: |
           if [ ! -x "$ANDROID_HOME/build-tools/36.0.0/aapt2" ]; then

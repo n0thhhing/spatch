@@ -127,12 +127,20 @@ python3 tests/player-runtime.py
 The runtime tests run helper logic on JVM doubles. They do not replace testing on a device.
 
 Resource compilation and DEX rebuilding run side by side, each with only the APK entries its tools
-need. The input checks and rebuilt reference checks still run before any output is published.
+need. Validated results are cached separately by their sources, input build, theme and tool versions,
+so Java-only changes rebuild the helper without decoding and assembling Spotify again. The original
+input is checked every time; cached outputs are reconstructed and checked against their result hashes.
+Reference checks run when those outputs are compiled, and the new helper is checked on every build.
 Nightly CI skips pushes that only change docs, tests or the manager, reuses Rust and apktool caches,
 and uploads the already compressed bundles without compressing them again.
 Verified binary diffs are cached under `$XDG_CACHE_HOME/spatch/diffs-v1` (or
 `~/.cache/spatch/diffs-v1`) and reapplied before reuse. Clearing that directory only makes the next
 bundle build slower; original APKs are never cached there.
+The resource and DEX stage patches live alongside them in `spatch/build-v1`; deleting either cache
+falls back to a full rebuild. Normal and debug builds share those stages, while compiling their own
+helper code each time.
+Bundle and dry-run builds use the plain widget preview tile and make no artwork download; the
+manager fetches the cover when applying the bundle. Signed desktop builds still include the cover.
 
 With a phone connected and Spotify open on Home, this checks every icon name against the APK, then
 flips every switch and option on the settings pages and restores each one:

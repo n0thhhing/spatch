@@ -39,6 +39,7 @@ pub fn write(
     add: &[(&str, Vec<u8>)],
     clone: &str,
     out: &Path,
+    compression: zip::CompressionMethod,
 ) -> Result<()> {
     let base = apks.join("base.apk");
     let basis = input::read_entry(&base, BASIS)?;
@@ -87,8 +88,8 @@ pub fn write(
     steps.push_str(clone);
     let mut zip = zip::ZipWriter::new(File::create_new(out)?);
     let opts = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated)
-        .compression_level(Some(9));
+        .compression_method(compression)
+        .compression_level((compression == zip::CompressionMethod::Deflated).then_some(9));
     zip.start_file("bundle.txt", opts)?;
     zip.write_all(steps.as_bytes())?;
     for (i, patch) in patches.iter().enumerate() {
@@ -270,6 +271,7 @@ mod tests {
     use super::*;
     use crate::input::tests::{temp_dir, write_zip};
     use std::io::Read;
+    use zip::CompressionMethod::Deflated;
 
     #[test]
     fn new_files_unlike_the_table_are_copied_in_whole() {
@@ -329,6 +331,7 @@ mod tests {
             &[("assets/x", b"table plus".to_vec())],
             "",
             &out,
+            Deflated,
         )
         .unwrap();
         let mut zip = zip::ZipArchive::new(File::open(&out).unwrap()).unwrap();
@@ -351,7 +354,10 @@ mod tests {
         let mut back = Vec::new();
         bsdiff::patch(b"table table table", &mut patch.as_slice(), &mut back).unwrap();
         assert_eq!(back, b"table plus");
-        assert!(write(&d, &[], &[], "", &out).is_err(), "never overwrites");
+        assert!(
+            write(&d, &[], &[], "", &out, Deflated).is_err(),
+            "never overwrites"
+        );
     }
 
     #[test]
@@ -360,7 +366,15 @@ mod tests {
         write_zip(&d.join("base.apk"), &[("resources.arsc", b"table")]);
         let out = d.join("b.zip");
         let cover = NEW_IMAGES[0].path;
-        write(&d, &[], &[(cover, b"someone's artwork".to_vec())], "", &out).unwrap();
+        write(
+            &d,
+            &[],
+            &[(cover, b"someone's artwork".to_vec())],
+            "",
+            &out,
+            Deflated,
+        )
+        .unwrap();
         let mut zip = zip::ZipArchive::new(File::open(&out).unwrap()).unwrap();
         let mut steps = String::new();
         zip.by_name("bundle.txt")

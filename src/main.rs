@@ -1,5 +1,6 @@
 mod arsc;
 mod bundle;
+mod cache;
 mod dex;
 mod edits;
 mod fonts;
