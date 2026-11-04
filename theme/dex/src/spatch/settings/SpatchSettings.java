@@ -129,7 +129,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Widget follows wallpaper",
         "Hide the Premium tab",
         "Hide account switcher",
-        "Hide Parental controls"
+        "Hide Parental controls",
+        "Seek splash",
+        "Bass shockwaves"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -231,7 +233,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "The home screen widget takes your wallpaper's colours, light or dark (Android 12+)",
         "Free accounts: takes the Premium tab out of the bottom bar",
         "Your other accounts and Add account, from the profile card",
-        "From the profile card; the controls themselves stay as they are"
+        "From the profile card; the controls themselves stay as they are",
+        "Droplets and a ripple when a seek or record scratch lands",
+        "Bass kicks send rings through the backdrop; uses the audio permission"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -241,7 +245,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave"
     };
 
     /** Section layout: Settings indices per group. */
@@ -285,7 +289,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private static final long SWAP = 220;
     private static final int RISE_ROWS = 8;
     /** The playful extras a preset turns off or on together; choices and everything else stay as they are. */
-    static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIST_RISE, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST};
+    static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIST_RISE, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST, Settings.SEEK_SPLASH, Settings.BASS_SHOCKWAVE};
     private static final android.view.animation.DecelerateInterpolator RISE = new android.view.animation.DecelerateInterpolator(2f);
     final FrameLayout pages;
     private final int bottom;
@@ -436,13 +440,15 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout backdropPage = subPage("Album art backdrop");
         LinearLayout backdropRows = addGroup();
         backdropRows.addView(featureRows[62]);
+        backdropRows.addView(featureRows[Settings.BASS_SHOCKWAVE]);
         finish(backdropRows);
-        resetFor(new int[] {2, 62}, new int[0]);
+        resetFor(new int[] {2, 62, Settings.BASS_SHOCKWAVE}, new int[0]);
         LinearLayout wavePage = subPage("Wavy progress");
         LinearLayout waveRows = addGroup();
-        addChoice(waveRows, Settings.SEEK_STYLE, "Style", null, new String[] {"Wave", "Beads", "Pulse", "Line"});
+        addChoice(waveRows, Settings.SEEK_STYLE, "Style", "Scope uses Follow the music", new String[] {"Wave", "Beads", "Pulse", "Line", "Scope"});
         addChoice(waveRows, Settings.WAVE_SPEED, "Speed", null, new String[] {"Normal", "Slow", "Fast"});
         waveRows.addView(featureRows[51]);
+        waveRows.addView(featureRows[Settings.SEEK_SPLASH]);
         waveRows.addView(featureRows[Settings.WAVE_AUDIO]);
         finish(waveRows);
         addSectionHeader("With the music");
@@ -451,7 +457,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addChoice(musicRows, Settings.WAVE_FOLLOWS, "Follows", "Melody lets each part of the bar follow its own notes", new String[] {"Beat and melody", "Beat", "Melody"});
         addChoice(musicRows, Settings.WAVE_STRENGTH, "Strength", null, new String[] {"Normal", "Subtle", "Strong"});
         finish(musicRows);
-        resetFor(new int[] {0, 51, Settings.WAVE_AUDIO}, new int[] {Settings.WAVE_SPEED, Settings.SEEK_STYLE, Settings.WAVE_REACTS, Settings.WAVE_FOLLOWS, Settings.WAVE_STRENGTH});
+        resetFor(new int[] {0, 51, Settings.WAVE_AUDIO, Settings.SEEK_SPLASH}, new int[] {Settings.WAVE_SPEED, Settings.SEEK_STYLE, Settings.WAVE_REACTS, Settings.WAVE_FOLLOWS, Settings.WAVE_STRENGTH});
         LinearLayout buttonPage = subPage("Button animations");
         LinearLayout buttonRows = addGroup();
         buttonRows.addView(featureRows[52]);
@@ -528,7 +534,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout visualizer = addGroup();
         preview = new SpectrumPreview(context);
         visualizer.addView(preview, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(88)));
-        addChoice(visualizer, Settings.VIZ_SHAPE, "Shape", null, new String[] {"Bars", "Centre", "Contour", "Dots"});
+        addChoice(visualizer, Settings.VIZ_SHAPE, "Shape", "Scope draws a looping trace with the music", new String[] {"Bars", "Centre", "Contour", "Dots", "Scope"});
         addChoice(visualizer, Settings.VIZ_TAPER, "Edge taper", "Eases the bars off toward the sides", new String[] {"Subtle", "None"});
         for (int i : VISUALIZER) visualizer.addView(featureRows[i]);
         finish(visualizer);
@@ -537,7 +543,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout places = addGroup();
         places.addView(master(FULL_VISUALIZER, barsPage));
         places.addView(featureRows[MINI_VISUALIZER]);
-        addChoice(places, Settings.ART_SPECTRUM, "Around the artwork", "Real audio around circular art; uses the microphone permission", new String[] {"Off", "Fine", "Bars", "Dots"});
+        addChoice(places, Settings.ART_SPECTRUM, "Around the artwork", "Real audio follows the artwork shape; uses the audio permission", new String[] {"Off", "Fine", "Bars", "Dots", "Ribbon"});
         finish(places);
         refreshChoices();
         resetFor(new int[] {MINI_VISUALIZER}, new int[] {Settings.ART_SPECTRUM});
@@ -1491,7 +1497,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             int i = ((Integer) v.getTag()).intValue();
             featureSwitches[i].toggle();
             changed(i, featureSwitches[i].isChecked(), v);
-            if (i == Settings.WAVE_AUDIO && Settings.get(i) && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) AudioSpectrum.requestPermission(getContext());
+            if ((i == Settings.WAVE_AUDIO || i == Settings.BASS_SHOCKWAVE) && Settings.get(i) && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) AudioSpectrum.requestPermission(getContext());
             syncFeatures();
             return;
         }

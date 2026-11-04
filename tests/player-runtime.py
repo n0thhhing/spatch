@@ -46,6 +46,14 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('public boolean performClick() { return false; }', 'public boolean performClick() { if (click == null) return false; click.onClick(this); return true; }')
         if source.name == 'TextView.java':
             text = text.replace('public CharSequence getText() { return null; }', 'private CharSequence shown; public CharSequence getText() { return shown; }').replace('public void setText(CharSequence t) {}', 'public void setText(CharSequence t) {shown=t;}')
+        if source.name == 'Paint.java':
+            text = text.replace('public class Paint {', 'public class Paint { private int testColor=0xff000000; private Style testStyle=Style.FILL;')
+            text = text.replace('getAlpha() {return 0;}', 'getAlpha() {return testColor>>>24;}').replace('setAlpha(int a) {}', 'setAlpha(int a) {testColor=(testColor&0xffffff)|(a<<24);}')
+            text = text.replace('getColor() {return 0;}', 'getColor() {return testColor;}').replace('setColor(int c) {}', 'setColor(int c) {testColor=c;}')
+            text = text.replace('getStyle() { return Style.FILL; }', 'getStyle() { return testStyle; }').replace('setStyle(Style s) {}', 'setStyle(Style s) {testStyle=s;}')
+        if source.name == 'SystemClock.java':
+            text = text.replace('public final class SystemClock {', 'public final class SystemClock { public static long now=10000;')
+            text = text.replace('uptimeMillis() {return 10000;}', 'uptimeMillis() {return now;}')
         if source.name == 'MotionEvent.java':
             text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public float getRawX(){return x;} public float getRawY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public void offsetLocation(float dx,float dy){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
         if source.name == 'Visualizer.java':
@@ -156,6 +164,29 @@ public class PlayerRuntimeTest {
         public void setBounds(int l,int t,int r,int b) {boundsWrites++;super.setBounds(l,t,r,b);}
         public void draw(Canvas c) {if(c instanceof TraceCanvas){TraceCanvas t=(TraceCanvas)c;t.draws++;t.drawnScale=t.sx;t.drawnX=t.tx;t.drawnY=t.ty;}} public void setAlpha(int a) {}
         public void setColorFilter(ColorFilter f) {} public int getOpacity() { return 0; }
+    }
+    static class TracePath extends Path {
+        final java.util.ArrayList<float[]> points=new java.util.ArrayList<>();
+        final java.util.ArrayList<Integer> starts=new java.util.ArrayList<>();
+        int closes;
+        public void reset(){points.clear();starts.clear();closes=0;}
+        public void moveTo(float x,float y){starts.add(points.size());points.add(new float[]{x,y});}
+        public void lineTo(float x,float y){points.add(new float[]{x,y});}
+        public void quadTo(float a,float b,float x,float y){points.add(new float[]{x,y});}
+        public void close(){closes++;}
+        float area(int start,int end){float sum=0;for(int i=start;i<end;i++){float[] a=points.get(i),b=points.get(i+1==end?start:i+1);sum+=a[0]*b[1]-b[0]*a[1];}return sum/2;}
+    }
+    static class SplashRoot extends View {
+        final java.util.ArrayList<Drawable> layers=new java.util.ArrayList<>();
+        final android.view.ViewOverlay overlay=new android.view.ViewOverlay(){public void add(Drawable d){layers.add(d);}public void remove(Drawable d){layers.remove(d);}};
+        Runnable pending; boolean focus=true;
+        SplashRoot(){super(new android.content.Context());}
+        public android.content.res.Resources getResources(){return new android.content.res.Resources();}
+        public View getRootView(){return this;}
+        public android.view.ViewOverlay getOverlay(){return overlay;}
+        public boolean hasWindowFocus(){return focus;}
+        public boolean postDelayed(Runnable r,long ms){pending=r;return true;}
+        public boolean removeCallbacks(Runnable r){if(pending==r)pending=null;return true;}
     }
     static Object field(Object o, String n) throws Exception { Field f=o.getClass().getDeclaredField(n); f.setAccessible(true); return f.get(o); }
     public static void main(String[] args) throws Exception {
@@ -754,6 +785,75 @@ public class PlayerRuntimeTest {
         check(Wave.beat(peakBands,1f)>Wave.beat(loudBands,1f),"beat response must use the spectrum's full range");
         check(Wave.thickness(6,10,.9f,"strong")<Wave.thickness(6,10,1f,"strong") && Wave.thickness(6,10,1f,"strong")<=8,"held wave thickness must not flatten at loud peaks");
         System.out.println("PASS loud wave dynamics and bounded thickness");
+        // Contours: the normal is unit length, points outward, and is perpendicular to the actual boundary.
+        float[] contour=new float[4],priorPoint=new float[4],nextPoint=new float[4];
+        for(String shape:new String[]{"circle","squircle","scallop","soft"}) for(int angle=0;angle<360;angle++) {
+            double radians=Math.toRadians(angle);
+            ArtContour.point(shape,radians,.26f,contour);ArtContour.point(shape,radians-.0001,.26f,priorPoint);ArtContour.point(shape,radians+.0001,.26f,nextPoint);
+            check(Math.abs(Math.hypot(contour[2],contour[3])-1)<.0001,"unit contour normal "+shape);
+            check(contour[0]*contour[2]+contour[1]*contour[3]>0,"outward contour normal "+shape);
+            float tx=nextPoint[0]-priorPoint[0],ty=nextPoint[1]-priorPoint[1];
+            check(Math.abs((tx*contour[2]+ty*contour[3])/Math.max(.00001,Math.hypot(tx,ty)))<.02,"normal must follow the tangent "+shape+" "+angle);
+            check(Math.abs(contour[0])<=1.001 && Math.abs(contour[1])<=1.001,"art stays in its square "+shape);
+        }
+        TracePath radialPath=new TracePath();Paint audioPaint=new Paint(3);audioPaint.setAlpha(210);
+        Spectrum.drawArtwork(new Canvas(),audioPaint,radialPath,loudBands,"bars","scallop",.26f,0,0,100,5,10,1);
+        for(int i=0;i<72;i++) {
+            ArtContour.point("scallop",2*Math.PI*i/72-Math.PI/2,.26f,contour);
+            float[] rayStart=radialPath.points.get(i*2),rayEnd=radialPath.points.get(i*2+1);float dx=rayEnd[0]-rayStart[0],dy=rayEnd[1]-rayStart[1];
+            check(Math.abs(dx*contour[3]-dy*contour[2])<.001 && dx*contour[2]+dy*contour[3]>0,"bars extrude along the local normal");
+        }
+        Spectrum.drawArtwork(new Canvas(),audioPaint,radialPath,loudBands,"ribbon","soft",.26f,0,0,100,5,10,1);
+        check(radialPath.closes==2 && radialPath.starts.size()==2,"ribbon must have a closed inner and outer edge");
+        int innerStart=radialPath.starts.get(1);float outerArea=radialPath.area(0,innerStart),innerArea=radialPath.area(innerStart,radialPath.points.size());
+        check(outerArea*innerArea<0 && Math.abs(outerArea)>Math.abs(innerArea),"the ribbon must leave a hole for the artwork");
+        System.out.println("PASS shape-conforming rays and ribbon winding");
+
+        TracePath scopePath=new TracePath();
+        for(boolean loop:new boolean[]{false,true}) for(float energy:new float[]{0,.2f,.7f,1}) for(float phase:new float[]{0,1,5}) {
+            AudioScope.trace(scopePath,0,0,200,20,energy,phase,loop);
+            for(float[] point:scopePath.points)check(point[0]>=-.001 && point[0]<=200.001 && point[1]>=0 && point[1]<=20,"scope stays within its track");
+            if(!loop){float[] first=scopePath.points.get(0),last=scopePath.points.get(scopePath.points.size()-1);check(first[0]==0 && first[1]==10 && last[0]==200 && last[1]==10,"scope lands exactly at both track ends");}
+            if(energy==0)for(float[] point:scopePath.points)check(point[1]==10,"silent scope collapses to a line");
+            check(scopePath.closes==(loop&&energy>0?1:0),"only the live visualizer loop closes");
+        }
+        final int[] scopePasses={0};Canvas scopeCanvas=new Canvas(){public void drawPath(Path p,Paint paint){scopePasses[0]++;}};
+        audioPaint.setColor(0xff102030);audioPaint.setAlpha(173);audioPaint.setStyle(Paint.Style.STROKE);
+        AudioScope.draw(scopeCanvas,audioPaint,scopePath,0,0,200,20,.7f,1,false,1);
+        check(scopePasses[0]==2 && audioPaint.getAlpha()==173 && audioPaint.getColor()==0xad102030 && audioPaint.getStyle()==Paint.Style.STROKE,"scope bloom and core must preserve the caller's paint");
+        System.out.println("PASS scope endpoints, silence, bounds and phosphor passes");
+
+        Spectrum.reset();Spectrum.trackBass(.1f,1000,true);check(Spectrum.kickAt==0,"starting audio is not a kick");
+        Spectrum.trackBass(.9f,1016,true);long firstKick=Spectrum.kickAt;check(firstKick==1016 && Spectrum.kickEnergy>0,"a rising bass transient triggers a kick");
+        for(long t=1032;t<1600;t+=16)Spectrum.trackBass(.9f,t,true);
+        check(Spectrum.kickAt==firstKick,"sustained loud bass must not keep firing rings");
+        for(long t=1600;t<1920;t+=16)Spectrum.trackBass(.05f,t,true);
+        Spectrum.trackBass(.9f,1920,true);check(Spectrum.kickAt==1920,"another separated kick can trigger");
+        Spectrum.trackBass(.05f,1936,true);Spectrum.trackBass(1,1952,true);check(Spectrum.kickAt==1920,"cooldown blocks rapid retriggers");
+        Spectrum.trackBass(.9f,3000,true);check(Spectrum.kickAt==0,"resuming after a gap must not replay a kick");
+        Spectrum.trackBass(0,3016,false);check(Spectrum.kickAt==0,"reduced motion or silence clears the kick");
+        Atmosphere shockBackdrop=new Atmosphere();Method drawShocks=Atmosphere.class.getDeclaredMethod("drawShockwaves",Canvas.class,float.class,float.class);drawShocks.setAccessible(true);
+        Settings.set(Settings.BASS_SHOCKWAVE,true);Spectrum.kickAt=android.os.SystemClock.uptimeMillis()-20;Spectrum.kickEnergy=1;
+        check((Boolean)drawShocks.invoke(shockBackdrop,new Canvas(),400f,1000f),"a fresh kick creates an expanding ring");
+        drawShocks.invoke(shockBackdrop,new Canvas(),400f,1000f);
+        long[] ringTimes=(long[])field(shockBackdrop,"shockAt");check((ringTimes[0]>0?1:0)+(ringTimes[1]>0?1:0)==1,"one shared kick is consumed once per backdrop");
+        Settings.set(6,true);check(!(Boolean)drawShocks.invoke(shockBackdrop,new Canvas(),400f,1000f),"reduced motion clears shockwaves");Settings.set(6,false);
+        check(Atmosphere.shockProgress(0)==0 && Atmosphere.shockProgress(420)==1 && Atmosphere.shockProgress(900)==1,"rings expire after 420 ms");
+        Spectrum.reset();System.out.println("PASS transient kick detection, cooldown and shockwave expiry");
+
+        SplashRoot splashRoot=new SplashRoot();Settings.set(Settings.SEEK_SPLASH,true);
+        SeekSplash.at(splashRoot,100,100);SeekSplash.at(splashRoot,100,100);SeekSplash.at(splashRoot,100,100);
+        check(SeekSplash.live==2 && splashRoot.layers.size()==2,"seek splashes are bounded to two overlays");
+        SeekSplash splash=(SeekSplash)splashRoot.layers.get(0);splash.finish();splash.finish();check(SeekSplash.live==1,"splash cleanup is idempotent");
+        splashRoot.focus=false;((SeekSplash)splashRoot.layers.get(0)).run();check(SeekSplash.live==0 && splashRoot.layers.isEmpty() && splashRoot.pending==null,"hiding the window removes its splash and callbacks");splashRoot.focus=true;
+        Settings.set(6,true);SeekSplash.at(splashRoot,100,100);check(SeekSplash.live==0,"reduced motion suppresses splash creation");Settings.set(6,false);
+        Settings.set(Settings.SEEK_SPLASH,false);SeekSplash.at(splashRoot,100,100);check(SeekSplash.live==0,"splash switch off suppresses creation");Settings.set(Settings.SEEK_SPLASH,true);
+        check(SeekSplash.dropY(0,-140)==0 && SeekSplash.dropY(.1f,-140)<0 && SeekSplash.dropY(.32f,-140)>SeekSplash.dropY(.16f,-140),"droplets rise and fall ballistically");
+        Wave splashWave=new Wave();splashWave.onTouch(splashRoot,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,0,0,0));splashWave.onLevelChange(5000);splashWave.onTouch(splashRoot,MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,0,0,0));check(SeekSplash.live==0,"cancelled seeks never splash");
+        splashWave.onTouch(splashRoot,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,0,0,0));splashWave.onLevelChange(6000);splashWave.onTouch(splashRoot,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,0,0,0));splashWave.onTouch(splashRoot,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,0,0,0));check(SeekSplash.live==1,"a committed seek splashes exactly once");
+        splash=(SeekSplash)splashRoot.layers.get(0);android.os.SystemClock.now+=400;splash.run();check(SeekSplash.live==0 && splashRoot.pending==null,"finished splashes leave no callbacks");android.os.SystemClock.now-=400;
+        Wave firstSeek=new Wave();firstSeek.setState(new int[]{0x010100a7});firstSeek.onLevelChange(7000);firstSeek.onTouch(splashRoot,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,0,0,0));check(SeekSplash.live==1,"the first seek can install its listener after DOWN and still splash");((SeekSplash)splashRoot.layers.get(0)).finish();
+        System.out.println("PASS seek splash bounds, cancellation, reduced motion and cleanup");
         check(SpatchWidget.isAd("spotify:ad:abc123")&&!SpatchWidget.isAd("spotify:track:abc")&&!SpatchWidget.isAd(null),"ads are told apart from songs by their item id");
         check(Surfaces.black(0x66121212)&&Surfaces.black(0xb3181818)&&!Surfaces.black(0xff141414),"Spotify's page blacks are recognised at any opacity");
         check(Surfaces.grey(0xff535353)&&!Surfaces.grey(0xff101010)&&!Surfaces.grey(0x80535353)&&!Surfaces.grey(0xffe91e8c)&&Surfaces.chroma(Surfaces.tintGrey(0xff535353))>0,"flat header greys take a theme tint; scrims and colours do not");

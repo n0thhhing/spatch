@@ -29,6 +29,11 @@ final class Spectrum {
     private static long frame;
     private static int session;
     static boolean seeded;
+    static long kickAt;
+    static float kickEnergy;
+    private static float bassSmooth;
+    private static long bassAt;
+    private static boolean bassReady;
 
     private Spectrum() {}
 
@@ -47,6 +52,7 @@ final class Spectrum {
         java.util.Arrays.fill(shown, 0);
         java.util.Arrays.fill(bands, 0);
         alpha = 0;
+        bassReady = false; kickAt = 0; kickEnergy = 0;
     }
 
     /** Advances the model one frame. Call once per drawn frame, from one visible renderer per frame. */
@@ -109,6 +115,21 @@ final class Spectrum {
         }
         float present = clamp01(mean * 4); // silence or pause: settle and fade out
         alpha = motion ? alpha + (present - alpha) * (1 - (float) Math.exp(-dt / 200f)) : present;
+        // The presence fade must not manufacture a kick when playback starts.
+        trackBass((bands[0]+bands[1])/(2*CEILING), now, motion && learn && alpha > .05f);
+    }
+
+    /** A rising kick, not sustained loudness; one detector shared by every visible renderer. */
+    static void trackBass(float level, long now, boolean active) {
+        long elapsed = now-bassAt;
+        if (!active || !bassReady || elapsed > 500 || elapsed < 0) {
+            bassSmooth = level; bassReady = active; kickAt = 0; kickEnergy = 0; bassAt = now;
+            return;
+        }
+        float jump = level-bassSmooth;
+        bassSmooth += jump*Math.min(1, elapsed/140f);
+        bassAt = now;
+        if (jump > .22f && now-kickAt > 240) { kickAt = now; kickEnergy = Math.min(1, jump/.5f); }
     }
 
     private static float clamp01(float v) {
@@ -136,6 +157,12 @@ final class Spectrum {
     static void draw(Canvas c, Paint paint, Path path, float[] levels, String shape, float left, float right,
                      float base, float maxH, boolean mirrored, boolean thin, boolean floating, boolean taper,
                      float dp) {
+        if ("scope".equals(shape)) {
+            boolean motion = Wave.animationsEnabled();
+            AudioScope.draw(c, paint, path, left, base-maxH, right, base, motion ? AudioScope.energy(levels) : 0,
+                motion ? (android.os.SystemClock.uptimeMillis()%120000)/800f : 0, true, dp);
+            return;
+        }
         int bars = thin ? 48 : 24;
         float step = (right - left) / bars, barW = step * 0.62f;
         boolean centre = "centre".equals(shape), contour = "contour".equals(shape), dots = "dots".equals(shape);
@@ -183,51 +210,55 @@ final class Spectrum {
         paint.setShader(null);
     }
 
-    /**
-     * Audio-reactive ring outside the art, centred on (cx, cy). `halfSize` is the art's half width;
-     * `corner` 0 follows a circle, otherwise the rounded square of that superellipse exponent.
-     */
-    static void drawRadial(Canvas c, Paint paint, Path path, float[] levels, boolean dots, float cx, float cy,
-                           float halfSize, float gap, float depth, float exponent, float dp) {
-        drawPerimeter(c, paint, path, levels, 72, dots, cx, cy, halfSize, gap, depth, exponent, Math.max(2 * dp, halfSize * 0.012f));
-    }
+    private static final int RAYS = 72;
+    private static final float[] boundary = new float[4], outerX = new float[RAYS], outerY = new float[RAYS], innerX = new float[RAYS], innerY = new float[RAYS];
+    private static android.graphics.RadialGradient radial;
+    private static float radialX, radialY, radialRadius;
+    private static int radialColor;
 
-    /** The Fine style: many hairlines, a clear gap, a short reach, and quiet levels kept close to rest. */
-    static void drawFine(Canvas c, Paint paint, Path path, float[] levels, float cx, float cy, float halfSize, float exponent, float dp) {
-        System.arraycopy(levels, 0, fine, 0, BANDS);
-        for (int i = 0; i < BANDS; i++) fine[i] = 0.08f + 0.92f * fine[i] * fine[i];
-        drawPerimeter(c, paint, path, fine, 120, false, cx, cy, halfSize, 12 * dp, Math.min(9 * dp, halfSize * 0.05f), exponent, 1.25f * dp);
-    }
-
-    private static final float[] fine = new float[BANDS];
-
-    private static void drawPerimeter(Canvas c, Paint paint, Path path, float[] levels, int rays, boolean dots, float cx, float cy,
-                                      float halfSize, float gap, float depth, float exponent, float stroke) {
+    /** Bars, dots and a closed corona follow the actual contour's normal, including rounded corners. */
+    static void drawArtwork(Canvas c, Paint paint, Path path, float[] levels, String style, String shape, float corner,
+                            float cx, float cy, float halfSize, float gap, float depth, float dp) {
+        boolean ribbon = "ribbon".equals(style), dots = "dots".equals(style), fine = "fine".equals(style);
+        int count = fine ? 120 : RAYS;
+        float stroke = fine ? 1.25f*dp : Math.max(2*dp, halfSize*.012f);
+        if (fine) { gap = 12*dp; depth = Math.min(9*dp, halfSize*.05f); }
         path.reset();
-        for (int i = 0; i < rays; i++) {
-            float pos = (i + 0.5f) / rays;
-            double a = 2 * Math.PI * pos - Math.PI / 2;
-            float ca = (float) Math.cos(a), sa = (float) Math.sin(a);
-            float r = halfSize;
-            if (exponent > 0) {
-                double n = Math.pow(Math.abs(ca), exponent) + Math.pow(Math.abs(sa), exponent);
-                r = (float) (halfSize / Math.pow(n, 1 / exponent));
-            }
-            r += gap;
-            float len = depth * at(levels, pos, true);
-            if (dots) {
-                path.addCircle(cx + ca * (r + len), cy + sa * (r + len), stroke, Path.Direction.CW);
-            } else {
-                float x0 = cx + ca * r, y0 = cy + sa * r, x1 = cx + ca * (r + len), y1 = cy + sa * (r + len);
-                path.moveTo(x0, y0);
-                path.lineTo(x1, y1);
-            }
+        for (int i = 0; i < count; i++) {
+            float pos = i/(float)count;
+            ArtContour.point(shape, 2*Math.PI*pos-Math.PI/2, corner, boundary);
+            float energy = at(levels, pos, true);
+            if (fine) energy = .08f+.92f*energy*energy;
+            float length = depth*energy;
+            float x = cx+halfSize*boundary[0]+gap*boundary[2], y = cy+halfSize*boundary[1]+gap*boundary[3];
+            float endX = x+(length+(ribbon ? 2*dp : 0))*boundary[2], endY = y+(length+(ribbon ? 2*dp : 0))*boundary[3];
+            if (ribbon) {
+                innerX[i] = x; innerY[i] = y; outerX[i] = endX; outerY[i] = endY;
+            } else if (dots) path.addCircle(endX, endY, stroke, Path.Direction.CW);
+            else { path.moveTo(x, y); path.lineTo(endX, endY); }
         }
-        paint.setStyle(dots ? Paint.Style.FILL : Paint.Style.STROKE);
-        paint.setStrokeWidth(stroke);
-        paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setColor(0xffd0bcff);
+        if (ribbon) { loop(path, outerX, outerY, false); loop(path, innerX, innerY, true); }
+        int color = Tint.color(Settings.PLAYER_COLOR), alpha = paint.getAlpha();
+        float radius = halfSize*("circle".equals(shape) || "scallop".equals(shape) ? 1 : 1.42f)+gap+depth*CEILING+2*dp;
+        if (radial == null || radialX != cx || radialY != cy || radialRadius != radius || radialColor != color) {
+            radial = new android.graphics.RadialGradient(cx, cy, radius, new int[] {color, color & 0xffffff}, new float[] {.7f, 1}, Shader.TileMode.CLAMP);
+            radialX = cx; radialY = cy; radialRadius = radius; radialColor = color;
+        }
+        paint.setColor(color); paint.setAlpha(alpha); paint.setShader(radial);
+        paint.setStyle(ribbon || dots ? Paint.Style.FILL : Paint.Style.STROKE);
+        paint.setStrokeWidth(stroke); paint.setStrokeCap(Paint.Cap.ROUND);
         c.drawPath(path, paint);
-        paint.setStyle(Paint.Style.FILL);
+        paint.setShader(null); paint.setStyle(Paint.Style.FILL);
+    }
+
+    /** Opposite winding leaves the artwork and its gap clear inside the ribbon. */
+    private static void loop(Path path, float[] x, float[] y, boolean reverse) {
+        int last = reverse ? 0 : RAYS-1, first = reverse ? RAYS-1 : 0;
+        path.moveTo((x[last]+x[first])/2, (y[last]+y[first])/2);
+        for (int i = 0; i < RAYS; i++) {
+            int a = reverse ? RAYS-1-i : i, b = reverse ? (a+RAYS-1)%RAYS : (a+1)%RAYS;
+            path.quadTo(x[a], y[a], (x[a]+x[b])/2, (y[a]+y[b])/2);
+        }
+        path.close();
     }
 }

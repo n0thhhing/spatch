@@ -132,7 +132,7 @@ public final class Immersive extends View implements Runnable {
         closeCx = drawnCx; closeCy = drawnCy; closeSize = drawnSize; closeRadius = drawnRadius;
         playerArt.settlePress();
         closing = true;
-        AudioSpectrum.drop(AudioSpectrum.BOTTOM);
+        AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
         if (back != null) { ((Back) back).unregister(); back = null; }
         measureFrom();
         closeTime = SystemClock.uptimeMillis();
@@ -147,7 +147,7 @@ public final class Immersive extends View implements Runnable {
             return;
         }
         removeCallbacks(this);
-        AudioSpectrum.drop(AudioSpectrum.BOTTOM);
+        AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
         playerArt.hideForHero(false);
         ViewParent p = getParent();
         if (p instanceof ViewGroup) {
@@ -378,9 +378,9 @@ public final class Immersive extends View implements Runnable {
         canvas.restoreToCount(save);
 
         playerArt.drawHeroDecoration(canvas, cxArt, cyArt, size, visualProgress, true);
+        drawRadial(canvas, cxArt, cyArt, size, Math.round(uiAlpha * clamp01(visualProgress)), now);
         canvas.restoreToCount(artLayer);
         canvas.restoreToCount(turned);
-        drawRadial(canvas, cxArt, cyArt, size, Math.round(uiAlpha * clamp01(visualProgress)), now);
 
         // 3. Everything else fades in once the artwork is most of the way there.
         if (uiAlpha > 0) {
@@ -531,22 +531,17 @@ public final class Immersive extends View implements Runnable {
     /** Artwork spectrum on immersive's rounded-square art, from the same capture as the bottom bars. */
     private void drawRadial(Canvas canvas, float cx, float cy, float size, int alpha, long now) {
         String style = Settings.choice(Settings.ART_SPECTRUM);
-        if ("off".equals(style) || !Wave.animationsEnabled() || closing) {
+        boolean shock = Settings.backdrop() && Settings.get(Settings.BASS_SHOCKWAVE);
+        if ("off".equals(style) && !shock || !Wave.animationsEnabled() || closing || !windowActive) {
             AudioSpectrum.drop(AudioSpectrum.RADIAL);
             return;
         }
         AudioSpectrum.request(getContext(), AudioSpectrum.RADIAL, isPlaying() && windowActive);
         Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), now, true, Settings.vizSmooth());
-        if (Spectrum.alpha < 0.01f || alpha <= 0) return;
-        paint.setColor(0xffd0bcff);
-        paint.setAlpha(Math.round(alpha * Spectrum.alpha));
-        if ("fine".equals(style)) {
-            paint.setAlpha(Math.round(alpha * 0.75f * Spectrum.alpha));
-            Spectrum.drawFine(canvas, paint, spectrumPath, Spectrum.bands, cx, cy, size / 2, 8f, dp);
-        } else {
-            Spectrum.drawRadial(canvas, paint, spectrumPath, Spectrum.bands, "dots".equals(style), cx, cy, size / 2, 8 * dp,
-                Math.min(16 * dp, size * 0.05f), 8f, dp);
-        }
+        if ("off".equals(style) || Spectrum.alpha < .01f || alpha <= 0) return;
+        paint.setAlpha(Math.round(alpha*("fine".equals(style) ? .75f : 1)*Spectrum.alpha));
+        Spectrum.drawArtwork(canvas, paint, spectrumPath, Spectrum.bands, style, "soft", drawnRadius/Math.max(1,size/2),
+            cx, cy, size/2, 8*dp, Math.min(16*dp,size*.05f), dp);
         paint.setAlpha(255);
     }
 
@@ -582,17 +577,17 @@ public final class Immersive extends View implements Runnable {
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
         windowActive = visibility == 0;
-        if (!windowActive) AudioSpectrum.drop(AudioSpectrum.BOTTOM);
+        if (!windowActive) AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
     }
 
     public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);
         windowActive = focus;
-        if (!focus) AudioSpectrum.drop(AudioSpectrum.BOTTOM);
+        if (!focus) AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
     }
 
     protected void onDetachedFromWindow() {
-        AudioSpectrum.drop(AudioSpectrum.BOTTOM);
+        AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
         removeCallbacks(this);
         playerArt.hideForHero(false);
         if (back != null) { ((Back)back).unregister(); back = null; }

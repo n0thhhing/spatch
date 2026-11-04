@@ -27,6 +27,12 @@ refused rather than patched blindly.
   a local-only profile banner.
 - **Feel:** bouncy press on tiles, tap ripples, a spinning mini player cover, an album-tinted mini
   bar, and bursts on the play button.
+- **Audio visuals:** artwork spectra follow circles, squircles, scallops and rounded corners, with
+  a fluid Ribbon style. Scope adds an FFT-driven looping trace to the full visualizer and seekbar;
+  it is a musical decoration rather than a stereo phase recording. Seek releases and committed
+  record scratches can splash droplets, and bass transients send fading rings through the backdrop.
+  Seek splash is on the Wavy progress page; Bass shockwaves is on Album art backdrop. Both respect
+  reduced motion, page resets and presets.
 - **Content:** hide podcasts, audiobooks, Home sections and side menu rows.
 
 Everything is configured in the app: open the side panel and choose **Spatch**. Each feature has a

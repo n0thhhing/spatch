@@ -5,6 +5,7 @@ public class Paint {
     public Shader setShader(Shader s){return null;}
     public static final int ANTI_ALIAS_FLAG = 1;
     public enum Style { FILL, STROKE, FILL_AND_STROKE }
+    public Style getStyle() { return Style.FILL; }
     public enum Cap { BUTT, ROUND, SQUARE }
     public enum Align { LEFT, CENTER, RIGHT }
     public Paint(int flags) { throw new RuntimeException(); }

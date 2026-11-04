@@ -24,6 +24,7 @@ import android.os.SystemClock;
 public final class Wave extends Drawable implements Runnable, View.OnTouchListener {
     private int detent = -1, pressLevel;
     private boolean watching;
+    private boolean seeking;
     private static int accent() { return 0xd0bcff; } // theme accent token, resolved each call: the theme can change live
     private static final long ACTIVE_MS = 1200;
     private static final long PERIOD_MS = 1600;
@@ -78,7 +79,16 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     @Override
     public boolean onTouch(View v, MotionEvent e) {
         SeekBubble.touch(v, e);
-        if (e.getActionMasked() == MotionEvent.ACTION_UP && level != pressLevel) Haptics.seekDone(v);
+        int action = e.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) { seeking = true; pressLevel = level; }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (seeking && action == MotionEvent.ACTION_UP && level != pressLevel) {
+                Haptics.seekDone(v);
+                float width = Math.max(0, v.getWidth()-v.getPaddingLeft()-v.getPaddingRight());
+                SeekSplash.at(v, v.getPaddingLeft()+width*level/10000f, v.getHeight()/2f);
+            }
+            seeking = false;
+        }
         return false;
     }
 
@@ -110,6 +120,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         long t = SystemClock.uptimeMillis();
         if (now != pressed) {
             if (now) {
+                seeking = true; // the first DOWN can precede installing our touch listener
                 playingAtPress = t - lastAdvance < ACTIVE_MS;
                 pressLevel = level;
                 View host = host();
@@ -144,7 +155,8 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         float stroke = h / 3f + (h * 0.6f - h / 3f) * thick;
         float restStroke = h / 5f;
         String style = Settings.choice(Settings.SEEK_STYLE);
-        boolean real = "wave".equals(style) && listening(now, motion);
+        boolean scope = "scope".equals(style);
+        boolean real = ("wave".equals(style) || scope) && listening(now, motion);
         String reacts = Settings.choice(Settings.WAVE_REACTS), follows = Settings.choice(Settings.WAVE_FOLLOWS), strength = Settings.choice(Settings.WAVE_STRENGTH);
         boolean height = real && ("height".equals(reacts) || "all".equals(reacts));
         float beat = real ? beat(Spectrum.bands, Spectrum.alpha) : 0f;
@@ -173,7 +185,10 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         int opacity = played.getAlpha();
         played.setColor(Tint.color(Settings.PLAYER_COLOR));
         played.setAlpha(opacity);
-        if (end > x0 && "beads".equals(style)) {
+        if (end > x0 && scope) {
+            float energy = real ? AudioScope.energy(Spectrum.bands)*Spectrum.alpha*amp : 0;
+            AudioScope.draw(canvas, played, path, x0, b.top, end, b.bottom, energy, (now%120000)/800f, false, h/12f);
+        } else if (end > x0 && "beads".equals(style)) {
             // Beads swell in a slow wave that runs back along the played part.
             float gap = stroke * 2.4f;
             for (float x = x0; x <= end; x += gap) {

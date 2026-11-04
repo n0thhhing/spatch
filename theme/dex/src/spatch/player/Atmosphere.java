@@ -17,6 +17,13 @@ public final class Atmosphere extends Drawable implements Runnable {
     private final RectF area=new RectF();
     private float glowRadius;
     private static final int MOTES=36;
+    private final long[] shockAt={-10000,-10000};
+    private final float[] shockEnergy=new float[2];
+    private long seenKick;
+    private int nextShock;
+    private RadialGradient shockGlow;
+    private int shockTint;
+    private float shockWidth,shockHeight;
     public void capture(Drawable art) {
         float blend=blend();
         for(int i=0;i<3;i++) fromColors[i]=mix(fromColors[i],colors[i],blend);
@@ -59,12 +66,46 @@ public final class Atmosphere extends Drawable implements Runnable {
         glowRadius=w;
         paint.setShader(null); paint.setColor(0x5514121c);
         c.drawRect(b.left,b.top,b.right,b.bottom,paint);
+        boolean shocks=drawShockwaves(c,w,h);
         String fx=Settings.choice(Settings.BACKDROP_FX);
         boolean motes=!"none".equals(fx);
         if(motes) drawMotes(c,w,h,"stars".equals(fx),mix(fromColors[0],colors[0],blend));
-        if(Wave.animationsEnabled() && (blend<1||Settings.artDrift()||motes) && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+(blend<1||motes?16:66));
+        if(Wave.animationsEnabled() && (blend<1||Settings.artDrift()||motes||shocks) && isVisible()) scheduleSelf(this,SystemClock.uptimeMillis()+(blend<1||motes||shocks?16:66));
     }
     public void run(){invalidateSelf();}
+
+    private boolean drawShockwaves(Canvas c,float w,float h){
+        long now=SystemClock.uptimeMillis();
+        boolean enabled=Wave.animationsEnabled()&&Settings.get(Settings.BASS_SHOCKWAVE);
+        if(!enabled){shockAt[0]=shockAt[1]=-10000;seenKick=Spectrum.kickAt;return false;}
+        if(Spectrum.kickAt>0&&Spectrum.kickAt!=seenKick){
+            seenKick=Spectrum.kickAt;
+            if(now-seenKick>=0&&now-seenKick<120){
+                shockAt[nextShock]=seenKick;shockEnergy[nextShock]=Spectrum.kickEnergy*Spectrum.alpha;nextShock=1-nextShock;
+            }
+        }
+        boolean running=false;
+        float dp=Math.max(1,w/400f);
+        int tint=Tint.album();
+        if(shockGlow==null||shockTint!=tint||shockWidth!=w||shockHeight!=h){
+            shockGlow=new RadialGradient(w/2,h*.38f,w*.9f,new int[]{tint,tint&0xffffff},new float[]{.22f,1},Shader.TileMode.CLAMP);
+            shockTint=tint;shockWidth=w;shockHeight=h;
+        }
+        paint.setShader(shockGlow);paint.setStyle(Paint.Style.STROKE);
+        for(int i=0;i<2;i++){
+            float t=shockProgress(now-shockAt[i]);
+            if(t>=1)continue;
+            running=true;
+            float eased=1-(1-t)*(1-t), radius=w*(.22f+.68f*eased);
+            paint.setAlpha(Math.round(95*shockEnergy[i]*(1-t)*(1-t)));
+            paint.setStrokeWidth((8-6.5f*t)*dp);
+            c.drawCircle(w/2,h*.38f,radius,paint);
+        }
+        paint.setShader(null);paint.setStyle(Paint.Style.FILL);paint.setAlpha(255);
+        return running;
+    }
+
+    static float shockProgress(long elapsed){return Math.max(0,Math.min(1,elapsed/420f));}
 
     /** Slow specks rising through the backdrop, swelling with the bass when audio is being read. */
     private void drawMotes(Canvas c,float w,float h,boolean stars,int tint){

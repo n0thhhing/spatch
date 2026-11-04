@@ -113,6 +113,7 @@ final class ArtMotion implements Runnable {
         if (seek && controller != null) {
             controller.getTransportControls().seekTo(preview);
             Haptics.seekDone(art);
+            if (preview != base) SeekSplash.at(art, fingerX, fingerY);
         }
     }
 

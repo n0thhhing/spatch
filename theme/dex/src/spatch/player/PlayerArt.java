@@ -100,7 +100,7 @@ public final class PlayerArt extends ImageView {
         else { squish[0] = 1; squish[1] = 0; }
         squishAt = now;
         int scaled = canvas.save();
-        float size = squish[0] * (1 + BEAT * Math.min(1, beatLevel));
+        float size = squish[0] * (1 + (Settings.get(Settings.BEAT_BOUNCE) && Wave.animationsEnabled() ? BEAT * Math.min(1, beatLevel) : 0));
         canvas.scale(size, size, getWidth()/2f, getHeight()/2f);
         String skip = Settings.choice(Settings.ART_SKIP);
         boolean skipMotion = !"slide".equals(skip) && Wave.animationsEnabled();
@@ -138,6 +138,7 @@ public final class PlayerArt extends ImageView {
         // The artwork carousel keeps the previous and next tracks' pages alive off-screen; only the
         // page centred on screen may set the blurred backdrop, or a neighbour's art wins.
         Drawable art=getDrawable();
+        updateAudio();
         Tint.follow(art);
         colourTitle();
         if(background!=null && !Settings.backdrop()) {
@@ -272,50 +273,38 @@ public final class PlayerArt extends ImageView {
 
     /** The artwork's outline, every shape reaching about the same size. */
     static void trace(Path path, String shape, float cx, float cy, float radius) {
-        path.reset();
-        if ("soft".equals(shape)) {
-            path.addRoundRect(cx - radius, cy - radius, cx + radius, cy + radius, radius * .26f, radius * .26f, Path.Direction.CW);
-        } else if ("circle".equals(shape)) {
-            path.addCircle(cx, cy, radius, Path.Direction.CW);
-        } else {
-            boolean squircle = "squircle".equals(shape);
-            for (int i = 0; i <= 120; i++) {
-                double a = i * Math.PI / 60, c = Math.cos(a), s = Math.sin(a);
-                double r = squircle ? radius / Math.pow(Math.pow(Math.abs(c), 4) + Math.pow(Math.abs(s), 4), .25) : radius * (.95 + .05 * Math.cos(10 * a));
-                float x = cx + (float) (r * c), y = cy + (float) (r * s);
-                if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
-            }
-            path.close();
-        }
+        ArtContour.trace(path, shape, cx, cy, radius);
     }
 
-    /** Real audio energy around the circular art, from the shared capture. Centred page only. */
-    private void drawRadial(Canvas canvas, float cx, float cy, float radius) {
-        String style = Settings.choice(Settings.ART_SPECTRUM);
-        boolean bars = !"off".equals(style), reactive = "audio".equals(Settings.choice(Settings.ART_OUTLINE)), beat = Settings.get(Settings.BEAT_BOUNCE);
-        if (!bars && !reactive && !beat || heroHidden || !Wave.animationsEnabled() || !isCurrentPage() || !hasWindowFocus()) {
-            // Neighbour carousel pages redraw too: only the page that asked may release the capture.
+    /** One capture lease for all artwork audio, even when the circular mask is off. */
+    private long shownKick;
+    private void updateAudio() {
+        boolean wanted = Settings.roundArt() && (!"off".equals(Settings.choice(Settings.ART_SPECTRUM)) || "audio".equals(Settings.choice(Settings.ART_OUTLINE))
+            || Settings.get(Settings.BEAT_BOUNCE)) || Settings.backdrop() && Settings.get(Settings.BASS_SHOCKWAVE);
+        if (!wanted || preview || heroHidden || !Wave.animationsEnabled() || !isCurrentPage() || !hasWindowFocus()) {
             if (radialOn) AudioSpectrum.drop(AudioSpectrum.RADIAL);
             radialOn = false;
+            beatLevel = 0;
             return;
         }
         radialOn = true;
         AudioSpectrum.request(getContext(), AudioSpectrum.RADIAL, playing());
-        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), SystemClock.uptimeMillis(), Wave.animationsEnabled(), Settings.vizSmooth());
-        beatLevel = beat ? Spectrum.alpha * (Spectrum.bands[0] + Spectrum.bands[1]) / 2 : 0;
-        if (!bars || Spectrum.alpha < 0.01f) return;
-        float dp = getResources().getDisplayMetrics().density;
-        // Fits inside the view's 12% margin, past the outline; nothing is clipped or covers controls.
-        float gap = "none".equals(Settings.choice(Settings.ART_OUTLINE)) ? radius * 0.03f : radius * 0.07f;
-        ink.setShader(null);
-        ink.setColor(0xffd0bcff);
-        ink.setAlpha(Math.round(255 * Spectrum.alpha));
-        if ("fine".equals(style)) {
-            ink.setAlpha(Math.round(190 * Spectrum.alpha));
-            Spectrum.drawFine(canvas, ink, outline, Spectrum.bands, cx, cy, radius, 0, dp);
-        } else {
-            Spectrum.drawRadial(canvas, ink, outline, Spectrum.bands, "dots".equals(style), cx, cy, radius, gap, radius * 0.05f, 0, dp);
+        Spectrum.step(AudioSpectrum.SHARED.levels, AudioSpectrum.session(), SystemClock.uptimeMillis(), true, Settings.vizSmooth());
+        if (shownKick != Spectrum.kickAt) {
+            shownKick = Spectrum.kickAt;
+            if (shownKick > 0 && SystemClock.uptimeMillis()-shownKick < 120 && background != null && Settings.get(Settings.BASS_SHOCKWAVE)) background.invalidate();
         }
+        beatLevel = Settings.get(Settings.BEAT_BOUNCE) ? Spectrum.alpha*(Spectrum.bands[0]+Spectrum.bands[1])/2 : 0;
+    }
+
+    private void drawRadial(Canvas canvas, float cx, float cy, float radius) {
+        String style = Settings.choice(Settings.ART_SPECTRUM);
+        if ("off".equals(style) || heroHidden || !Wave.animationsEnabled() || !isCurrentPage() || !hasWindowFocus() || Spectrum.alpha < .01f) return;
+        float dp = getResources().getDisplayMetrics().density;
+        float gap = "none".equals(Settings.choice(Settings.ART_OUTLINE)) ? radius*.03f : radius*.07f;
+        ink.setAlpha(Math.round(("fine".equals(style) ? 190 : 255)*Spectrum.alpha));
+        Spectrum.drawArtwork(canvas, ink, outline, Spectrum.bands, style, Settings.choice(Settings.ART_SHAPE), .26f,
+            cx, cy, radius, gap, radius*.05f, dp);
     }
 
     private boolean playing() {
