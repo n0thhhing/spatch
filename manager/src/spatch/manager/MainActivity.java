@@ -584,7 +584,7 @@ public final class MainActivity extends Activity {
         exitsCard.addView(refreshExitsBtn, look.spaced(10));
 
         LinearLayout shortcutsCard = look.card(page, "System Settings & Shortcuts");
-        openBatterySettingsBtn = look.button("Battery optimization", "tune", Look.Kind.TONAL, v -> {
+        openBatterySettingsBtn = look.button("Battery whitelist", "tune", Look.Kind.TONAL, v -> {
             try {
                 startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
             } catch (Exception e) {
@@ -758,6 +758,14 @@ public final class MainActivity extends Activity {
                 sb.append("\n");
             }
             if (exitsText != null) exitsText.setText(sb.toString().trim());
+        } catch (SecurityException e) {
+            if (exitsText != null) {
+                exitsText.setText("Cross-app exit history requires android.permission.DUMP.\n\n"
+                    + "To grant via ADB:\n"
+                    + "adb shell pm grant spatch.manager android.permission.DUMP\n\n"
+                    + "Or view Spotify's last crash directly in:\n"
+                    + "Spotify -> Settings -> Spatch -> Developer options -> Last crash");
+            }
         } catch (Exception e) {
             if (exitsText != null) exitsText.setText("Couldn't read exit history: " + e.getMessage());
         }

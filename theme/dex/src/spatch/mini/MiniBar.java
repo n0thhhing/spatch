@@ -109,15 +109,17 @@ public final class MiniBar extends MotionLayout implements Runnable {
 
     private boolean onCover(float x) {
         if (shapedCover == null) roundCover();
-        float boundary;
-        if (previous != null && previous.getLeft() > 0) {
-            boundary = previous.getLeft() - 4 * getResources().getDisplayMetrics().density;
-        } else {
-            View carousel = findViewById(id("tracks_carousel_view"));
-            if (carousel != null && carousel.getRight() > 0) boundary = carousel.getRight();
-            else boundary = getWidth() > 0 ? getWidth() - 144 * getResources().getDisplayMetrics().density : 96 * getResources().getDisplayMetrics().density;
+        if (shapedCover == null) return false;
+        View box = shapedCover.getParent() instanceof View && shapedCover.getParent() != this ? (View) shapedCover.getParent() : shapedCover;
+        float right = box.getRight() > 0 ? box.getRight() : shapedCover.getRight();
+        float dp = getResources().getDisplayMetrics().density;
+        if (right <= 0) right = 48 * dp;
+        float boundary = right + 4 * dp;
+        View carousel = findViewById(id("tracks_carousel_view"));
+        if (carousel != null && carousel.getLeft() > 0) {
+            boundary = Math.min(boundary, carousel.getLeft() - 2 * dp);
         }
-        return x >= -16 * getResources().getDisplayMetrics().density && x <= boundary;
+        return x >= 0 && x <= boundary;
     }
 
     private void skip(boolean toNext) {
@@ -203,7 +205,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
         }
         View carousel = findViewById(id("tracks_carousel_view"));
         int right = carousel != null ? carousel.getRight() : 0;
-        if (coverSpring != null && (action != MotionEvent.ACTION_DOWN || previous != null && e.getX() < right)) coverSpring.onTouch(shapedCover, e);
+        if (coverSpring != null && downOnCover) coverSpring.onTouch(shapedCover, e);
         if (action == MotionEvent.ACTION_UP && previous != null && e.getX() < right) {
             View cover = findViewById(id("cover_image"));
             if (cover != null && cover.getWidth() > 0) {
