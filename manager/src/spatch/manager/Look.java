@@ -24,6 +24,7 @@ final class Look {
 
     final boolean dark;
     final int primary, onPrimary, primaryContainer, onPrimaryContainer, secondaryContainer, onSecondaryContainer;
+    final int tertiaryContainer, onTertiaryContainer;
     final int surface, container, containerHigh, onSurface, onSurfaceVariant, outline;
     private final Context context;
     private final float density;
@@ -31,7 +32,10 @@ final class Look {
     Look(Context context) {
         this.context = context;
         density = context.getResources().getDisplayMetrics().density;
-        dark = (context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        String mode = context.getSharedPreferences("manager", Context.MODE_PRIVATE).getString("theme_mode", "system");
+        boolean isNight = (context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        dark = mode.equals("dark") || mode.equals("black") || (mode.equals("system") && isNight);
+        boolean amoled = mode.equals("black");
         if (dark) {
             primary = sys(android.R.color.system_accent1_200, 0xffd0bcff);
             onPrimary = sys(android.R.color.system_accent1_800, 0xff381e72);
@@ -39,13 +43,22 @@ final class Look {
             onPrimaryContainer = sys(android.R.color.system_accent1_100, 0xffeaddff);
             secondaryContainer = sys(android.R.color.system_accent2_700, 0xff4a4458);
             onSecondaryContainer = sys(android.R.color.system_accent2_100, 0xffe8def8);
-            surface = sys(android.R.color.system_neutral1_900, 0xff141218);
-            int step = sys(android.R.color.system_neutral1_800, 0xff322f35);
-            container = blend(surface, step, 0.35f);
-            containerHigh = blend(surface, step, 0.7f);
+            tertiaryContainer = sys(android.R.color.system_accent3_700, 0xff3b4a36);
+            onTertiaryContainer = sys(android.R.color.system_accent3_100, 0xffd8e8cf);
+            if (amoled) {
+                surface = 0xff000000;
+                container = 0xff121212;
+                containerHigh = 0xff1e1e1e;
+                outline = 0xff383838;
+            } else {
+                surface = sys(android.R.color.system_neutral1_900, 0xff141218);
+                int step = sys(android.R.color.system_neutral1_800, 0xff322f35);
+                container = blend(surface, step, 0.35f);
+                containerHigh = blend(surface, step, 0.7f);
+                outline = sys(android.R.color.system_neutral2_400, 0xff938f99);
+            }
             onSurface = sys(android.R.color.system_neutral1_100, 0xffe6e0e9);
             onSurfaceVariant = sys(android.R.color.system_neutral2_200, 0xffcac4d0);
-            outline = sys(android.R.color.system_neutral2_400, 0xff938f99);
         } else {
             primary = sys(android.R.color.system_accent1_600, 0xff6750a4);
             onPrimary = sys(android.R.color.system_accent1_0, 0xffffffff);
@@ -53,6 +66,8 @@ final class Look {
             onPrimaryContainer = sys(android.R.color.system_accent1_900, 0xff21005d);
             secondaryContainer = sys(android.R.color.system_accent2_100, 0xffe8def8);
             onSecondaryContainer = sys(android.R.color.system_accent2_900, 0xff1d192b);
+            tertiaryContainer = sys(android.R.color.system_accent3_100, 0xffd8e8cf);
+            onTertiaryContainer = sys(android.R.color.system_accent3_900, 0xff111f0d);
             surface = sys(android.R.color.system_neutral1_10, 0xfffef7ff);
             container = sys(android.R.color.system_neutral1_50, 0xfff3edf7);
             containerHigh = sys(android.R.color.system_neutral1_100, 0xffece6f0);
@@ -232,6 +247,81 @@ final class Look {
             label.setTextColor(on ? onSurface : onSurfaceVariant);
             item.setSelected(on);
         }
+    }
+
+    TextView badge(String text, int fg, int bg) {
+        TextView b = new TextView(context);
+        b.setText(text);
+        b.setTextSize(11);
+        b.setTextColor(fg);
+        b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        b.setPadding(dp(8), dp(3), dp(8), dp(3));
+        b.setBackground(shape(bg, 10));
+        return b;
+    }
+
+    final class StepTracker extends LinearLayout {
+        private final TextView[] labels;
+        private final TextView[] icons;
+        private final String[] titles = {"Prepare", "Patch", "Sign", "Install"};
+
+        StepTracker() {
+            super(context);
+            setOrientation(HORIZONTAL);
+            setGravity(Gravity.CENTER_VERTICAL);
+            labels = new TextView[4];
+            icons = new TextView[4];
+            for (int i = 0; i < 4; i++) {
+                LinearLayout item = new LinearLayout(context);
+                item.setOrientation(HORIZONTAL);
+                item.setGravity(Gravity.CENTER_VERTICAL);
+                TextView ic = new TextView(context);
+                ic.setText(String.valueOf(i + 1));
+                ic.setTextSize(11);
+                ic.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                ic.setGravity(Gravity.CENTER);
+                ic.setTextColor(onSurfaceVariant);
+                ic.setBackground(shape(containerHigh, 10));
+                LinearLayout.LayoutParams icLp = new LinearLayout.LayoutParams(dp(20), dp(20));
+                icLp.setMarginEnd(dp(4));
+                item.addView(ic, icLp);
+                icons[i] = ic;
+                TextView lbl = text(titles[i], 12, onSurfaceVariant, false);
+                item.addView(lbl);
+                labels[i] = lbl;
+                LinearLayout.LayoutParams itemLp = new LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
+                if (i > 0) itemLp.setMarginStart(dp(4));
+                addView(item, itemLp);
+            }
+        }
+
+        void setStage(int active) {
+            for (int i = 0; i < 4; i++) {
+                if (i < active) {
+                    icons[i].setText("✓");
+                    icons[i].setTextColor(onPrimary);
+                    icons[i].setBackground(shape(primary, 10));
+                    labels[i].setTextColor(onSurface);
+                    labels[i].setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                } else if (i == active) {
+                    icons[i].setText(String.valueOf(i + 1));
+                    icons[i].setTextColor(onPrimaryContainer);
+                    icons[i].setBackground(shape(primaryContainer, 10));
+                    labels[i].setTextColor(primary);
+                    labels[i].setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                } else {
+                    icons[i].setText(String.valueOf(i + 1));
+                    icons[i].setTextColor(onSurfaceVariant);
+                    icons[i].setBackground(shape(containerHigh, 10));
+                    labels[i].setTextColor(onSurfaceVariant);
+                    labels[i].setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+                }
+            }
+        }
+    }
+
+    StepTracker stepTracker() {
+        return new StepTracker();
     }
 
     ProgressBar progress() {

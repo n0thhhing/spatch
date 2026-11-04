@@ -1,7 +1,9 @@
 package spatch.manager;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.app.ApplicationExitInfo;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -12,10 +14,13 @@ import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -29,24 +34,49 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Two pages under a navigation bar: Spatch (installing or updating Spotify, build options, clones,
- * and the phone's signing key) and Changes (recent nightly commits and release notes). Patching,
- * signing and installing all happen here; nothing leaves the phone.
+ * Four pages under a navigation bar: Spatch (Spotify install, patch profiles, build options, invites),
+ * Clones (multi-instance clone manager), Diagnostics (self-test dashboard & crash log inspect),
+ * and Changes (releases, display modes, and phone signing key).
  */
 public final class MainActivity extends Activity {
     private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates", INVITE = "source_invite", DOWNLOADED = "apkm_downloaded";
     private static final String PAGE = "page", CLONE_PKG = "clone_package", CLONE_NAME = "clone_name", CLONE_INSTALLED = "clone_installed:";
     static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", NIGHTLY = "nightly_patches", UPDATE = "start_update";
+    private static final String PROFILE = "patch_profile", CLONES_SET = "clones_packages";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
-    private static final String[] PAGES = {"Spatch", "Changes"}, PAGE_ICONS = {"music_note", "system_update"};
-    private static final String[] HEADINGS = {"Spatch", "Changes"};
+    private static final String[] PAGES = {"Spatch", "Clones", "Diagnostics", "Changes"};
+    private static final String[] PAGE_ICONS = {"music_note", "content_copy", "tune", "system_update"};
+    private static final String[] HEADINGS = {"Spatch", "Clones", "Diagnostics", "Changes"};
+
+    enum PresetProfile {
+        STANDARD("Standard (Full)", "Dynamic UI, living controls, lyrics, spectrum visualizers, gestures, ad-free experience.", false, false),
+        MINIMAL("Minimal (Clean)", "Lightweight & battery friendly. Reduced motion, essential music playback, no visual clutter.", false, false),
+        PLAYFUL("Playful (Dynamic)", "Maximum flair: living controls, reactive particle bursts, wave reflections, newest UI commits.", false, true),
+        DEV("Developer & Diagnostics", "Developer options enabled in Spotify: runtime self-tests, frame monitor, crash inspect.", true, false);
+
+        final String label, description;
+        final boolean debug, nightly;
+
+        PresetProfile(String label, String description, boolean debug, boolean nightly) {
+            this.label = label;
+            this.description = description;
+            this.debug = debug;
+            this.nightly = nightly;
+        }
+    }
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -58,11 +88,15 @@ public final class MainActivity extends Activity {
     private volatile boolean replaceImport; // the chosen APKM was the wrong one and the user tapped Install again
     private volatile boolean inheriting, inheritFailed; // an update replacing base.apk alone; a failed one goes back to all five
     private Look look;
-    private LinearLayout statusCard, changesBox;
+    private LinearLayout statusCard, changesBox, clonesListBox;
+    private Look.StepTracker stepTracker;
 
     private TextView spotifyStatus, apkmStatus, patchStatus, whatsNew, keyStatus, managerStatus, status, heading, cloneStatus;
+    private TextView profileBadge, profileDesc, diagnosticsText, exitsText;
     private Button displayMode, choose, seeChanges, patch, uninstall, managerUpdate, check, refreshChanges, exportKey, importKey, invite;
-    private Button cloneInstall, cloneUninstall, cloneIconPick, cloneIconReset;
+    private Button chooseProfile, cloneInstall, cloneIconPick, cloneIconReset;
+    private Button runDiagnosticsBtn, copyDiagnosticsBtn, refreshExitsBtn;
+    private Button openBatterySettingsBtn, openAppDetailsBtn, launchSpotifyBtn;
     private EditText clonePkg, cloneName;
     private android.widget.ImageView cloneIcon;
     private LinearLayout[] pages;
@@ -81,6 +115,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             busy = false;
+            stepTracker.setVisibility(View.GONE);
             delete(new File(getCacheDir(), "build"));
             boolean cloning = !installingSelf && !INSTALLED.equals(pendingKey);
             if (code == PackageInstaller.STATUS_SUCCESS) {
@@ -198,20 +233,26 @@ public final class MainActivity extends Activity {
         statusCard.setBackground(look.shape(look.secondaryContainer, 28));
         status = look.text("", 15, look.onSecondaryContainer, false);
         statusCard.addView(status);
+        stepTracker = look.stepTracker();
+        stepTracker.setVisibility(View.GONE);
+        statusCard.addView(stepTracker, look.spaced(10));
         progress = look.progress();
         progress.setVisibility(View.GONE);
-        statusCard.addView(progress, look.spaced(10));
+        statusCard.addView(progress, look.spaced(8));
         statusCard.setVisibility(View.GONE);
         page.addView(statusCard, look.spaced(12));
+
         pages = new LinearLayout[PAGES.length];
         for (int i = 0; i < pages.length; i++) {
             pages[i] = look.column();
             page.addView(pages[i]);
         }
 
+        // --- Page 0: Spatch ---
         TextView subtitle = look.text("Patches Spotify on this phone and signs it with this phone's own key.", 15, look.onSurfaceVariant, false);
         subtitle.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
         pages[0].addView(subtitle);
+
         LinearLayout spotify = look.card(pages[0], "Spotify");
         spotifyStatus = look.text("", 16, look.onSurface, false);
         spotify.addView(spotifyStatus);
@@ -219,71 +260,60 @@ public final class MainActivity extends Activity {
         spotify.addView(apkmStatus, look.spaced(6));
         patchStatus = look.text("", 14, look.onSurfaceVariant, false);
         spotify.addView(patchStatus, look.spaced(2));
+        profileBadge = look.badge("Profile: Standard", look.onPrimaryContainer, look.primaryContainer);
+        spotify.addView(profileBadge, look.spaced(6));
         whatsNew = look.text("", 13, look.primary, false);
         whatsNew.setVisibility(View.GONE);
         spotify.addView(whatsNew, look.spaced(4));
         patch = look.button("Install Spatch", "download", Look.Kind.FILLED, v -> patch());
         spotify.addView(patch, look.spaced(12));
         choose = look.button("Choose APKM", "folder_open", Look.Kind.TONAL, v -> pickApkm());
-        seeChanges = look.button("What's new", "system_update", Look.Kind.TONAL, v -> show(1));
+        seeChanges = look.button("What's new", "system_update", Look.Kind.TONAL, v -> show(3));
         spotify.addView(look.row(choose, seeChanges), look.spaced(8));
         invite = look.button("Add an invite", "link", Look.Kind.TEXT, v -> editInvite());
         spotify.addView(invite, look.spaced(4));
         uninstall = look.button("Uninstall Spotify", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
         spotify.addView(uninstall, look.spaced(8));
 
-        LinearLayout options = look.card(pages[0], "Options & updates");
+        LinearLayout profileCard = look.card(pages[0], "Patch profile & options");
+        profileDesc = look.text("Dynamic UI, living controls, lyrics, spectrum visualizers, gestures, ad-free experience.", 14, look.onSurfaceVariant, false);
+        profileCard.addView(profileDesc);
+        chooseProfile = look.button("Patch preset: Standard", "tune", Look.Kind.TONAL, v -> pickProfile());
+        profileCard.addView(chooseProfile, look.spaced(10));
+
         developer = new Switch(this);
         developer.setChecked(prefs.getBoolean(DEBUG, false));
         developer.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(DEBUG, on).apply();
             refresh();
         });
-        options.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer));
+        profileCard.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer));
+
         nightly = new Switch(this);
         nightly.setChecked(prefs.getBoolean(NIGHTLY, false));
         nightly.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(NIGHTLY, on).apply();
             refresh();
         });
-        options.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
+        profileCard.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
+
         notify = new Switch(this);
         notify.setChecked(prefs.getBoolean(NOTIFY, true));
         notify.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(NOTIFY, on).apply();
             UpdateCheck.schedule(this, on);
-            if (on && android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
+            if (on && Build.VERSION.SDK_INT >= 33) requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
         });
-        options.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
-        displayMode=look.button("Display mode: "+prefs.getString("theme_mode","system"),"tune",Look.Kind.TONAL,v->{
-            String[] modes={"system","light","dark"};
-            int selected=Arrays.asList(modes).indexOf(prefs.getString("theme_mode","system"));
-            new AlertDialog.Builder(this).setTitle("Display mode").setSingleChoiceItems(new String[]{"System","Light","Dark"},selected,(dialog,index)->{
-                prefs.edit().putString("theme_mode",modes[index]).apply();dialog.dismiss();recreate();
-            }).setNegativeButton("Cancel",null).show();
-        });
-        options.addView(displayMode,look.spaced(10));
-        managerStatus = look.text("", 14, look.onSurfaceVariant, false);
-        options.addView(managerStatus, look.spaced(6));
-        managerUpdate = look.button("Update manager", "system_update", Look.Kind.FILLED, v -> updateManager());
-        options.addView(managerUpdate, look.spaced(10));
-        check = look.button("Check for updates", "refresh", Look.Kind.TEXT, v -> checkUpdates());
-        Button page2 = look.button("Releases", "open_in_new", Look.Kind.TEXT, v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
-        options.addView(look.row(check, page2), look.spaced(4));
+        profileCard.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
 
-        cloneLayout(pages[0]);
+        // --- Page 1: Clones ---
+        cloneLayout(pages[1]);
 
-        LinearLayout key = look.card(pages[0], "Signing key");
-        TextView keyNote = look.text("Spatch and its clones are signed with this phone's key. Export it to keep it safe, or import the key an earlier Spatch was signed with so updates install over it.", 14, look.onSurfaceVariant, false);
-        key.addView(keyNote);
-        keyStatus = look.text("", 13, look.onSurfaceVariant, false);
-        keyStatus.setTypeface(android.graphics.Typeface.MONOSPACE);
-        key.addView(keyStatus, look.spaced(8));
-        exportKey = look.button("Export", "key", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
-        importKey = look.button("Import", "file_open", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
-        key.addView(look.row(exportKey, importKey), look.spaced(12));
+        // --- Page 2: Diagnostics ---
+        diagnosticsLayout(pages[2]);
 
-        changesLayout(pages[1]);
+        // --- Page 3: Changes ---
+        changesLayout(pages[3]);
 
         scroll = new ScrollView(this);
         scroll.addView(page);
@@ -294,7 +324,7 @@ public final class MainActivity extends Activity {
         // Android 15 draws apps edge to edge: keep the page clear of the status bar, the bar clear of navigation.
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             int top, bottom;
-            if (android.os.Build.VERSION.SDK_INT >= 30) {
+            if (Build.VERSION.SDK_INT >= 30) {
                 android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.ime());
                 top = bars.top;
                 bottom = bars.bottom;
@@ -320,31 +350,131 @@ public final class MainActivity extends Activity {
         prefs.edit().putInt(PAGE, index).apply();
     }
 
+    private void pickProfile() {
+        PresetProfile[] profiles = PresetProfile.values();
+        String[] titles = new String[profiles.length];
+        String cur = prefs.getString(PROFILE, "standard");
+        int sel = 0;
+        for (int i = 0; i < profiles.length; i++) {
+            titles[i] = profiles[i].label + "\n" + profiles[i].description;
+            if (profiles[i].name().equalsIgnoreCase(cur)) sel = i;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Patch preset profile")
+            .setSingleChoiceItems(titles, sel, (dialog, which) -> {
+                PresetProfile p = profiles[which];
+                prefs.edit().putString(PROFILE, p.name().toLowerCase()).apply();
+                developer.setChecked(p.debug);
+                nightly.setChecked(p.nightly);
+                dialog.dismiss();
+                refresh();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    static final class CloneInfo {
+        final String pkg;
+        final String label;
+        final PackageInfo info;
+        final boolean signedByUs;
+        final String tag;
+
+        CloneInfo(String pkg, String label, PackageInfo info, boolean signedByUs, String tag) {
+            this.pkg = pkg;
+            this.label = label;
+            this.info = info;
+            this.signedByUs = signedByUs;
+            this.tag = tag;
+        }
+    }
+
+    private List<CloneInfo> scanClones() {
+        List<CloneInfo> list = new ArrayList<>();
+        Set<String> pkgs = new HashSet<>();
+        PackageManager pm = getPackageManager();
+        try {
+            for (PackageInfo pi : pm.getInstalledPackages(PackageManager.GET_SIGNING_CERTIFICATES)) {
+                String p = pi.packageName;
+                if (p != null && p.startsWith("com.spotify.music.") && !p.equals(SPOTIFY)) {
+                    pkgs.add(p);
+                }
+            }
+        } catch (Exception ignored) {}
+        for (String key : prefs.getAll().keySet()) {
+            if (key.startsWith(CLONE_INSTALLED)) {
+                pkgs.add(key.substring(CLONE_INSTALLED.length()));
+            }
+        }
+        for (String p : prefs.getStringSet(CLONES_SET, Collections.emptySet())) {
+            pkgs.add(p);
+        }
+        String lastPkg = prefs.getString(CLONE_PKG, null);
+        if (lastPkg != null && !lastPkg.equals(SPOTIFY)) pkgs.add(lastPkg);
+
+        List<String> sorted = new ArrayList<>(pkgs);
+        Collections.sort(sorted);
+        for (String p : sorted) {
+            PackageInfo pi = installed(p);
+            String label = p;
+            if (pi != null) {
+                try {
+                    CharSequence cs = pm.getApplicationLabel(pi.applicationInfo);
+                    if (cs != null && cs.length() > 0) label = cs.toString();
+                } catch (Exception ignored) {}
+            } else if (p.equals(prefs.getString(CLONE_PKG, ""))) {
+                label = prefs.getString(CLONE_NAME, p);
+            }
+            boolean ours = pi != null && keys != null && signedByUs(pi);
+            String tag = prefs.getString(CLONE_INSTALLED + p, null);
+            list.add(new CloneInfo(p, label, pi, ours, tag));
+        }
+        return list;
+    }
+
+    private String nextClonePkg() {
+        String[] suggestions = {"two", "three", "four", "five", "six", "work", "alt"};
+        for (String s : suggestions) {
+            String candidate = "com.spotify.music." + s;
+            if (installed(candidate) == null) return candidate;
+        }
+        return "com.spotify.music.clone" + (System.currentTimeMillis() % 1000);
+    }
+
     private void cloneLayout(LinearLayout page) {
-        LinearLayout card = look.card(page, "Second Spotify");
-        TextView note = look.text("A second Spatch beside the first, with its own name, icon and account.", 14, look.onSurfaceVariant, false);
-        card.addView(note);
+        TextView note = look.text("Manage multiple isolated Spotify instances on this phone. Each clone has its own separate login, local downloads, and launcher icon.", 15, look.onSurfaceVariant, false);
+        note.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
+        page.addView(note);
+
+        LinearLayout listCard = look.card(page, "Installed Clones");
+        clonesListBox = look.column();
+        listCard.addView(clonesListBox);
+
+        LinearLayout createCard = look.card(page, "Create New Clone");
         cloneStatus = look.text("", 14, look.onSurfaceVariant, false);
-        card.addView(cloneStatus, look.spaced(6));
+        createCard.addView(cloneStatus, look.spaced(2));
+
         cloneName = new EditText(this);
         cloneName.setText(prefs.getString(CLONE_NAME, "Spotify Two"));
         cloneName.setHint("Spotify Two");
-        card.addView(look.field("App name", cloneName), look.spaced(14));
+        createCard.addView(look.field("App name", cloneName), look.spaced(12));
+
         clonePkg = new EditText(this);
-        clonePkg.setText(prefs.getString(CLONE_PKG, "com.spotify.music.two"));
+        String suggestedPkg = prefs.getString(CLONE_PKG, nextClonePkg());
+        clonePkg.setText(suggestedPkg);
         clonePkg.setHint("com.spotify.music.two");
         clonePkg.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         clonePkg.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
             @Override public void afterTextChanged(android.text.Editable s) {
-                refresh(); // the status follows the package typed
+                refresh();
             }
         });
-        card.addView(look.field("Package name", clonePkg), look.spaced(12));
+        createCard.addView(look.field("Package name", clonePkg), look.spaced(10));
 
         TextView iconLabel = look.text("Icon", 13, look.onSurfaceVariant, true);
-        card.addView(iconLabel, look.spaced(12));
+        createCard.addView(iconLabel, look.spaced(10));
         cloneIcon = new android.widget.ImageView(this);
         cloneIcon.setClipToOutline(true);
         cloneIcon.setBackground(look.shape(look.containerHigh, 28));
@@ -354,17 +484,283 @@ public final class MainActivity extends Activity {
             refresh();
         });
         LinearLayout iconRow = new LinearLayout(this);
-        iconRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        iconRow.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams iconSize = new LinearLayout.LayoutParams(look.dp(56), look.dp(56));
         iconSize.setMarginEnd(look.dp(16));
         iconRow.addView(cloneIcon, iconSize);
         iconRow.addView(look.row(cloneIconPick, cloneIconReset), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(iconRow, look.spaced(6));
+        createCard.addView(iconRow, look.spaced(6));
 
         cloneInstall = look.button("Install clone", "content_copy", Look.Kind.FILLED, v -> installClone());
-        card.addView(cloneInstall, look.spaced(16));
-        cloneUninstall = look.button("Uninstall clone", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + clonePkg.getText().toString().trim()))));
-        card.addView(cloneUninstall, look.spaced(8));
+        createCard.addView(cloneInstall, look.spaced(16));
+    }
+
+    private void renderClones() {
+        if (clonesListBox == null) return;
+        clonesListBox.removeAllViews();
+        List<CloneInfo> clones = scanClones();
+        int installedCount = 0;
+        for (CloneInfo c : clones) {
+            if (c.info == null) continue;
+            installedCount++;
+            LinearLayout item = look.column();
+            item.setPadding(look.dp(16), look.dp(12), look.dp(16), look.dp(12));
+            item.setBackground(look.shape(look.containerHigh, 20));
+
+            LinearLayout header = new LinearLayout(this);
+            header.setGravity(Gravity.CENTER_VERTICAL);
+            android.widget.ImageView icon = new android.widget.ImageView(this);
+            icon.setClipToOutline(true);
+            icon.setBackground(look.shape(look.container, 14));
+            try {
+                icon.setImageDrawable(c.info.applicationInfo.loadIcon(getPackageManager()));
+            } catch (Exception e) {
+                icon.setImageDrawable(spotifyIcon());
+            }
+            header.addView(icon, new LinearLayout.LayoutParams(look.dp(44), look.dp(44)));
+
+            LinearLayout words = look.column();
+            words.setPadding(look.dp(12), 0, look.dp(8), 0);
+            words.addView(look.text(c.label, 16, look.onSurface, true));
+            String sub = c.pkg + " • " + c.info.versionName + (c.tag != null ? " (" + c.tag.replaceFirst("^(patches-v|bundle-)", "") + ")" : "");
+            words.addView(look.text(sub, 13, look.onSurfaceVariant, false));
+            header.addView(words, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView badge = c.signedByUs ? look.badge("Phone Key", look.onTertiaryContainer, look.tertiaryContainer)
+                                          : look.badge("Other Key", look.onPrimary, look.primary);
+            header.addView(badge);
+            item.addView(header);
+
+            Button open = look.button("Open", "open_in_new", Look.Kind.TEXT, v -> {
+                Intent launch = getPackageManager().getLaunchIntentForPackage(c.pkg);
+                if (launch != null) startActivity(launch);
+                else say("Couldn't open " + c.label);
+            });
+            Button upd = look.button("Update", "system_update", Look.Kind.TONAL, v -> {
+                try {
+                    File ic = cloneIconFile();
+                    patch(new Clone(c.pkg, c.label, ic.isFile() ? java.nio.file.Files.readAllBytes(ic.toPath()) : null));
+                } catch (Exception e) {
+                    say("Update failed: " + e.getMessage());
+                }
+            });
+            look.enable(upd, !busy && patch.isEnabled());
+            Button uninst = look.button("Uninstall", "delete", Look.Kind.TEXT, v -> {
+                startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + c.pkg)));
+            });
+            item.addView(look.row(open, upd, uninst), look.spaced(8));
+
+            clonesListBox.addView(item, look.spaced(8));
+        }
+        if (installedCount == 0) {
+            clonesListBox.addView(look.text("No clones are installed yet. Use the form below to create your first clone.", 14, look.onSurfaceVariant, false));
+        }
+    }
+
+    private void diagnosticsLayout(LinearLayout page) {
+        TextView note = look.text("Verify Spatch installation health, keystore signatures, split APK architecture, and inspect system crash reports.", 15, look.onSurfaceVariant, false);
+        note.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
+        page.addView(note);
+
+        LinearLayout testsCard = look.card(page, "Diagnostics & Self-Tests");
+        runDiagnosticsBtn = look.button("Run self-tests", "tune", Look.Kind.FILLED, v -> runDiagnostics());
+        copyDiagnosticsBtn = look.button("Copy report", "content_copy", Look.Kind.TONAL, v -> copyDiagnostics());
+        testsCard.addView(look.row(runDiagnosticsBtn, copyDiagnosticsBtn));
+        diagnosticsText = look.text("Tap 'Run self-tests' to verify signing keys, split packages, and system permissions.", 13, look.onSurfaceVariant, false);
+        diagnosticsText.setTypeface(android.graphics.Typeface.MONOSPACE);
+        diagnosticsText.setPadding(look.dp(12), look.dp(12), look.dp(12), look.dp(12));
+        diagnosticsText.setBackground(look.shape(look.containerHigh, 16));
+        testsCard.addView(diagnosticsText, look.spaced(10));
+
+        LinearLayout exitsCard = look.card(page, "Spotify Process Exits & Crashes");
+        TextView exitsNote = look.text("OS-level historical process terminations from ActivityManager.", 14, look.onSurfaceVariant, false);
+        exitsCard.addView(exitsNote);
+        exitsText = look.text("Loading process history…", 13, look.onSurfaceVariant, false);
+        exitsText.setTypeface(android.graphics.Typeface.MONOSPACE);
+        exitsText.setPadding(look.dp(12), look.dp(12), look.dp(12), look.dp(12));
+        exitsText.setBackground(look.shape(look.containerHigh, 16));
+        exitsCard.addView(exitsText, look.spaced(10));
+        refreshExitsBtn = look.button("Refresh crash history", "refresh", Look.Kind.TONAL, v -> updateExitReasons());
+        exitsCard.addView(refreshExitsBtn, look.spaced(10));
+
+        LinearLayout shortcutsCard = look.card(page, "System Settings & Shortcuts");
+        openBatterySettingsBtn = look.button("Battery optimization", "tune", Look.Kind.TONAL, v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            } catch (Exception e) {
+                say("Settings unavailable.");
+            }
+        });
+        openAppDetailsBtn = look.button("Spotify details", "open_in_new", Look.Kind.TONAL, v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + SPOTIFY)));
+            } catch (Exception e) {
+                say("App details unavailable.");
+            }
+        });
+        launchSpotifyBtn = look.button("Launch Spotify", "music_note", Look.Kind.TONAL, v -> {
+            Intent i = getPackageManager().getLaunchIntentForPackage(SPOTIFY);
+            if (i != null) startActivity(i);
+            else say("Spotify isn't installed.");
+        });
+        shortcutsCard.addView(look.row(openBatterySettingsBtn, openAppDetailsBtn));
+        shortcutsCard.addView(launchSpotifyBtn, look.spaced(8));
+    }
+
+    private void runDiagnostics() {
+        diagnosticsText.setText("Running self-tests…");
+        worker.execute(() -> {
+            StringBuilder sb = new StringBuilder();
+            int pass = 0, warn = 0, fail = 0;
+
+            if (keys != null) {
+                pass++;
+                sb.append("PASS Phone Signing Keystore\n");
+                try {
+                    sb.append("     Fingerprint: ").append(keys.fingerprint().substring(0, 32)).append("\n");
+                } catch (Exception e) {
+                    sb.append("     Fingerprint: unreadable\n");
+                }
+            } else {
+                fail++;
+                sb.append("FAIL Phone Signing Keystore: missing or unreadable\n");
+            }
+
+            PackageInfo info = spotify();
+            if (info != null) {
+                boolean ours = keys != null && signedByUs(info);
+                if (ours) {
+                    pass++;
+                    sb.append("PASS Spotify Signature Match\n");
+                    sb.append("     Installed: Spotify ").append(info.versionName).append(" (signed with phone key)\n");
+                } else {
+                    warn++;
+                    sb.append("WARN Spotify Signature Mismatch\n");
+                    sb.append("     Installed with different key; import earlier key or reinstall to update\n");
+                }
+                if (info.applicationInfo != null && info.applicationInfo.splitNames != null && info.applicationInfo.splitNames.length > 0) {
+                    pass++;
+                    sb.append("PASS Split APK Architecture\n");
+                    sb.append("     ").append(info.applicationInfo.splitNames.length).append(" splits installed: ").append(String.join(", ", info.applicationInfo.splitNames)).append("\n");
+                } else {
+                    warn++;
+                    sb.append("WARN No Split APKs detected (monolithic base)\n");
+                }
+            } else {
+                sb.append("INFO Spotify is not currently installed\n");
+            }
+
+            File base = originalBase();
+            if (base.isFile()) {
+                pass++;
+                sb.append("PASS Preserved Original base.apk\n");
+                sb.append("     ").append(base.length() / (1 << 20)).append(" MB cached for fast updates\n");
+            } else {
+                sb.append("INFO Original base.apk not cached yet\n");
+            }
+
+            File apkm = apkm();
+            if (apkm.isFile()) {
+                pass++;
+                sb.append("PASS Spotify APKM Saved\n");
+                sb.append("     ").append(apkm.length() / (1 << 20)).append(" MB available\n");
+            } else {
+                sb.append("INFO No APKM cached on device\n");
+            }
+
+            if (getPackageManager().canRequestPackageInstalls()) {
+                pass++;
+                sb.append("PASS App Install Permission: Allowed\n");
+            } else {
+                fail++;
+                sb.append("FAIL App Install Permission: Not granted\n");
+            }
+
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                pass++;
+                sb.append("PASS Battery Optimization: Unrestricted (background checks active)\n");
+            } else {
+                warn++;
+                sb.append("WARN Battery Optimization: Optimized (Android may delay background checks)\n");
+            }
+
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") == PackageManager.PERMISSION_GRANTED) {
+                    pass++;
+                    sb.append("PASS Notifications: Granted\n");
+                } else {
+                    warn++;
+                    sb.append("WARN Notifications: Not granted\n");
+                }
+            }
+
+            if (releases != null && releases.bundle != null) {
+                pass++;
+                sb.append("PASS Releases API: Connected\n");
+                sb.append("     Latest version: ").append(Releases.version(releases.bundle)).append("\n");
+            } else if (releaseError != null) {
+                warn++;
+                sb.append("WARN Releases API: ").append(releaseError).append("\n");
+            }
+
+            sb.append("\nResults: ").append(pass).append(" passed, ").append(warn).append(" warnings, ").append(fail).append(" failed");
+            String resultText = sb.toString();
+            main.post(() -> {
+                if (diagnosticsText != null) diagnosticsText.setText(resultText);
+            });
+        });
+    }
+
+    private void copyDiagnostics() {
+        android.content.ClipboardManager clips = getSystemService(android.content.ClipboardManager.class);
+        if (clips != null && diagnosticsText != null) {
+            clips.setPrimaryClip(android.content.ClipData.newPlainText("Spatch Diagnostics", diagnosticsText.getText()));
+            say("Diagnostics report copied to clipboard.");
+        }
+    }
+
+    private void updateExitReasons() {
+        if (Build.VERSION.SDK_INT < 30) {
+            if (exitsText != null) exitsText.setText("Historical process exit monitoring requires Android 11+ (API 30).");
+            return;
+        }
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am == null) {
+                if (exitsText != null) exitsText.setText("ActivityManager is not available.");
+                return;
+            }
+            List<ApplicationExitInfo> exits = am.getHistoricalProcessExitReasons(SPOTIFY, 0, 8);
+            if (exits == null || exits.isEmpty()) {
+                if (exitsText != null) exitsText.setText("No process exits or crashes recorded by the OS for Spotify.");
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+            for (ApplicationExitInfo exit : exits) {
+                String reasonStr;
+                switch (exit.getReason()) {
+                    case ApplicationExitInfo.REASON_CRASH: reasonStr = "CRASH (Java Exception)"; break;
+                    case ApplicationExitInfo.REASON_CRASH_NATIVE: reasonStr = "NATIVE CRASH (Signal)"; break;
+                    case ApplicationExitInfo.REASON_ANR: reasonStr = "ANR (Freeze / Not Responding)"; break;
+                    case ApplicationExitInfo.REASON_LOW_MEMORY: reasonStr = "LOW MEMORY (LMK)"; break;
+                    case ApplicationExitInfo.REASON_USER_REQUESTED: reasonStr = "USER REQUESTED (Force stop / Swiped)"; break;
+                    case ApplicationExitInfo.REASON_EXIT_SELF: reasonStr = "EXIT SELF (Clean exit)"; break;
+                    default: reasonStr = "REASON #" + exit.getReason(); break;
+                }
+                sb.append("• ").append(sdf.format(new Date(exit.getTimestamp()))).append("\n");
+                sb.append("  ").append(reasonStr).append(" (PID ").append(exit.getPid()).append(")\n");
+                String desc = exit.getDescription();
+                if (desc != null && !desc.trim().isEmpty()) {
+                    sb.append("  ").append(desc.trim()).append("\n");
+                }
+                sb.append("\n");
+            }
+            if (exitsText != null) exitsText.setText(sb.toString().trim());
+        } catch (Exception e) {
+            if (exitsText != null) exitsText.setText("Couldn't read exit history: " + e.getMessage());
+        }
     }
 
     private void changesLayout(LinearLayout page) {
@@ -376,6 +772,46 @@ public final class MainActivity extends Activity {
         page.addView(look.row(refreshChanges, openGithub), look.spaced(10));
         changesBox = look.column();
         page.addView(changesBox);
+
+        LinearLayout options = look.card(page, "Appearance & updates");
+        displayMode = look.button("Display mode: " + displayModeLabel(), "tune", Look.Kind.TONAL, v -> {
+            String[] modes = {"system", "light", "dark", "black"};
+            String[] labels = {"System (Dynamic)", "Light", "Dark", "Pitch Black (AMOLED)"};
+            int selected = Arrays.asList(modes).indexOf(prefs.getString("theme_mode", "system"));
+            if (selected < 0) selected = 0;
+            new AlertDialog.Builder(this).setTitle("Display mode").setSingleChoiceItems(labels, selected, (dialog, index) -> {
+                prefs.edit().putString("theme_mode", modes[index]).apply();
+                dialog.dismiss();
+                recreate();
+            }).setNegativeButton("Cancel", null).show();
+        });
+        options.addView(displayMode, look.spaced(6));
+        managerStatus = look.text("", 14, look.onSurfaceVariant, false);
+        options.addView(managerStatus, look.spaced(6));
+        managerUpdate = look.button("Update manager", "system_update", Look.Kind.FILLED, v -> updateManager());
+        options.addView(managerUpdate, look.spaced(10));
+        check = look.button("Check for updates", "refresh", Look.Kind.TEXT, v -> checkUpdates());
+        options.addView(check, look.spaced(4));
+
+        LinearLayout key = look.card(page, "Signing key");
+        TextView keyNote = look.text("Spatch and its clones are signed with this phone's key. Export it to keep it safe, or import the key an earlier Spatch was signed with so updates install over it.", 14, look.onSurfaceVariant, false);
+        key.addView(keyNote);
+        keyStatus = look.text("", 13, look.onSurfaceVariant, false);
+        keyStatus.setTypeface(android.graphics.Typeface.MONOSPACE);
+        key.addView(keyStatus, look.spaced(8));
+        exportKey = look.button("Export", "key", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
+        importKey = look.button("Import", "file_open", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
+        key.addView(look.row(exportKey, importKey), look.spaced(12));
+    }
+
+    private String displayModeLabel() {
+        String mode = prefs.getString("theme_mode", "system");
+        switch (mode) {
+            case "light": return "Light";
+            case "dark": return "Dark";
+            case "black": return "Pitch Black";
+            default: return "System";
+        }
     }
 
     private void renderChanges(String installed) {
@@ -436,6 +872,9 @@ public final class MainActivity extends Activity {
             return;
         }
         prefs.edit().putString(CLONE_PKG, pkg).putString(CLONE_NAME, name).apply();
+        Set<String> set = new HashSet<>(prefs.getStringSet(CLONES_SET, Collections.emptySet()));
+        set.add(pkg);
+        prefs.edit().putStringSet(CLONES_SET, set).apply();
         try {
             File icon = cloneIconFile();
             patch(new Clone(pkg, name, icon.isFile() ? java.nio.file.Files.readAllBytes(icon.toPath()) : null));
@@ -490,6 +929,23 @@ public final class MainActivity extends Activity {
         Releases.Release bundle = releases == null ? null : releases.bundle(nightly.isChecked());
         patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
             : releaseError != null ? releaseError : "Looking for patches…");
+
+        // Profile display
+        String profName = prefs.getString(PROFILE, "standard");
+        PresetProfile matched = null;
+        for (PresetProfile p : PresetProfile.values()) {
+            if (p.name().equalsIgnoreCase(profName)) { matched = p; break; }
+        }
+        boolean isDev = developer.isChecked();
+        boolean isNight = nightly.isChecked();
+        if (matched != null && (matched.debug != isDev || matched.nightly != isNight)) {
+            profName = "custom";
+        }
+        String pLabel = (matched != null && !profName.equals("custom")) ? matched.label : "Custom";
+        if (profileBadge != null) profileBadge.setText("Profile: " + pLabel);
+        if (chooseProfile != null) chooseProfile.setText("Patch preset: " + pLabel);
+        if (profileDesc != null) profileDesc.setText(matched != null && !profName.equals("custom") ? matched.description : "Custom configuration toggled below.");
+
         String headline = nightly.isChecked() && releases != null && !releases.commits.isEmpty()
             ? "Latest change: " + releases.commits.get(0).title
             : bundle != null && !bundle.notes.isEmpty() ? "What's new: " + Releases.summary(bundle.notes) : "";
@@ -513,9 +969,12 @@ public final class MainActivity extends Activity {
             ? " (" + (mgrUpdate.tag.startsWith("nightly-") ? Releases.version(mgrUpdate) : "version " + Releases.version(mgrUpdate)) + " is available)."
             : " is up to date."));
         managerUpdate.setVisibility(mgrUpdate != null ? View.VISIBLE : View.GONE);
-        for (Button b : Arrays.asList(displayMode, choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset)) look.enable(b, !busy);
+        for (Button b : Arrays.asList(displayMode, choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset, chooseProfile, runDiagnosticsBtn, copyDiagnosticsBtn, refreshExitsBtn)) {
+            if (b != null) look.enable(b, !busy);
+        }
         look.enable(exportKey, !busy && keys != null);
         renderChanges(installed);
+        renderClones();
 
         String pkg = clonePkg.getText().toString().trim();
         String problem = Clone.problem(pkg);
@@ -523,13 +982,11 @@ public final class MainActivity extends Activity {
         boolean cloneOurs = clone != null && keys != null && signedByUs(clone);
         String cloneTag = prefs.getString(CLONE_INSTALLED + pkg, null);
         cloneStatus.setText(problem != null ? problem
-            : clone == null ? "No clone is installed as " + pkg + "."
+            : clone == null ? "Ready to create " + pkg + "."
             : cloneOurs ? "Installed" + (cloneTag != null ? ", patches " + cloneTag.replaceFirst("^(patches-v|bundle-)", "") : "") + ". Spotify " + clone.versionName + "."
             : pkg + " is another app, signed with another key.");
         Look.label(cloneInstall, cloneOurs ? "Update clone" : "Install clone");
         look.enable(cloneInstall, problem == null && (clone == null || cloneOurs) && patch.isEnabled());
-        cloneUninstall.setVisibility(cloneOurs ? View.VISIBLE : View.GONE);
-        look.enable(cloneUninstall, !busy);
         File icon = cloneIconFile();
         if (icon.isFile()) cloneIcon.setImageBitmap(android.graphics.BitmapFactory.decodeFile(icon.getPath()));
         else cloneIcon.setImageDrawable(spotifyIcon());
@@ -841,6 +1298,8 @@ public final class MainActivity extends Activity {
         busy = true;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         say(what + "…");
+        stepTracker.setStage(0);
+        stepTracker.setVisibility(View.VISIBLE);
         progress.setVisibility(View.VISIBLE);
         progress.setIndeterminate(true);
         refresh();
@@ -849,6 +1308,7 @@ public final class MainActivity extends Activity {
                 job.run();
                 if (install) main.post(() -> {
                     progress.setVisibility(View.GONE);
+                    stepTracker.setStage(3);
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                     say("Waiting for the installer…");
                 });
@@ -861,6 +1321,12 @@ public final class MainActivity extends Activity {
     private void step(String what, int done, int total) {
         main.post(() -> {
             say(what + "…");
+            int stage = 0;
+            if (what.contains("Patch") || what.contains("base.apk") || what.contains("Preparing")) stage = 1;
+            else if (what.contains("Sign")) stage = 2;
+            else if (what.contains("Install") || what.contains("Waiting")) stage = 3;
+            stepTracker.setStage(stage);
+            stepTracker.setVisibility(View.VISIBLE);
             progress.setIndeterminate(false);
             progress.setMax(total);
             progress.setProgress(done);
@@ -871,6 +1337,7 @@ public final class MainActivity extends Activity {
         main.post(() -> {
             busy = false;
             progress.setVisibility(View.GONE);
+            stepTracker.setVisibility(View.GONE);
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             say(message);
             refresh();
