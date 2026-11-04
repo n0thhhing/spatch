@@ -36,17 +36,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Four pages under a navigation bar: Spotify (the user's APKM and the newest patch bundle), Clone (a
- * second Spatch with its own package, name and icon), the phone's signing key and the manager's own
- * updates. Patching, signing and installing all happen here; nothing leaves the phone.
+ * Two pages under a navigation bar: Spatch (installing or updating Spotify, build options, clones,
+ * and the phone's signing key) and Changes (recent nightly commits and release notes). Patching,
+ * signing and installing all happen here; nothing leaves the phone.
  */
 public final class MainActivity extends Activity {
     private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates", INVITE = "source_invite", DOWNLOADED = "apkm_downloaded";
     private static final String PAGE = "page", CLONE_PKG = "clone_package", CLONE_NAME = "clone_name", CLONE_INSTALLED = "clone_installed:";
     static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", NIGHTLY = "nightly_patches", UPDATE = "start_update";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
-    private static final String[] PAGES = {"Spotify", "Clone", "Key", "Manager"}, PAGE_ICONS = {"music_note", "content_copy", "key", "tune"};
-    private static final String[] HEADINGS = {"Spatch", "Clone", "Signing key", "Manager"};
+    private static final String[] PAGES = {"Spatch", "Changes"}, PAGE_ICONS = {"music_note", "system_update"};
+    private static final String[] HEADINGS = {"Spatch", "Changes"};
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -58,10 +58,10 @@ public final class MainActivity extends Activity {
     private volatile boolean replaceImport; // the chosen APKM was the wrong one and the user tapped Install again
     private volatile boolean inheriting, inheritFailed; // an update replacing base.apk alone; a failed one goes back to all five
     private Look look;
-    private LinearLayout statusCard;
+    private LinearLayout statusCard, changesBox;
 
-    private TextView spotifyStatus, apkmStatus, patchStatus, keyStatus, managerStatus, status, heading, cloneStatus;
-    private Button choose, patch, uninstall, managerUpdate, check, exportKey, importKey, invite;
+    private TextView spotifyStatus, apkmStatus, patchStatus, whatsNew, keyStatus, managerStatus, status, heading, cloneStatus;
+    private Button choose, seeChanges, patch, uninstall, managerUpdate, check, refreshChanges, exportKey, importKey, invite;
     private Button cloneInstall, cloneUninstall, cloneIconPick, cloneIconReset;
     private EditText clonePkg, cloneName;
     private android.widget.ImageView cloneIcon;
@@ -197,45 +197,34 @@ public final class MainActivity extends Activity {
         spotify.addView(apkmStatus, look.spaced(6));
         patchStatus = look.text("", 14, look.onSurfaceVariant, false);
         spotify.addView(patchStatus, look.spaced(2));
+        whatsNew = look.text("", 13, look.primary, false);
+        whatsNew.setVisibility(View.GONE);
+        spotify.addView(whatsNew, look.spaced(4));
+        patch = look.button("Install Spatch", "download", Look.Kind.FILLED, v -> patch());
+        spotify.addView(patch, look.spaced(12));
+        choose = look.button("Choose APKM", "folder_open", Look.Kind.TONAL, v -> pickApkm());
+        seeChanges = look.button("What's new", "system_update", Look.Kind.TONAL, v -> show(1));
+        spotify.addView(look.row(choose, seeChanges), look.spaced(8));
+        invite = look.button("Add an invite", "link", Look.Kind.TEXT, v -> editInvite());
+        spotify.addView(invite, look.spaced(4));
+        uninstall = look.button("Uninstall Spotify", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
+        spotify.addView(uninstall, look.spaced(8));
+
+        LinearLayout options = look.card(pages[0], "Options & updates");
         developer = new Switch(this);
         developer.setChecked(prefs.getBoolean(DEBUG, false));
         developer.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(DEBUG, on).apply();
             refresh();
         });
-        spotify.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer), look.spaced(6));
+        options.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer));
         nightly = new Switch(this);
         nightly.setChecked(prefs.getBoolean(NIGHTLY, false));
         nightly.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(NIGHTLY, on).apply();
             refresh();
         });
-        spotify.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
-        patch = look.button("Install Spatch", "download", Look.Kind.FILLED, v -> patch());
-        spotify.addView(patch, look.spaced(8));
-        choose = look.button("Choose Spotify APKM", "folder_open", Look.Kind.TONAL, v -> pickApkm());
-        spotify.addView(choose, look.spaced(8));
-        invite = look.button("Add an invite", "link", Look.Kind.TEXT, v -> editInvite());
-        spotify.addView(invite, look.spaced(4));
-        uninstall = look.button("Uninstall Spotify", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
-        spotify.addView(uninstall, look.spaced(8));
-
-        cloneLayout(pages[1]);
-
-        TextView keyNote = look.text("Spatch and its clones are signed with this key. Export it to keep it safe, or import the key an earlier Spatch was signed with so updates install over it.", 15, look.onSurfaceVariant, false);
-        keyNote.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
-        pages[2].addView(keyNote);
-        LinearLayout key = look.card(pages[2], "This phone's key");
-        keyStatus = look.text("", 14, look.onSurfaceVariant, false);
-        keyStatus.setTypeface(android.graphics.Typeface.MONOSPACE);
-        key.addView(keyStatus);
-        exportKey = look.button("Export", "key", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
-        importKey = look.button("Import", "file_open", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
-        key.addView(look.row(exportKey, importKey), look.spaced(12));
-
-        LinearLayout manager = look.card(pages[3], "Spatch Manager");
-        managerStatus = look.text("", 14, look.onSurfaceVariant, false);
-        manager.addView(managerStatus);
+        options.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
         notify = new Switch(this);
         notify.setChecked(prefs.getBoolean(NOTIFY, true));
         notify.setOnCheckedChangeListener((v, on) -> {
@@ -243,12 +232,28 @@ public final class MainActivity extends Activity {
             UpdateCheck.schedule(this, on);
             if (on && android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
         });
-        manager.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify), look.spaced(4));
+        options.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
+        managerStatus = look.text("", 14, look.onSurfaceVariant, false);
+        options.addView(managerStatus, look.spaced(6));
         managerUpdate = look.button("Update manager", "system_update", Look.Kind.FILLED, v -> updateManager());
-        manager.addView(managerUpdate, look.spaced(12));
+        options.addView(managerUpdate, look.spaced(10));
         check = look.button("Check for updates", "refresh", Look.Kind.TEXT, v -> checkUpdates());
         Button page2 = look.button("Releases", "open_in_new", Look.Kind.TEXT, v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
-        manager.addView(look.row(check, page2), look.spaced(4));
+        options.addView(look.row(check, page2), look.spaced(4));
+
+        cloneLayout(pages[0]);
+
+        LinearLayout key = look.card(pages[0], "Signing key");
+        TextView keyNote = look.text("Spatch and its clones are signed with this phone's key. Export it to keep it safe, or import the key an earlier Spatch was signed with so updates install over it.", 14, look.onSurfaceVariant, false);
+        key.addView(keyNote);
+        keyStatus = look.text("", 13, look.onSurfaceVariant, false);
+        keyStatus.setTypeface(android.graphics.Typeface.MONOSPACE);
+        key.addView(keyStatus, look.spaced(8));
+        exportKey = look.button("Export", "key", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/x-pkcs12").putExtra(Intent.EXTRA_TITLE, "spatch-key.p12"), EXPORT_KEY));
+        importKey = look.button("Import", "file_open", Look.Kind.TONAL, v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_KEY));
+        key.addView(look.row(exportKey, importKey), look.spaced(12));
+
+        changesLayout(pages[1]);
 
         scroll = new ScrollView(this);
         scroll.addView(page);
@@ -286,12 +291,11 @@ public final class MainActivity extends Activity {
     }
 
     private void cloneLayout(LinearLayout page) {
-        TextView note = look.text("A second Spatch beside the first, with its own name, icon and account. It's signed with this phone's key, so it sits beside Spatch but not beside Spotify's own app.", 15, look.onSurfaceVariant, false);
-        note.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
-        page.addView(note);
         LinearLayout card = look.card(page, "Second Spotify");
+        TextView note = look.text("A second Spatch beside the first, with its own name, icon and account.", 14, look.onSurfaceVariant, false);
+        card.addView(note);
         cloneStatus = look.text("", 14, look.onSurfaceVariant, false);
-        card.addView(cloneStatus);
+        card.addView(cloneStatus, look.spaced(6));
         cloneName = new EditText(this);
         cloneName.setText(prefs.getString(CLONE_NAME, "Spotify Two"));
         cloneName.setHint("Spotify Two");
@@ -331,6 +335,62 @@ public final class MainActivity extends Activity {
         card.addView(cloneInstall, look.spaced(16));
         cloneUninstall = look.button("Uninstall clone", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + clonePkg.getText().toString().trim()))));
         card.addView(cloneUninstall, look.spaced(8));
+    }
+
+    private void changesLayout(LinearLayout page) {
+        TextView note = look.text("Recent commits in Nightly and release notes from published Spatch updates.", 15, look.onSurfaceVariant, false);
+        note.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
+        page.addView(note);
+        refreshChanges = look.button("Refresh", "refresh", Look.Kind.TONAL, v -> checkUpdates());
+        Button openGithub = look.button("GitHub releases", "open_in_new", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
+        page.addView(look.row(refreshChanges, openGithub), look.spaced(10));
+        changesBox = look.column();
+        page.addView(changesBox);
+    }
+
+    private void renderChanges(String installed) {
+        changesBox.removeAllViews();
+        if (releases == null) {
+            LinearLayout card = look.card(changesBox, "Changes");
+            card.addView(look.text(releaseError != null ? releaseError : "Looking for changes…", 14, look.onSurfaceVariant, false));
+            return;
+        }
+        if (!releases.commits.isEmpty() || releases.nightly != null) {
+            LinearLayout card = look.card(changesBox, "Nightly commits");
+            if (releases.commits.isEmpty()) {
+                card.addView(look.text(releases.nightly.tag, 13, look.primary, true));
+                if (!releases.nightly.notes.isEmpty()) card.addView(look.text(releases.nightly.notes, 14, look.onSurfaceVariant, false), look.spaced(4));
+            } else {
+                for (int i = 0; i < releases.commits.size(); i++) {
+                    Releases.Note c = releases.commits.get(i);
+                    if (i > 0) {
+                        View div = new View(this);
+                        div.setBackgroundColor(Look.blend(look.container, look.outline, 0.22f));
+                        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, look.dp(1)));
+                        lp.topMargin = look.dp(10);
+                        lp.bottomMargin = look.dp(10);
+                        card.addView(div, lp);
+                    }
+                    boolean onPhone = installed != null && installed.startsWith(c.tag);
+                    boolean newest = releases.nightly != null ? releases.nightly.tag.equals(c.tag) : i == 0;
+                    String meta = c.tag.replaceFirst("^nightly-", "")
+                        + (c.date.isEmpty() ? "" : "  •  " + c.date)
+                        + (onPhone ? "  •  Installed" : newest ? "  •  Newest nightly" : "");
+                    card.addView(look.text(c.title, 15, look.onSurface, true));
+                    card.addView(look.text(meta, 13, onPhone || newest ? look.primary : look.onSurfaceVariant, onPhone || newest), look.spaced(2));
+                    if (!c.body.isEmpty()) card.addView(look.text(c.body, 13, look.onSurfaceVariant, false), look.spaced(4));
+                }
+            }
+        }
+        String own = ownName();
+        for (Releases.Note n : releases.notes) {
+            LinearLayout card = look.card(changesBox, n.title);
+            boolean onPhone = (installed != null && installed.startsWith(n.tag))
+                || (n.tag.startsWith("manager-v") && n.tag.substring("manager-v".length()).equals(own));
+            String meta = n.tag + (n.date.isEmpty() ? "" : "  •  " + n.date) + (onPhone ? "  •  Installed" : "");
+            card.addView(look.text(meta, 13, onPhone ? look.primary : look.onSurfaceVariant, onPhone));
+            card.addView(look.text(n.body, 14, look.onSurfaceVariant, false), look.spaced(6));
+        }
     }
 
     private void installClone() {
@@ -398,9 +458,14 @@ public final class MainActivity extends Activity {
         Releases.Release bundle = releases == null ? null : releases.bundle(nightly.isChecked());
         patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
             : releaseError != null ? releaseError : "Looking for patches…");
+        String headline = nightly.isChecked() && releases != null && !releases.commits.isEmpty()
+            ? "Latest change: " + releases.commits.get(0).title
+            : bundle != null && !bundle.notes.isEmpty() ? "What's new: " + Releases.summary(bundle.notes) : "";
+        whatsNew.setText(headline);
+        whatsNew.setVisibility(headline.isEmpty() ? View.GONE : View.VISIBLE);
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
         Look.label(patch, !ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
-        Look.label(choose, apkm.isFile() ? "Choose another APKM" : "Choose Spotify APKM");
+        Look.label(choose, apkm.isFile() ? "Another APKM" : "Choose APKM");
         look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null || source != null));
         Look.label(invite, source == null ? "Add an invite" : "Invite for " + source.host());
         developer.setEnabled(!busy);
@@ -412,10 +477,11 @@ public final class MainActivity extends Activity {
             keyStatus.setText("Key unreadable.");
         }
         int own = ownCode(), newest = Releases.code(releases == null ? null : releases.manager);
-        managerStatus.setText("Version " + ownName() + (newest > own ? ". Version " + Releases.version(releases.manager) + " is available." : "."));
+        managerStatus.setText("Spatch Manager " + ownName() + (newest > own ? " (version " + Releases.version(releases.manager) + " is available)." : " is up to date."));
         managerUpdate.setVisibility(newest > own ? View.VISIBLE : View.GONE);
-        for (Button b : Arrays.asList(choose, managerUpdate, check, importKey, invite, cloneIconPick, cloneIconReset)) look.enable(b, !busy);
+        for (Button b : Arrays.asList(choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset)) look.enable(b, !busy);
         look.enable(exportKey, !busy && keys != null);
+        renderChanges(installed);
 
         String pkg = clonePkg.getText().toString().trim();
         String problem = Clone.problem(pkg);

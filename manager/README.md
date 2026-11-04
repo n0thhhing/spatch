@@ -50,7 +50,7 @@ checks twice a day and posts a notification; tapping it opens the manager straig
 
 **Update manager** appears when a newer manager release is out.
 
-The pages along the bottom are Spotify (the steps above), Clone, Key and Manager.
+The two pages along the bottom are **Spatch** (Spotify, Options & updates, Second Spotify and Signing key) and **Changes** (recent nightly commits and release notes).
 
 **Clone** installs a second Spatch beside the first, under its own package name (say
 `com.spotify.music.two`), with its own app name and, optionally, a picture of yours as its icon.

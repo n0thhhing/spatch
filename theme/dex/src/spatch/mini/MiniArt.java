@@ -106,7 +106,7 @@ public final class MiniArt extends ImageView {
         private final long started = SystemClock.uptimeMillis();
         private boolean finished;
 
-        private Fling(View root, Drawable art, float x, float y, float size, float dx, float deg) {
+        Fling(View root, Drawable art, float x, float y, float size, float dx, float deg) {
             this.root = root;
             this.art = art;
             this.x = x;
