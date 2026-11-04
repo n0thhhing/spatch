@@ -24,7 +24,24 @@ concurrency:
   cancel-in-progress: true # a newer push makes the running build moot
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      patches: ${{ steps.inputs.outputs.patches }}
+      manager: ${{ steps.inputs.outputs.manager }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIGHTLY_CHECK: 1
+        run: scripts/nightly.sh "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: changes
+    if: needs.changes.outputs.patches == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -99,6 +116,34 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NIGHTLY_BUILD: ${{ matrix.bundle }}
           NIGHTLY_OUT: ${{ runner.temp }}/bundle
+        run: |
+          scripts/nightly.sh "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.bundle }}
+          path: ${{ runner.temp }}/bundle
+          if-no-files-found: ignore # nightly was already this commit
+          retention-days: 1
+          compression-level: 0 # the bundles are already compressed ZIPs
+
+  manager:
+    needs: changes
+    if: needs.changes.outputs.manager == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Build manager
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIGHTLY_BUILD: manager
+          NIGHTLY_OUT: ${{ runner.temp }}/manager
           MANAGER_KEYSTORE: ${{ secrets.MANAGER_KEYSTORE }}
           MANAGER_KS_PASS: ${{ secrets.MANAGER_KS_PASS }}
         run: |
@@ -109,14 +154,15 @@ jobs:
           scripts/nightly.sh "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         with:
-          name: bundle-${{ matrix.bundle }}
-          path: ${{ runner.temp }}/bundle
-          if-no-files-found: ignore # nightly was already this commit
+          name: manager
+          path: ${{ runner.temp }}/manager
+          if-no-files-found: error
           retention-days: 1
-          compression-level: 0 # the bundles are already compressed ZIPs
+          compression-level: 0
 
   publish:
-    needs: build
+    needs: [changes, build, manager]
+    if: always() && needs.changes.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.manager.result == 'success' || needs.manager.result == 'skipped') && (needs.changes.outputs.patches == 'true' || needs.changes.outputs.manager == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

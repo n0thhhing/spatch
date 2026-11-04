@@ -97,9 +97,9 @@ final class Releases {
                 if (tag.equals("nightly") && release.optBoolean("prerelease") && !release.optBoolean("draft")) {
                     String commit = release.optString("target_commitish", "");
                     String url = asset(release, "spatch-bundle.zip");
-                    if (commit.length() >= 7 && url != null) r.nightly = new Release("nightly-" + commit.substring(0, 7), url, asset(release, "spatch-bundle-debug.zip"), body);
+                    if (commit.length() >= 7 && url != null) r.nightly = new Release(nightlyIdentity(release, "spatch-bundle.zip", commit), url, asset(release, "spatch-bundle-debug.zip"), body);
                     String mgr = asset(release, "spatch-manager.apk");
-                    if (commit.length() >= 7 && mgr != null) r.nightlyManager = new Release("nightly-" + commit.substring(0, 7), mgr, null, body);
+                    if (commit.length() >= 7 && mgr != null) r.nightlyManager = new Release(nightlyIdentity(release, "spatch-manager.apk", commit), mgr, null, body);
                     continue;
                 }
                 if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
@@ -137,6 +137,17 @@ final class Releases {
         } catch (JSONException e) {
             throw new IOException("GitHub sent something unexpected.", e);
         }
+    }
+
+    private static String nightlyIdentity(JSONObject release, String name, String commit) throws JSONException {
+        JSONArray assets = release.getJSONArray("assets");
+        for (int i = 0; i < assets.length(); i++) {
+            JSONObject asset = assets.getJSONObject(i);
+            String label = asset.optString("label", "");
+            if (name.equals(asset.getString("name")) && label.matches("nightly-[0-9a-f]{40}"))
+                return label.substring(0, 15); // matches the manager APK's seven-digit version suffix
+        }
+        return "nightly-" + commit.substring(0, 7); // releases published before component identities
     }
 
     /** Strips basic markdown punctuation so release notes read cleanly in plain TextViews. */
