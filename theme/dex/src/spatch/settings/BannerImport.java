@@ -120,7 +120,7 @@ public final class BannerImport extends Fragment implements Runnable {
 
     private void fail(String message) {
         Activity activity = getActivity();
-        if (activity != null) new AlertDialog.Builder(activity, 0x010302d1).setTitle("Banner not added").setMessage(message).setPositiveButton("OK", null).show();
+        if (activity != null) new AlertDialog.Builder(activity, Palette.dialogTheme()).setTitle("Banner not added").setMessage(message).setPositiveButton("OK", null).show();
         finish();
     }
 

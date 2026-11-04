@@ -412,10 +412,23 @@ fn helper_source(source: &str, theme: &Theme) -> String {
                 )
             })
             .collect();
+        let light: Vec<_> = crate::theme::LIGHT
+            .iter()
+            .map(|row| {
+                format!(
+                    "{{{}}}",
+                    row.iter()
+                        .map(|c| format!("0x{c:06x}"))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            })
+            .collect();
         return theme
             .apply(source)
             .replace("@THEME@", theme.name)
-            .replace("@PALETTES@", &rows.join(","));
+            .replace("@PALETTES@", &rows.join(","))
+            .replace("@LIGHT_PALETTES@", &light.join(","));
     }
     let mut out = String::new();
     let mut p = 0;

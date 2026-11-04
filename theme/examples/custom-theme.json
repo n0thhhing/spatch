@@ -1,0 +1,25 @@
+{
+  "name": "Lavender example",
+  "dark": {
+    "surface": "#14121c",
+    "elevated": "#1d1a2a",
+    "highlight": "#2b2640",
+    "text": "#f3eeff",
+    "secondary": "#c6b8ff",
+    "subdued": "#bcb3dc",
+    "accent": "#d0bcff",
+    "accent_highlight": "#e0d2ff",
+    "accent_pressed": "#b7a3ee"
+  },
+  "light": {
+    "surface": "#fffbfe",
+    "elevated": "#f3edf7",
+    "highlight": "#e8def8",
+    "text": "#1d1b20",
+    "secondary": "#49454f",
+    "subdued": "#625b71",
+    "accent": "#6750a4",
+    "accent_highlight": "#8d76bc",
+    "accent_pressed": "#57448b"
+  }
+}

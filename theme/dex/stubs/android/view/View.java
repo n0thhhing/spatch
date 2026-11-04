@@ -3,6 +3,8 @@ package android.view;
 public class View implements android.graphics.drawable.Drawable.Callback { public void postOnAnimation(Runnable r){}
     public static final int VISIBLE = 0, INVISIBLE = 4;
     public void setAlpha(float a) {}
+    public int getSystemUiVisibility() { return 0; }
+    public void setSystemUiVisibility(int value) {}
     public android.content.res.Resources getResources() { return null; }
     public ViewPropertyAnimator animate() { return new ViewPropertyAnimator(); }
     public interface OnClickListener { void onClick(View v); }

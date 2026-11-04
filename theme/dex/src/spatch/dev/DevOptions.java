@@ -260,7 +260,7 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
             if (crashFile != null) crashFile.delete();
             refresh();
         } else if (v == testCrash) {
-            new AlertDialog.Builder(context, 0x010302d1).setTitle("Crash Spotify now?").setMessage("It closes straight away. Reopen it to see the record here.")
+            new AlertDialog.Builder(context, Palette.dialogTheme()).setTitle("Crash Spotify now?").setMessage("It closes straight away. Reopen it to see the record here.")
                 .setPositiveButton("Crash", this).setNegativeButton("Cancel", this).show();
         } else if (v == restart) {
             Palette.restart(context);

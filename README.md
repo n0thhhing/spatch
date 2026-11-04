@@ -14,8 +14,11 @@ refused rather than patched blindly.
 
 ## What it changes
 
-- **Themes:** Lavender, Gruvbox, Catppuccin, Rosé Pine, Nord, Tokyo Night, Dracula and Gruvbox
-  Material, plus custom fonts.
+- **Themes:** Matugen / wallpaper, Default, Spotify, Catppuccin Mocha / Macchiato / Frappé,
+  Rosé Pine / Moon, Gruvbox, Nord, Tokyo Night / Storm, Dracula, Everforest, Kanagawa, Solarized,
+  One, Lavender and Gruvbox Material. System, Light and Dark modes apply across the interface.
+  Import JSON or TOML in **Appearance → Themes & display**; fonts have their own page.
+  Matugen / wallpaper uses Android's wallpaper colours; Matugen JSON schemes can also be imported.
 - **Player:** circular artwork, a wavy or audio-reactive ring, a configurable glow, record-style skip
   animations, wavy progress, shaped controls and an immersive full-screen player with a real spectrum
   of Spotify's own audio. Artwork comes in several shapes with drifting dust or stars behind it, leans
@@ -39,6 +42,8 @@ refused rather than patched blindly.
 - **Immersive player:** optional current-line lyrics (tap to expand the nearby lines), automatic
   landscape layout, and separate blur, colour intensity, darkness and flow-speed sliders. Find them
   under Player → Double-tap for immersive. Lyrics use Spotify's existing data and follow seeks. The overlay reopens after a rotation recreates the activity.
+- **Settings:** Gestures & touch groups swipe, tilt, scratch and hold controls. Search also finds
+  sliders, colours, display modes and palettes, with the destination page shown under each result.
 - **Content:** hide podcasts, audiobooks, Home sections and side menu rows.
 
 Everything is configured in the app: open the side panel and choose **Spatch**. Each feature has a
@@ -175,3 +180,7 @@ supply your own APKM. The patch bundles on the releases page are binary diffs ag
 because Spatch rebuilds Spotify's DEX files, those diffs include parts of Spotify's code in
 re-encoded form. Spatch changes only how the app looks and moves. Modified clients are against
 Spotify's terms of use, so use it at your own risk.
+
+## Importing a theme
+
+Use the [JSON](theme/examples/custom-theme.json) or [TOML](theme/examples/custom-theme.toml) example in Appearance → Themes & display. Both dark and light sections are required; colours use `#RRGGBB`. Material role names and Matugen JSON wrappers are accepted. Files are capped at 256 KiB and checked for text/accent contrast before saving. Import replaces the Imported theme slot. Live palette changes require Android 11+.

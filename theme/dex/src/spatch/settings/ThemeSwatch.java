@@ -9,12 +9,15 @@ import android.view.View;
 final class ThemeSwatch extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int theme;
-    private final String name;
+    private final String name, secondLine;
 
     ThemeSwatch(Context c, int theme, String name) {
         super(c, null);
         this.theme = theme;
-        this.name = name;
+        int split=name.lastIndexOf(' ');
+        boolean wrap=name.length()>13 && split>0;
+        this.name = wrap?name.substring(0,split):name;
+        this.secondLine=wrap?name.substring(split+1):null;
         setClickable(true);
         setFocusable(true);
     }
@@ -42,7 +45,8 @@ final class ThemeSwatch extends View {
         paint.setColor(text);
         paint.setTextSize(11.5f * dp);
         paint.setTextAlign(Paint.Align.CENTER);
-        c.drawText(name, w / 2, h - pad - 11 * dp, paint);
+        c.drawText(name, w / 2, h - pad - (secondLine==null?11:23) * dp, paint);
+        if(secondLine!=null)c.drawText(secondLine,w/2,h-pad-9*dp,paint);
         paint.setTextAlign(Paint.Align.LEFT);
         if (!isSelected()) return;
         paint.setStyle(Paint.Style.STROKE);

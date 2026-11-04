@@ -1,7 +1,11 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 60] = [
+pub const HELPERS: [(&str, &str); 61] = [
+    (
+        "ThemeImport",
+        include_str!("../theme/dex/src/spatch/look/ThemeImport.java"),
+    ),
     (
         "PlayerSwipe",
         include_str!("../theme/dex/src/spatch/player/PlayerSwipe.java"),
@@ -270,6 +274,14 @@ pub fn helpers(debug: bool) -> Vec<(&'static str, &'static str)> {
 
 /// Compile-only stand-ins for platform and Spotify classes; never packaged.
 pub const STUBS: &[(&str, &str)] = &[
+    (
+        "JSONObject.java",
+        include_str!("../theme/dex/stubs/org/json/JSONObject.java"),
+    ),
+    (
+        "JSONException.java",
+        include_str!("../theme/dex/stubs/org/json/JSONException.java"),
+    ),
     (
         "S_PlayerClock.java",
         include_str!("../theme/dex/stubs/p/S_PlayerClock.java"),

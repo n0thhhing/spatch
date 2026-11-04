@@ -30,7 +30,7 @@ final class PaletteResources {
     }
 
     /** The Lavender overlay rewritten in the wallpaper's colours; each entry keeps its compression. */
-    private static void recolored(InputStream in,OutputStream out) throws IOException{
+    private static void recolored(InputStream in,OutputStream out,int[] row) throws IOException{
         java.util.zip.ZipInputStream zin=new java.util.zip.ZipInputStream(in);
         java.util.zip.ZipOutputStream zout=new java.util.zip.ZipOutputStream(out);
         for(java.util.zip.ZipEntry e;(e=zin.getNextEntry())!=null;){
@@ -38,7 +38,8 @@ final class PaletteResources {
             byte[] buffer=new byte[16384];int count;while((count=zin.read(buffer))!=-1)body.write(buffer,0,count);
             byte[] bytes=body.toByteArray();
             String name=e.getName();
-            if(name.equals("resources.arsc")||name.endsWith(".xml")&&!name.equals("AndroidManifest.xml"))bytes=Palette.recolor(bytes);
+            if(name.equals("resources.arsc")||name.endsWith(".xml")&&!name.equals("AndroidManifest.xml"))bytes=Palette.recolor(bytes,row);
+            else if(name.endsWith(".json"))bytes=Palette.recolorAnimation(bytes,row[6]);
             java.util.zip.ZipEntry n=new java.util.zip.ZipEntry(name);
             n.setMethod(e.getMethod());
             if(e.getMethod()==java.util.zip.ZipEntry.STORED){
@@ -56,17 +57,16 @@ final class PaletteResources {
      */
     static boolean install(Context context,String theme){
         try{
-            boolean wallpaper=theme.equals("wallpaper");
+            int[] row=Palette.selectedRow(theme);
             long installed=context.getPackageManager().getPackageInfo(context.getPackageName(),0).lastUpdateTime;
-            String key=theme+"-"+Long.toHexString(installed)+(wallpaper?"-"+Integer.toHexString(java.util.Arrays.hashCode(Palette.wallpaperRow())):"");
+            String key=theme+"-"+Long.toHexString(installed)+("-"+Integer.toHexString(java.util.Arrays.hashCode(row)));
             File file=new File(context.getCacheDir(),"spatch-theme-"+key+".apk");
             if(!file.isFile()){
                 File[] old=context.getCacheDir().listFiles();
                 if(old!=null)for(File f:old)if(f.getName().startsWith("spatch-theme-"))f.delete();
                 File part=new File(context.getCacheDir(),"spatch-theme-"+key+".part");
-                try(InputStream in=context.getAssets().open("spatch-themes/"+(wallpaper?"lavender":theme)+".apk");OutputStream out=new FileOutputStream(part)){
-                    if(wallpaper)recolored(in,out);
-                    else{byte[] buffer=new byte[16384];int count;while((count=in.read(buffer))!=-1)out.write(buffer,0,count);}
+                try(InputStream in=context.getAssets().open("spatch-themes/lavender.apk");OutputStream out=new FileOutputStream(part)){
+                    recolored(in,out,row);
                 }
                 if(!part.renameTo(file))return false;
             }

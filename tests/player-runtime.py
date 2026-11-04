@@ -75,6 +75,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text=text.replace('setOnSeekBarChangeListener(OnSeekBarChangeListener listener) {}', 'setOnSeekBarChangeListener(OnSeekBarChangeListener listener) {testListener=listener;}')
         if source.name == 'Resources.java':
             text = text.replace('getDisplayMetrics(){return null;}', 'getDisplayMetrics(){return new android.util.DisplayMetrics();}')
+            text = text.replace('getConfiguration(){return null;}', 'getConfiguration(){return new android.content.res.Configuration();}')
         if source.name == 'ViewGroup.java':
             text = text.replace('public void removeAllViews() {}', 'public void removeAllViews() {while(getChildCount()>0)removeView(getChildAt(0));}')
             text = text.replace('public int getChildCount() { return 0; }', 'private final java.util.List<View> children = new java.util.ArrayList<View>(); public int getChildCount() { return children.size(); }')
@@ -105,8 +106,12 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
         if source.name == 'Palette.java':
             rows = re.findall(r'theme\(\s*"[^"]+",\s*\[([^]]+)\]', (ROOT / 'src/theme.rs').read_text())
             palette = ','.join('{'+','.join(re.findall(r'0x[0-9a-f]+', row))+'}' for row in rows)
-            assert len(rows) == 8
-            text = source.read_text().replace('@PALETTES@',palette).replace('@THEME@','lavender')
+            assert len(rows) == 18
+            light_source=(ROOT / 'src/theme.rs').read_text().split('pub const LIGHT:')[1].split('const fn theme')[0]
+            light_rows=re.findall(r'\[\s*(0x[0-9a-f]+[^]]*)\]',light_source)
+            light_palette=','.join('{'+','.join(re.findall(r'0x[0-9a-f]+',row))+'}' for row in light_rows)
+            assert len(light_rows)==18
+            text = source.read_text().replace('@PALETTES@',palette).replace('@LIGHT_PALETTES@',light_palette).replace('@THEME@','lavender')
         else:
             text = source.read_text()
         target = out / 'src' / source.relative_to(ROOT / 'theme/dex/src')
@@ -1249,6 +1254,51 @@ public class PlayerRuntimeTest {
         pressCard.onTouch(cardRow,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,800,16,0));
         check((Float)field(pressCard,"targetX")==0 && (Float)field(pressCard,"targetY")==0,"releasing a card returns its tilt target to rest");
         System.out.println("PASS mini fling-to-skip, gooey tab pill and 3D card glint");
+
+        String themeFile=java.nio.file.Files.readString(java.nio.file.Path.of(System.getProperty("fonts")).getParent().resolve("examples/custom-theme.toml"));
+        int[][] imported=ThemeImport.parse(themeFile);
+        check(imported[0][0]==0x14121c && imported[1][0]==0xfffbfe && imported[0].length==9,"TOML imports both complete palettes");
+        for(String invalid:new String[]{themeFile.replace("#f3eeff","#14121c"),themeFile.replace("#d0bcff","not-a-colour"),themeFile.replace("[light]","[wrong]"),themeFile+"accent = '#123456'\n",themeFile.substring(0,themeFile.indexOf("[light]"))}) {
+            try{ThemeImport.parse(invalid);throw new AssertionError("invalid or unreadable theme accepted");}catch(IllegalArgumentException expected){}
+        }
+        java.util.Map<String,String> material=new java.util.HashMap<String,String>();
+        String[] materialRoles={"background","surface_container_low","surface_container_highest","on_surface","on_surface_variant","outline","primary"};
+        for(int i=0;i<materialRoles.length;i++)material.put(materialRoles[i],String.format("#%06x",imported[0][i]));
+        check(ThemeImport.variant(material,"dark")[6]==imported[0][6],"Material role names work alongside Spatch role names");
+        Field paletteLight=Palette.class.getDeclaredField("light");paletteLight.setAccessible(true);
+        Field palettePrefs=Palette.class.getDeclaredField("preferences");palettePrefs.setAccessible(true);Object oldPalettePrefs=palettePrefs.get(null);
+        palettePrefs.set(null,new Prefs());activeField.setInt(null,0);
+        Method wantsLight=Palette.class.getDeclaredMethod("wantsLight",android.content.Context.class);wantsLight.setAccessible(true);
+        final android.content.res.Configuration phoneConfiguration=new android.content.res.Configuration();
+        android.content.Context displayContext=new android.content.Context(){public android.content.res.Resources getResources(){return new android.content.res.Resources(){public android.content.res.Configuration getConfiguration(){return phoneConfiguration;}};}};
+        Palette.mode("light");phoneConfiguration.uiMode=0x20;check((Boolean)wantsLight.invoke(null,displayContext),"forced light overrides a dark phone");
+        Palette.mode("dark");phoneConfiguration.uiMode=0x10;check(!(Boolean)wantsLight.invoke(null,displayContext),"forced dark overrides a light phone");
+        Palette.mode("system");check((Boolean)wantsLight.invoke(null,displayContext),"system follows the light phone");phoneConfiguration.uiMode=0x20;check(!(Boolean)wantsLight.invoke(null,displayContext),"system follows a dark phone");
+        paletteLight.setBoolean(null,true);
+        check(Palette.color(0xfff3eeff)==0xff1d1b20 && Palette.color(0xffffffff)==0xff1d1b20 && Palette.color(0xff000000)==0xfffffbfe,"light mode maps role text, native white ink and opaque black surfaces");
+        check(Palette.color(0x44000000)==0x44000000 && Palette.dialogTheme()==16974546,"transparent shadows stay dark and dialogs follow light mode");
+        byte[] lightResource=Palette.recolor(new byte[]{8,0,0,0x1c,(byte)0xff,(byte)0xee,(byte)0xf3,(byte)0xff},Palette.selectedRow("lavender"));
+        check((lightResource[4]&255)==0x20 && (lightResource[7]&255)==0xff,"compiled resource recolouring uses the same light text and keeps alpha");
+        String lightAnimation=new String(Palette.recolorAnimation("{\"k\":[0.815686,0.737255,1.000000,1]}".getBytes(java.nio.charset.StandardCharsets.UTF_8),0xff0000),java.nio.charset.StandardCharsets.UTF_8);
+        check(lightAnimation.contains("[1.000000,0.000000,0.000000,1]"),"template Lottie colours follow the selected accent");
+        check(Palette.saveCustom(imported[0],imported[1],"Example") && Palette.hasCustom() && Palette.tone(Palette.CUSTOM,0)==0xfffffbfe,"validated imported colours persist and render in light mode");
+        imported[1][0]=0;check(Palette.tone(Palette.CUSTOM,0)==0xfffffbfe,"saving takes a copy of imported arrays");
+        for(String named:new String[]{"default","spotify","catppuccin-macchiato","catppuccin-frappe","rose-pine-moon","tokyo-night-storm","everforest","kanagawa","solarized","one","wallpaper"})check(java.util.Arrays.asList(Palette.NAMES).contains(named),"missing screenshot theme: "+named);
+        check(!java.util.Arrays.asList(Palette.NAMES).contains("swiftify"),"Swiftify is excluded");
+        paletteLight.setBoolean(null,false);check(Palette.dialogTheme()==16974545,"dark dialogs stay dark");Palette.mode("system");palettePrefs.set(null,oldPalettePrefs);
+        System.out.println("PASS theme import validation, palettes, global display modes, native ink and animations");
+
+        SpatchSettings searchableSettings=new SpatchSettings(new android.content.Context());
+        Method findSettings=SpatchSettings.class.getDeclaredMethod("search",android.widget.LinearLayout.class,String.class);findSettings.setAccessible(true);
+        int indexed=((java.util.List)field(searchableSettings,"searchable")).size();
+        for(String[] query:new String[][]{{"blur","Immersive player"},{"tilt strength","Gestures & touch"},{"frapp","Themes & display"},{"light","Themes & display"},{"lyrics","Player"}}){
+            android.widget.LinearLayout results=new android.widget.LinearLayout(new android.content.Context());findSettings.invoke(searchableSettings,results,query[0]);boolean routed=false;
+            for(int i=0;i<results.getChildCount();i++){Object target=results.getChildAt(i).getTag();if(target instanceof View && query[1].equals(((View)target).getTag()))routed=true;}
+            check(routed,"search must route "+query[0]+" to "+query[1]);
+        }
+        check(((java.util.List)field(searchableSettings,"searchable")).size()==indexed,"search results must not re-index themselves");
+        System.out.println("PASS settings search finds sliders, imported palettes and display modes on their pages");
+
     }
 }
 '''))

@@ -35,7 +35,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Button animations",
         "Album art backdrop",
         "Circular album art",
-        "Double-tap for immersive",
+        "Immersive player",
         "Expressive shapes",
         "Reduce motion",
         "Full-screen visualizer",
@@ -268,13 +268,24 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private static final String[] THEME_TITLES = {
         "Lavender",
         "Gruvbox",
-        "Catppuccin",
+        "Catppuccin Mocha",
         "Rosé Pine",
         "Nord",
         "Tokyo Night",
         "Dracula",
         "Gruvbox Material",
-        "Wallpaper"
+        "Matugen (wallpaper)",
+        "Default",
+        "Spotify",
+        "Catppuccin Macchiato",
+        "Catppuccin Frappé",
+        "Rosé Pine Moon",
+        "Tokyo Night Storm",
+        "Everforest",
+        "Kanagawa",
+        "Solarized",
+        "One",
+        "Imported theme"
     };
 
     private static final int VIZ_THIN = 10, VIZ_FLOATING = 11;
@@ -308,7 +319,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private final java.util.HashMap<Integer, LinearLayout> masterPages = new java.util.HashMap<Integer, LinearLayout>();
     private TextView homeCount, themeNote;
     private ThemeReveal reveal;
-    private LinearLayout appearancePage;
+    private LinearLayout appearancePage, palettePage;
+    private final java.util.ArrayList<Object[]> searchable=new java.util.ArrayList<Object[]>();
+    private boolean creatingResults;
     private boolean closing;
     private final M3Switch[] featureSwitches = new M3Switch[FEATURE_TITLES.length];
     private static final int[] HAPTICS = {17, 18, 19, 20};
@@ -395,18 +408,42 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
         }
 
-        View appearance = appearancePage = (LinearLayout) category(categories, "enhance", "Appearance", "Themes and typography", "Appearance");
-        addSectionHeader("Theme");
-        for (int row = 0; row < (themeRows.length + 3) / 4; row++) { // blanks keep the last row's widths even
+        View appearance = appearancePage = (LinearLayout) category(categories, "enhance", "Appearance", "Palettes, light/dark, imports and fonts", "Appearance");
+        palettePage=subPage("Themes & display");
+        addSectionHeader("Display mode");
+        LinearLayout modeRows=addGroup();
+        final M3Switch[] modeSwitches=new M3Switch[3];
+        final String[] modes={"system","light","dark"};
+        String[] modeNames={"System","Light","Dark"};
+        for(int i=0;i<modes.length;i++){
+            final int selected=i;
+            modeSwitches[i]=new M3Switch(context);modeSwitches[i].setChecked(Palette.mode().equals(modes[i]));
+            View row=createSettingRow("t_shirt",modeNames[i],i==0?"Follow the phone’s light or dark setting":null,modeSwitches[i]);
+            row.setOnClickListener(new View.OnClickListener(){public void onClick(View view){
+                if(!Palette.mode(modes[selected]))return;
+                for(int n=0;n<modeSwitches.length;n++)modeSwitches[n].setChecked(n==selected);
+                applyTheme(Palette.requested());
+            }});
+            modeRows.addView(row);
+        }
+        finish(modeRows);
+        addSectionHeader("Import");
+        LinearLayout imports=addGroup();
+        View importTheme=createSettingRow("plus","Import theme","JSON or TOML, with dark and light colours",icon("chevron_right"));
+        importTheme.setOnClickListener(new View.OnClickListener(){public void onClick(View view){ThemeImport.start(getContext(),new Runnable(){public void run(){refreshThemes(Palette.requested(),false);}});}});
+        imports.addView(importTheme);finish(imports);
+        addSectionHeader("Palettes");
+        for (int row = 0; row < (themeRows.length + 2) / 3; row++) { // blanks keep the last row's widths even
             LinearLayout line = new LinearLayout(context);
             line.setOrientation(LinearLayout.HORIZONTAL);
-            for (int i = row * 4; i < row * 4 + 4; i++) {
+            for (int i = row * 3; i < row * 3 + 3; i++) {
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(112), 1f);
                 if (i >= themeRows.length) { // keeps the last row's swatches the same width
                     line.addView(new View(context, null), lp);
                     continue;
                 }
                 themeRows[i] = new ThemeSwatch(context, i, THEME_TITLES[i]);
+                index(themeRows[i],THEME_TITLES[i],"Theme palette");
                 themeRows[i].setOnClickListener(this);
                 Springy.attach(themeRows[i]);
                 line.addView(themeRows[i], lp);
@@ -420,12 +457,16 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         content.addView(themeNote);
         refreshThemes(Palette.requested(), false);
 
-        addSectionHeader("Typography");
+        LinearLayout fontsPage=subPage("Fonts");
         new Typography(this, content);
-
+        content=(LinearLayout)appearance;
+        LinearLayout appearanceLinks=addGroup();
+        link(appearanceLinks,"t_shirt","Themes & display","Palettes, imports and light / dark / system",palettePage);
+        link(appearanceLinks,"track","Fonts","Typefaces, weights and font import",fontsPage);
+        finish(appearanceLinks);
         finishCategory(appearance);
 
-        View playerPage = category(categories, "now_playing", "Player", "Artwork, ring, glow, controls and immersive", "Player");
+        View playerPage = category(categories, "now_playing", "Player", "Artwork, lyrics, gestures and immersive", "Player");
         addPlayerPreview((LinearLayout) playerPage);
         LinearLayout artworkPage = subPage("Artwork");
         addPlayerPreview(artworkPage);
@@ -476,12 +517,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         buttonRows.addView(featureRows[53]);
         finish(buttonRows);
         resetFor(new int[] {1, 52, 53}, new int[0]);
-        LinearLayout immersivePage = subPage("Double-tap for immersive");
+        LinearLayout immersivePage = subPage("Immersive player");
         LinearLayout immersiveRows = addGroup();
         addChoice(immersiveRows, Settings.IMM_CHANGE, "New song", "How the artwork changes", new String[] {"Pop", "Spin", "Fade", "None"});
         immersiveRows.addView(featureRows[56]);
         immersiveRows.addView(featureRows[57]);
-        immersiveRows.addView(featureRows[Settings.IMM_SWIPE]);
         immersiveRows.addView(featureRows[Settings.IMM_LYRICS]);
         immersiveRows.addView(featureRows[Settings.IMM_LANDSCAPE]);
         finish(immersiveRows);
@@ -492,7 +532,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addStrength(immersiveBackdrop, Settings.IMM_DARKNESS, "Darkness", "Dim the backdrop behind the player", "%");
         addStrength(immersiveBackdrop, Settings.IMM_FLOW, "Flow speed", "Movement of the colour fields and particles", "%");
         finish(immersiveBackdrop);
-        resetFor(new int[] {4, 56, 57, Settings.IMM_SWIPE, Settings.IMM_LYRICS, Settings.IMM_LANDSCAPE}, new int[] {Settings.IMM_CHANGE});
+        resetFor(new int[] {4, 56, 57, Settings.IMM_LYRICS, Settings.IMM_LANDSCAPE}, new int[] {Settings.IMM_CHANGE});
         LinearLayout burstPage = subPage("Play button burst");
         LinearLayout burstLook = addGroup();
         tryBurst = createSettingRow("star", "Try it", "Throws a burst from this row", icon("chevron_right"));
@@ -520,15 +560,21 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         miniRows.addView(featureRows[Settings.MINI_FLING]);
         finish(miniRows);
         resetFor(new int[] {60, 61, Settings.MINI_ALBUM, Settings.MINI_HOLD_LIKE, Settings.MINI_SPIN, Settings.MINI_FLING}, new int[0]);
+        LinearLayout gesturesPage=subPage("Gestures & touch");
+        LinearLayout gestures=addGroup();
+        gestures.addView(featureRows[Settings.IMM_SWIPE]);
+        gestures.addView(featureRows[Settings.ART_TILT]);
+        addStrength(gestures,Settings.TILT_STRENGTH,"Tilt strength","Maximum artwork lean","°");
+        gestures.addView(featureRows[Settings.ART_SCRATCH]);
+        gestures.addView(featureRows[Settings.HOLD_SEEK]);
+        finish(gestures);
+        resetFor(new int[]{Settings.IMM_SWIPE,Settings.ART_TILT,Settings.ART_SCRATCH,Settings.HOLD_SEEK},new int[0]);
         inside(playerPage);
         addSectionHeader("Artwork");
         LinearLayout artRows = addGroup();
         artRows.addView(master(ROUND_ART, artworkPage));
         artRows.addView(master(2, backdropPage));
         addChoice(artRows, Settings.ART_SKIP, "Skip animation", "Spin rolls the artwork over like a record", new String[] {"Slide", "Spin", "Shrink", "Fade"});
-        artRows.addView(featureRows[Settings.ART_TILT]);
-        addStrength(artRows, Settings.TILT_STRENGTH, "Tilt strength", "Maximum artwork lean", "°");
-        artRows.addView(featureRows[Settings.ART_SCRATCH]);
         artRows.addView(featureRows[Settings.BEAT_BOUNCE]);
         addChoice(artRows, Settings.ART_SHAPE, "Artwork shape", "With Circular album art on", new String[] {"Circle", "Scallop", "Squircle", "Soft"});
         addChoice(artRows, Settings.BACKDROP_FX, "Backdrop motes", "Specks drifting behind the player", new String[] {"None", "Dust", "Stars"});
@@ -538,21 +584,22 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         player.addView(master(0, wavePage));
         player.addView(master(1, buttonPage));
         player.addView(featureRows[5]);
-        player.addView(featureRows[Settings.HOLD_SEEK]);
         player.addView(featureRows[Settings.SEEK_BUBBLE]);
         addColors(player, Settings.PLAYER_COLOR, "Player colour");
         finish(player);
         addSectionHeader("Lyrics");
         LinearLayout lyrics = addGroup();
         lyrics.addView(featureRows[Settings.HIDE_PLAYER_LYRICS]);
+        lyrics.addView(featureRows[Settings.LYRICS_FOCUS]);
         finish(lyrics);
         addSectionHeader("Other players");
         LinearLayout others = addGroup();
+        link(others,"arrow_left","Gestures & touch","Swipe to skip, tilt, scratch and hold to seek",gesturesPage);
         others.addView(master(Settings.BURST, burstPage));
         others.addView(master(4, immersivePage));
         link(others, "device_mobile", "Mini player", "New song pop and artwork flight", miniPage);
         finish(others);
-        resetFor(new int[] {5, Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.HIDE_PLAYER_LYRICS}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
+        resetFor(new int[] {5, Settings.BEAT_BOUNCE, Settings.SEEK_BUBBLE, Settings.HIDE_PLAYER_LYRICS, Settings.LYRICS_FOCUS}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
         finishCategory(playerPage);
 
         View visualizers = category(categories, "soundwave", "Visualizers", "Spectrum styles and where they show", "Visualizers");
@@ -665,11 +712,10 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         screenRows.addView(featureRows[Settings.SOFT_HEADERS]);
         screenRows.addView(featureRows[Settings.LIST_RISE]);
         screenRows.addView(featureRows[Settings.TITLE_ALBUM]);
-        screenRows.addView(featureRows[Settings.LYRICS_FOCUS]);
         screenRows.addView(featureRows[Settings.QUEUE_SHIMMER]);
         screenRows.addView(featureRows[Settings.WIDGET_WALLPAPER]);
         finish(screenRows);
-        resetFor(new int[] {Settings.LIST_CARDS, Settings.CARD_GLINT, Settings.SOFT_HEADERS, Settings.LIST_RISE, Settings.TITLE_ALBUM, Settings.LYRICS_FOCUS, Settings.QUEUE_SHIMMER, Settings.WIDGET_WALLPAPER}, new int[0]);
+        resetFor(new int[] {Settings.LIST_CARDS, Settings.CARD_GLINT, Settings.SOFT_HEADERS, Settings.LIST_RISE, Settings.TITLE_ALBUM, Settings.QUEUE_SHIMMER, Settings.WIDGET_WALLPAPER}, new int[0]);
         finishCategory(screens);
 
         View navigation = category(categories, "notifications_active", "Motion & haptics", "Transitions, springs and feedback", "Motion & haptics");
@@ -865,12 +911,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 found.removeAllViews();
                 String wanted = s.toString().trim().toLowerCase(java.util.Locale.ROOT);
                 if (wanted.isEmpty()) return;
-                for (int i = 0, shown = 0; i < FEATURE_TITLES.length && shown < 8; i++) {
-                    LinearLayout page = masterPages.containsKey(Integer.valueOf(i)) ? masterPages.get(Integer.valueOf(i)) : pageOf(featureRows[i]);
-                    if (page == null || !matches(i, wanted)) continue;
-                    link(found, FEATURE_ICONS[i], FEATURE_TITLES[i], FEATURE_SUBTITLES[i], page);
-                    shown++;
-                }
+                search(found,wanted);
                 Fonts.restyle(found); // rows made after the page was styled
             }
         });
@@ -937,7 +978,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 FrameLayout input = new FrameLayout(getContext());
                 input.setPadding(dp(24), dp(8), dp(24), dp(8));
                 input.addView(name, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-                final AlertDialog dialog = new AlertDialog.Builder(getContext(), 0x010302d1)
+                final AlertDialog dialog = new AlertDialog.Builder(getContext(), Palette.dialogTheme())
                     .setTitle("Save preset").setMessage("Use a new name, or an existing name to replace its saved settings.")
                     .setView(input).setPositiveButton("Save", null).setNegativeButton("Cancel", null).create();
                 showPresetDialog(dialog);
@@ -958,7 +999,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             View row = createSettingRow("playlist", name, "Apply, update or delete", icon("chevron_right"));
             row.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
-                    AlertDialog dialog = new AlertDialog.Builder(getContext(), 0x010302d1).setTitle(name)
+                    AlertDialog dialog = new AlertDialog.Builder(getContext(), Palette.dialogTheme()).setTitle(name)
                         .setMessage("Apply the saved settings, update this preset with your current settings, or delete it.")
                         .setPositiveButton("Apply", new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface d, int which) {
@@ -1002,6 +1043,28 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) tintDialogText(group.getChildAt(i));
         }
+    }
+
+    private void index(View row,String title,String subtitle){
+        if(!creatingResults)searchable.add(new Object[]{row,title,subtitle});
+    }
+
+    private void search(LinearLayout results,String wanted){
+        creatingResults=true;
+        try{
+            int shown=0;
+            java.util.HashSet<String> seen=new java.util.HashSet<String>();
+            for(Object[] item:searchable){
+                String title=(String)item[1],subtitle=(String)item[2];
+                if(!(title+" "+(subtitle==null?"":subtitle)).toLowerCase(java.util.Locale.ROOT).contains(wanted))continue;
+                View row=(View)item[0];
+                LinearLayout page=row.getTag() instanceof LinearLayout?(LinearLayout)row.getTag():pageOf(row);
+                if(page==null || !seen.add(page.getTag()+":"+title))continue;
+                link(results,"enhance",title,page.getTag()+(subtitle==null?"":" · "+subtitle),page);
+                if(++shown==12)break;
+            }
+            if(shown==0){TextView empty=new TextView(getContext());empty.setText("No matching settings");empty.setTextColor(subdued);results.addView(empty);}
+        }finally{creatingResults=false;}
     }
 
     static boolean matches(int setting, String wanted) {
@@ -1253,6 +1316,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         slider.setProgress(amount - Settings.STRENGTH_MIN[setting]);
         row.addView(slider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
         strengthSliders[setting] = slider;
+        index(row,title,subtitle);
         parent.addView(row);
     }
 
@@ -1295,6 +1359,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         }
         row.addView(pills);
         choiceRows[setting] = row;
+        index(row,title,subtitle);
         parent.addView(row);
     }
 
@@ -1372,6 +1437,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private void refreshThemes(String selected, boolean animate) {
         for (int i = 0; i < themeRows.length; i++) {
             boolean on = Palette.NAMES[i].equals(selected);
+            themeRows[i].setEnabled(i!=Palette.CUSTOM || Palette.hasCustom());
+            themeRows[i].setAlpha(themeRows[i].isEnabled()?1f:.4f);
             boolean was = themeRows[i].isSelected();
             themeRows[i].setSelected(on);
             if (on && !was && animate) pop(themeRows[i]);
@@ -1400,7 +1467,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     }
 
     void askRestart(String title, String message) {
-        new AlertDialog.Builder(getContext(), 0x010302d1)
+        new AlertDialog.Builder(getContext(), Palette.dialogTheme())
             .setTitle(title)
             .setMessage(message)
             .setPositiveButton("Restart now", this)
@@ -1410,7 +1477,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     private void onThemeSelected(int index, final String themeName) {
         String current = Palette.requested();
-        if (themeName.equals(current) || reveal != null) return;
+        if (themeName.equals(current) || reveal != null || index==Palette.CUSTOM && !Palette.hasCustom()) return;
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
         refreshThemes(themeName, true);
@@ -1434,11 +1501,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     }
 
     void showThemes() {
-        open(appearancePage);
+        open(palettePage);
     }
 
     private void askThemeRestart() {
-        new AlertDialog.Builder(getContext(), 0x010302d1) // android.R.style.Theme_DeviceDefault_Dialog_Alert: system Material dialog, not Holo
+        new AlertDialog.Builder(getContext(), Palette.dialogTheme()) // android.R.style.Theme_DeviceDefault_Dialog_Alert: system Material dialog, not Holo
             .setTitle("Restart to apply theme?")
             .setMessage("Spotify needs to restart to apply the new color palette.")
             .setPositiveButton("Restart now", this)
@@ -1505,6 +1572,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             ? new LinearLayout.LayoutParams(dp(52), dp(32)) : new LinearLayout.LayoutParams(dp(24), dp(24));
         trailingLp.leftMargin = dp(12);
         row.addView(trailing, trailingLp);
+        index(row,titleText,subtitleText);
         return row;
     }
 
@@ -1541,7 +1609,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         }
         if (v == reviewRow) {
             if (HomeReview.start((ViewGroup) getParent())) close();
-            else new AlertDialog.Builder(getContext(), 0x010302d1).setTitle("Open Home first").setMessage("Review works on the Home tab, once its sections have loaded.").setPositiveButton("OK", null).show();
+            else new AlertDialog.Builder(getContext(), Palette.dialogTheme()).setTitle("Open Home first").setMessage("Review works on the Home tab, once its sections have loaded.").setPositiveButton("OK", null).show();
             return;
         }
         if (v.getTag() instanceof Object[] && !(v.getTag() instanceof String[])) {

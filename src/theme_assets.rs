@@ -10,16 +10,7 @@ use std::{
 };
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-pub const PATHS: [&str; THEMES.len()] = [
-    "assets/spatch-themes/lavender.apk",
-    "assets/spatch-themes/gruvbox.apk",
-    "assets/spatch-themes/catppuccin-mocha.apk",
-    "assets/spatch-themes/rose-pine.apk",
-    "assets/spatch-themes/nord.apk",
-    "assets/spatch-themes/tokyo-night.apk",
-    "assets/spatch-themes/dracula.apk",
-    "assets/spatch-themes/gruvbox-material-dark.apk",
-];
+pub const PATHS: [&str; 1] = ["assets/spatch-themes/lavender.apk"];
 fn u16at(b: &[u8], p: usize) -> Result<u16> {
     Ok(u16::from_le_bytes(
         b.get(p..p + 2).ok_or("short resource table")?.try_into()?,
@@ -72,6 +63,8 @@ fn map(v: u32, from: &Theme, to: &Theme) -> Option<u32> {
         .iter()
         .position(|c| *c == v & 0xffffff)
         .map(|i| (v & 0xff000000) | to.rgb[i])
+        // Retain native ink and inverse surfaces so runtime light palettes can map them too.
+        .or_else(|| matches!(v & 0xffffff, 0 | 0xffffff).then_some(v))
 }
 
 pub fn table(b: &[u8], from: &Theme, to: &Theme, files: &HashSet<&str>) -> Result<Vec<u8>> {
@@ -207,7 +200,7 @@ pub fn build(
         .collect();
     let mut overlays = Vec::new();
     let manifest = crate::input::read_entry(base, "AndroidManifest.xml")?;
-    for (theme, path) in THEMES.iter().zip(PATHS) {
+    for (theme, path) in THEMES[..1].iter().zip(PATHS) {
         let mut z = ZipWriter::new(Cursor::new(Vec::new()));
         z.start_file(
             "resources.arsc",

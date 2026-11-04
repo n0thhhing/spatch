@@ -31,7 +31,7 @@ pub fn swap_colors(arsc: &[u8], theme: &Theme) -> Result<Vec<u8>> {
         for data_type in [0x1c, 0x1d] {
             let (old, new) = (value(data_type, from), value(data_type, theme.map(to)));
             let mut i = 0;
-            while let Some(pos) = out[i..].windows(8).position(|w| w == old) {
+            while let Some(pos) = arsc[i..].windows(8).position(|w| w == old) {
                 out[i + pos..i + pos + 8].copy_from_slice(&new);
                 i += pos + 8;
                 found += 1;
@@ -358,12 +358,21 @@ mod tests {
     }
 
     #[test]
-    fn theme_colours_never_match_a_later_search() {
-        // Swaps run in order; a themed value equal to an original colour would be swapped again.
-        for t in &crate::theme::THEMES {
-            for (from, _, _) in COLOR_SWAPS {
-                assert!(!t.rgb.contains(&(from & 0xffffff)), "{} {from:#x}", t.name);
+    fn theme_swaps_read_original_colours_without_chaining() {
+        let mut original = Vec::new();
+        for (from, _, count) in COLOR_SWAPS {
+            for _ in 0..count {
+                original.extend_from_slice(&value(0x1c, from));
             }
+        }
+        for theme in &crate::theme::THEMES {
+            let changed = swap_colors(&original, theme).unwrap();
+            assert_eq!(
+                &changed[..8],
+                &value(0x1c, theme.map(COLOR_SWAPS[0].1)),
+                "{}",
+                theme.name
+            );
         }
     }
 

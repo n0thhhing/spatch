@@ -16,7 +16,7 @@ const TOKENS: [u32; 9] = THEMES[0].rgb;
 
 /// Public palette values; secondary/subdued text pairs are checked for >= 4.5:1 contrast
 /// (Dracula's subdued text is its comment colour lightened halfway to its foreground for that reason).
-pub const THEMES: [Theme; 8] = [
+pub const THEMES: [Theme; 18] = [
     theme(
         "lavender",
         [
@@ -75,6 +75,134 @@ pub const THEMES: [Theme; 8] = [
             0x8f9a55,
         ],
     ),
+    theme(
+        "default",
+        [
+            0x19191b, 0x232326, 0x2e2e31, 0xececee, 0xa9a9ae, 0x818187, 0xececed, 0xf1f1f2,
+            0xc9c9ca,
+        ],
+    ),
+    theme(
+        "spotify",
+        [
+            0x121212, 0x1f1f1f, 0x2a2a2a, 0xffffff, 0xb3b3b3, 0x7d7d7d, 0x1ed760, 0x56e188,
+            0x1ab752,
+        ],
+    ),
+    theme(
+        "catppuccin-macchiato",
+        [
+            0x24273a, 0x363a4f, 0x494d64, 0xcad3f5, 0xa5adcb, 0x888ea8, 0xc6a0f6, 0xd4b8f8,
+            0xa888d1,
+        ],
+    ),
+    theme(
+        "catppuccin-frappe",
+        [
+            0x303446, 0x414559, 0x51576d, 0xc6d0f5, 0xa5adce, 0x969cb4, 0xca9ee6, 0xd7b6ec,
+            0xac86c4,
+        ],
+    ),
+    theme(
+        "rose-pine-moon",
+        [
+            0x2a273f, 0x393552, 0x44415a, 0xe0def4, 0x918dab, 0x918ea3, 0xc4a7e7, 0xd3bded,
+            0xa78ec4,
+        ],
+    ),
+    theme(
+        "tokyo-night-storm",
+        [
+            0x24283b, 0x292e42, 0x3b4261, 0xc0caf5, 0xa9b1d6, 0x898fac, 0x7aa2f7, 0x9bb9f9,
+            0x688ad2,
+        ],
+    ),
+    theme(
+        "everforest",
+        [
+            0x2d353b, 0x3d484d, 0x475258, 0xd3c6aa, 0x9da9a0, 0x949f97, 0xa7c080, 0xbdd0a0,
+            0x8ea36d,
+        ],
+    ),
+    theme(
+        "kanagawa",
+        [
+            0x1f1f28, 0x2a2a37, 0x363646, 0xdcd7ba, 0xc8c093, 0x898881, 0x7e9cd8, 0x9eb5e2,
+            0x6b85b8,
+        ],
+    ),
+    theme(
+        "solarized",
+        [
+            0x002b36, 0x073642, 0x0d4452, 0x9fabab, 0x839496, 0x809196, 0x3794d6, 0x69afe0,
+            0x2f7eb6,
+        ],
+    ),
+    theme(
+        "one",
+        [
+            0x282c34, 0x2c313a, 0x3e4451, 0xabb2bf, 0x9da5b4, 0x8f939c, 0x61afef, 0x88c3f3,
+            0x5295cb,
+        ],
+    ),
+];
+
+/// Light counterparts use the same families as the local Swiftify palette catalogue.
+pub const LIGHT: [[u32; 9]; THEMES.len()] = [
+    [
+        0xfffbfe, 0xf3edf7, 0xe8def8, 0x1d1b20, 0x49454f, 0x625b71, 0x6750a4, 0x8d76bc, 0x57448b,
+    ],
+    [
+        0xfbf1c7, 0xebdbb2, 0xd5c4a1, 0x3c3836, 0x776b60, 0x786b5f, 0xaf3a03, 0xc36b42, 0x953103,
+    ],
+    [
+        0xeff1f5, 0xdce0e8, 0xccd0da, 0x4c4f69, 0x6a6d82, 0x6a6d7a, 0x8839ef, 0xa66af3, 0x7430cb,
+    ],
+    [
+        0xfffaf3, 0xf2e9e1, 0xdfdad9, 0x575279, 0x74708d, 0x75717f, 0x7f6b95, 0x9f90b0, 0x6c5b7f,
+    ],
+    [
+        0xeceff4, 0xd8dee9, 0xc8d0dc, 0x2e3440, 0x4c566a, 0x666d7b, 0x506e92, 0x7c92ad, 0x445e7c,
+    ],
+    [
+        0xe1e2e7, 0xc4c8da, 0xb7bcd2, 0x2a4992, 0x536297, 0x5e6381, 0x2463b8, 0x5b8aca, 0x1f549c,
+    ],
+    [
+        0xfffbeb, 0xe8e4d0, 0xcfcfde, 0x1f1f1f, 0x45423a, 0x6c664b, 0x644ac9, 0x8b77d6, 0x553fab,
+    ],
+    [
+        0xfbf1c7, 0xebdbb2, 0xd5c4a1, 0x3c3836, 0x776b60, 0x786b5f, 0xaf3a03, 0xc36b42, 0x953103,
+    ],
+    [
+        0xffffff, 0xebebec, 0xe1e1e3, 0x1b1b1d, 0x5c5c61, 0x75757a, 0x1b1b1d, 0x545456, 0x171719,
+    ],
+    [
+        0xffffff, 0xf6f6f6, 0xededed, 0x121212, 0x6a6a6a, 0x757575, 0x16873d, 0x50a56e, 0x137334,
+    ],
+    [
+        0xeff1f5, 0xdce0e8, 0xccd0da, 0x4c4f69, 0x6a6d82, 0x6a6d7a, 0x8839ef, 0xa66af3, 0x7430cb,
+    ],
+    [
+        0xeff1f5, 0xdce0e8, 0xccd0da, 0x4c4f69, 0x6a6d82, 0x6a6d7a, 0x8839ef, 0xa66af3, 0x7430cb,
+    ],
+    [
+        0xfffaf3, 0xf2e9e1, 0xdfdad9, 0x575279, 0x74708d, 0x75717f, 0x7f6b95, 0x9f90b0, 0x6c5b7f,
+    ],
+    [
+        0xe1e2e7, 0xc4c8da, 0xb7bcd2, 0x2a4992, 0x536297, 0x5e6381, 0x2463b8, 0x5b8aca, 0x1f549c,
+    ],
+    [
+        0xfdf6e3, 0xe6e2cc, 0xe0dcc7, 0x556269, 0x687467, 0x6a7268, 0x687701, 0x8e9940, 0x586501,
+    ],
+    [
+        0xf2ecbc, 0xe7dba0, 0xe4d794, 0x545464, 0x6c6a5d, 0x6a6963, 0x4d699b, 0x7a8eb4, 0x415984,
+    ],
+    [
+        0xfdf6e3, 0xe6dfcb, 0xddd6c1, 0x073642, 0x586e75, 0x687272, 0x2076b2, 0x5898c5, 0x1b6497,
+    ],
+    [
+        0xfafafa, 0xe5e5e6, 0xdbdbdc, 0x383a42, 0x696c77, 0x727277, 0x3a6ddc, 0x6b92e5, 0x315dbb,
+    ],
 ];
 
 const fn theme(name: &'static str, rgb: [u32; 9]) -> Theme {
@@ -170,10 +298,28 @@ mod tests {
     }
 
     #[test]
+    fn light_palettes_keep_text_and_controls_readable() {
+        for (theme, row) in THEMES.iter().zip(LIGHT) {
+            assert!(contrast(row[3], row[2]) >= 4.5, "{} light text", theme.name);
+            assert!(
+                contrast(row[0], row[6]) >= 4.5,
+                "{} light accent",
+                theme.name
+            );
+        }
+    }
+
+    #[test]
     fn theme_values_are_distinct_from_tokens_of_other_roles() {
         // One-pass substitution cannot chain, but a theme reusing another role's token would make
         // `map` ambiguous for already-themed values; keep palettes free of that.
         for t in &THEMES[1..] {
+            assert_eq!(
+                t.rgb.iter().collect::<std::collections::HashSet<_>>().len(),
+                9,
+                "{} reverses unambiguously into the runtime template",
+                t.name
+            );
             for (i, v) in t.rgb.iter().enumerate() {
                 assert!(
                     TOKENS

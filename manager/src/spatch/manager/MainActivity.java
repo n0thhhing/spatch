@@ -61,7 +61,7 @@ public final class MainActivity extends Activity {
     private LinearLayout statusCard, changesBox;
 
     private TextView spotifyStatus, apkmStatus, patchStatus, whatsNew, keyStatus, managerStatus, status, heading, cloneStatus;
-    private Button choose, seeChanges, patch, uninstall, managerUpdate, check, refreshChanges, exportKey, importKey, invite;
+    private Button displayMode, choose, seeChanges, patch, uninstall, managerUpdate, check, refreshChanges, exportKey, importKey, invite;
     private Button cloneInstall, cloneUninstall, cloneIconPick, cloneIconReset;
     private EditText clonePkg, cloneName;
     private android.widget.ImageView cloneIcon;
@@ -104,6 +104,28 @@ public final class MainActivity extends Activity {
             refresh();
         }
     };
+
+    @Override
+    protected void attachBaseContext(android.content.Context context) {
+        String mode=context.getSharedPreferences("manager",MODE_PRIVATE).getString("theme_mode","system");
+        if(!mode.equals("system")){
+            android.content.res.Configuration config=new android.content.res.Configuration(context.getResources().getConfiguration());
+            config.uiMode=(config.uiMode&~android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                |(mode.equals("dark")?android.content.res.Configuration.UI_MODE_NIGHT_YES:android.content.res.Configuration.UI_MODE_NIGHT_NO);
+            context=context.createConfigurationContext(config);
+        }
+        super.attachBaseContext(context);
+    }
+
+    private boolean appearancePending;
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration config){
+        super.onConfigurationChanged(config);
+        if(prefs!=null && prefs.getString("theme_mode","system").equals("system")
+            && look.dark!=((config.uiMode&android.content.res.Configuration.UI_MODE_NIGHT_MASK)==android.content.res.Configuration.UI_MODE_NIGHT_YES)){
+            if(busy)appearancePending=true;else recreate();
+        }
+    }
 
     @Override
     protected void onCreate(android.os.Bundle state) {
@@ -233,6 +255,14 @@ public final class MainActivity extends Activity {
             if (on && android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
         });
         options.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
+        displayMode=look.button("Display mode: "+prefs.getString("theme_mode","system"),"tune",Look.Kind.TONAL,v->{
+            String[] modes={"system","light","dark"};
+            int selected=Arrays.asList(modes).indexOf(prefs.getString("theme_mode","system"));
+            new AlertDialog.Builder(this).setTitle("Display mode").setSingleChoiceItems(new String[]{"System","Light","Dark"},selected,(dialog,index)->{
+                prefs.edit().putString("theme_mode",modes[index]).apply();dialog.dismiss();recreate();
+            }).setNegativeButton("Cancel",null).show();
+        });
+        options.addView(displayMode,look.spaced(10));
         managerStatus = look.text("", 14, look.onSurfaceVariant, false);
         options.addView(managerStatus, look.spaced(6));
         managerUpdate = look.button("Update manager", "system_update", Look.Kind.FILLED, v -> updateManager());
@@ -442,6 +472,7 @@ public final class MainActivity extends Activity {
 
     /** Puts every label and button in line with the current state. */
     private void refresh() {
+        if(appearancePending && !busy){appearancePending=false;recreate();return;}
         PackageInfo info = spotify();
         boolean ours = info != null && keys != null && signedByUs(info);
         String installed = prefs.getString(INSTALLED, null);
@@ -482,7 +513,7 @@ public final class MainActivity extends Activity {
             ? " (" + (mgrUpdate.tag.startsWith("nightly-") ? Releases.version(mgrUpdate) : "version " + Releases.version(mgrUpdate)) + " is available)."
             : " is up to date."));
         managerUpdate.setVisibility(mgrUpdate != null ? View.VISIBLE : View.GONE);
-        for (Button b : Arrays.asList(choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset)) look.enable(b, !busy);
+        for (Button b : Arrays.asList(displayMode, choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset)) look.enable(b, !busy);
         look.enable(exportKey, !busy && keys != null);
         renderChanges(installed);
 

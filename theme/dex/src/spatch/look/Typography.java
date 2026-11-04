@@ -157,7 +157,7 @@ final class Typography implements View.OnClickListener, Runnable {
         } else if (v == restartRow) {
             Palette.restart(context);
         } else if (v == licenseRow) {
-            new AlertDialog.Builder(context, 0x010302d1).setTitle("Font licenses").setMessage(Fonts.licenses()).setPositiveButton("Close", null).show();
+            new AlertDialog.Builder(context, Palette.dialogTheme()).setTitle("Font licenses").setMessage(Fonts.licenses()).setPositiveButton("Close", null).show();
         } else if (v instanceof ImageView) {
             manage((String[]) v.getTag());
         } else if (v.getTag() instanceof String[]) {
@@ -166,7 +166,7 @@ final class Typography implements View.OnClickListener, Runnable {
     }
 
     private void manage(final String[] font) {
-        new AlertDialog.Builder(context, 0x010302d1).setTitle(font[1])
+        new AlertDialog.Builder(context, Palette.dialogTheme()).setTitle(font[1])
             .setPositiveButton("Rename", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int which) {
                     rename(font);
@@ -191,7 +191,7 @@ final class Typography implements View.OnClickListener, Runnable {
         LinearLayout box = new LinearLayout(context);
         box.setPadding(pad, pad / 2, pad, 0);
         box.addView(input, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        new AlertDialog.Builder(context, 0x010302d1).setTitle("Rename font").setView(box)
+        new AlertDialog.Builder(context, Palette.dialogTheme()).setTitle("Rename font").setView(box)
             .setPositiveButton("Save", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int which) {
                     String name = FontFile.cleanName(input.getText().toString());

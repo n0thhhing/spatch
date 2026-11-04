@@ -28,7 +28,8 @@ usage:
   spatch source <input.apkm> --out <dir> [--index-only]
 
 Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula,
-gruvbox-material-dark.
+gruvbox-material-dark, default, spotify, catppuccin-macchiato, catppuccin-frappe,
+rose-pine-moon, tokyo-night-storm, everforest, kanagawa, solarized, one.
 
 --debug adds Developer options to Spatch settings: on-device tests, logs and inspection tools.
 Other builds contain none of that code.

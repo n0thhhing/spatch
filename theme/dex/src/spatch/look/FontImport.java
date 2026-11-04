@@ -167,7 +167,7 @@ public final class FontImport extends Fragment implements Runnable, DialogInterf
     private void fail(String message) {
         Activity activity = getActivity();
         if (activity != null) {
-            new AlertDialog.Builder(activity, 0x010302d1).setTitle("Font not imported").setMessage(message).setPositiveButton("OK", null).show();
+            new AlertDialog.Builder(activity, Palette.dialogTheme()).setTitle("Font not imported").setMessage(message).setPositiveButton("OK", null).show();
         }
         clear();
         finish();
@@ -211,7 +211,7 @@ public final class FontImport extends Fragment implements Runnable, DialogInterf
         }
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(body);
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity, 0x010302d1)
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity, Palette.dialogTheme())
             .setTitle(variable ? "Add variable font" : "Add font")
             .setView(scroll)
             .setPositiveButton("Add", this)
