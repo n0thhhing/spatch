@@ -89,7 +89,7 @@ pub fn write(
     let mut zip = zip::ZipWriter::new(File::create_new(out)?);
     let opts = SimpleFileOptions::default()
         .compression_method(compression)
-        .compression_level((compression == zip::CompressionMethod::Deflated).then_some(9));
+        .compression_level((compression == zip::CompressionMethod::Deflated).then_some(3));
     zip.start_file("bundle.txt", opts)?;
     zip.write_all(steps.as_bytes())?;
     for (i, patch) in patches.iter().enumerate() {

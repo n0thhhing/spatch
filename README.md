@@ -141,6 +141,7 @@ falls back to a full rebuild. Normal and debug builds share those stages, while 
 helper code each time.
 Bundle and dry-run builds use the plain widget preview tile and make no artwork download; the
 manager fetches the cover when applying the bundle. Signed desktop builds still include the cover.
+Published bundles use fast compression; their patch bytes and integrity checks stay the same.
 
 With a phone connected and Spotify open on Home, this checks every icon name against the APK, then
 flips every switch and option on the settings pages and restores each one:
