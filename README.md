@@ -33,6 +33,9 @@ refused rather than patched blindly.
   record scratches can splash droplets, and bass transients send fading rings through the backdrop.
   Seek splash is on the Wavy progress page; Bass shockwaves is on Album art backdrop. Both respect
   reduced motion, page resets and presets.
+  Bass rings follow the measured artwork position as lyrics appear or the player animates. Player
+  settings can hide just the inline lyric preview; the backdrop and seek pages include shockwave
+  strength and splash-size sliders.
 - **Content:** hide podcasts, audiobooks, Home sections and side menu rows.
 
 Everything is configured in the app: open the side panel and choose **Spatch**. Each feature has a

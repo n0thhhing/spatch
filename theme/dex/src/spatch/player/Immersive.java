@@ -301,26 +301,7 @@ public final class Immersive extends View implements Runnable {
             lastArt = art;
         }
 
-        // 1. Backdrop (fades with the flight)
-        int layer = bgAlpha < 255 ? canvas.saveLayerAlpha(0, 0, w, h, bgAlpha) : canvas.save();
-        if (art != null && Settings.backdrop()) {
-            atmosphere.setBounds(0, 0, (int) w, (int) h);
-            atmosphere.draw(canvas);
-        }
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Settings.backdrop() ? 0x8c14121c : 0xff14121c); // keep an opaque surface when the backdrop is off
-        canvas.drawRect(0, 0, w, h, paint);
-        // Calmer ground for the controls and spectrum: the surface deepens over the lower 45%.
-        if (shade == null || shadeH != h) {
-            shadeH = h;
-            shade = new LinearGradient(0, h * 0.55f, 0, h, new int[] {0x0014121c, 0xb314121c}, null, Shader.TileMode.CLAMP);
-        }
-        paint.setShader(shade);
-        canvas.drawRect(0, h * 0.55f, w, h, paint);
-        paint.setShader(null);
-        canvas.restoreToCount(layer);
-
-        // 2. Artwork: flies between the player and its spot; squishes on press; pops on a new song.
+        // Resolve the displayed artwork before painting the backdrop so its rings share the same centre.
         if (motion && Settings.artPress()) PlayerArt.spring(squish, squishTarget, now - lastFrame);
         else { squish[0] = 1; squish[1] = 0; }
         lastFrame = now;
@@ -345,8 +326,30 @@ public final class Immersive extends View implements Runnable {
         drawnCx = cxArt; drawnCy = cyArt; drawnSize = size; drawnRadius = radius;
         float left = cxArt - size / 2f, top = cyArt - size / 2f;
 
-        int turned = canvas.save();
         if (!swiping) artDrag = Math.abs(artDrag) < 1 ? 0 : artDrag * DRAG_RETURN;
+        atmosphere.artwork(cxArt+artDrag, cyArt, size/2);
+
+        // 1. Backdrop (fades with the flight)
+        int layer = bgAlpha < 255 ? canvas.saveLayerAlpha(0, 0, w, h, bgAlpha) : canvas.save();
+        if (art != null && Settings.backdrop()) {
+            atmosphere.setBounds(0, 0, (int) w, (int) h);
+            atmosphere.draw(canvas);
+        }
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(Settings.backdrop() ? 0x8c14121c : 0xff14121c); // keep an opaque surface when the backdrop is off
+        canvas.drawRect(0, 0, w, h, paint);
+        // Calmer ground for the controls and spectrum: the surface deepens over the lower 45%.
+        if (shade == null || shadeH != h) {
+            shadeH = h;
+            shade = new LinearGradient(0, h * 0.55f, 0, h, new int[] {0x0014121c, 0xb314121c}, null, Shader.TileMode.CLAMP);
+        }
+        paint.setShader(shade);
+        canvas.drawRect(0, h * 0.55f, w, h, paint);
+        paint.setShader(null);
+        canvas.restoreToCount(layer);
+
+        // 2. Artwork and its decorations.
+        int turned = canvas.save();
         canvas.translate(artDrag, 0);
         canvas.rotate(artDrag / w * 14, cxArt, cyArt);
         if (changing && "spin".equals(change)) canvas.rotate(360f * Transport.outCubic((now - popAt) / 640f), cxArt, cyArt);

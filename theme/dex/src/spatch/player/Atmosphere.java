@@ -2,6 +2,7 @@ package spatch;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
+import android.view.View;
 
 /** Small artwork raster supplies diffuse, slowly drifting colour fields; no per-frame bitmap work. */
 public final class Atmosphere extends Drawable implements Runnable {
@@ -23,7 +24,17 @@ public final class Atmosphere extends Drawable implements Runnable {
     private int nextShock;
     private RadialGradient shockGlow;
     private int shockTint;
-    private float shockWidth,shockHeight;
+    private float shockX,shockY,shockRadius;
+    private float artX,artY,artRadius;
+    private final int[] artAt=new int[2],surfaceAt=new int[2];
+
+    /** The art and backdrop can have different origins, especially when inline lyrics change height. */
+    void follow(View art,View surface,float radius){
+        art.getLocationOnScreen(artAt);surface.getLocationOnScreen(surfaceAt);
+        artwork(artAt[0]-surfaceAt[0]+art.getWidth()/2f,artAt[1]-surfaceAt[1]+art.getHeight()/2f,radius);
+    }
+
+    void artwork(float x,float y,float radius){artX=x;artY=y;artRadius=radius;}
     public void capture(Drawable art) {
         float blend=blend();
         for(int i=0;i<3;i++) fromColors[i]=mix(fromColors[i],colors[i],blend);
@@ -76,7 +87,7 @@ public final class Atmosphere extends Drawable implements Runnable {
 
     private boolean drawShockwaves(Canvas c,float w,float h){
         long now=SystemClock.uptimeMillis();
-        boolean enabled=Wave.animationsEnabled()&&Settings.get(Settings.BASS_SHOCKWAVE);
+        boolean enabled=Wave.animationsEnabled()&&Settings.get(Settings.BASS_SHOCKWAVE)&&artRadius>0;
         if(!enabled){shockAt[0]=shockAt[1]=-10000;seenKick=Spectrum.kickAt;return false;}
         if(Spectrum.kickAt>0&&Spectrum.kickAt!=seenKick){
             seenKick=Spectrum.kickAt;
@@ -84,22 +95,23 @@ public final class Atmosphere extends Drawable implements Runnable {
                 shockAt[nextShock]=seenKick;shockEnergy[nextShock]=Spectrum.kickEnergy*Spectrum.alpha;nextShock=1-nextShock;
             }
         }
-        boolean running=false;
+        boolean running=shockProgress(now-shockAt[0])<1||shockProgress(now-shockAt[1])<1;
+        if(!running)return false;
         float dp=Math.max(1,w/400f);
+        float outer=Math.max(artRadius+14*dp,w*.9f);
         int tint=Tint.album();
-        if(shockGlow==null||shockTint!=tint||shockWidth!=w||shockHeight!=h){
-            shockGlow=new RadialGradient(w/2,h*.38f,w*.9f,new int[]{tint,tint&0xffffff},new float[]{.22f,1},Shader.TileMode.CLAMP);
-            shockTint=tint;shockWidth=w;shockHeight=h;
+        if(shockGlow==null||shockTint!=tint||shockX!=artX||shockY!=artY||shockRadius!=outer){
+            shockGlow=new RadialGradient(artX,artY,outer,new int[]{tint,tint&0xffffff},new float[]{.2f,1},Shader.TileMode.CLAMP);
+            shockTint=tint;shockX=artX;shockY=artY;shockRadius=outer;
         }
         paint.setShader(shockGlow);paint.setStyle(Paint.Style.STROKE);
         for(int i=0;i<2;i++){
             float t=shockProgress(now-shockAt[i]);
             if(t>=1)continue;
-            running=true;
-            float eased=1-(1-t)*(1-t), radius=w*(.22f+.68f*eased);
-            paint.setAlpha(Math.round(95*shockEnergy[i]*(1-t)*(1-t)));
+            float eased=1-(1-t)*(1-t), radius=artRadius+(outer-artRadius)*eased;
+            paint.setAlpha(Math.round(95*shockEnergy[i]*(1-t)*(1-t)*Settings.strength(Settings.SHOCK_STRENGTH)/100f));
             paint.setStrokeWidth((8-6.5f*t)*dp);
-            c.drawCircle(w/2,h*.38f,radius,paint);
+            c.drawCircle(artX,artY,radius,paint);
         }
         paint.setShader(null);paint.setStyle(Paint.Style.FILL);paint.setAlpha(255);
         return running;

@@ -188,6 +188,20 @@ public class PlayerRuntimeTest {
         public boolean postDelayed(Runnable r,long ms){pending=r;return true;}
         public boolean removeCallbacks(Runnable r){if(pending==r)pending=null;return true;}
     }
+    static class LyricSlot extends ViewGroup {
+        ViewGroup.LayoutParams params=new ViewGroup.LayoutParams(-1,-2);
+        int visibility=View.VISIBLE,accessibility=2;boolean clipped;
+        LyricSlot(int height){super(new android.content.Context(),null);params.height=height;}
+        public ViewGroup.LayoutParams getLayoutParams(){return params;}
+        public void setLayoutParams(ViewGroup.LayoutParams value){params=value;}
+        public int getVisibility(){return visibility;}
+        public void setVisibility(int value){visibility=value;}
+        public int getImportantForAccessibility(){return accessibility;}
+        public void setImportantForAccessibility(int value){accessibility=value;}
+        public boolean getClipChildren(){return clipped;}
+        public void setClipChildren(boolean value){clipped=value;}
+        public boolean post(Runnable value){value.run();return true;}
+    }
     static Object field(Object o, String n) throws Exception { Field f=o.getClass().getDeclaredField(n); f.setAccessible(true); return f.get(o); }
     public static void main(String[] args) throws Exception {
         Field active=Palette.class.getDeclaredField("active");active.setAccessible(true);
@@ -412,6 +426,8 @@ public class PlayerRuntimeTest {
         int writes=art.boundsWrites;
         overlay.onDraw(new Canvas());
         check(art.boundsWrites==writes, "immersive render must not change the shared drawable bounds");
+        Atmosphere heroBackdrop=(Atmosphere)field(overlay,"atmosphere");
+        check(Math.abs((Float)field(heroBackdrop,"artX")-((Float)field(overlay,"drawnCx")+(Float)field(overlay,"artDrag")))<.001 && Math.abs((Float)field(heroBackdrop,"artY")-(Float)field(overlay,"drawnCy"))<.001 && Math.abs((Float)field(heroBackdrop,"artRadius")-(Float)field(overlay,"drawnSize")/2)<.001,"immersive shockwaves must use the displayed artwork geometry");
         System.out.println("PASS immersive leaves shared drawable geometry untouched");
         page.testHeight=1000;
         float[] sourceSpring=(float[])field(page,"squish");sourceSpring[0]=1;sourceSpring[1]=0;
@@ -498,7 +514,8 @@ public class PlayerRuntimeTest {
 
         // New settings keep today's look for anyone upgrading, and album colours stay readable.
         check(Settings.KEYS.length==Settings.DEFAULTS.length,"every key needs a default");
-        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB&&i!=Settings.HIDE_ACCOUNT_SWITCHER&&i!=Settings.HIDE_PARENTAL_CONTROLS) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB&&i!=Settings.HIDE_ACCOUNT_SWITCHER&&i!=Settings.HIDE_PARENTAL_CONTROLS&&i!=Settings.HIDE_PLAYER_LYRICS) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        check(!Settings.DEFAULTS[Settings.HIDE_PLAYER_LYRICS],"inline lyrics must remain visible until the user opts out");
         check(!Settings.DEFAULTS[Settings.HIDE_ACCOUNT_SWITCHER]&&!Settings.DEFAULTS[Settings.HIDE_PARENTAL_CONTROLS],"hiding the account switcher and Parental controls is opt-in");
         check(!Settings.DEFAULTS[Settings.HIDE_PREMIUM_TAB],"hiding the Premium tab is opt-in: it removes part of Spotify's own interface");
         p.S_NavTab premiumTab=new p.S_NavTab();premiumTab.b=3;premiumTab.c=new p.S_PageId();premiumTab.c.a="spotify:upsell:premium_in_app_destination";
@@ -832,7 +849,7 @@ public class PlayerRuntimeTest {
         Spectrum.trackBass(.05f,1936,true);Spectrum.trackBass(1,1952,true);check(Spectrum.kickAt==1920,"cooldown blocks rapid retriggers");
         Spectrum.trackBass(.9f,3000,true);check(Spectrum.kickAt==0,"resuming after a gap must not replay a kick");
         Spectrum.trackBass(0,3016,false);check(Spectrum.kickAt==0,"reduced motion or silence clears the kick");
-        Atmosphere shockBackdrop=new Atmosphere();Method drawShocks=Atmosphere.class.getDeclaredMethod("drawShockwaves",Canvas.class,float.class,float.class);drawShocks.setAccessible(true);
+        Atmosphere shockBackdrop=new Atmosphere();shockBackdrop.artwork(130,170,88);Method drawShocks=Atmosphere.class.getDeclaredMethod("drawShockwaves",Canvas.class,float.class,float.class);drawShocks.setAccessible(true);
         Settings.set(Settings.BASS_SHOCKWAVE,true);Spectrum.kickAt=android.os.SystemClock.uptimeMillis()-20;Spectrum.kickEnergy=1;
         check((Boolean)drawShocks.invoke(shockBackdrop,new Canvas(),400f,1000f),"a fresh kick creates an expanding ring");
         drawShocks.invoke(shockBackdrop,new Canvas(),400f,1000f);
@@ -840,6 +857,46 @@ public class PlayerRuntimeTest {
         Settings.set(6,true);check(!(Boolean)drawShocks.invoke(shockBackdrop,new Canvas(),400f,1000f),"reduced motion clears shockwaves");Settings.set(6,false);
         check(Atmosphere.shockProgress(0)==0 && Atmosphere.shockProgress(420)==1 && Atmosphere.shockProgress(900)==1,"rings expire after 420 ms");
         Spectrum.reset();System.out.println("PASS transient kick detection, cooldown and shockwave expiry");
+
+        final int[] artworkOrigin={150,250},surfaceOrigin={20,70};
+        View movingArtwork=new View(new android.content.Context()){
+            public int getWidth(){return 200;}public int getHeight(){return 200;}
+            public void getLocationOnScreen(int[] out){out[0]=artworkOrigin[0];out[1]=artworkOrigin[1];}
+        };
+        View backdropSurface=new View(new android.content.Context()){
+            public void getLocationOnScreen(int[] out){out[0]=surfaceOrigin[0];out[1]=surfaceOrigin[1];}
+        };
+        final java.util.ArrayList<float[]> shockCircles=new java.util.ArrayList<>();
+        Canvas shockCanvas=new Canvas(){public void drawCircle(float x,float y,float r,Paint paint){shockCircles.add(new float[]{x,y,r,paint.getAlpha()});}};
+        Settings.set(Settings.BASS_SHOCKWAVE,true);Settings.setStrength(Settings.SHOCK_STRENGTH,100);
+        Spectrum.alpha=1;Spectrum.kickAt=android.os.SystemClock.uptimeMillis()-10;Spectrum.kickEnergy=1;
+        Atmosphere aligned=new Atmosphere();aligned.follow(movingArtwork,backdropSurface,88);
+        drawShocks.invoke(aligned,shockCanvas,400f,1000f);
+        float[] firstRing=shockCircles.get(0);check(firstRing[0]==230 && firstRing[1]==280 && firstRing[2]>=88,"rings originate at the measured artwork centre and edge");
+        artworkOrigin[1]=180;aligned.follow(movingArtwork,backdropSurface,88);shockCircles.clear();drawShocks.invoke(aligned,shockCanvas,400f,1700f);
+        check(shockCircles.get(0)[1]==210,"lyrics-induced layout changes must move the ring centre, independent of backdrop height");
+        surfaceOrigin[1]+=35;artworkOrigin[1]+=35;aligned.follow(movingArtwork,backdropSurface,88);shockCircles.clear();drawShocks.invoke(aligned,shockCanvas,400f,1700f);
+        check(shockCircles.get(0)[1]==210,"window insets must cancel between artwork and backdrop");
+        Settings.setStrength(Settings.SHOCK_STRENGTH,50);shockCircles.clear();drawShocks.invoke(aligned,shockCanvas,400f,1700f);
+        check(shockCircles.get(0)[3]<firstRing[3],"shockwave strength controls ring opacity");Settings.setStrength(Settings.SHOCK_STRENGTH,100);
+        System.out.println("PASS artwork-centred shockwaves across lyrics layout changes");
+
+        final LyricSlot[] lyricSlot={new LyricSlot(96)};LyricSlot fullLyrics=new LyricSlot(240);
+        View lyricRoot=new View(new android.content.Context()){public View findViewById(int id){return id==R_id_lyrics_element?lyricSlot[0]:null;}public boolean post(Runnable task){task.run();return true;}};
+        Settings.set(Settings.HIDE_PLAYER_LYRICS,false);PlayerLyrics.bind(lyricRoot);
+        Settings.set(Settings.HIDE_PLAYER_LYRICS,true);PlayerLyrics.bind(lyricRoot);PlayerLyrics.bind(lyricRoot);
+        check(lyricSlot[0].params.height==0 && lyricSlot[0].clipped && lyricSlot[0].accessibility==View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS && lyricSlot[0].visibility==View.VISIBLE,"hiding inline lyrics collapses and clips the slot without overriding Spotify's visibility");
+        lyricSlot[0].visibility=View.GONE;Settings.set(Settings.HIDE_PLAYER_LYRICS,false);
+        check(lyricSlot[0].params.height==96 && !lyricSlot[0].clipped && lyricSlot[0].accessibility==2 && lyricSlot[0].visibility==View.GONE && fullLyrics.params.height==240,"restore preserves lyric availability, accessibility and full lyrics");
+        lyricSlot[0].visibility=View.VISIBLE;Settings.set(Settings.HIDE_PLAYER_LYRICS,true);
+        ViewGroup.LayoutParams inheritedParams=lyricSlot[0].params;
+        Field currentLyrics=PlayerLyrics.class.getDeclaredField("CURRENT");currentLyrics.setAccessible(true);((java.lang.ref.WeakReference)field(currentLyrics.get(null),"slot")).clear();
+        lyricSlot[0]=new LyricSlot(0);lyricSlot[0].params=inheritedParams;PlayerLyrics.bind(lyricRoot);Settings.set(Settings.HIDE_PLAYER_LYRICS,false);
+        check(lyricSlot[0].params.height==96,"replacing a stub with shared layout params must retain its native height even after collection");
+        Settings.set(Settings.HIDE_PLAYER_LYRICS,true);lyricSlot[0].params.height=111;PlayerLyrics.bind(lyricRoot);Settings.set(Settings.HIDE_PLAYER_LYRICS,false);
+        check(lyricSlot[0].params.height==111,"restoring lyrics uses Spotify's latest requested height");
+        lyricSlot[0]=null;PlayerLyrics.bind(lyricRoot);Spectrum.reset();
+        System.out.println("PASS inline lyrics toggle, replacement and native state restoration");
 
         SplashRoot splashRoot=new SplashRoot();Settings.set(Settings.SEEK_SPLASH,true);
         SeekSplash.at(splashRoot,100,100);SeekSplash.at(splashRoot,100,100);SeekSplash.at(splashRoot,100,100);

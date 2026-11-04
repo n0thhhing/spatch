@@ -138,6 +138,7 @@ public final class PlayerArt extends ImageView {
         // The artwork carousel keeps the previous and next tracks' pages alive off-screen; only the
         // page centred on screen may set the blurred backdrop, or a neighbour's art wins.
         Drawable art=getDrawable();
+        if (!preview) PlayerLyrics.bind(getRootView());
         updateAudio();
         Tint.follow(art);
         colourTitle();
@@ -153,6 +154,7 @@ public final class PlayerArt extends ImageView {
                 if(!(background.getBackground() instanceof Atmosphere)) original=background.getBackground();
                 background.setBackground(atmosphere);
             }
+            atmosphere.follow(this,background,Math.min(getWidth(),getHeight())*(Settings.roundArt() && !ad ? .44f : .5f)*size);
         }
         if(now-lastSetup>750) {
             lastSetup=now;

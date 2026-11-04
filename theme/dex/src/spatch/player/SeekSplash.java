@@ -27,7 +27,7 @@ final class SeekSplash extends Drawable implements Runnable {
         View root = host.getRootView();
         int[] at = new int[2], origin = new int[2];
         host.getLocationOnScreen(at); root.getLocationOnScreen(origin);
-        SeekSplash splash = new SeekSplash(root, x+at[0]-origin[0], y+at[1]-origin[1], host.getResources().getDisplayMetrics().density);
+        SeekSplash splash = new SeekSplash(root, x+at[0]-origin[0], y+at[1]-origin[1], host.getResources().getDisplayMetrics().density*Settings.strength(Settings.SPLASH_SIZE)/100f);
         splash.setBounds(0, 0, root.getWidth(), root.getHeight());
         root.getOverlay().add(splash);
         live++;
