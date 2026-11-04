@@ -14,6 +14,7 @@ import android.graphics.Shader;
  */
 final class Spectrum {
     static final int BANDS = 24;
+    static final float CEILING = 1.12f;
     /** Below this mean level a frame is silence: nothing is learned from it. */
     static final float VALID = 0.12f;
     /** Half-width of a seeded per-band range. */
@@ -73,7 +74,7 @@ final class Spectrum {
             gainHi = rawMean + 0.12f;
             seeded = true;
         }
-        float min = 1, max = 0, sum = 0;
+        float min = Float.MAX_VALUE, max = 0, sum = 0;
         for (int i = 0; i < BANDS; i++) {
             shown[i] += (raw[i] - shown[i]) * (raw[i] > shown[i] ? rise : fall);
             min = Math.min(min, shown[i]);
@@ -104,7 +105,7 @@ final class Spectrum {
             float own = (v - lo[i]) / Math.max(0.15f, hi[i] - lo[i]);
             float x = Math.max(0, 0.65f * own + 0.35f * (v - gainLo) / range);
             // Soft knee instead of a hard clip: peaks above the tracked range stay rounded, not flat.
-            bands[i] = Math.min(1.12f, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
+            bands[i] = Math.min(CEILING, (1 - (float) Math.exp(-1.8f * x)) / KNEE);
         }
         float present = clamp01(mean * 4); // silence or pause: settle and fade out
         alpha = motion ? alpha + (present - alpha) * (1 - (float) Math.exp(-dt / 200f)) : present;

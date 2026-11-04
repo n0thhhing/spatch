@@ -138,7 +138,8 @@ public final class AudioSpectrum {
                 power+=weight*(re*re+im*im)/(128.0*128.0);
             }
             // Display dB of band energy rather than a peak biased by bin count. Silence stays zero.
-            out[i]=power==0 ? 0 : Math.max(0,Math.min(1,(float)((10*Math.log10(power)+50)/50)));
+            // A band sums several bins: it can exceed 0 dB. Clipping here flattens loud music.
+            out[i]=power==0 ? 0 : Math.max(0,(float)((10*Math.log10(power)+50)/50));
         }
         return out;
     }

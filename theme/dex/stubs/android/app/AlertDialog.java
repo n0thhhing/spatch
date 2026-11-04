@@ -1,6 +1,7 @@
 package android.app;
 
 public class AlertDialog implements android.content.DialogInterface {
+    public android.view.Window getWindow() { return null; }
     public android.widget.Button getButton(int which) { return null; }
     public void setCancelable(boolean c) {}
     public void show() {}

@@ -148,7 +148,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         String reacts = Settings.choice(Settings.WAVE_REACTS), follows = Settings.choice(Settings.WAVE_FOLLOWS), strength = Settings.choice(Settings.WAVE_STRENGTH);
         boolean height = real && ("height".equals(reacts) || "all".equals(reacts));
         float beat = real ? beat(Spectrum.bands, Spectrum.alpha) : 0f;
-        if (real && ("thickness".equals(reacts) || "all".equals(reacts))) stroke = Math.min(h * 0.8f, stroke * (1f + push(strength) * beat));
+        if (real && ("thickness".equals(reacts) || "all".equals(reacts))) stroke = thickness(stroke, h, beat, strength);
         float a = "wave".equals(style) ? Math.max(0f, (h - stroke) / 2f) * amp : 0f;
         float wl = h * 2.5f;
         String speed = Settings.choice(Settings.WAVE_SPEED);
@@ -237,15 +237,20 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     static float swell(float[] bands, float along, float alpha, String follows, String strength) {
         float melody = Spectrum.at(bands, Math.max(0f, Math.min(1f, along)), false);
         float mix = "beat".equals(follows) ? (bands[0] + bands[1]) / 2f : "melody".equals(follows) ? melody : .65f * (bands[0] + bands[1]) / 2f + .35f * melody;
-        float level = Math.max(0f, Math.min(1f, alpha * mix));
+        float level = Math.max(0f, Math.min(1f, alpha * mix / Spectrum.CEILING));
         if ("subtle".equals(strength)) return .55f + .45f * level;
-        if ("strong".equals(strength)) return .02f + .98f * Math.min(1f, level * 1.4f);
+        if ("strong".equals(strength)) return .02f + .98f * level * level;
         return .12f + .88f * level;
     }
 
     /** The beat's strength, 0 to 1: the two lowest bands. */
     static float beat(float[] bands, float alpha) {
-        return Math.max(0f, Math.min(1f, alpha * (bands[0] + bands[1]) / 2f));
+        return Math.max(0f, Math.min(1f, alpha * (bands[0] + bands[1]) / (2f * Spectrum.CEILING)));
+    }
+
+    /** Use the available stroke space rather than hitting a ceiling halfway through a loud beat. */
+    static float thickness(float stroke, float height, float beat, String strength) {
+        return stroke + (height * .8f - stroke) * push(strength) * beat;
     }
 
     /** How hard Thickness and Speed follow a beat. */

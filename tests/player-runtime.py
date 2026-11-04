@@ -14,7 +14,7 @@ stand_in = {}
 
 def fill(text):
     """The patcher swaps R_<type>_<name> for the build's resource ID; here each name gets a stand-in, the same one everywhere."""
-    return RESOURCE.sub(lambda m: '0x%08x' % stand_in.setdefault(m.group(), 0x7f700000 + len(stand_in)), text)
+    return RESOURCE.sub(lambda m: f'0x{stand_in.setdefault(m.group(), 0x7f700000 + len(stand_in)):08x}', text)
 
 
 with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
@@ -289,6 +289,12 @@ public class PlayerRuntimeTest {
         byte[] pink=new byte[1024];for(int k=1;k<512;k++)pink[k*2]=(byte)Math.round(100/Math.sqrt(k));
         float low=1,high=0;for(float value:AudioSpectrum.bands(pink,48000,24)){low=Math.min(low,value);high=Math.max(high,value);}
         check(high-low<.1f,"equal-energy-per-octave input must not produce a downward tilt");
+        byte[] dense=new byte[1024],denser=new byte[1024];
+        java.util.Arrays.fill(dense,(byte)64);java.util.Arrays.fill(denser,(byte)100);
+        float[] loudFrame=AudioSpectrum.bands(dense,48000,24),louderFrame=AudioSpectrum.bands(denser,48000,24);
+        boolean loudDynamics=false;
+        for(int i=0;i<loudFrame.length;i++) if(loudFrame[i]>1 && louderFrame[i]>loudFrame[i]+.02f) loudDynamics=true;
+        check(loudDynamics,"loud multi-tone audio must retain energy changes above the old clipping point");
         System.out.println("PASS weighted FFT bands, pink-noise balance, silence and tones");
         AudioSpectrum.created(91);AudioSpectrum.created(92);AudioSpectrum.destroyed(91);
         android.content.Context allowed=new android.content.Context(){public int checkSelfPermission(String p){return 0;}};
@@ -739,7 +745,15 @@ public class PlayerRuntimeTest {
         float[] silentBands=new float[Spectrum.bands.length], loudBands=new float[Spectrum.bands.length]; java.util.Arrays.fill(loudBands,1f);
         check(Wave.swell(silentBands,.5f,1f,"mix","normal")==Wave.swell(silentBands,.5f,1f)&&Wave.swell(loudBands,.5f,1f,"mix","normal")==Wave.swell(loudBands,.5f,1f),"the default music settings keep the old wave");
         check(Wave.swell(silentBands,.5f,1f,"beat","subtle")>Wave.swell(silentBands,.5f,1f,"beat","normal")&&Wave.swell(silentBands,.5f,1f,"beat","normal")>Wave.swell(silentBands,.5f,1f,"beat","strong"),"subtle swings least and strong most");
-        check(Wave.swell(loudBands,.5f,1f,"melody","strong")<=1f&&Wave.beat(loudBands,1f)==1f&&Wave.beat(silentBands,1f)==0f&&Wave.push("strong")>Wave.push("subtle"),"music never pushes the wave past its bounds");
+        check(Wave.swell(loudBands,.5f,1f,"melody","strong")<=1f&&Wave.beat(loudBands,1f)<=1f&&Wave.beat(silentBands,1f)==0f&&Wave.push("strong")>Wave.push("subtle"),"music never pushes the wave past its bounds");
+        float[] peakBands=new float[Spectrum.BANDS];java.util.Arrays.fill(peakBands,Spectrum.CEILING);
+        for(String follows:new String[]{"mix","beat","melody"}) for(String strength:new String[]{"normal","subtle","strong"}) {
+            float loudWave=Wave.swell(loudBands,.5f,1f,follows,strength),peakWave=Wave.swell(peakBands,.5f,1f,follows,strength);
+            check(peakWave>loudWave+.02f && peakWave<=1f,"loud wave peaks must keep moving: "+follows+" "+strength);
+        }
+        check(Wave.beat(peakBands,1f)>Wave.beat(loudBands,1f),"beat response must use the spectrum's full range");
+        check(Wave.thickness(6,10,.9f,"strong")<Wave.thickness(6,10,1f,"strong") && Wave.thickness(6,10,1f,"strong")<=8,"held wave thickness must not flatten at loud peaks");
+        System.out.println("PASS loud wave dynamics and bounded thickness");
         check(SpatchWidget.isAd("spotify:ad:abc123")&&!SpatchWidget.isAd("spotify:track:abc")&&!SpatchWidget.isAd(null),"ads are told apart from songs by their item id");
         check(Surfaces.black(0x66121212)&&Surfaces.black(0xb3181818)&&!Surfaces.black(0xff141414),"Spotify's page blacks are recognised at any opacity");
         check(Surfaces.grey(0xff535353)&&!Surfaces.grey(0xff101010)&&!Surfaces.grey(0x80535353)&&!Surfaces.grey(0xffe91e8c)&&Surfaces.chroma(Surfaces.tintGrey(0xff535353))>0,"flat header greys take a theme tint; scrims and colours do not");

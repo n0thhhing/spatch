@@ -894,10 +894,20 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                 name.setHint("Preset name");
                 name.setContentDescription("Preset name");
                 name.setSingleLine(true);
+                name.setTextColor(text);
+                name.setHintTextColor(subdued);
+                name.setTypeface(Fonts.settings(400));
+                name.setTextSize(16f);
+                name.setMinimumHeight(dp(48));
+                name.setPadding(dp(16), dp(12), dp(16), dp(12));
+                name.setBackground(rounded(high, dp(12)));
+                FrameLayout input = new FrameLayout(getContext());
+                input.setPadding(dp(24), dp(8), dp(24), dp(8));
+                input.addView(name, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 final AlertDialog dialog = new AlertDialog.Builder(getContext(), 0x010302d1)
                     .setTitle("Save preset").setMessage("Use a new name, or an existing name to replace its saved settings.")
-                    .setView(name).setPositiveButton("Save", null).setNegativeButton("Cancel", null).create();
-                dialog.show();
+                    .setView(input).setPositiveButton("Save", null).setNegativeButton("Cancel", null).create();
+                showPresetDialog(dialog);
                 dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
                     public void onClick(View button) {
                         if (!Settings.savePreset(name.getText().toString())) {
@@ -915,7 +925,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             View row = createSettingRow("playlist", name, "Apply, update or delete", icon("chevron_right"));
             row.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
-                    new AlertDialog.Builder(getContext(), 0x010302d1).setTitle(name)
+                    AlertDialog dialog = new AlertDialog.Builder(getContext(), 0x010302d1).setTitle(name)
                         .setMessage("Apply the saved settings, update this preset with your current settings, or delete it.")
                         .setPositiveButton("Apply", new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface d, int which) {
@@ -930,12 +940,35 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                                 Settings.deletePreset(name);
                                 renderPresets(page);
                             }
-                        }).show();
+                        }).create();
+                    showPresetDialog(dialog);
                 }
             });
             page.addView(row);
         }
         Fonts.restyle(page);
+    }
+
+    private void showPresetDialog(AlertDialog dialog) {
+        dialog.show();
+        android.view.Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(rounded(card, dp(28)));
+            tintDialogText(window.getDecorView());
+            Fonts.restyle(window.getDecorView());
+        }
+        for (int which : new int[] {DialogInterface.BUTTON_POSITIVE, DialogInterface.BUTTON_NEGATIVE, DialogInterface.BUTTON_NEUTRAL}) {
+            android.widget.Button button = dialog.getButton(which);
+            if (button != null) button.setTextColor(accent);
+        }
+    }
+
+    private void tintDialogText(View view) {
+        if (view instanceof TextView) ((TextView) view).setTextColor(text);
+        else if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) tintDialogText(group.getChildAt(i));
+        }
     }
 
     static boolean matches(int setting, String wanted) {
@@ -1217,9 +1250,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             pill.setGravity(Gravity.CENTER);
             pill.setClickable(true);
             pill.setFocusable(true);
+            pill.setMinimumHeight(dp(48));
+            pill.setPadding(dp(6), dp(12), dp(6), dp(12));
             pill.setTag(new String[] {String.valueOf(setting), Settings.CHOICES[setting][i], title + ": " + labels[i]});
             pill.setOnClickListener(this);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
             if (i > 0) lp.leftMargin = dp(3);
             pills.addView(pill, lp);
             pillViews.add(pill);
