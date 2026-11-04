@@ -1,14 +1,14 @@
 #!/bin/sh
 # Builds Spatch Manager with the Android SDK alone (aapt2, javac, d8, zipalign, apksigner).
 #   manager/build.sh <version> <out.apk> --keystore <file> --alias <name> --ks-pass-env <VAR>
-# <version> is major.minor.patch (0.x until 1.0); the version code is major*10000 + minor*100 + patch.
+# <version> is major.minor.patch[-commit] (0.x until 1.0); the version code is major*10000 + minor*100 + patch.
 # The keystore password stays in the named environment variable; apksigner reads it from there.
 # apksig, which signs on the phone, comes from the SDK's own apksigner.jar.
 set -eu
 [ $# -eq 8 ] || { sed -n '3p' "$0"; exit 2; }
 version=$1 out=$2 ks=$4 alias=$6 pass=$8
-echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "version must be major.minor.patch"; exit 2; }
-code=$(echo "$version" | awk -F. '{print $1*10000 + $2*100 + $3}')
+echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9a-f]+)?$' || { echo "version must be major.minor.patch[-commit]"; exit 2; }
+code=$(echo "${version%%-*}" | awk -F. '{print $1*10000 + $2*100 + $3}')
 here=$(cd "$(dirname "$0")" && pwd)
 sdk=${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}
 bt=$(ls -d "$sdk"/build-tools/* | sort -V | tail -1)

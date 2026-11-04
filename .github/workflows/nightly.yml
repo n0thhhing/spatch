@@ -11,6 +11,7 @@ on:
     paths:
       - "src/**"
       - "theme/**"
+      - "manager/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "scripts/nightly.sh"
@@ -68,6 +69,9 @@ jobs:
           if [ ! -x "$ANDROID_HOME/build-tools/36.0.0/aapt2" ]; then
             yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" > /dev/null
           fi
+          if ! ls "$ANDROID_HOME"/platforms/android-*/android.jar >/dev/null 2>&1; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" > /dev/null
+          fi
           mkdir -p "$HOME/bin"
           if [ ! -s "$HOME/bin/apktool.jar" ]; then
             curl -fsSL -o "$HOME/bin/apktool.jar" https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
@@ -95,7 +99,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NIGHTLY_BUILD: ${{ matrix.bundle }}
           NIGHTLY_OUT: ${{ runner.temp }}/bundle
-        run: scripts/nightly.sh "$GITHUB_SHA"
+          MANAGER_KEYSTORE: ${{ secrets.MANAGER_KEYSTORE }}
+          MANAGER_KS_PASS: ${{ secrets.MANAGER_KS_PASS }}
+        run: |
+          if [ -n "${MANAGER_KEYSTORE:-}" ]; then
+            printf '%s' "$MANAGER_KEYSTORE" | base64 -d > "$RUNNER_TEMP/manager.p12"
+            export MANAGER_KEYSTORE_FILE="$RUNNER_TEMP/manager.p12"
+          fi
+          scripts/nightly.sh "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ matrix.bundle }}

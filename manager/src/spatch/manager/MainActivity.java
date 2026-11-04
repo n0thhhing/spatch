@@ -371,7 +371,8 @@ public final class MainActivity extends Activity {
                         lp.bottomMargin = look.dp(10);
                         card.addView(div, lp);
                     }
-                    boolean onPhone = installed != null && installed.startsWith(c.tag);
+                    boolean onPhone = (installed != null && installed.startsWith(c.tag))
+                        || ownName().endsWith("-" + c.tag.replaceFirst("^nightly-", ""));
                     boolean newest = releases.nightly != null ? releases.nightly.tag.equals(c.tag) : i == 0;
                     String meta = c.tag.replaceFirst("^nightly-", "")
                         + (c.date.isEmpty() ? "" : "  •  " + c.date)
@@ -476,9 +477,11 @@ public final class MainActivity extends Activity {
         } catch (Exception e) {
             keyStatus.setText("Key unreadable.");
         }
-        int own = ownCode(), newest = Releases.code(releases == null ? null : releases.manager);
-        managerStatus.setText("Spatch Manager " + ownName() + (newest > own ? " (version " + Releases.version(releases.manager) + " is available)." : " is up to date."));
-        managerUpdate.setVisibility(newest > own ? View.VISIBLE : View.GONE);
+        Releases.Release mgrUpdate = managerUpdateTarget();
+        managerStatus.setText("Spatch Manager " + ownName() + (mgrUpdate != null
+            ? " (" + (mgrUpdate.tag.startsWith("nightly-") ? Releases.version(mgrUpdate) : "version " + Releases.version(mgrUpdate)) + " is available)."
+            : " is up to date."));
+        managerUpdate.setVisibility(mgrUpdate != null ? View.VISIBLE : View.GONE);
         for (Button b : Arrays.asList(choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset)) look.enable(b, !busy);
         look.enable(exportKey, !busy && keys != null);
         renderChanges(installed);
@@ -770,12 +773,22 @@ public final class MainActivity extends Activity {
         return b.apply(kept, splits, dir, clone, this::step);
     }
 
+    private Releases.Release managerUpdateTarget() {
+        if (releases == null) return null;
+        if (nightly.isChecked() && releases.nightlyManager != null) {
+            String sha = releases.nightlyManager.tag.substring("nightly-".length());
+            if (!ownName().endsWith("-" + sha)) return releases.nightlyManager;
+        }
+        return Releases.code(releases.manager) > ownCode() ? releases.manager : null;
+    }
+
     private void updateManager() {
         if (!getPackageManager().canRequestPackageInstalls()) {
             startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
             return;
         }
-        final Releases.Release release = releases.manager;
+        final Releases.Release release = managerUpdateTarget();
+        if (release == null) return;
         work("Downloading the manager", () -> {
             File apk = new File(getCacheDir(), "manager.apk");
             Releases.download(release.url, apk, this::step, "Downloading the manager");

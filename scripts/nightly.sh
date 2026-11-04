@@ -23,6 +23,20 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 out=${NIGHTLY_BUNDLES:-${NIGHTLY_OUT:-$work/out}}
 mkdir -p "$out"
+build_manager() {
+    ks=${MANAGER_KEYSTORE_FILE:-$HOME/.spatch/device-test.p12}
+    if [ -z "${MANAGER_KS_PASS:-}" ] && [ -f "$HOME/.spatch/device-test.pass" ]; then
+        MANAGER_KS_PASS=$(cat "$HOME/.spatch/device-test.pass")
+        export MANAGER_KS_PASS
+    fi
+    if [ -f "$ks" ] && [ -n "${MANAGER_KS_PASS:-}" ]; then
+        mgr_ver=$(gh release list --limit 50 --json tagName -q '[.[] | select(.tagName | startswith("manager-v"))][0].tagName | sub("^manager-v"; "")' 2>/dev/null || true)
+        mgr_ver=${mgr_ver:-0.9.0}
+        "$work/src/manager/build.sh" "$mgr_ver-$short" "$out/spatch-manager.apk" \
+            --keystore "$ks" --alias "${MANAGER_KS_ALIAS:-spatch-test}" --ks-pass-env MANAGER_KS_PASS
+    fi
+}
+
 if [ -z "${NIGHTLY_BUNDLES:-}" ]; then
     mkdir "$work/src"
     git -C "$repo" archive "$sha" | tar -x -C "$work/src"
@@ -31,27 +45,33 @@ if [ -z "${NIGHTLY_BUNDLES:-}" ]; then
     cd "$work/src"
     spatch="$CARGO_TARGET_DIR/release/spatch"
     case "${NIGHTLY_BUILD:-both}" in
-        normal) "$spatch" bundle "$apkm" --out "$out/spatch-bundle.zip"; exit 0 ;;
+        normal)
+            "$spatch" bundle "$apkm" --out "$out/spatch-bundle.zip"
+            build_manager
+            exit 0 ;;
         debug) "$spatch" bundle "$apkm" --debug --out "$out/spatch-bundle-debug.zip"; exit 0 ;;
         both)
             "$spatch" bundle "$apkm" --out "$out/spatch-bundle.zip" & normal=$!
             "$spatch" bundle "$apkm" --debug --out "$out/spatch-bundle-debug.zip"
-            wait "$normal" ;;
+            wait "$normal"
+            build_manager ;;
         *) echo "NIGHTLY_BUILD is normal, debug or unset"; exit 2 ;;
     esac
 fi
 cd "$out"
-shasum -a 256 spatch-bundle.zip spatch-bundle-debug.zip > spatch-bundle.sha256
+assets="spatch-bundle.zip spatch-bundle-debug.zip"
+[ -f spatch-manager.apk ] && assets="$assets spatch-manager.apk"
+shasum -a 256 $assets > spatch-bundle.sha256
 
-notes="Patches built from $short, $(git -C "$repo" log -1 --format=%s "$sha"), for Spotify $version. Not released and less tested: turn on Nightly patches in Spatch Manager 0.9.0 or later to use it."
+notes="Patches and Spatch Manager built from $short, $(git -C "$repo" log -1 --format=%s "$sha"), for Spotify $version. Not released and less tested: turn on Nightly patches in Spatch Manager 0.9.0 or later to use it."
 git -C "$repo" tag -f nightly "$sha" >/dev/null
 git -C "$repo" push -q -f origin refs/tags/nightly
 if gh release view nightly >/dev/null 2>&1; then
     # Files first, then the commit: the manager names what it installs after the commit.
-    gh release upload nightly spatch-bundle.zip spatch-bundle-debug.zip spatch-bundle.sha256 --clobber
+    gh release upload nightly $assets spatch-bundle.sha256 --clobber
     gh release edit nightly --target "$sha" --prerelease --notes "$notes" >/dev/null
 else
     gh release create nightly --prerelease --target "$sha" --title "Spatch nightly" --notes "$notes" \
-        spatch-bundle.zip spatch-bundle-debug.zip spatch-bundle.sha256 >/dev/null
+        $assets spatch-bundle.sha256 >/dev/null
 fi
 echo "nightly is now $short"

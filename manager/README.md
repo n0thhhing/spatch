@@ -48,7 +48,7 @@ Updates replace only `base.apk` (the other APKs never change) and, on Android 12
 without the confirmation screen once the manager has installed Spotify. **Tell me about new patches**
 checks twice a day and posts a notification; tapping it opens the manager straight into the update.
 
-**Update manager** appears when a newer manager release is out.
+**Update manager** appears when a newer manager release is out (or a newer nightly manager when **Nightly patches** is on).
 
 The two pages along the bottom are **Spatch** (Spotify, Options & updates, Second Spotify and Signing key) and **Changes** (recent nightly commits and release notes).
 

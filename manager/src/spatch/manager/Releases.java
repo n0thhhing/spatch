@@ -50,13 +50,18 @@ final class Releases {
         }
     }
 
-    Release bundle, manager, nightly; // nightly: the bundle built from the newest commit, tagged nightly-<commit>
+    Release bundle, manager, nightly, nightlyManager; // nightly*: built from the newest commit, tagged nightly-<commit>
     final List<Note> notes = new ArrayList<>();
     final List<Note> commits = new ArrayList<>();
 
     /** The bundle to install: the nightly when asked for and published, the newest release otherwise. */
     Release bundle(boolean wantNightly) {
         return wantNightly && nightly != null ? nightly : bundle;
+    }
+
+    /** The manager to update to: the nightly when asked for and published, the newest release otherwise. */
+    Release manager(boolean wantNightly) {
+        return wantNightly && nightlyManager != null ? nightlyManager : manager;
     }
 
     static Releases fetch() throws IOException {
@@ -93,6 +98,8 @@ final class Releases {
                     String commit = release.optString("target_commitish", "");
                     String url = asset(release, "spatch-bundle.zip");
                     if (commit.length() >= 7 && url != null) r.nightly = new Release("nightly-" + commit.substring(0, 7), url, asset(release, "spatch-bundle-debug.zip"), body);
+                    String mgr = asset(release, "spatch-manager.apk");
+                    if (commit.length() >= 7 && mgr != null) r.nightlyManager = new Release("nightly-" + commit.substring(0, 7), mgr, null, body);
                     continue;
                 }
                 if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
