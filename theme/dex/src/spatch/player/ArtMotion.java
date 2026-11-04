@@ -143,7 +143,7 @@ final class ArtMotion implements Runnable {
     /** A soft glare under the finger, inside the art's clip, plus vinyl grooves & specular shimmer on circular art. */
     void sheen(Canvas canvas, float radius) {
         float cx = art.getWidth() / 2f, cy = art.getHeight() / 2f;
-        if ("circle".equals(Settings.choice(Settings.ART_SHAPE)) && (art.isCurrentPage() || art.preview)) {
+        if (Settings.get(Settings.VINYL_EFFECT) && "circle".equals(Settings.choice(Settings.ART_SHAPE)) && (art.isCurrentPage() || art.preview)) {
             paint.setShader(null);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(Math.max(1f, radius * 0.003f));

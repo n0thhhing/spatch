@@ -136,7 +136,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Card tilt and glint",
         "Hide player lyric preview",
         "Immersive lyrics",
-        "Landscape layout"
+        "Landscape layout",
+        "Playing track equalizer",
+        "Vinyl grooves & sheen",
+        "Liquid scrubber",
+        "Frosted glass pill"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -245,7 +249,11 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Rows and cards tilt in 3D with a diagonal sheen when pressed",
         "Collapses the lyrics between artwork and controls; full lyrics stay available",
         "Spotify’s current lyric beneath the cover; tap for nearby lines",
-        "Artwork beside the controls when the screen is wider"
+        "Artwork beside the controls when the screen is wider",
+        "Dancing mini equalizer bars on currently playing tracks",
+        "Concentric micro-grooves and specular shimmer on circular art",
+        "Fluid meniscus and audio droplets when seeking",
+        "Translucent acrylic surface with a luminous specular rim"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -255,7 +263,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen", "soundwave", "album", "soundwave", "enhance"
     };
 
     /** Section layout: Settings indices per group. */
@@ -311,7 +319,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private static final long SWAP = 220;
     private static final int RISE_ROWS = 8;
     /** The playful extras a preset turns off or on together; choices and everything else stay as they are. */
-    static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIST_RISE, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST, Settings.SEEK_SPLASH, Settings.BASS_SHOCKWAVE, Settings.MINI_FLING, Settings.CARD_GLINT};
+    static final int[] PRESET = {Settings.ART_TILT, Settings.ART_SCRATCH, Settings.BEAT_BOUNCE, Settings.HOLD_SEEK, Settings.SEEK_BUBBLE, Settings.MINI_ALBUM, Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS, Settings.LIST_RISE, Settings.LIBRARY_CASCADE, Settings.LIBRARY_HOLD, Settings.LIBRARY_GLOW, Settings.PLAYLIST_CASCADE, Settings.PLAYLIST_HOLD, Settings.PLAYLIST_GLOW, Settings.BURST, Settings.SEEK_SPLASH, Settings.BASS_SHOCKWAVE, Settings.MINI_FLING, Settings.CARD_GLINT, Settings.ROW_EQUALIZER, Settings.VINYL_EFFECT, Settings.LIQUID_SCRUBBER, Settings.MINI_FROSTED};
     private static final android.view.animation.DecelerateInterpolator RISE = new android.view.animation.DecelerateInterpolator(2f);
     final FrameLayout pages;
     private final int bottom;
@@ -487,8 +495,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addSectionHeader("Feel");
         LinearLayout artFeel = addGroup();
         artFeel.addView(featureRows[49]);
+        artFeel.addView(featureRows[Settings.VINYL_EFFECT]);
         finish(artFeel);
-        resetFor(new int[] {ROUND_ART, 49}, new int[] {Settings.ART_OUTLINE, Settings.RING_COLOR, Settings.RING_WIDTH, Settings.RING_SPEED, Settings.ART_GLOW, Settings.GLOW_STYLE, Settings.GLOW_COLOR});
+        resetFor(new int[] {ROUND_ART, 49, Settings.VINYL_EFFECT}, new int[] {Settings.ART_OUTLINE, Settings.RING_COLOR, Settings.RING_WIDTH, Settings.RING_SPEED, Settings.ART_GLOW, Settings.GLOW_STYLE, Settings.GLOW_COLOR});
         LinearLayout backdropPage = subPage("Album art backdrop");
         LinearLayout backdropRows = addGroup();
         backdropRows.addView(featureRows[62]);
@@ -503,6 +512,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         waveRows.addView(featureRows[51]);
         waveRows.addView(featureRows[Settings.SEEK_SPLASH]);
         addStrength(waveRows, Settings.SPLASH_SIZE, "Seek splash size", "Droplet spread and ripple size", "%");
+        waveRows.addView(featureRows[Settings.LIQUID_SCRUBBER]);
         waveRows.addView(featureRows[Settings.WAVE_AUDIO]);
         finish(waveRows);
         addSectionHeader("With the music");
@@ -511,7 +521,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addChoice(musicRows, Settings.WAVE_FOLLOWS, "Follows", "Melody lets each part of the bar follow its own notes", new String[] {"Beat and melody", "Beat", "Melody"});
         addChoice(musicRows, Settings.WAVE_STRENGTH, "Strength", null, new String[] {"Normal", "Subtle", "Strong"});
         finish(musicRows);
-        resetFor(new int[] {0, 51, Settings.WAVE_AUDIO, Settings.SEEK_SPLASH}, new int[] {Settings.WAVE_SPEED, Settings.SEEK_STYLE, Settings.WAVE_REACTS, Settings.WAVE_FOLLOWS, Settings.WAVE_STRENGTH});
+        resetFor(new int[] {0, 51, Settings.WAVE_AUDIO, Settings.SEEK_SPLASH, Settings.LIQUID_SCRUBBER}, new int[] {Settings.WAVE_SPEED, Settings.SEEK_STYLE, Settings.WAVE_REACTS, Settings.WAVE_FOLLOWS, Settings.WAVE_STRENGTH});
         LinearLayout buttonPage = subPage("Button animations");
         LinearLayout buttonRows = addGroup();
         buttonRows.addView(featureRows[52]);
@@ -556,11 +566,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         miniRows.addView(featureRows[60]);
         miniRows.addView(featureRows[61]);
         miniRows.addView(featureRows[Settings.MINI_ALBUM]);
+        miniRows.addView(featureRows[Settings.MINI_FROSTED]);
         miniRows.addView(featureRows[Settings.MINI_HOLD_LIKE]);
         miniRows.addView(featureRows[Settings.MINI_SPIN]);
         miniRows.addView(featureRows[Settings.MINI_FLING]);
         finish(miniRows);
-        resetFor(new int[] {60, 61, Settings.MINI_ALBUM, Settings.MINI_HOLD_LIKE, Settings.MINI_SPIN, Settings.MINI_FLING}, new int[0]);
+        resetFor(new int[] {60, 61, Settings.MINI_ALBUM, Settings.MINI_HOLD_LIKE, Settings.MINI_SPIN, Settings.MINI_FLING, Settings.MINI_FROSTED}, new int[0]);
         LinearLayout gesturesPage=subPage("Gestures & touch");
         LinearLayout gestures=addGroup();
         gestures.addView(featureRows[Settings.IMM_SWIPE]);
@@ -717,6 +728,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         cardRows.addView(featureRows[Settings.CARD_GLINT]);
         cardRows.addView(featureRows[Settings.SOFT_HEADERS]);
         cardRows.addView(featureRows[Settings.LIST_RISE]);
+        cardRows.addView(featureRows[Settings.ROW_EQUALIZER]);
         cardRows.addView(featureRows[Settings.TITLE_ALBUM]);
         cardRows.addView(featureRows[Settings.QUEUE_SHIMMER]);
         finish(cardRows);
@@ -728,7 +740,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         LinearLayout widgetRows = addGroup();
         widgetRows.addView(featureRows[Settings.WIDGET_WALLPAPER]);
         finish(widgetRows);
-        resetFor(new int[] {Settings.LIST_CARDS, Settings.CARD_GLINT, Settings.SOFT_HEADERS, Settings.LIST_RISE, Settings.TITLE_ALBUM, Settings.QUEUE_SHIMMER, Settings.WIDGET_WALLPAPER}, new int[0]);
+        resetFor(new int[] {Settings.LIST_CARDS, Settings.CARD_GLINT, Settings.SOFT_HEADERS, Settings.LIST_RISE, Settings.ROW_EQUALIZER, Settings.TITLE_ALBUM, Settings.QUEUE_SHIMMER, Settings.WIDGET_WALLPAPER}, new int[0]);
         finishCategory(screens);
 
         View navigation = category(categories, "notifications_active", "Motion & haptics", "Transitions, springs and feedback", "Motion & haptics");

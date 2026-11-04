@@ -218,7 +218,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             played.setStrokeWidth(stroke);
             canvas.drawPath(path, played);
         }
-        if (end > x0 && thick > 0.05f) {
+        if (end > x0 && thick > 0.05f && Settings.get(Settings.LIQUID_SCRUBBER)) {
             float dropRadius = stroke * (0.6f + 0.45f * thick);
             played.setStyle(Paint.Style.FILL);
             canvas.drawCircle(px, cy, dropRadius, played);

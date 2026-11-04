@@ -13,10 +13,11 @@ final class MiniSurface extends GradientDrawable implements Runnable {
     MiniSurface(int color, float radius) {
         this.surface = shown = color;
         this.radius = radius;
-        int glass = (0xeb << 24) | (color & 0x00ffffff);
+        boolean frosted = Settings.get(Settings.MINI_FROSTED);
+        int glass = frosted ? ((0xeb << 24) | (color & 0x00ffffff)) : color;
         setColor(glass);
         super.setCornerRadius(radius);
-        setStroke((int) Math.max(1, radius * 0.04f), 0x2affffff | (Tint.album() & 0x18ffffff));
+        if (frosted) setStroke((int) Math.max(1, radius * 0.04f), 0x2affffff | (Tint.album() & 0x18ffffff));
     }
 
     /** The album colour fades on its own, so this redraws only while it changes. */
@@ -25,10 +26,15 @@ final class MiniSurface extends GradientDrawable implements Runnable {
         int wanted = Settings.get(Settings.MINI_ALBUM) ? Pill.blend(surface, Tint.album(), ALBUM) : surface;
         if (wanted != shown) {
             shown = wanted;
-            int glass = (0xeb << 24) | (wanted & 0x00ffffff);
+            boolean frosted = Settings.get(Settings.MINI_FROSTED);
+            int glass = frosted ? ((0xeb << 24) | (wanted & 0x00ffffff)) : wanted;
             setColor(glass);
-            int rimColor = 0x2affffff | (Tint.album() & 0x18ffffff);
-            setStroke((int) Math.max(1, radius * 0.04f), rimColor);
+            if (frosted) {
+                int rimColor = 0x2affffff | (Tint.album() & 0x18ffffff);
+                setStroke((int) Math.max(1, radius * 0.04f), rimColor);
+            } else {
+                setStroke(0, 0);
+            }
         }
         super.draw(canvas);
         if (Settings.get(Settings.MINI_ALBUM) && Tint.fading() && isVisible()) scheduleSelf(this, android.os.SystemClock.uptimeMillis() + 16);

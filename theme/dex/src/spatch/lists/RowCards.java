@@ -271,7 +271,7 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
         }
         if (row && !Wave.paused && Wave.animationsEnabled() && shows((View) owner, SpatchWidget.nowTitle)) {
             if (queue && Settings.get(Settings.QUEUE_SHIMMER)) shimmer(canvas, (View) owner);
-            drawMiniEq(canvas, (View) owner);
+            if (Settings.get(Settings.ROW_EQUALIZER)) drawMiniEq(canvas, (View) owner);
         }
         canvas.restoreToCount(save);
         if (active && owner instanceof View) ((View) owner).postInvalidateDelayed(16);

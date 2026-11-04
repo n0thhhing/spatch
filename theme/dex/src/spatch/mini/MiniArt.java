@@ -80,7 +80,7 @@ public final class MiniArt extends ImageView {
     }
 
     private void drawVinyl(Canvas canvas) {
-        if (!Settings.get(Settings.MINI_SPIN) && !"circle".equals(Settings.choice(Settings.ART_SHAPE))) return;
+        if (!Settings.get(Settings.VINYL_EFFECT) || (!Settings.get(Settings.MINI_SPIN) && !"circle".equals(Settings.choice(Settings.ART_SHAPE)))) return;
         float cx = getWidth() / 2f, cy = getHeight() / 2f, radius = Math.min(cx, cy) * 0.94f;
         if (radius <= 0) return;
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
