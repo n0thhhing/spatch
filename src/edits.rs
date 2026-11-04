@@ -6,7 +6,9 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 102] = [
+pub const EDITS: [Edit; 103] = [
+    // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
+    Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
     Edit { file: "smali_classes2/com/spotify/music/SpotifyMainActivity.smali", anchor: ".method public final r(I)V\n    .locals 0\n", replacement: ".method public final r(I)V\n    .locals 1\n\n    const/16 v0, -0x64\n\n    if-eq p1, v0, :spatch_restore_orientation\n\n    sput p1, Lspatch/Immersive;->orientation:I\n\n    goto :spatch_orientation_policy\n\n    :spatch_restore_orientation\n    sget p1, Lspatch/Immersive;->orientation:I\n\n    :spatch_orientation_policy\n    sget-boolean v0, Lspatch/Immersive;->landscapeRequested:Z\n\n    if-eqz v0, :spatch_native_orientation\n\n    const/16 p1, 0xd\n\n    :spatch_native_orientation\n" },
     // Reuse the native playback clock on every supported Android API, without media-session polling.

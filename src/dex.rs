@@ -67,7 +67,8 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Each is an alias (`S_...`) or a smali path.
-const RELOCATED: [&str; 13] = [
+const RELOCATED: [&str; 14] = [
+    "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali",
     // Typography and the Home filter row: these DEX tables are full too.
     "S_MixFontLoaderD",
     "S_MixFontLoaderG",

@@ -557,6 +557,8 @@ public final class PlayerArt extends ImageView {
         return null;
     }
 
+    boolean scratching() {return motion.scratching;}
+
     boolean isCurrentPage() {
         if(preview || getWidth()<=0 || !isShown()) return false;
         getLocationOnScreen(loc);

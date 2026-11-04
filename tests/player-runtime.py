@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('public final class SystemClock {', 'public final class SystemClock { public static long now=10000;')
             text = text.replace('uptimeMillis() {return 10000;}', 'uptimeMillis() {return now;}')
         if source.name == 'MotionEvent.java':
-            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public float getRawX(){return x;} public float getRawY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){} public void offsetLocation(float dx,float dy){} public static MotionEvent obtain(MotionEvent e){return e;} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
+            text = '''package android.view; public final class MotionEvent { public static final int ACTION_DOWN=0,ACTION_UP=1,ACTION_MOVE=2,ACTION_CANCEL=3,ACTION_HOVER_ENTER=9,ACTION_HOVER_MOVE=7,ACTION_HOVER_EXIT=10; private int action; private float x,y; public int getActionMasked(){return action;} public float getX(){return x;} public float getY(){return y;} public float getRawX(){return x;} public float getRawY(){return y;} public long getEventTime(){return android.os.SystemClock.uptimeMillis();} public void setAction(int a){action=a;} public void offsetLocation(float dx,float dy){} public static MotionEvent obtain(MotionEvent e){return obtain(0,0,e.action,e.x,e.y,0);} public static MotionEvent obtain(long d,long t,int a,float x,float y,int m){MotionEvent e=new MotionEvent();e.action=a;e.x=x;e.y=y;return e;} public void recycle(){} }'''
         if source.name == 'Visualizer.java':
             text = text.replace('public class Visualizer {', 'public class Visualizer { public static int session,created,released; public static boolean fail;')
             text = text.replace('public Visualizer(int session) {}', 'public Visualizer(int id) {session=id;created++;}')
@@ -1017,6 +1017,40 @@ public class PlayerRuntimeTest {
         check(replacementHost.requested==0,"rotation must not replace the saved page policy with the temporary override");
         immersiveReopen.setBoolean(null,false);Immersive.orientation=-1;Settings.resetAll();
         System.out.println("PASS immersive orientation override, page updates, disable and restoration");
+
+        Settings.set(Settings.IMM_SWIPE,true);
+        PlayerArt swipeArt=new PlayerArt(page.getContext(),null);swipeArt.testWidth=400;swipeArt.testHeight=400;
+        final int[] swipeActions={0},childCancels={0};final boolean[] intercepted={false};
+        View swipeNext=new View(page.getContext()){public boolean performClick(){swipeActions[0]++;return true;}};
+        View swipeControls=new View(page.getContext()){public View findViewById(int id){return id==R_id_next_button ? swipeNext : null;}};
+        ViewGroup swipeHost=new ViewGroup(page.getContext(),null){
+            public android.content.res.Resources getResources(){return getContext().getResources();}
+            public View findViewById(int id){return id==R_id_playback_controls_container?swipeControls:null;}
+            public boolean dispatchTouchEvent(MotionEvent e){if(e.getActionMasked()==MotionEvent.ACTION_CANCEL)childCancels[0]++;return true;}
+        };swipeHost.testWidth=400;swipeHost.addView(swipeArt);
+        ViewGroup swipeParent=new ViewGroup(page.getContext(),null){public void requestDisallowInterceptTouchEvent(boolean value){intercepted[0]=value;}};
+        swipeParent.addView(swipeHost);View.root=swipeHost;
+        check(!PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,8,150,0)) && intercepted[0],"edge-start swipes reserve the player from outer dismissal");
+        check(PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_MOVE,-40,180,0)) && childCancels[0]==1,"a diagonal horizontal gesture cancels native scrolling once");
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,-60,185,0));
+        check(swipeActions[0]==1 && !intercepted[0],"a short off-centre swipe skips exactly once and releases the parent");
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,200,150,0));
+        check(!PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_MOVE,202,180,0)) && !intercepted[0],"vertical intent leaves scrolling/dismissal to Spotify");
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,100,180,0));
+        check(swipeActions[0]==1,"vertical gestures cannot become skips later");
+        swipeNext.setEnabled(false);
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,200,150,0));
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_MOVE,100,155,0));
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,80,155,0));
+        check(swipeActions[0]==1,"swiping cannot bypass a disabled native action");swipeNext.setEnabled(true);
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,200,150,0));
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_MOVE,100,155,0));
+        PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,80,155,0));
+        check(swipeActions[0]==1 && !intercepted[0],"cancel never commits a swipe");
+        check(PlayerSwipe.committed(24,60,400,1) && !PlayerSwipe.committed(12,60,400,1) && !PlayerSwipe.committed(24,600,400,1),"short fast flings work while jitter and slow short drags do not");
+        Settings.resetAll();View.root=null;
+        System.out.println("PASS player edge swipes, axis locking, cancellation and disabled actions");
+
 
 
 

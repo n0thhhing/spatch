@@ -63,7 +63,7 @@ public final class Immersive extends View implements Runnable {
     private float closeCx, closeCy, closeSize, closeRadius;
     private float drawnProgress, closeProgress;
     private final int[] loc = new int[2], ownLoc = new int[2];
-    private static final float SWIPE_SKIP = 0.22f, DRAG_RETURN = 0.8f;
+    private static final float DRAG_RETURN = 0.8f;
     private final float[] squish = {1, 0};
     private float squishTarget = 1;
     private long lastFrame;
@@ -74,7 +74,7 @@ public final class Immersive extends View implements Runnable {
     private boolean isDraggingVol;
     private boolean downOnArt, swiping;
     private float artDrag;
-    private long lastTapTime;
+    private long lastTapTime, touchDownTime;
     private long seekDownTime;
     private final ImmersiveButton[] buttons = new ImmersiveButton[6];
     private int pressedButton = -1, hoveredButton = -1;
@@ -706,7 +706,7 @@ public final class Immersive extends View implements Runnable {
 
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                touchDownX = x; touchDownY = y;
+                touchDownX = x; touchDownY = y; touchDownTime=SystemClock.uptimeMillis();
                 downOnLyrics = Settings.get(Settings.IMM_LYRICS) && x>=lyricCx-lyricWidth/2 && x<=lyricCx+lyricWidth/2
                     && y>=(lyricsExpanded ? artY : lyricY) && y<=lyricY+lyricHeight;
                 if (downOnLyrics) return true;
@@ -728,7 +728,7 @@ public final class Immersive extends View implements Runnable {
                     handleVol(x);
                     return true;
                 }
-                downOnArt = onArt;
+                downOnArt = !lyricsExpanded && x>=artX-32*dp && x<=artX+artSize+32*dp && y>=artY-24*dp && y<=artY+artSize+32*dp;
                 if (onArt) squishTarget = PlayerArt.PRESSED;
                 return true;
 
@@ -738,7 +738,7 @@ public final class Immersive extends View implements Runnable {
                 if (isDraggingSeek) handleSeek(MotionEvent.ACTION_MOVE, x);
                 else if (isDraggingVol) handleVol(x);
                 else if (!onArt && !swiping) squishTarget = 1;
-                if (downOnArt && Settings.get(Settings.IMM_SWIPE) && Math.abs(x - touchDownX) > 24 * dp && Math.abs(x - touchDownX) > Math.abs(y - touchDownY)) {
+                if (downOnArt && Settings.get(Settings.IMM_SWIPE) && Math.abs(x - touchDownX) >= 8 * dp && Math.abs(x - touchDownX) >= Math.abs(y - touchDownY)*.75f) {
                     swiping = true;
                     squishTarget = 1;
                 }
@@ -780,7 +780,7 @@ public final class Immersive extends View implements Runnable {
                 squishTarget = 1;
                 if (swiping) {
                     swiping = false;
-                    if (Math.abs(artDrag) > w * SWIPE_SKIP) {
+                    if (PlayerSwipe.committed(artDrag,SystemClock.uptimeMillis()-touchDownTime,artSize,dp)) {
                         int button = artDrag < 0 ? 4 : 2;
                         if (buttons[button].enabled()) {
                             Haptics.playback(this);
