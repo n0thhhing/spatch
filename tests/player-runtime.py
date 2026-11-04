@@ -514,6 +514,9 @@ public class PlayerRuntimeTest {
         check(!Spectrum.seeded, "silence must not seed the gain");
         for(float v:Spectrum.bands)check(v<0.1f,"silence must stay quiet");
         check(Spectrum.taper(0,false)==1, "taper None must not shape edges");
+        float midLeft = Spectrum.at(typical, 0.479f, true);
+        float midRight = Spectrum.at(typical, 0.521f, true);
+        check(Math.abs(midLeft - midRight) > 0.01f, "middle visualizer bars must be distinct: " + midLeft + " vs " + midRight);
         System.out.println("PASS spectrum startup");
 
         // Choices: unknown stored values fall back, reset restores defaults.
@@ -1053,6 +1056,21 @@ public class PlayerRuntimeTest {
         PlayerSwipe.touch(swipeHost,MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,80,155,0));
         check(swipeActions[0]==1 && !intercepted[0],"cancel never commits a swipe");
         check(PlayerSwipe.committed(24,60,400,1) && !PlayerSwipe.committed(12,60,400,1) && !PlayerSwipe.committed(24,600,400,1),"short fast flings work while jitter and slow short drags do not");
+
+        final int[] descSkips = {0};
+        View descNext = new View(page.getContext()){
+            public CharSequence getContentDescription(){return "Next track";}
+            public boolean performClick(){descSkips[0]++;return true;}
+        };
+        ViewGroup descControls = new ViewGroup(page.getContext(), null){};
+        descControls.addView(descNext);
+        ViewGroup descHost = new ViewGroup(page.getContext(), null){
+            public View findViewById(int id){return id==R_id_playback_controls_container ? descControls : null;}
+        };
+        View.root = descHost;
+        PlayerSwipe.skip(descHost, true);
+        check(descSkips[0] == 1, "PlayerSwipe finds next button by content description when IDs are absent");
+
         Settings.resetAll();View.root=null;
         System.out.println("PASS player edge swipes, axis locking, cancellation and disabled actions");
 

@@ -18,7 +18,15 @@ public final class AudioSpectrum {
         if (current == id) { current = 0; for (int remaining : sessions) current = remaining; }
     }
     public static synchronized void paused(boolean paused, int id) {
-        if (!paused && sessions.contains(id)) current = id;
+        if (!paused && sessions.contains(id)) {
+            current = id;
+            final Context ctx = app != null ? app : Settings.app;
+            if (ctx != null) {
+                worker().post(new Runnable() {
+                    public void run() { SHARED.update(ctx, true); }
+                });
+            }
+        }
     }
 
     /** Renderers of the one shared capture: it runs while any of them is visible and playing. */

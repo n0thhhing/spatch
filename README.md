@@ -24,7 +24,8 @@ refused rather than patched blindly.
   of Spotify's own audio. Artwork comes in several shapes with drifting dust or stars behind it, leans
   under your finger, pulses with the bass, and can be held and spun like a record to seek.
 - **Controls:** hold Next or Previous to run through a song, a time bubble while seeking, seek bar
-  styles, a player colour that can follow the album, and swipe to skip in the immersive player.
+  styles, a player colour that can follow the album, and responsive swipe to skip across the cover area
+  with outer pull-down protection and direct MediaSession fallback.
 - **Screens:** a floating navigation bar that can hide while you scroll, sliding filter pills, a
   redesigned side panel, cards on Library, playlist, search and album rows, softened page headers, and
   a local-only profile banner.
@@ -32,13 +33,17 @@ refused rather than patched blindly.
   bar, and bursts on the play button.
 - **Audio visuals:** artwork spectra follow circles, squircles, scallops and rounded corners, with
   a fluid Ribbon style. Scope adds an FFT-driven looping trace to the full visualizer and seekbar;
-  it is a musical decoration rather than a stereo phase recording. Seek releases and committed
-  record scratches can splash droplets, and bass transients send fading rings through the backdrop.
-  Seek splash is on the Wavy progress page; Bass shockwaves is on Album art backdrop. Both respect
-  reduced motion, page resets and presets.
+  it is a musical decoration rather than a stereo phase recording. Visualizer bars feature independent
+  centre dynamics (avoiding duplicate middle bars), zero-flicker low-level rendering, and background
+  audio session warm-up so returning to any visualizer view catches up instantly without lag.
+  Seek releases and committed record scratches can splash droplets, and bass transients send fading
+  rings through the backdrop. Seek splash is on the Wavy progress page; Bass shockwaves is on Album
+  art backdrop. Both respect reduced motion, page resets and presets.
   Bass rings follow the measured artwork position as lyrics appear or the player animates. Player
   settings can hide just the inline lyric preview; the backdrop and seek pages include shockwave
   strength and splash-size sliders.
+- **Widgets:** Android glance home widget with seamless flip transitions, flicker-free equaliser
+  drawables, and background pre-warming for instant song updates.
 - **Immersive player:** optional current-line lyrics (tap to expand the nearby lines), automatic
   landscape layout, and separate blur, colour intensity, darkness and flow-speed sliders. Find them
   under Player → Double-tap for immersive. Lyrics use Spotify's existing data and follow seeks. The overlay reopens after a rotation recreates the activity.

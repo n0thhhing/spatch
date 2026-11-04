@@ -237,12 +237,17 @@ flowchart TB
     ATA --> AEL["com.spotify.playbacknative.AudioEffectsListener\n(Relocated from classes2 → classes16)"]
     AEL -- "onAudioTrackCreated → AudioSpectrum.created(sessionId)\nonPaused → AudioSpectrum.paused(paused, sessionId)\nonAudioTrackDestroyed → AudioSpectrum.destroyed(sessionId)" --> AS["spatch.AudioSpectrum.SHARED"]
     AS --> VIS["android.media.audiofx.Visualizer(sessionId)\n1024-point FFT @ ~30Hz"]
-    VIS --> SPEC["spatch.Spectrum & spatch.AudioScope\nLogarithmic 24 / 42 band binning\nPRIOR calibration seeding (power > 0.12)"]
+    VIS --> SPEC["spatch.Spectrum & spatch.AudioScope\nLogarithmic 24 / 42 band binning\nPRIOR calibration seeding (power > 0.12)\nAsymmetric middle dynamics & flicker-free floor"]
     SPEC --> C1["PlayerArt\nRadial contour halo"]
     SPEC --> C2["Atmosphere\nBass kick shockwaves"]
     SPEC --> C3["Immersive\nFull-screen spectrum"]
     SPEC --> C4["MiniEq & SpectrumPreview\nMini-player & Settings preview"]
 ```
+
+### Visualizer Optimization & Dynamics
+- **Centre Dynamics (No Twin Bars):** In mirrored mode, `Spectrum.at()` applies a harmonic shift and subtle variance to the middle frequency bands, preventing the center pair from mirroring into identical twin bars.
+- **Flicker-Free Low Levels:** Bars maintain a minimum rendered floor rather than dropping to 0 height or getting clipped by corner radiuses, eliminating visual pop-in/flicker.
+- **Background Audio Warmup:** When playback begins or tracks change (`AudioSpectrum.paused`), initial FFT frames are sampled in the background thread so visualizers open instantly at live audio levels without a 2-second ramp-up delay.
 
 ---
 

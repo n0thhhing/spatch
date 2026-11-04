@@ -637,10 +637,10 @@ public final class Immersive extends View implements Runnable {
         boolean floating = Settings.vizFloating();
         float margin = Settings.vizSideMargin() ? 16 * dp : 0, base = floating ? h - 32 * dp : h;
         float maxH = Math.max(0, Math.min(150 * dp, base - volY - 40 * dp));
-        if (Spectrum.alpha < 0.01f || maxH <= 0) return;
+        if (Spectrum.alpha <= 0.001f || maxH <= 0) return;
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(0xffd0bcff);
-        paint.setAlpha(Math.round(255 * Spectrum.alpha));
+        paint.setAlpha(Math.round(255 * Math.max(0.04f, Spectrum.alpha)));
         Spectrum.draw(canvas, paint, spectrumPath, Spectrum.bands, Settings.choice(Settings.VIZ_SHAPE), margin, w - margin,
             base, maxH, Settings.vizMirrored(), Settings.vizThin(), floating, "subtle".equals(Settings.choice(Settings.VIZ_TAPER)), dp);
         paint.setAlpha(255);
@@ -785,6 +785,8 @@ public final class Immersive extends View implements Runnable {
                         if (buttons[button].enabled()) {
                             Haptics.playback(this);
                             buttons[button].click();
+                        } else {
+                            PlayerSwipe.skip(this, artDrag < 0);
                         }
                     }
                     return true;

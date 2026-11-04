@@ -113,9 +113,9 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
     static void schedule() {
         Handler h = worker();
         h.removeCallbacks(PUSH);
-        h.postDelayed(PUSH, 100);
+        h.postDelayed(PUSH, 40);
         h.removeCallbacks(MINI);
-        h.postDelayed(MINI, 60);
+        h.postDelayed(MINI, 25);
     }
 
     /** Spotify's ads play as spotify:ad:<id> items. */
@@ -159,7 +159,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         }
         if (changeSeenAt == 0) changeSeenAt = now;
         boolean coverReady = cover(m) != null && cover(m) != slotSource[shown];
-        return coverReady || now - changeSeenAt > 900 ? 0 : 120;
+        return coverReady || now - changeSeenAt > 350 ? 0 : 60;
     }
 
     private static Bitmap cover(MediaMetadata m) {
@@ -184,8 +184,12 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
             OWNED.add(Integer.valueOf(widgetId));
             // Mid-change or mid-flip: hand Glance the views already showing; the scheduled push
             // delivers the change once it settles.
-            RemoteViews views = settleDelay() > 0 && lastViews != null ? lastViews : build(app);
-            return views != null ? views : glance;
+            RemoteViews views = settleDelay() <= 0 ? build(app) : (lastViews != null ? lastViews : build(app));
+            if (views != null) {
+                lastViews = views;
+                return views;
+            }
+            return glance;
         } catch (RuntimeException e) {
             return glance;
         }

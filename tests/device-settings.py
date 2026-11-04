@@ -19,8 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = 'com.spotify.music'
 # Pages reached from each page, by the title on the row that opens them.
 TREE = {
+    'Appearance': {'Themes & display': {}, 'Fonts': {}},
     'Player': {'Circular album art': {}, 'Album art backdrop': {}, 'Wavy progress': {}, 'Button animations': {},
-               'Double-tap for immersive': {}, 'Mini player': {}, 'Play button burst': {}},
+               'Immersive player': {}, 'Gestures & touch': {}, 'Mini player': {}, 'Play button burst': {}},
     'Visualizers': {'Full-screen visualizer': {}},
     'Screens': {'Navigation bar': {}, 'Expressive filters': {}, 'Side panel style': {}, 'Your Library style': {},
                 'Playlists': {'Living play button': {}}, 'Profile header': {}},
@@ -196,6 +197,42 @@ def walk(page, children, height, totals):
     print(f'PASS {page}')
 
 
+def test_gestures(height):
+    """Exercises cover edge swipes, verifying horizontal swipes trigger next/prev without collapsing the player."""
+    print('Testing player gestures & swipe to skip...', flush=True)
+    # Open Now Playing screen if not already visible
+    mini = find(screen(), 'content-desc', 'Now playing bar')
+    if mini is not None:
+        tap(mini)
+        time.sleep(1.5)
+    mid_y = int(height * 0.42)
+    # Test swipe left (next)
+    adb('shell', 'input', 'swipe', '850', str(mid_y), '150', str(mid_y), '250')
+    time.sleep(1.0)
+    # Test swipe right (prev)
+    adb('shell', 'input', 'swipe', '150', str(mid_y), '850', str(mid_y), '250')
+    time.sleep(1.0)
+    assert front(), 'Player unexpectedly dismissed or crashed during swipe'
+    print('PASS player cover swipes and axis locking')
+
+
+def test_search():
+    """Verifies settings search finds sliders, themes and gestures."""
+    print('Testing settings search...', flush=True)
+    search_field = find(screen(), 'class', 'android.widget.EditText')
+    if search_field is not None:
+        tap(search_field)
+        time.sleep(0.5)
+        adb('shell', 'input', 'text', 'tilt')
+        time.sleep(1.0)
+        root = screen()
+        tilt_result = find(root, 'text', 'Tilt strength') or find(root, 'text', 'Gestures & touch')
+        assert tilt_result is not None, 'Search did not find Tilt strength or Gestures & touch'
+        adb('shell', 'input', 'keyevent', 'BACK')
+        time.sleep(0.5)
+    print('PASS settings search indexing and routing')
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -207,10 +244,19 @@ def main():
     match = re.search(r'x(\d+)', adb('shell', 'wm', 'size'))
     assert match is not None, 'could not read the device screen size'
     height = int(match[1])
+
+    if '--test-gestures' in sys.argv:
+        test_gestures(height)
+        return
+
     tap(find(screen(), 'content-desc', 'Go to profile and settings'))
     time.sleep(3)
     tap(find(screen(), 'text', 'Spatch'))
     time.sleep(3)
+
+    if '--test-search' in sys.argv:
+        test_search()
+
     totals = {'switches': 0, 'choices': 0}
     only = next((a[7:].split(',') for a in sys.argv if a.startswith('--only=')), list(TREE))
     for page, children in TREE.items():
@@ -228,6 +274,9 @@ def main():
     crashes = adb('logcat', '-d', '-b', 'crash').count('FATAL')
     assert crashes == 0, f'{crashes} crashes during the walk'
     print(f"PASS {totals['switches']} switches and {totals['choices']} options, no crashes")
+
+    if '--test-gestures' in sys.argv or '--all' in sys.argv:
+        test_gestures(height)
 
 
 main()

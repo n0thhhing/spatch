@@ -51,7 +51,7 @@ final class Spectrum {
         seeded = false;
         java.util.Arrays.fill(shown, 0);
         java.util.Arrays.fill(bands, 0);
-        alpha = 0;
+        alpha = 0.8f;
         bassReady = false; kickAt = 0; kickEnergy = 0;
     }
 
@@ -75,10 +75,12 @@ final class Spectrum {
                 lo[i] = centre - SEED;
                 hi[i] = centre + SEED;
                 shown[i] = raw[i];
+                bands[i] = Math.min(CEILING, raw[i] * 1.2f);
             }
             gainLo = rawMean - 0.15f;
             gainHi = rawMean + 0.12f;
             seeded = true;
+            alpha = 1f;
         }
         float min = Float.MAX_VALUE, max = 0, sum = 0;
         for (int i = 0; i < BANDS; i++) {
@@ -139,9 +141,16 @@ final class Spectrum {
     /** Level for a position 0..1 along the row: mirrored puts bass at the centre, treble at the sides. */
     static float at(float[] levels, float pos, boolean mirrored) {
         float t = mirrored ? Math.abs(pos * 2 - 1) : pos; // 0 = bass, 1 = treble
-        float f = t * (levels.length - 1);
+        // Slight asymmetric harmonic shift near the center so the two middle bars don't mirror into identical twins.
+        float shift = mirrored ? (pos < 0.5f ? -0.4f : 0.4f) * (1f - t) : 0;
+        float f = Math.max(0, Math.min(levels.length - 1, t * (levels.length - 1) + shift));
         int b0 = (int) f, b1 = Math.min(levels.length - 1, b0 + 1);
-        return levels[b0] + (levels[b1] - levels[b0]) * (f - b0);
+        float base = levels[b0] + (levels[b1] - levels[b0]) * (f - b0);
+        if (mirrored && t < 0.15f) {
+            float variance = pos < 0.5f ? 0.94f : 1.06f;
+            return Math.min(CEILING, base * variance);
+        }
+        return base;
     }
 
     /** Height factor for a position: flat, or easing off slightly at the sides. */
@@ -188,16 +197,17 @@ final class Spectrum {
                 float pos = (i + 0.5f) / bars;
                 float h = maxH * at(levels, pos, mirrored) * taper(pos, taper);
                 float x = left + i * step + (step - barW) / 2, r = barW / 2;
+                float minH = Math.max(dp * 2.5f, barW);
                 if (centre) {
-                    float half = Math.max(r, h / 2);
+                    float half = Math.max(dp * 1.5f, Math.max(r, h / 2));
                     path.addRoundRect(x, mid - half, x + barW, mid + half, r, r, Path.Direction.CW);
                 } else if (dots) {
                     float pitch = barW * 1.5f;
-                    int count = Math.max(1, Math.round(h / pitch));
+                    int count = Math.max(1, Math.round(Math.max(dp * 2f, h) / pitch));
                     float floor = floating ? base - r : base - r - dp;
                     for (int d = 0; d < count; d++) path.addCircle(x + r, floor - d * pitch, r, Path.Direction.CW);
                 } else {
-                    float barH = Math.max(barW, h);
+                    float barH = Math.max(minH, h);
                     path.addRoundRect(x, base - barH, x + barW, floating ? base : base + barW, r, r, Path.Direction.CW);
                 }
             }
