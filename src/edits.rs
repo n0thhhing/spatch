@@ -6,7 +6,13 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 99] = [
+pub const EDITS: [Edit; 102] = [
+    // Preserve the page policy while immersive temporarily permits user-controlled rotation.
+    Edit { file: "smali_classes2/com/spotify/music/SpotifyMainActivity.smali", anchor: ".method public final r(I)V\n    .locals 0\n", replacement: ".method public final r(I)V\n    .locals 1\n\n    const/16 v0, -0x64\n\n    if-eq p1, v0, :spatch_restore_orientation\n\n    sput p1, Lspatch/Immersive;->orientation:I\n\n    goto :spatch_orientation_policy\n\n    :spatch_restore_orientation\n    sget p1, Lspatch/Immersive;->orientation:I\n\n    :spatch_orientation_policy\n    sget-boolean v0, Lspatch/Immersive;->landscapeRequested:Z\n\n    if-eqz v0, :spatch_native_orientation\n\n    const/16 p1, 0xd\n\n    :spatch_native_orientation\n" },
+    // Reuse the native playback clock on every supported Android API, without media-session polling.
+    Edit { file: "S_LyricPositionMapper", anchor: "    iget-object v1, p0, Lp/S_LyricPositionMapper;->d:Lp/S_PlayerClock;\n", replacement: "    iget-object v1, p0, Lp/S_LyricPositionMapper;->d:Lp/S_PlayerClock;\n\n    sput-object v1, Lspatch/ImmersiveLyrics;->clock:Ljava/lang/Object;\n\n    sput-object p1, Lspatch/ImmersiveLyrics;->playback:Ljava/lang/Object;\n" },
+    // Field-only hand-off: classes9 has no method references to spare.
+    Edit { file: "S_LyricStateMapper", anchor: ".method public final invokeSuspend(Ljava/lang/Object;)Ljava/lang/Object;\n    .locals 3\n", replacement: ".method public final invokeSuspend(Ljava/lang/Object;)Ljava/lang/Object;\n    .locals 3\n\n    iget-object v0, p0, Lp/S_LyricStateMapper;->b:Lp/S_LyricState;\n\n    sput-object v0, Lspatch/ImmersiveLyrics;->model:Ljava/lang/Object;\n" },
     // Lyric lines (p.S_LyricLine.a): other lines take Spotify's own animated 0.83 scale, which it keeps for
     // p2. classes9 is at its method limit, so these read Settings.on and Tint.lyricGlow as fields.
     Edit {

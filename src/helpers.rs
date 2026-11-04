@@ -1,7 +1,11 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 58] = [
+pub const HELPERS: [(&str, &str); 59] = [
+    (
+        "ImmersiveLyrics",
+        include_str!("../theme/dex/src/spatch/player/ImmersiveLyrics.java"),
+    ),
     (
         "PlayerLyrics",
         include_str!("../theme/dex/src/spatch/player/PlayerLyrics.java"),
@@ -262,6 +266,54 @@ pub fn helpers(debug: bool) -> Vec<(&'static str, &'static str)> {
 
 /// Compile-only stand-ins for platform and Spotify classes; never packaged.
 pub const STUBS: &[(&str, &str)] = &[
+    (
+        "S_PlayerClock.java",
+        include_str!("../theme/dex/stubs/p/S_PlayerClock.java"),
+    ),
+    (
+        "S_PlayerOptional.java",
+        include_str!("../theme/dex/stubs/p/S_PlayerOptional.java"),
+    ),
+    (
+        "PlayerState.java",
+        include_str!("../theme/dex/stubs/com/spotify/player/model/PlayerState.java"),
+    ),
+    (
+        "ContextTrack.java",
+        include_str!("../theme/dex/stubs/com/spotify/player/model/ContextTrack.java"),
+    ),
+    (
+        "S_OrientationHost.java",
+        include_str!("../theme/dex/stubs/p/S_OrientationHost.java"),
+    ),
+    (
+        "TextPaint.java",
+        include_str!("../theme/dex/stubs/android/text/TextPaint.java"),
+    ),
+    (
+        "StaticLayout.java",
+        include_str!("../theme/dex/stubs/android/text/StaticLayout.java"),
+    ),
+    (
+        "TextUtils.java",
+        include_str!("../theme/dex/stubs/android/text/TextUtils.java"),
+    ),
+    (
+        "S_LyricLoaded.java",
+        include_str!("../theme/dex/stubs/p/S_LyricLoaded.java"),
+    ),
+    (
+        "S_LyricData.java",
+        include_str!("../theme/dex/stubs/p/S_LyricData.java"),
+    ),
+    (
+        "S_LyricContent.java",
+        include_str!("../theme/dex/stubs/p/S_LyricContent.java"),
+    ),
+    (
+        "S_LyricTimedLine.java",
+        include_str!("../theme/dex/stubs/p/S_LyricTimedLine.java"),
+    ),
     (
         "Application.java",
         include_str!("../theme/dex/stubs/android/app/Application.java"),

@@ -134,7 +134,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Bass shockwaves",
         "Fling cover to skip",
         "Card tilt and glint",
-        "Hide player lyric preview"
+        "Hide player lyric preview",
+        "Immersive lyrics",
+        "Landscape layout"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -241,7 +243,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Bass kicks send rings through the backdrop; uses the audio permission",
         "Swipe the mini-player cover sideways to fling it off and skip",
         "Rows and cards tilt in 3D with a diagonal sheen when pressed",
-        "Collapses the lyrics between artwork and controls; full lyrics stay available"
+        "Collapses the lyrics between artwork and controls; full lyrics stay available",
+        "Spotify’s current lyric beneath the cover; tap for nearby lines",
+        "Artwork beside the controls when the screen is wider"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -251,7 +255,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen"
     };
 
     /** Section layout: Settings indices per group. */
@@ -478,8 +482,17 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         immersiveRows.addView(featureRows[56]);
         immersiveRows.addView(featureRows[57]);
         immersiveRows.addView(featureRows[Settings.IMM_SWIPE]);
+        immersiveRows.addView(featureRows[Settings.IMM_LYRICS]);
+        immersiveRows.addView(featureRows[Settings.IMM_LANDSCAPE]);
         finish(immersiveRows);
-        resetFor(new int[] {4, 56, 57, Settings.IMM_SWIPE}, new int[] {Settings.IMM_CHANGE});
+        addSectionHeader("Immersive backdrop");
+        LinearLayout immersiveBackdrop = addGroup();
+        addStrength(immersiveBackdrop, Settings.IMM_BLUR, "Blur", "Softness of the album colours", "%");
+        addStrength(immersiveBackdrop, Settings.IMM_COLOUR, "Colour intensity", "Strength of the album colours", "%");
+        addStrength(immersiveBackdrop, Settings.IMM_DARKNESS, "Darkness", "Dim the backdrop behind the player", "%");
+        addStrength(immersiveBackdrop, Settings.IMM_FLOW, "Flow speed", "Movement of the colour fields and particles", "%");
+        finish(immersiveBackdrop);
+        resetFor(new int[] {4, 56, 57, Settings.IMM_SWIPE, Settings.IMM_LYRICS, Settings.IMM_LANDSCAPE}, new int[] {Settings.IMM_CHANGE});
         LinearLayout burstPage = subPage("Play button burst");
         LinearLayout burstLook = addGroup();
         tryBurst = createSettingRow("star", "Try it", "Throws a burst from this row", icon("chevron_right"));

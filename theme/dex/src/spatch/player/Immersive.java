@@ -19,11 +19,18 @@ import p.S_EncoreIcon;
  */
 public final class Immersive extends View implements Runnable {
     private static Immersive CURRENT;
+    private static boolean reopen;
+    // Read by Spotify's field-only orientation hook; -100 reapplies the saved page policy.
+    public static boolean landscapeRequested;
+    public static int orientation = -1;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private PlayerArt playerArt;
     private final Atmosphere atmosphere = new Atmosphere();
+    private final ImmersiveLyrics lyrics = new ImmersiveLyrics();
+    private long lyricsAt;
+    private String lyricText = "";
     private final AudioManager audioManager;
 
     private TextView titleView;
@@ -47,6 +54,9 @@ public final class Immersive extends View implements Runnable {
     private final Wave wave = new Wave();
     // Layout, computed once per frame in onDraw and read by onTouchEvent.
     private float artX, artY, artSize, artRadius, seekL, seekR, seekY, ctrlY, spacing, volL, volR, volY;
+    private float contentCx, contentWidth, titleY, subtitleY, controlSize, closeX, closeY;
+    private float lyricCx, lyricY, lyricWidth, lyricHeight, layoutWidth, layoutHeight;
+    private boolean landscape, lyricsExpanded, downOnLyrics;
     // Where the artwork flies from/to: the player's own artwork (centre, size, corner radius).
     private float fromCx, fromCy, fromSize, fromRadius;
     private float drawnCx, drawnCy, drawnSize, drawnRadius;
@@ -91,6 +101,8 @@ public final class Immersive extends View implements Runnable {
         this.dp = context.getResources().getDisplayMetrics().density;
         wave.setCallback(this); // Wave finds the context (AudioManager) through its callback
         this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        setContentDescription("Immersive player");
+        setClickable(Settings.get(Settings.IMM_LYRICS));
         setFocusable(true);
         setFocusableInTouchMode(true);
         int[] shapes = {0,4,-3,5,3,6};
@@ -108,6 +120,7 @@ public final class Immersive extends View implements Runnable {
 
     public static void open(PlayerArt art) {
         if (CURRENT != null) return;
+        reopen=false;
         View root = art.getRootView();
         if (!(root instanceof ViewGroup)) return;
         Immersive v = new Immersive(art.getContext(), art);
@@ -119,19 +132,31 @@ public final class Immersive extends View implements Runnable {
         v.measureFrom();
         v.playerArt.hideForHero(true);
         if (android.os.Build.VERSION.SDK_INT >= 33) v.back = Back.register(v, v);
+        v.rotation(true);
         v.postInvalidate();
     }
 
+    /** The Activity is recreated on rotation; reopen on its new, centred artwork. */
+    static void restore(final PlayerArt art) {
+        if (!reopen || CURRENT!=null) return;
+        reopen=false;
+        art.post(new Runnable(){public void run(){if(art.isAttachedToWindow()) open(art);}});
+    }
+
     public static void close() {
+        reopen=false;
         if (CURRENT != null) CURRENT.dismiss();
+        else landscapeRequested=false;
     }
 
     public void dismiss() {
+        reopen=false;
         if (closing) return;
         closeProgress = drawnProgress;
         closeCx = drawnCx; closeCy = drawnCy; closeSize = drawnSize; closeRadius = drawnRadius;
         playerArt.settlePress();
         closing = true;
+        rotation(false);
         AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
         if (back != null) { ((Back) back).unregister(); back = null; }
         measureFrom();
@@ -244,22 +269,50 @@ public final class Immersive extends View implements Runnable {
         }
     }
 
-    /** Portrait layout: artwork, title/artist, seek row (art + 80dp wide), transport, volume. */
+    /** Drawing and hit testing use the same bounds in either orientation. */
     private void layout(float w, float h) {
-        artSize = Math.min(w * 0.74f, h * 0.36f);
-        artX = (w - artSize) / 2f;
-        artY = h * 0.125f;
-        artRadius = Math.max(18 * dp, artSize * 0.055f);
-        seekY = artY + artSize + h * 0.052f + h * 0.038f + h * 0.055f;
-        float row = Math.min(w - 32 * dp, artSize + 80 * dp);
-        float rowL = (w - row) / 2f;
-        seekL = rowL + 50 * dp; // 42dp time label + 8dp gap
-        seekR = rowL + row - 56 * dp; // 48dp time label + 8dp gap
-        ctrlY = seekY + h * 0.075f;
-        spacing = w * 0.165f;
-        volY = ctrlY + h * 0.075f;
-        volL = w * 0.22f;
-        volR = w * 0.78f;
+        if (layoutWidth!=w || layoutHeight!=h) {lyricsAt=-1000;layoutWidth=w;layoutHeight=h;}
+        landscape = w > h && Settings.get(Settings.IMM_LANDSCAPE);
+        boolean lyrics = Settings.get(Settings.IMM_LYRICS);
+        if (!lyrics) lyricsExpanded=false;
+        if (landscape) {
+            artSize = Math.min(w * .34f, h * .58f);
+            artX = (w * .45f - artSize) / 2;
+            artY = (h - artSize) / 2 - (lyrics ? h * .06f : 0);
+            contentCx = w * .73f;
+            contentWidth = Math.min(w * .46f, w - 48 * dp);
+            titleY = h * .23f;
+            subtitleY = h * .32f;
+            seekY = h * .44f;
+            ctrlY = h * .61f;
+            volY = h * .79f;
+            lyricCx = w * .225f;
+            lyricWidth = w * .41f;
+        } else {
+            artSize = Math.min(w * .74f, h * (lyrics ? .30f : .36f));
+            artX = (w - artSize) / 2;
+            artY = h * (lyrics ? .09f : .125f);
+            contentCx = w / 2;
+            contentWidth = Math.min(w - 32 * dp, artSize + 80 * dp);
+            titleY = artY + artSize + h * (lyrics ? .13f : .052f);
+            subtitleY = titleY + h * .038f;
+            seekY = subtitleY + h * .055f;
+            ctrlY = seekY + h * .075f;
+            volY = ctrlY + h * .075f;
+            lyricCx = w / 2;
+            lyricWidth = w - 40 * dp;
+        }
+        artRadius = Math.max(18 * dp, artSize * .055f);
+        controlSize = Math.min(landscape ? contentWidth : w, h);
+        closeX = Math.max(28 * dp, Math.min(w, h) * .08f);
+        closeY = Math.max(32 * dp, h * .065f);
+        seekL = contentCx - contentWidth / 2 + 50 * dp;
+        seekR = contentCx + contentWidth / 2 - 56 * dp;
+        spacing = landscape ? contentWidth * .19f : w * .165f;
+        volL = landscape ? contentCx - contentWidth * .32f : w * .22f;
+        volR = landscape ? contentCx + contentWidth * .32f : w * .78f;
+        lyricY = artY + artSize + 12 * dp;
+        lyricHeight = Math.max(0, (landscape ? h - 24 * dp : titleY - 18 * dp) - lyricY);
     }
 
     /** Hero progress: 0 = at the player's artwork, 1 = in place (springs slightly past it when opening). */
@@ -294,9 +347,10 @@ public final class Immersive extends View implements Runnable {
 
         refreshArt();
         Drawable art = playerArt.getDrawable();
-        if (art != lastArt) {
+        boolean blurChanged = atmosphere.tune(Settings.strength(Settings.IMM_BLUR), Settings.strength(Settings.IMM_COLOUR), Settings.strength(Settings.IMM_FLOW));
+        if (art != lastArt || blurChanged) {
             if (art != null) atmosphere.capture(art); // follow track changes, not just the opening track
-            if (lastArt != null && art != null && motion) popAt = now;
+            if (art != lastArt && lastArt != null && art != null && motion) popAt = now;
             Tint.follow(art);
             lastArt = art;
         }
@@ -336,7 +390,7 @@ public final class Immersive extends View implements Runnable {
             atmosphere.draw(canvas);
         }
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Settings.backdrop() ? 0x8c14121c : 0xff14121c); // keep an opaque surface when the backdrop is off
+        paint.setColor(Settings.backdrop() ? (Math.round(Settings.strength(Settings.IMM_DARKNESS)*2.55f)<<24)|0x14121c : 0xff14121c); // keep an opaque surface when the backdrop is off
         canvas.drawRect(0, 0, w, h, paint);
         // Calmer ground for the controls and spectrum: the surface deepens over the lower 45%.
         if (shade == null || shadeH != h) {
@@ -406,23 +460,22 @@ public final class Immersive extends View implements Runnable {
     }
 
     private void drawControls(Canvas canvas, float w, float h, long now) {
-        ensureIcons(w);
+        ensureIcons(controlSize);
         // Top bar: close
-        float topY = h * 0.065f;
-        float closeX = w * 0.08f, closeR = w * 0.045f;
+        float topY = closeY;
+        float closeR = Math.max(18 * dp, controlSize * .045f);
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(0x44f3eeff);
         canvas.drawCircle(closeX, topY, closeR, paint);
-        buttons[0].draw(canvas,icClose,null,closeX,topY,w*.06f,false);
+        buttons[0].draw(canvas,icClose,null,closeX,topY,controlSize*.06f,false);
 
         // Metadata, ellipsized to the seek row's width
-        float titleY = artY + artSize + h * 0.052f;
-        float maxText = Math.min(w - 32 * dp, artSize + 80 * dp);
+        float maxText = contentWidth;
         Typeface face = titleView != null ? titleView.getTypeface() : null;
         paint.setTypeface(face != null ? Typeface.create(face, Typeface.BOLD) : Typeface.DEFAULT_BOLD); // Spotify's title face
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setColor(0xfff3eeff);
-        paint.setTextSize(w * 0.058f);
+        paint.setTextSize(Math.min(30*dp, controlSize * .058f));
         String title = titleView != null && titleView.getText() != null ? titleView.getText().toString() : "Spotify";
         if (!title.equals(shownTitle)) {
             if (shownTitle != null && Wave.animationsEnabled() && Settings.immersiveTitles()) titleChangedAt = now;
@@ -432,14 +485,14 @@ public final class Immersive extends View implements Runnable {
         float ease = Transport.outCubic((now - titleChangedAt - 120) / 260f); // after the track-change hitch
         float slide = (1 - ease) * 6 * dp;
         paint.setAlpha(Math.round(255 * ease));
-        canvas.drawText(fit(title, maxText), w / 2f + slide, titleY, paint);
+        canvas.drawText(fit(title, maxText), contentCx + slide, titleY, paint);
         Typeface subFace = subtitleView != null ? subtitleView.getTypeface() : null;
         paint.setTypeface(subFace != null ? subFace : Typeface.DEFAULT); // Spotify's own subtitle face, regular weight
         paint.setColor(0xffbcb3dc);
-        paint.setTextSize(w * 0.038f);
+        paint.setTextSize(Math.min(20*dp, controlSize * .038f));
         String sub = subtitleView != null && subtitleView.getText() != null ? subtitleView.getText().toString() : "";
         paint.setAlpha(Math.round(255 * ease));
-        canvas.drawText(fit(sub, maxText), w / 2f + slide, titleY + h * 0.038f, paint);
+        canvas.drawText(fit(sub, maxText), contentCx + slide, subtitleY, paint);
         paint.setAlpha(255);
 
         // Seek row: times either side of the same Wave drawable the player seekbar uses.
@@ -470,15 +523,15 @@ public final class Immersive extends View implements Runnable {
 
         // Transport: shuffle, previous, Scallop play/pause, next, repeat
         boolean playing = isPlaying();
-        float cx = w / 2f;
-        buttons[1].draw(canvas,icShuffle,null,cx-spacing*2,ctrlY,w*.06f,playing);
-        buttons[2].draw(canvas,icPrev,null,cx-spacing,ctrlY,w*.075f,playing);
-        buttons[3].draw(canvas,icPlay,icPause,cx,ctrlY,w*.082f,playing);
-        buttons[4].draw(canvas,icNext,null,cx+spacing,ctrlY,w*.075f,playing);
-        buttons[5].draw(canvas,icRepeat,null,cx+spacing*2,ctrlY,w*.06f,playing);
+        float cx = contentCx;
+        buttons[1].draw(canvas,icShuffle,null,cx-spacing*2,ctrlY,controlSize*.06f,playing);
+        buttons[2].draw(canvas,icPrev,null,cx-spacing,ctrlY,controlSize*.075f,playing);
+        buttons[3].draw(canvas,icPlay,icPause,cx,ctrlY,controlSize*.082f,playing);
+        buttons[4].draw(canvas,icNext,null,cx+spacing,ctrlY,controlSize*.075f,playing);
+        buttons[5].draw(canvas,icRepeat,null,cx+spacing*2,ctrlY,controlSize*.06f,playing);
 
         // Volume
-        drawIcon(canvas, icVolume, volL - w * 0.06f, volY, w * 0.05f, 255);
+        drawIcon(canvas, icVolume, volL - controlSize * 0.06f, volY, controlSize * 0.05f, 255);
         float volProg = 0.5f;
         if (audioManager != null) {
             int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
@@ -497,6 +550,22 @@ public final class Immersive extends View implements Runnable {
         canvas.drawRoundRect(currentVolX-half,volY-10*dp,currentVolX+half,volY+10*dp,half,half,paint);
 
         drawSpectrum(canvas, w, h, playing, now);
+        if (Settings.get(Settings.IMM_LYRICS)) {
+            if (now-lyricsAt >= 250) {
+                String current = lyrics.update(lyricWidth, Math.min(20*dp, controlSize*.045f));
+                if (!current.equals(lyricText)) {
+                    lyricText=current;
+                    describeLyrics();
+                }
+                lyricsAt=now;
+            }
+            if (lyricsExpanded) {
+                paint.setColor(0xf014121c);
+                canvas.drawRoundRect(lyricCx-lyricWidth/2-8*dp,artY,lyricCx+lyricWidth/2+8*dp,lyricY+lyricHeight,18*dp,18*dp,paint);
+            }
+            lyrics.draw(canvas,lyricCx,lyricsExpanded ? artY : lyricY,
+                lyricsExpanded ? lyricY+lyricHeight-artY : lyricHeight,lyricsExpanded);
+        }
     }
 
     /** Cuts text to fit maxWidth with the current paint, ending in an ellipsis. */
@@ -589,12 +658,42 @@ public final class Immersive extends View implements Runnable {
         if (!focus) AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
     }
 
+    private android.content.Context activity() {
+        android.content.Context context=getContext();
+        while(context instanceof android.content.ContextWrapper && !(context instanceof android.app.Activity)) {
+            android.content.Context base=((android.content.ContextWrapper)context).getBaseContext();
+            if(base==context)break;
+            context=base;
+        }
+        return context;
+    }
+
+    private void rotation(boolean open) {
+        android.content.Context context=activity();
+        if (!(context instanceof p.S_OrientationHost)) return;
+        p.S_OrientationHost host=(p.S_OrientationHost)context;
+        if (open) {
+            if (!Settings.get(Settings.IMM_LANDSCAPE)) return;
+            if (!landscapeRequested) orientation=host.a();
+            landscapeRequested=true;
+        } else {
+            if (!landscapeRequested) return;
+            landscapeRequested=false;
+        }
+        host.r(-100);
+    }
+
     protected void onDetachedFromWindow() {
         AudioSpectrum.drop(AudioSpectrum.BOTTOM | AudioSpectrum.RADIAL);
         removeCallbacks(this);
         playerArt.hideForHero(false);
         if (back != null) { ((Back)back).unregister(); back = null; }
-        if (CURRENT == this) CURRENT = null;
+        if (CURRENT == this) {
+            android.content.Context context=activity();
+            reopen=!closing && context instanceof android.app.Activity && ((android.app.Activity)context).isChangingConfigurations();
+            if (!reopen) rotation(false);
+            CURRENT = null;
+        }
         super.onDetachedFromWindow();
     }
 
@@ -603,11 +702,14 @@ public final class Immersive extends View implements Runnable {
         float w = getWidth(), h = getHeight();
         layout(w,h);
         if (closing) return true;
-        boolean onArt = x >= artX && x <= artX + artSize && y >= artY && y <= artY + artSize;
+        boolean onArt = !lyricsExpanded && x >= artX && x <= artX + artSize && y >= artY && y <= artY + artSize;
 
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 touchDownX = x; touchDownY = y;
+                downOnLyrics = Settings.get(Settings.IMM_LYRICS) && x>=lyricCx-lyricWidth/2 && x<=lyricCx+lyricWidth/2
+                    && y>=(lyricsExpanded ? artY : lyricY) && y<=lyricY+lyricHeight;
+                if (downOnLyrics) return true;
                 pressedButton=buttonAt(x,y);
                 if (pressedButton>=0) {
                     if (!buttons[pressedButton].enabled()) pressedButton=-1;
@@ -631,6 +733,7 @@ public final class Immersive extends View implements Runnable {
                 return true;
 
             case MotionEvent.ACTION_MOVE:
+                if (downOnLyrics) return true;
                 if (pressedButton>=0 && buttonAt(x,y)!=pressedButton) {pressedButton=-1;updateButtonFeedback(false);}
                 if (isDraggingSeek) handleSeek(MotionEvent.ACTION_MOVE, x);
                 else if (isDraggingVol) handleVol(x);
@@ -646,6 +749,7 @@ public final class Immersive extends View implements Runnable {
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
+                downOnLyrics=false;
                 pressedButton=-1;updateButtonFeedback(false);
                 if (isDraggingSeek) handleSeek(MotionEvent.ACTION_CANCEL, x);
                 isDraggingSeek = false;
@@ -655,13 +759,20 @@ public final class Immersive extends View implements Runnable {
                 return true;
 
             case MotionEvent.ACTION_UP:
+                if (downOnLyrics) {
+                    downOnLyrics=false;
+                    if (Math.abs(x-touchDownX)<24*dp && Math.abs(y-touchDownY)<24*dp) {
+                        performClick();
+                    }
+                    return true;
+                }
                 int clicked=pressedButton;
                 boolean click=clicked>=0 && clicked==buttonAt(x,y) && buttons[clicked].enabled();
                 updateButtonFeedback(click);
                 pressedButton=-1;
                 updateButtonFeedback(false);
                 if (click) {
-                    if (clicked==3) Confetti.wanted(this, getWidth() / 2f, ctrlY, !isPlaying(), Settings.BURST_IMMERSIVE);
+                    if (clicked==3) Confetti.wanted(this, contentCx, ctrlY, !isPlaying(), Settings.BURST_IMMERSIVE);
                     if (clicked==0) dismiss(); else { Haptics.playback(this); buttons[clicked].click(); }
                     return true;
                 }
@@ -715,11 +826,23 @@ public final class Immersive extends View implements Runnable {
         return true;
     }
 
+    private void describeLyrics() {
+        setContentDescription("Immersive player. "+lyricText+". Activate to "+(lyricsExpanded ? "collapse" : "expand")+" lyrics");
+    }
+
+    public boolean performClick() {
+        super.performClick();
+        if (!Settings.get(Settings.IMM_LYRICS)) return false;
+        lyricsExpanded=!lyricsExpanded;
+        describeLyrics();
+        invalidate();
+        return true;
+    }
+
     private int buttonAt(float x, float y) {
-        float w=getWidth(),h=getHeight();
-        if (Math.hypot(x-w*.08f,y-h*.065f)<Math.max(24*dp,w*.06f)) return 0;
-        float r=Math.min(spacing*.48f,Math.max(24*dp,w*.08f));
-        for (int i=1;i<6;i++) if (Math.hypot(x-(w/2+(i-3)*spacing),y-ctrlY)<r) return i;
+        if (Math.hypot(x-closeX,y-closeY)<Math.max(24*dp,controlSize*.06f)) return 0;
+        float r=Math.min(spacing*.48f,Math.max(24*dp,controlSize*.08f));
+        for (int i=1;i<6;i++) if (Math.hypot(x-(contentCx+(i-3)*spacing),y-ctrlY)<r) return i;
         return -1;
     }
 

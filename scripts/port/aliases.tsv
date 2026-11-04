@@ -199,3 +199,15 @@ ComposeSnapshot	smali_classes4/zpo	smali_classes7/v8r
 DrawerRowIcon	smali_classes7/zsx	smali_classes7/ptx
 ComposePaddingSides	smali/zyq0	smali/zzq0
 LibraryItemsSource	smali_classes12/zzo1	smali_classes4/u1p1
+
+# Immersive lyrics: native NPV state and timestamped lines, confirmed on the supported build.
+LyricStateMapper		smali_classes9/jlf0
+LyricLoaded		smali_classes9/f3e0
+LyricData		smali_classes9/a9h
+LyricContent		smali_classes9/fef0
+LyricTimedLine		smali_classes9/aef0
+LyricState		smali_classes9/g3e0
+OrientationHost		smali_classes2/rqq0
+LyricPositionMapper		smali_classes9/btf0
+PlayerClock		smali_classes2/yqg
+PlayerOptional		smali/spq0

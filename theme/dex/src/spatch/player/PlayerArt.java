@@ -138,7 +138,7 @@ public final class PlayerArt extends ImageView {
         // The artwork carousel keeps the previous and next tracks' pages alive off-screen; only the
         // page centred on screen may set the blurred backdrop, or a neighbour's art wins.
         Drawable art=getDrawable();
-        if (!preview) PlayerLyrics.bind(getRootView());
+        if (!preview) {PlayerLyrics.bind(getRootView());Immersive.restore(this);}
         updateAudio();
         Tint.follow(art);
         colourTitle();

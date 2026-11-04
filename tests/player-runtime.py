@@ -27,15 +27,15 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
                       lambda m: m[1] + ' {' + {'void': '', 'int': 'return 0;', 'float': 'return 0;', 'long': 'return 10000;', 'boolean': 'return false;'}.get(m[2], 'return null;') + '}', text)
         text = text.replace('{ throw new RuntimeException(); }', '{}')
         if source.name == 'View.java':
-            text = text.replace('public interface OnClickListener', 'public static View root; public int screenX; public int testHeight=2000; public static long nextDraw; public interface OnClickListener')
+            text = text.replace('public interface OnClickListener', 'public static View root; public int screenX; public int testHeight=2000; public int testWidth=1000; public android.content.Context testContext; public Runnable testPosted; public static long nextDraw; public interface OnClickListener')
             text = text.replace('public static View root;', 'private boolean enabled=true,pressed,hovered; public static View root;')
             text = text.replace('setEnabled(boolean enabled) {}', 'setEnabled(boolean value) {enabled=value;}').replace('isEnabled() { return true; }', 'isEnabled() { return enabled; }')
             text = text.replace('setPressed(boolean pressed) {}', 'setPressed(boolean value) {pressed=value;}').replace('isPressed() { return false; }', 'isPressed() { return pressed; }')
             text = text.replace('setHovered(boolean hovered) {}', 'setHovered(boolean value) {hovered=value;}').replace('isHovered() { return false; }', 'isHovered() { return hovered; }')
             text = text.replace('public int getId() { return 0; }', 'public int testId; public int getId() { return testId; }')
             text = text.replace('getRootView() { return null; }', 'getRootView() { if (root != null) return root; View cur = this; while (cur.getParent() instanceof View) { cur = (View) cur.getParent(); } return cur; }')
-            text = text.replace('getWidth() { return 0; }', 'getWidth() { return 1000; }').replace('getHeight() { return 0; }', 'getHeight() { return testHeight; }')
-            text = text.replace('getContext() { return null; }', 'getContext() { return new android.content.Context(); }')
+            text = text.replace('getWidth() { return 0; }', 'getWidth() { return testWidth; }').replace('getHeight() { return 0; }', 'getHeight() { return testHeight; }')
+            text = text.replace('getContext() { return null; }', 'getContext() { return testContext == null ? new android.content.Context() : testContext; }')
             text = text.replace('getLocationOnScreen(int[] out) {}', 'getLocationOnScreen(int[] out) {out[0]=screenX;}')
             text = text.replace('public void setSelected(boolean selected) {}', 'private boolean selected; public void setSelected(boolean value) {selected=value;}').replace('isSelected() { return false; }', 'isSelected() { return selected; }')
             text = text.replace('postInvalidateDelayed(long delay) {}', 'postInvalidateDelayed(long delay) { nextDraw = delay; }')
@@ -44,6 +44,7 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
             text = text.replace('public void setScaleX(float s) {}', 'public float testScale=1; public void setScaleX(float s) {testScale=s;}')
             text = text.replace('public void setOnClickListener(OnClickListener l) {}', 'private OnClickListener click; public void setOnClickListener(OnClickListener l) {click=l;}')
             text = text.replace('public boolean performClick() { return false; }', 'public boolean performClick() { if (click == null) return false; click.onClick(this); return true; }')
+            text = text.replace('public boolean post(Runnable r) { return false; }', 'public boolean post(Runnable r) { testPosted=r; return true; }')
         if source.name == 'TextView.java':
             text = text.replace('public CharSequence getText() { return null; }', 'private CharSequence shown; public CharSequence getText() { return shown; }').replace('public void setText(CharSequence t) {}', 'public void setText(CharSequence t) {shown=t;}')
         if source.name == 'Paint.java':
@@ -201,6 +202,17 @@ public class PlayerRuntimeTest {
         public boolean getClipChildren(){return clipped;}
         public void setClipChildren(boolean value){clipped=value;}
         public boolean post(Runnable value){value.run();return true;}
+    }
+    static class OrientationActivity extends android.app.Activity implements p.S_OrientationHost {
+        int requested=1, requests;
+        boolean changing;
+        public int a(){return requested;}
+        public boolean isChangingConfigurations(){return changing;}
+        public void r(int value){
+            if(value!=-100) Immersive.orientation=value;
+            requested=Immersive.landscapeRequested?13:Immersive.orientation;
+            requests++;
+        }
     }
     static Object field(Object o, String n) throws Exception { Field f=o.getClass().getDeclaredField(n); f.setAccessible(true); return f.get(o); }
     public static void main(String[] args) throws Exception {
@@ -514,7 +526,8 @@ public class PlayerRuntimeTest {
 
         // New settings keep today's look for anyone upgrading, and album colours stay readable.
         check(Settings.KEYS.length==Settings.DEFAULTS.length,"every key needs a default");
-        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB&&i!=Settings.HIDE_ACCOUNT_SWITCHER&&i!=Settings.HIDE_PARENTAL_CONTROLS&&i!=Settings.HIDE_PLAYER_LYRICS) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        for(int i=43;i<Settings.KEYS.length;i++) if(i!=Settings.WIDGET_WALLPAPER&&i!=Settings.HIDE_PREMIUM_TAB&&i!=Settings.HIDE_ACCOUNT_SWITCHER&&i!=Settings.HIDE_PARENTAL_CONTROLS&&i!=Settings.HIDE_PLAYER_LYRICS&&i!=Settings.IMM_LYRICS) check(Settings.DEFAULTS[i],"a new feature must start on: "+Settings.KEYS[i]);
+        check(!Settings.DEFAULTS[Settings.IMM_LYRICS],"immersive lyrics are opt-in");
         check(!Settings.DEFAULTS[Settings.HIDE_PLAYER_LYRICS],"inline lyrics must remain visible until the user opts out");
         check(!Settings.DEFAULTS[Settings.HIDE_ACCOUNT_SWITCHER]&&!Settings.DEFAULTS[Settings.HIDE_PARENTAL_CONTROLS],"hiding the account switcher and Parental controls is opt-in");
         check(!Settings.DEFAULTS[Settings.HIDE_PREMIUM_TAB],"hiding the Premium tab is opt-in: it removes part of Spotify's own interface");
@@ -897,6 +910,139 @@ public class PlayerRuntimeTest {
         check(lyricSlot[0].params.height==111,"restoring lyrics uses Spotify's latest requested height");
         lyricSlot[0]=null;PlayerLyrics.bind(lyricRoot);Spectrum.reset();
         System.out.println("PASS inline lyrics toggle, replacement and native state restoration");
+
+        // Native lyric results are accepted only for the playing URI and follow timestamps after seeks.
+        p.S_LyricTimedLine firstLyric=new p.S_LyricTimedLine();firstLyric.a=1000;firstLyric.b="First line";
+        p.S_LyricTimedLine secondLyric=new p.S_LyricTimedLine();secondLyric.a=2500;secondLyric.b="Second line";
+        p.S_LyricContent lyricData=new p.S_LyricContent();lyricData.b=2;lyricData.a=java.util.Arrays.asList(firstLyric,secondLyric);
+        p.S_LyricLoaded loadedLyrics=new p.S_LyricLoaded();loadedLyrics.b="spotify:track:one";loadedLyrics.a=new p.S_LyricData();loadedLyrics.a.a=lyricData;
+        ImmersiveLyrics.model=loadedLyrics;
+        ImmersiveLyrics reader=new ImmersiveLyrics();
+        final String[] playingUri={"spotify:track:one"};final long[] nativePosition={2500},nativeNow={0};
+        com.spotify.player.model.ContextTrack nativeTrack=new com.spotify.player.model.ContextTrack(){public String uri(){return playingUri[0];}};
+        ImmersiveLyrics.playback=new com.spotify.player.model.PlayerState(){
+            public p.S_PlayerOptional track(){return new p.S_PlayerOptional(){public Object h(){return nativeTrack;}};}
+            public p.S_PlayerOptional position(long now){nativeNow[0]=now;return new p.S_PlayerOptional(){public Object h(){return Long.valueOf(nativePosition[0]);}};}
+        };
+        ImmersiveLyrics.clock=(p.S_PlayerClock)()->123456L;
+        check(reader.update(300,18).equals("Second line") && nativeNow[0]==123456L,"lyrics use Spotify's own playback clock without requiring Android 12 media-session support");
+        nativePosition[0]=1200;check(reader.update(300,18).equals("First line"),"native seek updates reach the lyric renderer");
+        playingUri[0]="spotify:track:two";check(reader.update(300,18).equals("Lyrics unavailable"),"native track identity clears stale lyrics immediately");
+        ImmersiveLyrics.playback=null;ImmersiveLyrics.clock=null;
+
+        check(reader.update("spotify:track:one",500,300,18).isEmpty(),"lyrics wait for the first timestamp");
+        check(reader.update("spotify:track:one",1200,300,18).equals("First line"),"the playing line follows its timestamp");
+        Object layouts=field(reader,"lines");Object cachedLine=((Object[])layouts)[1];
+        reader.update("spotify:track:one",1300,300,18);
+        check(((Object[])layouts)[1]==cachedLine,"unchanged lyrics reuse their measured text");
+        check(reader.update("spotify:track:one",2500,300,18).equals("Second line"),"a line starts at its exact timestamp");
+        check(reader.update("spotify:track:one",1000,300,18).equals("First line"),"seeking backwards restores the earlier line");
+        reader.update("spotify:track:one",1000,500,18);check((Integer)field(reader,"width")==500,"rotation remeasures wrapped lyrics");
+        check(reader.update("spotify:track:two",1000,300,18).equals("Lyrics unavailable"),"a skip must never show the previous track's lyrics");
+        ImmersiveLyrics.model=new Object();check(reader.update("spotify:track:one",1000,300,18).equals("Lyrics unavailable"),"loading and unavailable native states clear the line");
+        check(ImmersiveLyrics.index(null,1000)==-1,"missing lyrics stay empty");
+        lyricData.b=1;check(ImmersiveLyrics.index(lyricData,99999)==0,"unsynced lyrics never fake a timed current line");
+        lyricData.b=2;ImmersiveLyrics.model=null;
+        System.out.println("PASS immersive lyric timing, seeks, caching and track identity");
+
+        Method immersiveLayout=Immersive.class.getDeclaredMethod("layout",float.class,float.class);immersiveLayout.setAccessible(true);
+        Settings.set(Settings.IMM_LYRICS,true);Settings.set(Settings.IMM_LANDSCAPE,true);
+        for(float[] viewport:new float[][]{{400,800},{800,400},{640,320},{1200,800},{1000,2000}}) {
+            immersiveLayout.invoke(overlay,viewport[0],viewport[1]);
+            float artworkRight=(Float)field(overlay,"artX")+(Float)field(overlay,"artSize");
+            float controlsLeft=(Float)field(overlay,"contentCx")-(Float)field(overlay,"contentWidth")/2;
+            check((Float)field(overlay,"seekR")>(Float)field(overlay,"seekL"),"seek row stays usable in both orientations");
+            check((Float)field(overlay,"volY")+24<viewport[1],"volume stays above the bottom edge");
+            check((Float)field(overlay,"lyricHeight")>24,"lyrics have their own space");
+            if(viewport[0]>viewport[1]) check((Boolean)field(overlay,"landscape")&&artworkRight<controlsLeft,"landscape separates art/lyrics from the controls");
+            else check(!(Boolean)field(overlay,"landscape")&&(Float)field(overlay,"lyricY")+(Float)field(overlay,"lyricHeight")<(Float)field(overlay,"titleY"),"portrait lyrics leave metadata clear");
+        }
+        Immersive wide=new Immersive(page.getContext(),page);wide.testWidth=800;wide.testHeight=400;
+        wide.onDraw(new Canvas());
+        ImmersiveButton[] wideButtons=(ImmersiveButton[])field(wide,"buttons");wideButtons[4].source=action;
+        float wideNext=(Float)field(wide,"contentCx")+(Float)field(wide,"spacing"),wideControlY=(Float)field(wide,"ctrlY");
+        int nextBefore=clicks;
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,wideNext,wideControlY,0));
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,wideNext,wideControlY,0));
+        check(clicks==nextBefore+1,"landscape taps hit the drawn transport button");
+        float lyricTapX=(Float)field(wide,"lyricCx"),lyricTapY=(Float)field(wide,"lyricY")+12;
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,lyricTapX,lyricTapY,0));
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,lyricTapX,lyricTapY,0));
+        check(!(Boolean)field(wide,"lyricsExpanded"),"cancel does not expand lyrics");
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,lyricTapX,lyricTapY,0));
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,lyricTapX,lyricTapY,0));
+        check((Boolean)field(wide,"lyricsExpanded"),"tapping the lyric region expands nearby lines");
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,lyricTapX,lyricTapY,0));
+        wide.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,lyricTapX,lyricTapY,0));
+        check(!(Boolean)field(wide,"lyricsExpanded"),"tapping again restores artwork");
+        Settings.set(Settings.IMM_LANDSCAPE,false);immersiveLayout.invoke(wide,800f,400f);
+        check(!(Boolean)field(wide,"landscape"),"landscape layout can be switched off");
+        Settings.resetAll();immersiveLayout.invoke(overlay,1000f,2000f);
+        System.out.println("PASS immersive portrait/landscape bounds and lyric/transport hit testing");
+
+        // A configuration detach reopens on the new root; dismissal and ordinary detach do not.
+        Field immersiveCurrent=Immersive.class.getDeclaredField("CURRENT");immersiveCurrent.setAccessible(true);
+        Field immersiveReopen=Immersive.class.getDeclaredField("reopen");immersiveReopen.setAccessible(true);
+        android.app.Activity rotating=new android.app.Activity(){public boolean isChangingConfigurations(){return true;}};
+        wide.testContext=rotating;immersiveCurrent.set(null,wide);wide.onDetachedFromWindow();
+        check(immersiveCurrent.get(null)==null && immersiveReopen.getBoolean(null),"rotation detaches the old overlay and requests reopening");
+        ViewGroup rotatedRoot=new ViewGroup(page.getContext(),null);rotatedRoot.addView(next);View.root=rotatedRoot;
+        Immersive.restore(next);check(next.testPosted!=null && !immersiveReopen.getBoolean(null),"new artwork schedules exactly one restoration");
+        Runnable restoreOverlay=next.testPosted;next.testPosted=null;restoreOverlay.run();
+        Immersive restoredOverlay=(Immersive)immersiveCurrent.get(null);
+        check(restoredOverlay!=null && restoredOverlay.getParent()==rotatedRoot,"rotation reopens inside the new activity root");
+        restoredOverlay.onDetachedFromWindow();check(!immersiveReopen.getBoolean(null),"ordinary detach must not reopen");
+        Immersive dismissedOverlay=new Immersive(page.getContext(),page);dismissedOverlay.testContext=rotating;
+        immersiveCurrent.set(null,dismissedOverlay);dismissedOverlay.dismiss();dismissedOverlay.onDetachedFromWindow();
+        check(!immersiveReopen.getBoolean(null),"explicit dismissal wins over rotation");
+        View.root=null;
+        System.out.println("PASS immersive restoration after rotation and dismissal cleanup");
+
+        OrientationActivity orientationHost=new OrientationActivity();
+        Method rotateImmersive=Immersive.class.getDeclaredMethod("rotation",boolean.class);rotateImmersive.setAccessible(true);
+        Immersive orienting=new Immersive(page.getContext(),page);orienting.testContext=orientationHost;
+        Settings.set(Settings.IMM_LANDSCAPE,true);rotateImmersive.invoke(orienting,true);
+        check(orientationHost.requested==13 && Immersive.orientation==1,"immersive allows rotation while saving the page policy");
+        orientationHost.r(0);check(orientationHost.requested==13 && Immersive.orientation==0,"page policy changes cannot lock the active overlay");
+        rotateImmersive.invoke(orienting,false);
+        check(orientationHost.requested==0 && !Immersive.landscapeRequested,"closing restores the latest native orientation policy");
+        Settings.set(Settings.IMM_LANDSCAPE,false);int orientationRequests=orientationHost.requests;
+        rotateImmersive.invoke(orienting,true);check(orientationHost.requests==orientationRequests,"disabled landscape never changes orientation");
+        Settings.set(Settings.IMM_LANDSCAPE,true);rotateImmersive.invoke(orienting,true);
+        orientationHost.changing=true;immersiveCurrent.set(null,orienting);orienting.onDetachedFromWindow();
+        check(Immersive.landscapeRequested && immersiveReopen.getBoolean(null),"rotation keeps the override until the replacement overlay opens");
+        OrientationActivity replacementHost=new OrientationActivity();replacementHost.requested=13;
+        Immersive replacementOverlay=new Immersive(page.getContext(),page);replacementOverlay.testContext=replacementHost;
+        rotateImmersive.invoke(replacementOverlay,true);rotateImmersive.invoke(replacementOverlay,false);
+        check(replacementHost.requested==0,"rotation must not replace the saved page policy with the temporary override");
+        immersiveReopen.setBoolean(null,false);Immersive.orientation=-1;Settings.resetAll();
+        System.out.println("PASS immersive orientation override, page updates, disable and restoration");
+
+
+
+        Atmosphere tuned=new Atmosphere(),untuned=new Atmosphere();
+        check(!tuned.tune(100,100,100),"default blur keeps the original raster");
+        tuned.tune(0,0,0);check((Integer)field(tuned,"raster")==48 && (Integer)field(untuned,"raster")==12,"blur tuning is local to the immersive backdrop");
+        final java.util.ArrayList<Integer> bitmapAlphas=new java.util.ArrayList<Integer>();
+        final java.util.ArrayList<Float> motePositions=new java.util.ArrayList<Float>();
+        Canvas tuneCanvas=new Canvas(){public void drawBitmap(Bitmap b,Rect source,RectF dest,Paint p){bitmapAlphas.add(p.getAlpha());}public void drawCircle(float x,float y,float radius,Paint p){motePositions.add(y);}};
+        Settings.set(Settings.BASS_SHOCKWAVE,false);Settings.setChoice(Settings.BACKDROP_FX,"stars");
+        tuned.setBounds(0,0,400,800);tuned.draw(tuneCanvas);
+        check(bitmapAlphas.size()==2 && bitmapAlphas.get(0)==0 && bitmapAlphas.get(1)==0,"zero colour intensity removes the album image wash");
+        java.util.ArrayList<Float> stillMotes=new java.util.ArrayList<Float>(motePositions);motePositions.clear();
+        android.os.SystemClock.now+=1000;tuned.draw(tuneCanvas);check(motePositions.equals(stillMotes),"zero flow freezes particles");
+        tuned.tune(200,200,100);motePositions.clear();tuned.draw(tuneCanvas);
+        check((Integer)field(tuned,"raster")==4 && !motePositions.equals(stillMotes),"stronger blur softens the raster and flow restores movement");
+        Settings.resetAll();
+        final java.util.ArrayList<Integer> backdropShades=new java.util.ArrayList<Integer>();
+        Canvas darknessCanvas=new Canvas(){public void drawRect(float l,float t,float r,float b,Paint p){if(l==0&&t==0&&r==800&&b==400&&(p.getColor()&0xffffff)==0x14121c)backdropShades.add(p.getAlpha());}};
+        Settings.setStrength(Settings.IMM_DARKNESS,0);wide.onDraw(darknessCanvas);
+        check(backdropShades.get(backdropShades.size()-1)==0,"zero darkness removes the immersive dimming wash");
+        backdropShades.clear();Settings.setStrength(Settings.IMM_DARKNESS,100);wide.onDraw(darknessCanvas);
+        check(backdropShades.get(backdropShades.size()-1)==255,"full darkness makes the backdrop opaque");
+        Settings.resetAll();
+        System.out.println("PASS immersive backdrop blur, colour, flow and instance isolation");
+
 
         SplashRoot splashRoot=new SplashRoot();Settings.set(Settings.SEEK_SPLASH,true);
         SeekSplash.at(splashRoot,100,100);SeekSplash.at(splashRoot,100,100);SeekSplash.at(splashRoot,100,100);
