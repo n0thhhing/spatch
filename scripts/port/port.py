@@ -22,6 +22,7 @@ import subprocess
 import sys
 import zipfile
 from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the repo, above scripts/port/
 BUILD_TOOLS = sorted(glob.glob('/opt/homebrew/share/android-commandlinetools/build-tools/*'))
@@ -49,7 +50,7 @@ def decode(apkm, out):
 
 
 def resources(base):
-    dump = subprocess.run([os.path.join(BUILD_TOOLS[-1], 'aapt2'), 'dump', 'resources', base], capture_output=True, text=True).stdout
+    dump = subprocess.run([os.path.join(BUILD_TOOLS[-1], 'aapt2'), 'dump', 'resources', base], capture_output=True, text=True, check=False).stdout
     return {m.group(2): int(m.group(1), 16) for m in re.finditer(r'resource (0x[0-9a-f]{8}) (\S+)', dump)}
 
 
@@ -77,7 +78,7 @@ def normalize(text, ids=None, raw=False):
 
 
 def features(path):
-    text = open(path, encoding='utf-8', errors='replace').read()
+    text = Path(path).read_text(encoding='utf-8', errors='replace')
     lines = normalize(text)
     sup = next((l for l in lines if l.startswith('.super')), '')
     ifaces = tuple(sorted(l for l in lines if l.startswith('.implements')))
@@ -106,8 +107,8 @@ def votes(pairs, ids, class_votes, member_votes):
     a matched pair of classes votes for the old-to-new name of every class and member it mentions."""
     import difflib
     for (old_name, old_path), (new_name, new_path) in pairs:
-        a = normalize(open(old_path, encoding='utf-8', errors='replace').read(), ids, raw=True)
-        b = normalize(open(new_path, encoding='utf-8', errors='replace').read(), raw=True)
+        a = normalize(Path(old_path).read_text(encoding='utf-8', errors='replace'), ids, raw=True)
+        b = normalize(Path(new_path).read_text(encoding='utf-8', errors='replace'), raw=True)
         m = difflib.SequenceMatcher(None, [n for _, n in a], [n for _, n in b], autojunk=False)
         for block in m.get_matching_blocks():
             for k in range(block.size):
@@ -132,16 +133,16 @@ def referenced():
     """Obfuscated class names Spatch mentions anywhere it reaches into Spotify."""
     names = set()
     for f in ['src/edits.rs', 'src/dex.rs', 'src/helpers.rs', 'src/patch.rs']:
-        t = open(os.path.join(ROOT, f)).read()
+        t = Path(ROOT, f).read_text(encoding='utf-8')
         names |= set(re.findall(r'Lp/([\w$]+);', t)) | set(re.findall(r'smali\w*/p/([\w$]+)\.smali', t))
     names |= {os.path.basename(p)[:-5] for p in glob.glob(os.path.join(ROOT, 'theme/dex/stubs/p/*.java'))}
     for p in glob.glob(os.path.join(ROOT, 'theme/dex/src/**/*.java'), recursive=True):
-        names |= set(re.findall(r'\bp\.([a-z][\w]*)\b', open(p).read()))
+        names |= set(re.findall(r'\bp\.([a-z][\w]*)\b', Path(p).read_text(encoding='utf-8')))
     return sorted(names)
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     ap.add_argument('old')
     ap.add_argument('new')
     ap.add_argument('--work', default=os.path.join(ROOT, 'scripts', 'port', '.work'))
@@ -152,10 +153,9 @@ def main():
         decode(apkm, d)
 
     old_res, new_res = resources(os.path.join(old_dir, 'base.apk')), resources(os.path.join(new_dir, 'base.apk'))
-    ids = {'0x%08x' % v: '0x%08x' % new_res[n] for n, v in old_res.items() if n in new_res}
-    with open(os.path.join(args.work, 'resources.tsv'), 'w') as f:
-        for n, v in sorted(old_res.items()):
-            f.write('0x%08x\t%s\t%s\n' % (v, '0x%08x' % new_res[n] if n in new_res else '-', n))
+    ids = {f'0x{v:08x}': f'0x{new_res[n]:08x}' for n, v in old_res.items() if n in new_res}
+    with open(os.path.join(args.work, 'resources.tsv'), 'w', encoding='utf-8') as f:
+        f.writelines(f'0x{v:08x}\t{f"0x{new_res[n]:08x}" if n in new_res else "-"}\t{n}\n' for n, v in sorted(old_res.items()))
 
     print('indexing the new build', flush=True)
     new = index(new_dir)
@@ -176,13 +176,13 @@ def main():
         cands.update(by_sig.get(sig, ()))
         if len(cands) < 3:
             cands.update(by_shape.get((sup, ifaces, nm, nf), ())[:3000])
-        old_lines = normalize(open(old_path, encoding='utf-8', errors='replace').read(), ids)
+        old_lines = normalize(Path(old_path).read_text(encoding='utf-8', errors='replace'), ids)
         scored = []
         for i in cands:
             path, _, _, _, _, _, _, nsize = new[i]
             if nsize and not 0.6 < size / nsize < 1.6:
                 continue
-            scored.append((jaccard(old_lines, normalize(open(path, encoding='utf-8', errors='replace').read())), path))
+            scored.append((jaccard(old_lines, normalize(Path(path).read_text(encoding='utf-8', errors='replace'))), path))
         return sorted(scored, reverse=True)
 
     rows, unsure = [], 0
@@ -202,7 +202,7 @@ def main():
         ok = best >= 0.7 and best - second >= 0.08
         unsure += not ok
         rel = os.path.relpath(path, new_dir)
-        rows.append((name, os.path.basename(path)[:-6], rel.split(os.sep)[0], round(best, 3), 'ok' if ok else 'check (next best %.3f)' % second))
+        rows.append((name, os.path.basename(path)[:-6], rel.split(os.sep)[0], round(best, 3), 'ok' if ok else f'check (next best {second:.3f})'))
 
     # Votes from the confident matches settle ties and low scores, and give the member names.
     where = {os.path.basename(p)[:-6]: p for p, *_ in new}
@@ -214,7 +214,7 @@ def main():
         for r in rows:
             if r[4].startswith('ok') or r[4] == 'not in the old build':
                 continue
-            users = subprocess.run(['grep', '-rlF', '--include=*.smali', 'Lp/%s;' % r[0]] + glob.glob(os.path.join(old_dir, 'smali*', 'p')), capture_output=True, text=True).stdout.split()
+            users = subprocess.run(['grep', '-rlF', '--include=*.smali', f'Lp/{r[0]};'] + glob.glob(os.path.join(old_dir, 'smali*', 'p')), capture_output=True, text=True, check=False).stdout.split()
             for user in users[:25]:
                 user_name = os.path.basename(user)[:-6]
                 if user_name in mapping or user_name in helpers:
@@ -235,7 +235,8 @@ def main():
             (winner, count), runner = top[0], (top[1][1] if len(top) > 1 else 0)
             if count >= 2 and count >= 3 * runner and winner in where:
                 agrees = r[1] == winner
-                status = 'ok' if r[4] == 'ok' and agrees else 'ok (votes %d:%d%s)' % (count, runner, '' if agrees else ', fingerprint said ' + r[1])
+                extra = '' if agrees else f', fingerprint said {r[1]}'
+                status = 'ok' if r[4] == 'ok' and agrees else f'ok (votes {count}:{runner}{extra})'
                 if mapping.get(name) != winner:
                     grew = True
                 mapping[name] = winner
@@ -243,20 +244,19 @@ def main():
         if not grew:
             break
 
-    with open(os.path.join(args.work, 'classes.tsv'), 'w') as f:
+    with open(os.path.join(args.work, 'classes.tsv'), 'w', encoding='utf-8') as f:
         f.write('old\tnew\tfolder\tscore\tstatus\n')
-        for r in rows:
-            f.write('\t'.join(map(str, r)) + '\n')
-    with open(os.path.join(args.work, 'members.tsv'), 'w') as f:
+        f.writelines('\t'.join(map(str, r)) + '\n' for r in rows)
+    with open(os.path.join(args.work, 'members.tsv'), 'w', encoding='utf-8') as f:
         for (oc, om), counter in sorted(member_votes.items()):
             if oc in mapping:
                 (nc, nm), count = counter.most_common(1)[0]
-                f.write('%s\t%s\t%s\t%s\t%d\n' % (oc, om, nc, nm, count))
+                f.write(f'{oc}\t{om}\t{nc}\t{nm}\t{count}\n')
     unsure = sum(1 for r in rows if not r[4].startswith('ok') and r[4] != 'not in the old build')
-    print('%d classes: %d matched, %d to check; resource ids: %d of %d carried over' % (len(names), len(names) - unsure, unsure, len(ids), len(old_res)))
+    print(f'{len(names)} classes: {len(names) - unsure} matched, {unsure} to check; resource ids: {len(ids)} of {len(old_res)} carried over')
     for r in rows:
         if not r[4].startswith('ok') and r[4] != 'not in the old build':
-            print('  %-8s -> %-8s %-16s %s %s' % r)
+            print(f'  {r[0]:<8} -> {r[1]:<8} {r[2]:<16} {r[3]} {r[4]}')
     for r in rows:
         if 'fingerprint said' in r[4]:
             print('  votes overrode:', r)
