@@ -104,11 +104,11 @@ h3 { font-size: 22px; font-weight: 600; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .grid.four { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-.card { background: var(--surface-container); border-radius: var(--shape-l); padding: 24px; transition: background .2s, transform .3s var(--ease); }
+.card { background: var(--surface-container); border-radius: var(--shape-l); padding: 24px; border: 1px solid color-mix(in srgb, var(--outline-variant) 30%, transparent); transition: background .2s, border-color .2s, box-shadow .25s, transform .3s var(--ease); }
 .card.elevated { background: var(--surface-low); box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15); }
 .card.filled { background: var(--surface-highest); }
 .card.outlined { background: none; border: 1px solid var(--outline-variant); }
-a.card:hover { background: var(--surface-high); text-decoration: none; transform: translateY(-2px); }
+a.card:hover { background: var(--surface-high); border-color: color-mix(in srgb, var(--primary) 40%, transparent); box-shadow: 0 12px 28px rgba(0,0,0,.28); text-decoration: none; transform: translateY(-3px); }
 .card h3 { margin-bottom: 8px; }
 .card p { margin: 0; color: var(--on-surface-variant); }
 .icon-tile { width: 48px; height: 48px; border-radius: var(--shape-m); display: grid; place-items: center;
@@ -117,7 +117,8 @@ a.card:hover { background: var(--surface-high); text-decoration: none; transform
 .icon-tile.s { background: var(--secondary-container); color: var(--on-secondary-container); }
 
 /* Hero */
-.hero { padding: 40px 0 24px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+.hero { position: relative; padding: 40px 0 24px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+.hero::before { content: ""; position: absolute; width: 440px; height: 440px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--primary) 22%, transparent) 0%, transparent 70%); filter: blur(72px); top: -60px; left: -100px; z-index: -1; pointer-events: none; }
 .hero h1 span { color: var(--primary); }
 .hero .lead { margin: 20px 0 32px; }
 .hero-phones { position: relative; height: 620px; }
@@ -126,11 +127,13 @@ a.card:hover { background: var(--surface-high); text-decoration: none; transform
 .hero-phones .phone:nth-child(2) { left: 30%; top: 0; width: 50%; z-index: 2; }
 .hero-phones .phone:nth-child(3) { right: 0; top: 80px; transform: rotate(6deg); width: 44%; }
 .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.chip { transition: border-color .2s, transform .2s var(--ease), background .2s; }
+.chip:hover { border-color: color-mix(in srgb, var(--primary) 60%, transparent); transform: translateY(-1px); }
 @media (max-width: 920px) { .hero { grid-template-columns: 1fr; } .hero-phones { height: 520px; } }
 @media (max-width: 520px) { .hero-phones { height: 400px; } .wrap { padding: 0 16px; } h1 { font-size: 38px; } .btn.lg { height: 52px; padding: 0 22px; } }
 
 /* Phone frame */
-.phone { border-radius: 34px; padding: 8px; background: linear-gradient(160deg, #3a3640, #1b1a1f); box-shadow: 0 24px 48px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06); }
+.phone { border-radius: 34px; padding: 8px; background: linear-gradient(160deg, #3a3640, #1b1a1f); box-shadow: 0 28px 56px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08); }
 .phone img { border-radius: 27px; width: 100%; height: auto; }
 .phone.flat { box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 
