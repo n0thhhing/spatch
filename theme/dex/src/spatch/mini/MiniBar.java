@@ -161,7 +161,7 @@ public final class MiniBar extends MotionLayout implements Runnable {
         coverSpring = new Springy(cover);
         GradientDrawable circle = new GradientDrawable();
         circle.setShape(GradientDrawable.OVAL);
-        circle.setColor(Palette.color(0xff1d1a2a));
+        circle.setColor(Palette.color(0xff2b2640));
         cover.setBackground(circle);
         cover.setClipToOutline(true);
         setClipChildren(false);
