@@ -240,7 +240,8 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             }
         } else if (end > x0) {
             path.reset();
-            for (float x = x0; ; x = Math.min(x + 2f, end)) {
+            float step = Math.max(2f, Math.min(4.5f, (end - x0) / 180f));
+            for (float x = x0; ; x = Math.min(x + step, end)) {
                 // + phase: crests travel left, back along the played part (not toward the playhead).
                 float y = cy + a * (height ? swell(Spectrum.bands, (x - x0) / (x1 - x0), Spectrum.alpha, follows, strength) : 1f) * (1f - thick * (1f - taper(end - x, wl))) * (float) Math.sin((x - b.left + phase) / wl * 2.0 * Math.PI);
                 if (x == x0) {
@@ -258,7 +259,12 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         boolean settling = (amp > 0f && amp < 1f) || (thick > 0f && thick < 1f)
             || (liquid > 0f && liquid < 1f);
         if (amp > 0f || settling) {
-            if (onScreen(this)) scheduleSelf(this, now + 16);
+            View hostView = host();
+            if (hostView != null && Build.VERSION.SDK_INT >= 16) {
+                hostView.postInvalidateOnAnimation();
+            } else if (onScreen(this)) {
+                scheduleSelf(this, now + 16);
+            }
         }
     }
 
