@@ -9,17 +9,22 @@ import android.view.View;
 final class ThemeSwatch extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int theme;
-    private final String name, secondLine;
+    private String name, secondLine;
 
     ThemeSwatch(Context c, int theme, String name) {
         super(c, null);
         this.theme = theme;
+        setName(name);
+        setClickable(true);
+        setFocusable(true);
+    }
+
+    void setName(String name) {
         int split=name.lastIndexOf(' ');
         boolean wrap=name.length()>13 && split>0;
         this.name = wrap?name.substring(0,split):name;
         this.secondLine=wrap?name.substring(split+1):null;
-        setClickable(true);
-        setFocusable(true);
+        invalidate();
     }
 
     @Override

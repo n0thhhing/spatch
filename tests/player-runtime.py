@@ -1275,6 +1275,10 @@ public class PlayerRuntimeTest {
 
         String themeFile=java.nio.file.Files.readString(java.nio.file.Path.of(System.getProperty("fonts")).getParent().resolve("examples/custom-theme.toml"));
         int[][] imported=ThemeImport.parse(themeFile);
+        check(ThemeImport.name(themeFile).equals("Lavender example"),"TOML theme name survives import");
+        check(ThemeImport.name("\ufeffname = 'Ocean Blue' # title\n[dark]\n").equals("Ocean Blue"),"single quoted names and BOM are supported");
+        check(ThemeImport.name("[dark]\nname = 'colour metadata'\n").equals("Imported theme"),"only root metadata supplies the name");
+        check(ThemeImport.cleanName("  \n  ").equals("Imported theme"),"blank theme names use the fallback");
         check(imported[0][0]==0x14121c && imported[1][0]==0xfffbfe && imported[0].length==9,"TOML imports both complete palettes");
         for(String invalid:new String[]{themeFile.replace("#f3eeff","#14121c"),themeFile.replace("#d0bcff","not-a-colour"),themeFile.replace("[light]","[wrong]"),themeFile+"accent = '#123456'\n",themeFile.substring(0,themeFile.indexOf("[light]"))}) {
             try{ThemeImport.parse(invalid);throw new AssertionError("invalid or unreadable theme accepted");}catch(IllegalArgumentException expected){}
@@ -1300,6 +1304,10 @@ public class PlayerRuntimeTest {
         String lightAnimation=new String(Palette.recolorAnimation("{\"k\":[0.815686,0.737255,1.000000,1]}".getBytes(java.nio.charset.StandardCharsets.UTF_8),0xff0000),java.nio.charset.StandardCharsets.UTF_8);
         check(lightAnimation.contains("[1.000000,0.000000,0.000000,1]"),"template Lottie colours follow the selected accent");
         check(Palette.saveCustom(imported[0],imported[1],"Example") && Palette.hasCustom() && Palette.tone(Palette.CUSTOM,0)==0xfffffbfe,"validated imported colours persist and render in light mode");
+        check(Palette.customName().equals("Example"),"saved custom theme name is read from preferences");
+        ThemeSwatch namedSwatch=new ThemeSwatch(new android.content.Context(),Palette.CUSTOM,"Imported theme");
+        namedSwatch.setName("Ocean");
+        check(field(namedSwatch,"name").equals("Ocean") && field(namedSwatch,"secondLine")==null,"import refresh replaces the visible swatch title");
         imported[1][0]=0;check(Palette.tone(Palette.CUSTOM,0)==0xfffffbfe,"saving takes a copy of imported arrays");
         for(String named:new String[]{"default","spotify","catppuccin-macchiato","catppuccin-frappe","rose-pine-moon","tokyo-night-storm","everforest","kanagawa","solarized","one","wallpaper"})check(java.util.Arrays.asList(Palette.NAMES).contains(named),"missing screenshot theme: "+named);
         check(!java.util.Arrays.asList(Palette.NAMES).contains("swiftify"),"Swiftify is excluded");

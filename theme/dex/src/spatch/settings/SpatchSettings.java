@@ -451,8 +451,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                     line.addView(new View(context, null), lp);
                     continue;
                 }
-                themeRows[i] = new ThemeSwatch(context, i, THEME_TITLES[i]);
-                index(themeRows[i],THEME_TITLES[i],"Theme palette");
+                themeRows[i] = new ThemeSwatch(context, i, themeTitle(i));
+                index(themeRows[i],themeTitle(i),"Theme palette");
                 themeRows[i].setOnClickListener(this);
                 Springy.attach(themeRows[i]);
                 line.addView(themeRows[i], lp);
@@ -1463,7 +1463,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         v.animate().scaleX(1f).scaleY(1f).setDuration(220).start();
     }
 
+    private static String themeTitle(int index) {
+        return index==Palette.CUSTOM ? Palette.customName() : THEME_TITLES[index];
+    }
+
     private void refreshThemes(String selected, boolean animate) {
+        ((ThemeSwatch)themeRows[Palette.CUSTOM]).setName(Palette.customName());
         for (int i = 0; i < themeRows.length; i++) {
             boolean on = Palette.NAMES[i].equals(selected);
             themeRows[i].setEnabled(i!=Palette.CUSTOM || Palette.hasCustom());
@@ -1471,7 +1476,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             boolean was = themeRows[i].isSelected();
             themeRows[i].setSelected(on);
             if (on && !was && animate) pop(themeRows[i]);
-            describe(themeRows[i], THEME_TITLES[i], on ? "Selected" : "Not selected");
+            describe(themeRows[i], themeTitle(i), on ? "Selected" : "Not selected");
         }
         themeNote.setText(selected.equals(Palette.activeName()) ? "Applied" : "Applies after a restart");
     }
@@ -1510,7 +1515,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
         refreshThemes(themeName, true);
-        reveal = ThemeReveal.open(this, themeRows[index], index, THEME_TITLES[index]);
+        reveal = ThemeReveal.open(this, themeRows[index], index, themeTitle(index));
         if (reveal == null) { applyTheme(themeName); return; }
         postDelayed(new Runnable() {
             public void run() {

@@ -42,16 +42,17 @@ public final class ThemeImport extends Fragment {
                 while((n=in.read(buffer))!=-1){if(bytes.size()+n>262144)throw new IllegalArgumentException("Theme files must be under 256 KiB.");bytes.write(buffer,0,n);}
                 final String source=java.nio.charset.StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString();
                 final int[][] rows=parse(source);
-                activity.runOnUiThread(new Runnable(){public void run(){review(rows);}});
+                final String name=name(source);
+                activity.runOnUiThread(new Runnable(){public void run(){review(rows,name);}});
             }catch(final Exception error){activity.runOnUiThread(new Runnable(){public void run(){fail(error.getMessage()==null?"Invalid theme file.":error.getMessage());}});}
         }},"SpatchThemeImport").start();
     }
 
-    private void review(final int[][] rows){
+    private void review(final int[][] rows,final String name){
         final Activity activity=getActivity();if(activity==null){finish();return;}
-        new AlertDialog.Builder(activity,Palette.dialogTheme()).setTitle("Import theme?").setMessage("The file contains valid dark and light palettes.")
+        new AlertDialog.Builder(activity,Palette.dialogTheme()).setTitle("Import theme?").setMessage(name + " contains valid dark and light palettes.")
             .setPositiveButton("Import",new android.content.DialogInterface.OnClickListener(){public void onClick(android.content.DialogInterface dialog,int which){
-                if(!Palette.saveCustom(rows[0],rows[1],"Imported theme")){fail("Couldn't save the theme.");return;}
+                if(!Palette.saveCustom(rows[0],rows[1],name)){fail("Couldn't save the theme.");return;}
                 Palette.choose("custom");
                 if(done!=null)done.run();
                 if(!Palette.apply(activity,"custom"))new AlertDialog.Builder(activity,Palette.dialogTheme()).setTitle("Restart to apply theme?")
@@ -62,6 +63,33 @@ public final class ThemeImport extends Fragment {
 
     private void fail(String message){Activity activity=getActivity();if(activity!=null)new AlertDialog.Builder(activity,Palette.dialogTheme()).setTitle("Couldn't import theme").setMessage(message).setPositiveButton("OK",null).show();finish();}
     private void finish(){done=null;if(getFragmentManager()!=null)getFragmentManager().beginTransaction().remove(this).commitAllowingStateLoss();}
+
+    /** Metadata stays separate from colour roles and is kept through confirmation and saving. */
+    static String name(String source) throws Exception {
+        source=source.trim();
+        if(source.startsWith("\ufeff"))source=source.substring(1).trim();
+        if(source.startsWith("{")) {
+            JSONObject root=new JSONObject(source);
+            Object value=root.has("name") ? root.get("name") : null;
+            return cleanName(value instanceof String ? (String)value : null);
+        }
+        for(String raw:source.split("\n")) {
+            String line=raw.trim();
+            if(line.startsWith("["))break;
+            java.util.regex.Matcher pair=java.util.regex.Pattern.compile("^name\\s*=\\s*(\"[^\"]*\"|'[^']*')\\s*(?:#.*)?$").matcher(line);
+            if(pair.matches()) {
+                String value=pair.group(1);
+                return cleanName(value.substring(1,value.length()-1));
+            }
+        }
+        return cleanName(null);
+    }
+
+    static String cleanName(String name) {
+        if(name==null)return "Imported theme";
+        name=name.replaceAll("[\\p{Cc}\\p{Cf}]", " ").trim().replaceAll("\\s+", " ");
+        return name.isEmpty()?"Imported theme":name;
+    }
 
     static int[][] parse(String source) throws Exception {
         source=source.trim();if(source.startsWith("\ufeff"))source=source.substring(1).trim();

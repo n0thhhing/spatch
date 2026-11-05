@@ -95,12 +95,13 @@ public final class Palette {
         try{String[] parts=saved.split(",");if(parts.length!=9)return fallback;int[] row=new int[9];for(int i=0;i<9;i++)row[i]=Integer.parseInt(parts[i],16)&0xffffff;return row;}
         catch(RuntimeException bad){return fallback;}
     }
+    static String customName(){return ThemeImport.cleanName(preferences==null?null:preferences.getString("custom_name",null));}
     static boolean hasCustom(){return preferences!=null&&preferences.getString("custom_dark",null)!=null;}
     static boolean saveCustom(int[] dark,int[] bright,String name){
         if(preferences==null)return false;
         String[] values=new String[2];int[][] rows={dark,bright};
         for(int n=0;n<2;n++){StringBuilder out=new StringBuilder();for(int c:rows[n]){if(out.length()>0)out.append(',');out.append(Integer.toHexString(c));}values[n]=out.toString();}
-        if(!preferences.edit().putString("custom_dark",values[0]).putString("custom_light",values[1]).putString("custom_name",name).commit())return false;
+        if(!preferences.edit().putString("custom_dark",values[0]).putString("custom_light",values[1]).putString("custom_name",ThemeImport.cleanName(name)).commit())return false;
         importedDark=dark.clone();importedLight=bright.clone();return true;
     }
     static byte[] recolorAnimation(byte[] bytes,int accent){
