@@ -90,6 +90,7 @@ public class View implements android.graphics.drawable.Drawable.Callback { publi
     public void setClickable(boolean c) {}
     public void setScaleX(float s) {}
     public float getScaleX() { return 1f; }
+    public float getScaleY() { return 1f; }
     public void setTranslationX(float x) {}
     public static final int GONE = 8;
     public void setTranslationY(float y) {}

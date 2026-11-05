@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.FrameLayout;
-import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.widget.TextView;
 import android.content.Context;
@@ -72,12 +71,32 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private Back homeMenuBack;
     private float menuX, menuY, menuWidth, menuRow, menuPad;
     private int menuHover = -1;
+    private ValueAnimator menuMotion;
+    private float menuSlideFrom=3, menuSlideTo=3, menuSlideT=1, menuPillAlpha;
+    private android.graphics.drawable.Drawable menuSurface;
 
-    private GradientDrawable menuShape(int colour, float radius) {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setColor(colour);
-        shape.setCornerRadius(radius);
-        return shape;
+    private void moveMenuPill(int option) {
+        float shown=menuSlideFrom+(menuSlideTo-menuSlideFrom)*settle.getInterpolation(menuSlideT);
+        if(menuMotion!=null)menuMotion.cancel();
+        menuSlideFrom=shown;
+        menuSlideTo=option<0?shown:option;
+        final float alphaFrom=menuPillAlpha, alphaTo=option<0?0f:1f;
+        if(!Wave.animationsEnabled()) {
+            menuSlideFrom=menuSlideTo; menuSlideT=1; menuPillAlpha=alphaTo;
+            if(menuSurface!=null)menuSurface.invalidateSelf();
+            return;
+        }
+        menuSlideT=0;
+        menuMotion=ValueAnimator.ofFloat(0f,1f);
+        menuMotion.setDuration(option<0?120:300);
+        menuMotion.addUpdateListener(new ValueAnimator.AnimatorUpdateListener(){
+            public void onAnimationUpdate(ValueAnimator animation){
+                menuSlideT=((Float)animation.getAnimatedValue()).floatValue();
+                menuPillAlpha=alphaFrom+(alphaTo-alphaFrom)*Math.min(1f,menuSlideT*2f);
+                if(menuSurface!=null)menuSurface.invalidateSelf();
+            }
+        });
+        menuMotion.start();
     }
 
     private void homeMenu() {
@@ -90,41 +109,48 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         getLocationOnScreen(anchor); root.getLocationOnScreen(origin);
         menuPad = 8*dp;
         menuRow = 52*dp;
-        menuWidth = Math.min(280*dp, root.getWidth()-32*dp);
+        menuWidth = Math.min(getWidth(), root.getWidth()-32*dp);
         float centre = anchor[0]-origin[0]+(rtl()?getWidth()-getWidth()/(2f*count):getWidth()/(2f*count));
         menuX = Math.max(16*dp,Math.min(root.getWidth()-16*dp-menuWidth,centre-menuWidth/2));
-        menuY = Math.max(16*dp,anchor[1]-origin[1]-3*menuRow-2*menuPad-8*dp);
+        menuY = Math.max(16*dp,anchor[1]-origin[1]-3*menuRow-2*menuPad+8*dp);
         homeMenuOverlay = new FrameLayout(getContext());
         LinearLayout actions = new LinearLayout(getContext());
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.setPadding((int)menuPad,(int)menuPad,(int)menuPad,(int)menuPad);
-        actions.setBackground(menuShape(Palette.color(0xff2b2640),24*dp));
+
         FrameLayout.LayoutParams placement = new FrameLayout.LayoutParams((int)menuWidth,(int)(3*menuRow+2*menuPad),Gravity.TOP|Gravity.LEFT);
         placement.leftMargin=(int)menuX; placement.topMargin=(int)menuY;
         homeMenuOverlay.addView(actions,placement);
-        // Broad curved shoulders blend into the navigation surface at the Home cell.
-        final float joinX=centre, joinTop=menuY+3*menuRow+2*menuPad-16*dp;
-        final float joinBottom=anchor[1]-origin[1]+14*dp, joinDp=dp;
-        homeMenuOverlay.setBackground(new android.graphics.drawable.Drawable() {
+        final float menuDp=dp;
+        final float joinBottom=anchor[1]-origin[1]+8*dp;
+        menuSlideFrom=menuSlideTo=3; menuSlideT=1; menuPillAlpha=0;
+        menuSurface=new android.graphics.drawable.Drawable(){
             final Paint fill=new Paint(Paint.ANTI_ALIAS_FLAG);
-            final Path bridge=new Path();
-            public void draw(Canvas canvas) {
-                float middle=(joinTop+joinBottom)/2;
-                bridge.reset();
-                bridge.moveTo(joinX-30*joinDp,joinTop);
-                bridge.quadTo(joinX-8*joinDp,middle,joinX-12*joinDp,joinBottom-8*joinDp);
-                bridge.quadTo(joinX-13*joinDp,joinBottom,joinX-28*joinDp,joinBottom);
-                bridge.lineTo(joinX+28*joinDp,joinBottom);
-                bridge.quadTo(joinX+13*joinDp,joinBottom,joinX+12*joinDp,joinBottom-8*joinDp);
-                bridge.quadTo(joinX+8*joinDp,middle,joinX+30*joinDp,joinTop);
-                bridge.close();
-                fill.setColor(Palette.color(0xff2b2640));
-                canvas.drawPath(bridge,fill);
+            final Path hoverPath=new Path();
+            public void draw(Canvas canvas){
+                float height=3*menuRow+2*menuPad, radius=32*menuDp;
+                // Full-width rounded surface meets the bar across its whole centre: no neck.
+                fill.setColor(Palette.color(0xf22b2640));
+                canvas.drawRoundRect(0,0,menuWidth,height,radius,radius,fill);
+                if(menuPillAlpha<=0)return;
+                float eased=settle.getInterpolation(menuSlideT);
+                float[] vertical=edges(menuSlideFrom,menuSlideTo,eased,menuRow,menuRow-8*menuDp);
+                float top=menuPad+vertical[0], bottom=menuPad+vertical[1];
+                int save=canvas.save();
+                canvas.clipRect(menuPad,menuPad,menuWidth-menuPad,height-menuPad);
+                fill.setColor(Tint.color(Settings.NAV_COLOR));
+                fill.setAlpha(Math.round(ALPHA*menuPillAlpha));
+                float pinch=Wave.animationsEnabled() && Settings.navStretch()
+                    ? gooeyPinch(bottom-top,menuRow-8*menuDp):0;
+                gooey(hoverPath,menuPad,top,menuWidth-menuPad,bottom,pinch);
+                canvas.drawPath(hoverPath,fill);
+                canvas.restoreToCount(save);
             }
-            public void setAlpha(int alpha) { fill.setAlpha(alpha); }
-            public void setColorFilter(android.graphics.ColorFilter filter) { fill.setColorFilter(filter); }
-            public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
-        });
+            public void setAlpha(int alpha){}
+            public void setColorFilter(android.graphics.ColorFilter filter){fill.setColorFilter(filter);}
+            public int getOpacity(){return android.graphics.PixelFormat.TRANSLUCENT;}
+        };
+        actions.setBackground(menuSurface);
         String[] labels = {"Hide Home sections", "Show all Home sections", "Spatch settings"};
         homeOptions = new TextView[labels.length];
         for (int i=0;i<labels.length;i++) {
@@ -147,10 +173,10 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         if (Wave.animationsEnabled()) {
             homeMenuOverlay.setPivotX(centre);
             homeMenuOverlay.setPivotY(joinBottom);
-            homeMenuOverlay.setScaleX(.92f); homeMenuOverlay.setScaleY(.92f);
+            homeMenuOverlay.setScaleX(.65f); homeMenuOverlay.setScaleY(.18f);
             homeMenuOverlay.setAlpha(0f);
             homeMenuOverlay.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setInterpolator(new OvershootInterpolator(.65f)).setDuration(240).start();
+                .setInterpolator(new OvershootInterpolator(1.1f)).setDuration(340).start();
         }
         getParent().requestDisallowInterceptTouchEvent(true);
         if (android.os.Build.VERSION.SDK_INT>=33) homeMenuBack=Back.register(homeMenuOverlay,new Runnable(){public void run(){dismissHomeMenu();}});
@@ -164,15 +190,19 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private void hoverHomeMenu(MotionEvent e) {
         if (homeMenuHost==null || homeOptions==null) return;
         int[] origin=new int[2]; homeMenuOverlay.getLocationOnScreen(origin);
-        float scale=Math.max(.01f,homeMenuOverlay.getScaleX());
-        int option=menuOption((e.getRawX()-origin[0])/scale-menuX-menuPad,
-            (e.getRawY()-origin[1])/scale-menuY-menuPad,menuWidth-2*menuPad,menuRow);
+        float scaleX=Math.max(.01f,homeMenuOverlay.getScaleX());
+        float scaleY=Math.max(.01f,homeMenuOverlay.getScaleY());
+        int option=menuOption((e.getRawX()-origin[0])/scaleX-menuX-menuPad,
+            (e.getRawY()-origin[1])/scaleY-menuY-menuPad,menuWidth-2*menuPad,menuRow);
         if (option==menuHover) return;
         menuHover=option;
+        moveMenuPill(option);
         float dp=getResources().getDisplayMetrics().density;
         for (int i=0;i<homeOptions.length;i++) {
-            homeOptions[i].setBackground(menuShape(i==option?Palette.color(0xffd0bcff):0,16*dp));
-            homeOptions[i].setTextColor(Palette.color(i==option?0xff14121c:0xfff3eeff));
+            boolean on=i==option;
+            homeOptions[i].setTextColor(Palette.color(0xfff3eeff));
+            if(Wave.animationsEnabled()) homeOptions[i].animate().scaleX(on?1.025f:1f).scaleY(on?1.025f:1f)
+                .translationX(on?(rtl()?-4:4)*dp:0).setInterpolator(new OvershootInterpolator(1.2f)).setDuration(220).start();
         }
         if (option>=0) Haptics.navigation(this);
     }
@@ -180,6 +210,8 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private void dismissHomeMenu() { dismissHomeMenu(true); }
 
     private void dismissHomeMenu(boolean animate) {
+        if(menuMotion!=null)menuMotion.cancel();
+        menuMotion=null; menuSurface=null;
         if (homeMenuBack!=null) homeMenuBack.unregister();
         homeMenuBack=null;
         if (homeMenuHost!=null && homeMenuOverlay!=null) {
@@ -187,8 +219,8 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             final FrameLayout overlay=homeMenuOverlay;
             overlay.animate().cancel();
             if (animate && isAttachedToWindow() && Wave.animationsEnabled()) {
-                overlay.animate().alpha(0f).scaleX(.96f).scaleY(.96f).setDuration(120).start();
-                host.postDelayed(new Runnable(){public void run(){host.removeView(overlay);}},120);
+                overlay.animate().alpha(0f).scaleX(.75f).scaleY(.25f).setDuration(150).start();
+                host.postDelayed(new Runnable(){public void run(){host.removeView(overlay);}},150);
             } else host.removeView(overlay);
             Flourish.navigationTouch(false);
         }

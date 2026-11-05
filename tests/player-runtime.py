@@ -605,6 +605,11 @@ public class PlayerRuntimeTest {
         Field menuHeld=NavIndicator.class.getDeclaredField("homeHeld");menuHeld.setAccessible(true);menuHeld.setBoolean(cancelledMenu,true);
         Field hoveredOption=NavIndicator.class.getDeclaredField("menuHover");hoveredOption.setAccessible(true);hoveredOption.setInt(cancelledMenu,2);
         check(cancelledMenu.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,20,20,0)) && !menuHeld.getBoolean(cancelledMenu) && hoveredOption.getInt(cancelledMenu)==-1,"a cancelled held gesture clears even a highlighted action without opening settings");
+        java.lang.reflect.Method menuPillMove=NavIndicator.class.getDeclaredMethod("moveMenuPill",int.class);menuPillMove.setAccessible(true);
+        Settings.set(6,true);menuPillMove.invoke(cancelledMenu,2);
+        check((Float)field(cancelledMenu,"menuSlideFrom")==2f && (Float)field(cancelledMenu,"menuPillAlpha")==1f,"reduced motion snaps the hover pill to the selected menu row");
+        menuPillMove.invoke(cancelledMenu,-1);
+        check((Float)field(cancelledMenu,"menuPillAlpha")==0f,"leaving the menu clears the hover pill under reduced motion");Settings.set(6,false);
         check(NavIndicator.menuOption(20,20,260,52)==0 && NavIndicator.menuOption(20,70,260,52)==1 && NavIndicator.menuOption(20,130,260,52)==2,"dragging through the Home menu selects each row");
         check(NavIndicator.menuOption(-1,20,260,52)==-1 && NavIndicator.menuOption(260,20,260,52)==-1 && NavIndicator.menuOption(20,-1,260,52)==-1 && NavIndicator.menuOption(20,156,260,52)==-1,"releasing outside the Home menu cancels selection");
         p.S_SaveButtonState off=new p.S_SaveButtonState(),on=new p.S_SaveButtonState(); off.a=p.S_SaveButtonStage.a; on.a=p.S_SaveButtonStage.b;
