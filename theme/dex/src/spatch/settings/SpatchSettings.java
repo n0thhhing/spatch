@@ -956,7 +956,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             pill.setTextColor(text);
             pill.setTypeface(Fonts.settings(500));
             pill.setGravity(Gravity.CENTER);
-            pill.setBackground(rounded(Palette.color(0xff1d1a2a), dp(24)));
+            pill.setBackground(ripple(rounded(card, dp(24))));
             pill.setClickable(true);
             pill.setContentDescription(i < 2 ? names[i] + " preset" : names[i] + " settings");
             pill.setOnClickListener(new View.OnClickListener() {

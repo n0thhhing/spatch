@@ -169,7 +169,7 @@ public final class MiniArt extends ImageView {
             c.translate(s[0], s[1]);
             c.rotate(s[2], 0, 0);
             c.scale(s[3], s[3], 0, 0);
-            paint.setColor(Palette.color(0xff1d1a2a));
+            paint.setColor(Palette.color(0xff2b2640));
             paint.setAlpha(alpha);
             c.drawCircle(0, 0, r, paint);
             if (art != null) {

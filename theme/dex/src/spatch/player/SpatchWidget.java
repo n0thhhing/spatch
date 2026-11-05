@@ -279,7 +279,7 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
         String pkg = app.getPackageName();
         RemoteViews v = new RemoteViews(pkg, r.getIdentifier(layout, "layout", pkg));
         int root = 0x01020000; // android.R.id.background
-        v.setColorStateList(root, "setBackgroundTintList", ColorStateList.valueOf(0xff1d1a2a));
+        v.setColorStateList(root, "setBackgroundTintList", ColorStateList.valueOf(0xff2b2640));
         String[][] slots = {{"title", "subtitle", "artwork"}, {"title2", "subtitle2", "thumbnail"}};
         for (int k = 0; k < 2; k++) {
             int i = mode == STEADY ? shown : k; // steady: both slots show the current song
