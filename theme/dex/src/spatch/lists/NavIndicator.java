@@ -4,6 +4,9 @@ import android.animation.ValueAnimator;
 import android.app.AlertDialog;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.FrameLayout;
+import android.graphics.drawable.GradientDrawable;
+import android.view.Gravity;
 import android.widget.TextView;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -63,43 +66,113 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     };
     private Runnable reviewStart;
 
+    private FrameLayout homeMenuOverlay;
+    private ViewGroup homeMenuHost;
+    private TextView[] homeOptions;
+    private Back homeMenuBack;
+    private float menuX, menuY, menuWidth, menuRow, menuPad;
+    private int menuHover = -1;
+
+    private GradientDrawable menuShape(int colour, float radius) {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(colour);
+        shape.setCornerRadius(radius);
+        return shape;
+    }
+
     private void homeMenu() {
+        View root = getRootView();
+        if (!(root instanceof ViewGroup)) { homeHeld=false; return; }
+        dismissHomeMenu();
+        homeMenuHost = (ViewGroup)root;
+        float dp = getResources().getDisplayMetrics().density;
+        int[] anchor = new int[2], origin = new int[2];
+        getLocationOnScreen(anchor); root.getLocationOnScreen(origin);
+        menuPad = 8*dp;
+        menuRow = 52*dp;
+        menuWidth = Math.min(280*dp, root.getWidth()-32*dp);
+        float centre = anchor[0]-origin[0]+(rtl()?getWidth()-getWidth()/(2f*count):getWidth()/(2f*count));
+        menuX = Math.max(16*dp,Math.min(root.getWidth()-16*dp-menuWidth,centre-menuWidth/2));
+        menuY = Math.max(16*dp,anchor[1]-origin[1]-3*menuRow-2*menuPad-8*dp);
+        homeMenuOverlay = new FrameLayout(getContext());
         LinearLayout actions = new LinearLayout(getContext());
         actions.setOrientation(LinearLayout.VERTICAL);
-        final AlertDialog dialog = new AlertDialog.Builder(getContext(), Palette.dialogTheme())
-            .setTitle("Home").setView(actions).setNegativeButton("Cancel", null).create();
+        actions.setPadding((int)menuPad,(int)menuPad,(int)menuPad,(int)menuPad);
+        actions.setBackground(menuShape(Palette.color(0xff2b2640),24*dp));
+        FrameLayout.LayoutParams placement = new FrameLayout.LayoutParams((int)menuWidth,(int)(3*menuRow+2*menuPad),Gravity.TOP|Gravity.LEFT);
+        placement.leftMargin=(int)menuX; placement.topMargin=(int)menuY;
+        homeMenuOverlay.addView(actions,placement);
+        // A short stem keeps the menu visually joined to its Home navigation cell.
+        View stem = new View(getContext());
+        stem.setBackground(menuShape(Palette.color(0xff2b2640),6*dp));
+        FrameLayout.LayoutParams stemPlacement = new FrameLayout.LayoutParams((int)(12*dp),(int)(16*dp),Gravity.TOP|Gravity.LEFT);
+        stemPlacement.leftMargin=(int)(centre-6*dp);
+        stemPlacement.topMargin=(int)(menuY+3*menuRow+2*menuPad-4*dp);
+        homeMenuOverlay.addView(stem,stemPlacement);
         String[] labels = {"Hide Home sections", "Show all Home sections", "Spatch settings"};
-        for (int i=0; i<labels.length; i++) {
-            final int action = i;
-            TextView row = new TextView(getContext());
-            row.setText(labels[i]);
-            row.setTextSize(16);
+        homeOptions = new TextView[labels.length];
+        for (int i=0;i<labels.length;i++) {
+            final int action=i;
+            TextView row=new TextView(getContext());
+            row.setText(labels[i]); row.setTextSize(15);
             row.setTextColor(Palette.color(0xfff3eeff));
             row.setTypeface(Fonts.settings(500));
-            float dp = getResources().getDisplayMetrics().density;
-            row.setPadding((int)(24*dp), (int)(18*dp), (int)(24*dp), (int)(18*dp));
-            row.setClickable(true);
-            row.setFocusable(true);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding((int)(16*dp),0,(int)(16*dp),0);
+            row.setClickable(true); row.setFocusable(true);
             row.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
-                    dialog.dismiss();
-                    if (action == 0) reviewHome();
-                    else if (action == 1) new AlertDialog.Builder(getContext(), Palette.dialogTheme())
-                        .setTitle("Show all Home sections?")
-                        .setMessage("Restore sections you hid manually. Podcast and audiobook filters stay as they are.")
-                        .setPositiveButton("Show all", new android.content.DialogInterface.OnClickListener() {
-                            public void onClick(android.content.DialogInterface d, int which) {
-                                for (String[] section : Settings.sections())
-                                    for (int j=1; j<section.length; j++) Settings.hideSection(section[j], false);
-                                Content.refresh();
-                            }
-                        }).setNegativeButton("Cancel", null).show();
-                    else Settings.show(NavIndicator.this, false);
-                }
+                public void onClick(View v) { dismissHomeMenu(); homeAction(action); }
             });
-            actions.addView(row);
+            homeOptions[i]=row;
+            actions.addView(row,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,(int)menuRow));
         }
-        dialog.show();
+        homeMenuHost.addView(homeMenuOverlay,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
+        homeMenuOverlay.bringToFront();
+        getParent().requestDisallowInterceptTouchEvent(true);
+        if (android.os.Build.VERSION.SDK_INT>=33) homeMenuBack=Back.register(homeMenuOverlay,new Runnable(){public void run(){dismissHomeMenu();}});
+    }
+
+    /** Outside the menu (including its padding) means release-to-cancel. */
+    static int menuOption(float x,float y,float width,float rowHeight) {
+        return x>=0 && x<width && y>=0 && y<rowHeight*3 ? (int)(y/rowHeight) : -1;
+    }
+
+    private void hoverHomeMenu(MotionEvent e) {
+        if (homeMenuHost==null || homeOptions==null) return;
+        int[] origin=new int[2]; homeMenuHost.getLocationOnScreen(origin);
+        int option=menuOption(e.getRawX()-origin[0]-menuX-menuPad,
+            e.getRawY()-origin[1]-menuY-menuPad,menuWidth-2*menuPad,menuRow);
+        if (option==menuHover) return;
+        menuHover=option;
+        float dp=getResources().getDisplayMetrics().density;
+        for (int i=0;i<homeOptions.length;i++) {
+            homeOptions[i].setBackground(menuShape(i==option?Palette.color(0xffd0bcff):0,16*dp));
+            homeOptions[i].setTextColor(Palette.color(i==option?0xff14121c:0xfff3eeff));
+        }
+        if (option>=0) Haptics.navigation(this);
+    }
+
+    private void dismissHomeMenu() {
+        if (homeMenuBack!=null) homeMenuBack.unregister();
+        homeMenuBack=null;
+        if (homeMenuHost!=null && homeMenuOverlay!=null) homeMenuHost.removeView(homeMenuOverlay);
+        homeMenuHost=null; homeMenuOverlay=null; homeOptions=null; menuHover=-1;
+        if (getParent()!=null) getParent().requestDisallowInterceptTouchEvent(false);
+    }
+
+    private void homeAction(int action) {
+        if (action==0) reviewHome();
+        else if (action==1) new AlertDialog.Builder(getContext(),Palette.dialogTheme())
+            .setTitle("Show all Home sections?")
+            .setMessage("Restore sections you hid manually. Podcast and audiobook filters stay as they are.")
+            .setPositiveButton("Show all",new android.content.DialogInterface.OnClickListener(){
+                public void onClick(android.content.DialogInterface d,int which){
+                    for(String[] section:Settings.sections())
+                        for(int j=1;j<section.length;j++)Settings.hideSection(section[j],false);
+                    Content.refresh();
+                }
+            }).setNegativeButton("Cancel",null).show();
+        else if (action==2) Settings.show(this,false);
     }
 
     private void reviewHome() {
@@ -231,7 +304,13 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         }
         if (nav == null) return false;
         if (homeHeld) {
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) homeHeld = false;
+            if (action==MotionEvent.ACTION_MOVE || action==MotionEvent.ACTION_UP) hoverHomeMenu(e);
+            if (action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL) {
+                int option=action==MotionEvent.ACTION_UP?menuHover:-1;
+                homeHeld=false;
+                dismissHomeMenu();
+                if (option>=0) homeAction(option);
+            }
             return true;
         }
         if (action == MotionEvent.ACTION_MOVE &&
@@ -339,6 +418,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         removeCallbacks(homeHold);
+        dismissHomeMenu();
         if (reviewStart != null) removeCallbacks(reviewStart);
         reviewStart = null;
         homeHeld = false;

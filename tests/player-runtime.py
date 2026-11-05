@@ -598,6 +598,13 @@ public class PlayerRuntimeTest {
         check(NavIndicator.dragPosition(250,400,4,false)==2&&Math.round(NavIndicator.dragPosition(210,400,4,false))==2,"a drag reads the tab under the finger");
         check(NavIndicator.dragPosition(-30,400,4,false)==0&&NavIndicator.dragPosition(430,400,4,false)==3,"a drag past the ends clamps to the outer tabs");
         check(NavIndicator.dragPosition(50,400,4,true)==3,"an RTL drag mirrors the tabs");
+        NavIndicator cancelledMenu=new NavIndicator(new android.content.Context(),null);
+        Field menuNav=NavIndicator.class.getDeclaredField("nav");menuNav.setAccessible(true);menuNav.set(cancelledMenu,new View(new android.content.Context()));
+        Field menuHeld=NavIndicator.class.getDeclaredField("homeHeld");menuHeld.setAccessible(true);menuHeld.setBoolean(cancelledMenu,true);
+        Field hoveredOption=NavIndicator.class.getDeclaredField("menuHover");hoveredOption.setAccessible(true);hoveredOption.setInt(cancelledMenu,2);
+        check(cancelledMenu.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_CANCEL,20,20,0)) && !menuHeld.getBoolean(cancelledMenu) && hoveredOption.getInt(cancelledMenu)==-1,"a cancelled held gesture clears even a highlighted action without opening settings");
+        check(NavIndicator.menuOption(20,20,260,52)==0 && NavIndicator.menuOption(20,70,260,52)==1 && NavIndicator.menuOption(20,130,260,52)==2,"dragging through the Home menu selects each row");
+        check(NavIndicator.menuOption(-1,20,260,52)==-1 && NavIndicator.menuOption(260,20,260,52)==-1 && NavIndicator.menuOption(20,-1,260,52)==-1 && NavIndicator.menuOption(20,156,260,52)==-1,"releasing outside the Home menu cancels selection");
         p.S_SaveButtonState off=new p.S_SaveButtonState(),on=new p.S_SaveButtonState(); off.a=p.S_SaveButtonStage.a; on.a=p.S_SaveButtonStage.b;
         check(SaveBurst.celebrates(true,off,on),"a tapped save celebrates");
         check(!SaveBurst.celebrates(false,off,on)&&!SaveBurst.celebrates(true,on,off)&&!SaveBurst.celebrates(true,off,off)&&!SaveBurst.celebrates(true,null,on),"initial, unsave and failed states stay quiet");
