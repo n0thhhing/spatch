@@ -213,12 +213,24 @@ final class Spectrum {
             }
         }
         float top = centre ? mid - maxH / 2 : base - maxH;
-        paint.setShader(new LinearGradient(0, top, 0, centre ? mid + maxH / 2 : base,
-            centre ? new int[] {0x66d0bcff, 0xe6d0bcff, 0x66d0bcff} : new int[] {0xe6d0bcff, floating ? 0x4dd0bcff : 0x1ad0bcff},
-            null, Shader.TileMode.CLAMP));
+        float bottom = centre ? mid + maxH / 2 : base;
+        int accent = Palette.color(0xffd0bcff) & 0x00ffffff;
+        if (barGradient == null || top != gradTop || bottom != gradBottom || accent != gradColor || centre != gradCentre || floating != gradFloating) {
+            gradTop = top; gradBottom = bottom; gradColor = accent; gradCentre = centre; gradFloating = floating;
+            barGradient = new LinearGradient(0, top, 0, bottom,
+                centre ? new int[] {0x66000000 | accent, 0xe6000000 | accent, 0x66000000 | accent}
+                       : new int[] {0xe6000000 | accent, (floating ? 0x4d000000 : 0x1a000000) | accent},
+                null, Shader.TileMode.CLAMP);
+        }
+        paint.setShader(barGradient);
         c.drawPath(path, paint);
         paint.setShader(null);
     }
+
+    private static LinearGradient barGradient;
+    private static float gradTop, gradBottom;
+    private static int gradColor;
+    private static boolean gradCentre, gradFloating;
 
     private static final int RAYS = 72;
     private static final float[] boundary = new float[4], outerX = new float[RAYS], outerY = new float[RAYS], innerX = new float[RAYS], innerY = new float[RAYS];
