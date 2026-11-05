@@ -57,7 +57,8 @@ public final class ImmersiveLyrics {
         if (shown == lyrics && selected == next && width == pixels && textSize == size) return text;
         shown = lyrics; selected = next; width = pixels; textSize = size;
         paint.setTextSize(size);
-        paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        android.graphics.Typeface tf = Fonts.settings(700);
+        paint.setTypeface(tf != null ? tf : android.graphics.Typeface.DEFAULT_BOLD);
         for (int i = 0; i < lines.length; i++) {
             int row = next + i - 1;
             String value = lyrics != null && lyrics.a != null && row >= 0 && row < lyrics.a.size() ? lyrics.a.get(row).b : "";
@@ -77,13 +78,24 @@ public final class ImmersiveLyrics {
         float rowHeight = height / (end - start);
         int save = canvas.save();
         canvas.clipRect(cx-width/2f, top, cx+width/2f, top+height);
+        boolean focus = Settings.get(Settings.LYRICS_FOCUS);
+        int accent = Tint.album();
+        if (accent == 0 || (accent & 0xffffff) == 0) accent = Palette.color(0xffd0bcff);
         for (int i = start; i < end; i++) {
-            paint.setColor(i == 1 ? 0xfff3eeff : 0x99f3eeff);
+            if (i == 1) {
+                paint.setColor(focus ? accent : 0xfff3eeff);
+                if (focus) paint.setShadowLayer(8f, 0, 0, (accent & 0x66ffffff) | 0x55000000);
+                else paint.clearShadowLayer();
+            } else {
+                paint.clearShadowLayer();
+                paint.setColor(focus ? 0x66bcb3dc : 0x99f3eeff);
+            }
             int row = canvas.save();
             canvas.translate(cx-width/2f, top+(i-start)*rowHeight+Math.max(0,(rowHeight-lines[i].getHeight())/2));
             lines[i].draw(canvas);
             canvas.restoreToCount(row);
         }
+        paint.clearShadowLayer();
         canvas.restoreToCount(save);
     }
 }
