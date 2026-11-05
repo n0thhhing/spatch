@@ -50,9 +50,10 @@ public final class Atmosphere extends Drawable implements Runnable {
         float blend=blend();
         for(int i=0;i<3;i++) fromColors[i]=mix(fromColors[i],colors[i],blend);
         Paint copy=new Paint(3);
-        previousSample.eraseColor(0xff14121c);
+        int bg=Palette.color(0xff14121c);
+        previousSample.eraseColor(bg);
         new Canvas(previousSample).drawBitmap(sample,null,new RectF(0,0,raster,raster),copy);
-        sample.eraseColor(0xff14121c);
+        sample.eraseColor(bg);
         PlayerArt.drawArtwork(new Canvas(sample),art,0,0,raster,raster);
         colors[0]=sample.getPixel(raster/4,raster/4); colors[1]=sample.getPixel(raster*2/3,raster/3); colors[2]=sample.getPixel(raster/2,raster*3/4);
         changedAt=SystemClock.uptimeMillis();
@@ -60,7 +61,8 @@ public final class Atmosphere extends Drawable implements Runnable {
     }
     public void draw(Canvas c) {
         Rect b=getBounds();
-        c.drawColor(0xff14121c);
+        int bg=Palette.color(0xff14121c);
+        c.drawColor(bg);
         float w=b.width(),h=b.height();
         float phase=Wave.animationsEnabled()&&Settings.artDrift()?(float)((SystemClock.uptimeMillis()/30000.0*flow/100)%1)*6.283185f:0;
         // Very low resolution art, enlarged with bilinear filtering, forms the blurred base.
@@ -86,7 +88,7 @@ public final class Atmosphere extends Drawable implements Runnable {
             c.drawRect(b.left,b.top,b.right,b.bottom,paint);
         }
         glowRadius=w;
-        paint.setShader(null); paint.setColor(0x5514121c);
+        paint.setShader(null); paint.setColor(bg & 0xffffff | 0x55000000);
         c.drawRect(b.left,b.top,b.right,b.bottom,paint);
         boolean shocks=drawShockwaves(c,w,h);
         String fx=Settings.choice(Settings.BACKDROP_FX);
