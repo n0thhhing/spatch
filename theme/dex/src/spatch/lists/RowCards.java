@@ -260,10 +260,17 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
             matrix.postTranslate(cx, cy);
             canvas.concat(matrix);
         }
-        if (row && Settings.get(Settings.LIST_CARDS)) {
+        if ((row || grid) && Settings.get(Settings.LIST_CARDS)) {
             paint.setShader(null);
+            paint.setStyle(Paint.Style.FILL);
             paint.setColor(Palette.color(0xff2b2640));
-            canvas.drawRoundRect(card, RADIUS * dp, RADIUS * dp, paint);
+            float r = (grid ? 18 : RADIUS) * dp;
+            canvas.drawRoundRect(card, r, r, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(1f * dp);
+            paint.setColor(Palette.color(0x18ffffff));
+            canvas.drawRoundRect(card, r, r, paint);
+            paint.setStyle(Paint.Style.FILL);
         }
         if (Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled() && now - glintAt >= 0 && now - glintAt < GLINT_MILLIS) {
             glint(canvas, (now - glintAt) / (float) GLINT_MILLIS);

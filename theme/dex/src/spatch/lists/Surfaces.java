@@ -31,12 +31,13 @@ public final class Surfaces {
         return (c & 0xffffffffL) == 0;
     }
 
-    /** Spotify's fixed grey cards and white skeletons take the theme's surface and accent. */
+    /** Spotify's fixed grey cards, white skeletons, and page blacks take the theme's palette. */
     public static long bg(long c) {
         if (!plain(c)) return c;
         int argb = (int) (c >>> 32);
         if (argb == GREY_CARD) return (long) Palette.color(0xff2b2640) << 32;
         if (argb == SKELETON) return (long) (Palette.color(0xffd0bcff) & 0xffffff | 0x24000000) << 32;
+        if (black(argb)) return (long) (argb & 0xff000000 | Palette.color(0xff14121c) & 0xffffff) << 32;
         return c;
     }
 
@@ -119,14 +120,14 @@ public final class Surfaces {
      * Your Library rows on refined elevated cards with a cohesive 5dp row gap, parallel with 16dp artwork corners.
      */
     public static S_ComposeModifier libraryRow(S_ComposeModifier row) {
-        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 10f, 3f, 0xff2b2640, 16f), 8f, 2.5f) : row);
+        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 6f, 2f, 0xff2b2640, 16f), 8f, 2.5f) : row);
     }
 
     /**
      * Playlist track rows as floating pill cards with 4dp vertical spacing, avoiding concave notches between tracks.
      */
     public static S_ComposeModifier trackRow(S_ComposeModifier row) {
-        return Flourish.trackRow(Settings.playlistCards() ? S_ComposePadding.y(card(row, 8f, 2.5f, 0xff2b2640, 14f), 8f, 2f) : row);
+        return Flourish.trackRow(Settings.playlistCards() ? S_ComposePadding.y(card(row, 6f, 1.5f, 0xff2b2640, 14f), 8f, 2f) : row);
     }
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color) {

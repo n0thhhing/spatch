@@ -174,6 +174,9 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         };
         actions.setBackground(menuSurface);
         String[] labels = {"Hide Home sections", "Show all Home sections", "Spatch settings"};
+        String[] iconNames = {"spatch_ms_hidden", "spatch_ms_fullscreen", "spatch_ms_enhance"};
+        String pkg = getContext().getPackageName();
+        android.content.res.Resources res = getResources() != null ? getResources() : getContext().getResources();
         homeOptions = new TextView[labels.length];
         for (int i=0;i<labels.length;i++) {
             final int action=i;
@@ -182,7 +185,20 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             row.setTextColor(Palette.color(0xfff3eeff));
             row.setTypeface(Fonts.settings(500));
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding((int)(18*dp),0,(int)(18*dp),0);
+            row.setPadding((int)(16*dp),0,(int)(16*dp),0);
+            try {
+                int id = res.getIdentifier(iconNames[i], "drawable", pkg);
+                if (id != 0) {
+                    android.graphics.drawable.Drawable ic = res.getDrawable(id);
+                    if (ic != null) {
+                        ic = ic.mutate();
+                        ic.setBounds(0, 0, (int)(20*dp), (int)(20*dp));
+                        ic.setTint(Palette.color(0xffd0bcff));
+                        row.setCompoundDrawablesRelative(ic, null, null, null);
+                        row.setCompoundDrawablePadding((int)(12*dp));
+                    }
+                }
+            } catch (Throwable ignored) {}
             row.setClickable(true); row.setFocusable(true);
             row.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { dismissHomeMenu(); homeAction(action); }
@@ -225,6 +241,12 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         for (int i=0;i<homeOptions.length;i++) {
             boolean on=i==option;
             homeOptions[i].setTextColor(Palette.color(on?0xffffffff:0xfff3eeff));
+            try {
+                android.graphics.drawable.Drawable[] dr = homeOptions[i].getCompoundDrawablesRelative();
+                if (dr != null && dr[0] != null) {
+                    dr[0].setTint(Palette.color(on ? 0xffffffff : 0xffd0bcff));
+                }
+            } catch (Throwable ignored) {}
             if(Wave.animationsEnabled()) homeOptions[i].animate().scaleX(on?1.025f:1f).scaleY(on?1.025f:1f)
                 .translationX(on?(rtl()?-4:4)*dp:0).setInterpolator(new OvershootInterpolator(1.2f)).setDuration(220).start();
         }

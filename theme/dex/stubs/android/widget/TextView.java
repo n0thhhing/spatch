@@ -19,4 +19,7 @@ public class TextView extends android.view.View {
     public void setTypeface(android.graphics.Typeface tf, int style) {}
     public void setGravity(int g) {}
     public void setLetterSpacing(float s) {}
+    public void setCompoundDrawablesRelative(android.graphics.drawable.Drawable start, android.graphics.drawable.Drawable top, android.graphics.drawable.Drawable end, android.graphics.drawable.Drawable bottom) {}
+    public void setCompoundDrawablePadding(int pad) {}
+    public android.graphics.drawable.Drawable[] getCompoundDrawablesRelative() { return new android.graphics.drawable.Drawable[4]; }
 }

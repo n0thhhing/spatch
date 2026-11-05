@@ -14,6 +14,7 @@ public abstract class Drawable {
     public boolean setState(int[] states){return false;}
     public int[] getState(){return new int[0];}
     public void setTintList(android.content.res.ColorStateList tint){}
+    public void setTint(int tint){}
     public android.graphics.drawable.Drawable mutate(){return this;}
     public void setColorFilter(int color, android.graphics.PorterDuff.Mode mode){}
     protected void onBoundsChange(android.graphics.Rect bounds){}
