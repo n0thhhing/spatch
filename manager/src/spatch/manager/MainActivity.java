@@ -253,6 +253,14 @@ public final class MainActivity extends Activity {
         subtitle.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
         pages[0].addView(subtitle);
 
+        LinearLayout manager = look.card(pages[0], "Spatch Manager");
+        managerStatus = look.text("", 14, look.onSurfaceVariant, false);
+        manager.addView(managerStatus, look.spaced(6));
+        managerUpdate = look.button("Update manager", "system_update", Look.Kind.FILLED, v -> updateManager());
+        manager.addView(managerUpdate, look.spaced(10));
+        check = look.button("Check for updates", "refresh", Look.Kind.TEXT, v -> checkUpdates());
+        manager.addView(check, look.spaced(4));
+
         LinearLayout spotify = look.card(pages[0], "Spotify");
         spotifyStatus = look.text("", 16, look.onSurface, false);
         spotify.addView(spotifyStatus);
@@ -781,7 +789,7 @@ public final class MainActivity extends Activity {
         changesBox = look.column();
         page.addView(changesBox);
 
-        LinearLayout options = look.card(page, "Appearance & updates");
+        LinearLayout options = look.card(page, "Appearance");
         displayMode = look.button("Display mode: " + displayModeLabel(), "tune", Look.Kind.TONAL, v -> {
             String[] modes = {"system", "light", "dark", "black"};
             String[] labels = {"System (Dynamic)", "Light", "Dark", "Pitch Black (AMOLED)"};
@@ -794,12 +802,6 @@ public final class MainActivity extends Activity {
             }).setNegativeButton("Cancel", null).show();
         });
         options.addView(displayMode, look.spaced(6));
-        managerStatus = look.text("", 14, look.onSurfaceVariant, false);
-        options.addView(managerStatus, look.spaced(6));
-        managerUpdate = look.button("Update manager", "system_update", Look.Kind.FILLED, v -> updateManager());
-        options.addView(managerUpdate, look.spaced(10));
-        check = look.button("Check for updates", "refresh", Look.Kind.TEXT, v -> checkUpdates());
-        options.addView(check, look.spaced(4));
 
         LinearLayout key = look.card(page, "Signing key");
         TextView keyNote = look.text("Spatch and its clones are signed with this phone's key. Export it to keep it safe, or import the key an earlier Spatch was signed with so updates install over it.", 14, look.onSurfaceVariant, false);
