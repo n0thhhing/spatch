@@ -59,6 +59,10 @@ final class SeekBubble extends Drawable {
         paint.setTextAlign(Paint.Align.CENTER);
         float half = paint.measureText(text) / 2 + 12 * dp;
         float cx = Math.max(half + 8 * dp, Math.min(getBounds().width() - half - 8 * dp, x));
+        // Ambient soft drop shadow
+        paint.setColor(0x38000000);
+        c.drawRoundRect(cx - half, y - 15 * dp, cx + half, y + 19 * dp, 17 * dp, 17 * dp, paint);
+        // Pill body
         paint.setColor(Palette.color(0xffd0bcff));
         c.drawRoundRect(cx - half, y - 17 * dp, cx + half, y + 17 * dp, 17 * dp, 17 * dp, paint);
         paint.setColor(Palette.color(0xff14121c));
