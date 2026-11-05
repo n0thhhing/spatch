@@ -29,9 +29,10 @@ final class MiniRing extends Drawable {
         Rect b = getBounds();
         float inset = INSET_DP * dp;
         oval.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
-        paint.setColor(color & 0x4dffffff);
+        int ringColor = Palette.color(color);
+        paint.setColor(ringColor & 0x4dffffff);
         c.drawArc(oval, 0, 360, false, paint);
-        paint.setColor(color);
+        paint.setColor(ringColor);
         drawnLevel = getLevel();
         c.drawArc(oval, -90, drawnLevel * 0.036f, false, paint);
     }
