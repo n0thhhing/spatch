@@ -87,10 +87,12 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
                     else if (action == 1) new AlertDialog.Builder(getContext(), Palette.dialogTheme())
                         .setTitle("Show all Home sections?")
                         .setMessage("Restore sections you hid manually. Podcast and audiobook filters stay as they are.")
-                        .setPositiveButton("Show all", (d, which) -> {
-                            for (String[] section : Settings.sections())
-                                for (int j=1; j<section.length; j++) Settings.hideSection(section[j], false);
-                            Content.refresh();
+                        .setPositiveButton("Show all", new android.content.DialogInterface.OnClickListener() {
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                for (String[] section : Settings.sections())
+                                    for (int j=1; j<section.length; j++) Settings.hideSection(section[j], false);
+                                Content.refresh();
+                            }
                         }).setNegativeButton("Cancel", null).show();
                     else Settings.show(NavIndicator.this, false);
                 }
