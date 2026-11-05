@@ -513,7 +513,7 @@ public final class MainActivity extends Activity {
             installedCount++;
             LinearLayout item = look.column();
             item.setPadding(look.dp(16), look.dp(12), look.dp(16), look.dp(12));
-            item.setBackground(look.shape(look.containerHigh, 20));
+            item.setBackground(look.shape(look.containerHigh, 20, Look.blend(look.containerHigh, look.outline, 0.22f), 1f));
 
             LinearLayout header = new LinearLayout(this);
             header.setGravity(Gravity.CENTER_VERTICAL);
@@ -577,7 +577,7 @@ public final class MainActivity extends Activity {
         diagnosticsText = look.text("Tap 'Run self-tests' to verify signing keys, split packages, and system permissions.", 13, look.onSurfaceVariant, false);
         diagnosticsText.setTypeface(android.graphics.Typeface.MONOSPACE);
         diagnosticsText.setPadding(look.dp(12), look.dp(12), look.dp(12), look.dp(12));
-        diagnosticsText.setBackground(look.shape(look.containerHigh, 16));
+        diagnosticsText.setBackground(look.shape(look.containerHigh, 16, Look.blend(look.containerHigh, look.outline, 0.22f), 1f));
         testsCard.addView(diagnosticsText, look.spaced(10));
 
         LinearLayout exitsCard = look.card(page, "Spotify Process Exits & Crashes");
@@ -586,7 +586,7 @@ public final class MainActivity extends Activity {
         exitsText = look.text("Loading process history…", 13, look.onSurfaceVariant, false);
         exitsText.setTypeface(android.graphics.Typeface.MONOSPACE);
         exitsText.setPadding(look.dp(12), look.dp(12), look.dp(12), look.dp(12));
-        exitsText.setBackground(look.shape(look.containerHigh, 16));
+        exitsText.setBackground(look.shape(look.containerHigh, 16, Look.blend(look.containerHigh, look.outline, 0.22f), 1f));
         exitsCard.addView(exitsText, look.spaced(10));
         refreshExitsBtn = look.button("Refresh crash history", "refresh", Look.Kind.TONAL, v -> updateExitReasons());
         exitsCard.addView(refreshExitsBtn, look.spaced(10));

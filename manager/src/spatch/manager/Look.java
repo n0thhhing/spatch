@@ -348,6 +348,12 @@ final class Look {
         return g;
     }
 
+    GradientDrawable shape(int color, float radius, int strokeColor, float strokeWidth) {
+        GradientDrawable g = shape(color, radius);
+        if (strokeWidth > 0) g.setStroke(dp(strokeWidth), strokeColor);
+        return g;
+    }
+
     LinearLayout.LayoutParams spaced(int top) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(top);
