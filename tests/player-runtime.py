@@ -612,6 +612,14 @@ public class PlayerRuntimeTest {
         check((Float)field(cancelledMenu,"menuPillAlpha")==0f,"leaving the menu clears the hover pill under reduced motion");Settings.set(6,false);
         check(NavIndicator.menuOption(20,20,260,52)==0 && NavIndicator.menuOption(20,70,260,52)==1 && NavIndicator.menuOption(20,130,260,52)==2,"dragging through the Home menu selects each row");
         check(NavIndicator.menuOption(-1,20,260,52)==-1 && NavIndicator.menuOption(260,20,260,52)==-1 && NavIndicator.menuOption(20,-1,260,52)==-1 && NavIndicator.menuOption(20,156,260,52)==-1,"releasing outside the Home menu cancels selection");
+        java.lang.reflect.Method openHomeMenu=NavIndicator.class.getDeclaredMethod("homeMenu");openHomeMenu.setAccessible(true);
+        android.widget.FrameLayout mockRoot=new android.widget.FrameLayout(new android.content.Context());
+        mockRoot.testWidth=1080; mockRoot.testHeight=2400;
+        android.view.View.root=mockRoot;
+        openHomeMenu.invoke(cancelledMenu);
+        float openedWidth=(Float)field(cancelledMenu,"menuWidth");
+        check(openedWidth < cancelledMenu.getWidth() && openedWidth <= 224f, "home menu width is compact and detached rather than spanning the navigation bar");
+        android.view.View.root=null;
         p.S_SaveButtonState off=new p.S_SaveButtonState(),on=new p.S_SaveButtonState(); off.a=p.S_SaveButtonStage.a; on.a=p.S_SaveButtonStage.b;
         check(SaveBurst.celebrates(true,off,on),"a tapped save celebrates");
         check(!SaveBurst.celebrates(false,off,on)&&!SaveBurst.celebrates(true,on,off)&&!SaveBurst.celebrates(true,off,off)&&!SaveBurst.celebrates(true,null,on),"initial, unsave and failed states stay quiet");

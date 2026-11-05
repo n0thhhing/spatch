@@ -231,7 +231,7 @@ macro_rules! new_file {
     };
 }
 
-pub const NEW_RESOURCES: [(arsc::NewFile, &str); 69] = [
+pub const NEW_RESOURCES: [(arsc::NewFile, &str); 76] = [
     new_file!("drawable", "spatch_widget_bg"),
     new_file!("drawable", "spatch_widget_art"),
     new_file!("drawable", "spatch_widget_scallop"),
@@ -302,6 +302,13 @@ pub const NEW_RESOURCES: [(arsc::NewFile, &str); 69] = [
     new_file!("drawable", "spatch_ms_time"),
     new_file!("drawable", "spatch_ms_track"),
     new_file!("drawable", "spatch_ms_user"),
+    new_file!("drawable", "spatch_ms_close"),
+    new_file!("drawable", "spatch_ms_skip_previous"),
+    new_file!("drawable", "spatch_ms_volume"),
+    new_file!("drawable", "spatch_ms_queue"),
+    new_file!("drawable", "spatch_ms_lyrics"),
+    new_file!("drawable", "spatch_ms_share"),
+    new_file!("drawable", "spatch_ms_search"),
 ];
 
 /// New bitmap resources: the cover of the widget picker's sample song (`preview_art`).

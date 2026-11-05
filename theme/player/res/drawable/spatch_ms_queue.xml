@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded "queue_music" (Google, Apache 2.0) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="960" android:viewportHeight="960">
+    <group android:translateX="-0" android:translateY="960">
+        <path android:fillColor="#ffffffff" android:pathData="M160-240q-17 0-28.5-11.5T120-280q0-17 11.5-28.5T160-320h400q17 0 28.5 11.5T600-280q0 17-11.5 28.5T560-240H160Zm0-160q-17 0-28.5-11.5T120-440q0-17 11.5-28.5T160-480h400q17 0 28.5 11.5T600-440q0 17-11.5 28.5T560-400H160Zm0-160q-17 0-28.5-11.5T120-600q0-17 11.5-28.5T160-640h560q17 0 28.5 11.5T760-600q0 17-11.5 28.5T720-560H160Zm560 360v-200q0-17 11.5-28.5T760-440q17 0 28.5 11.5T800-400v200q0 17-11.5 28.5T760-160q-17 0-28.5-11.5T720-200Z" />
+    </group>
+</vector>

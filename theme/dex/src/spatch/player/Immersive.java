@@ -589,14 +589,31 @@ public final class Immersive extends View implements Runnable {
     private void ensureIcons(float w) {
         if (icPrev != null) return;
         Context c = getContext();
-        icClose = encore(c, S_EncoreIcon.J1, w * 0.06f, 0xfff3eeff);
-        icShuffle = encore(c, S_EncoreIcon.a6, w * 0.06f, 0xddf3eeff);
-        icPrev = encore(c, S_EncoreIcon.e6, w * 0.075f, 0xfff3eeff);
-        icNext = encore(c, S_EncoreIcon.h6, w * 0.075f, 0xfff3eeff);
-        icRepeat = encore(c, S_EncoreIcon.Q5, w * 0.06f, 0xddf3eeff);
-        icVolume = encore(c, S_EncoreIcon.y7, w * 0.05f, 0xccf3eeff);
-        icPlay = encore(c, S_EncoreIcon.L4, w * 0.07f, 0xff14121c);
-        icPause = encore(c, S_EncoreIcon.E4, w * 0.07f, 0xff14121c);
+        icClose = msOrEncore(c, "close", S_EncoreIcon.J1, w * 0.06f, 0xfff3eeff);
+        icShuffle = msOrEncore(c, "shuffle", S_EncoreIcon.a6, w * 0.06f, 0xddf3eeff);
+        icPrev = msOrEncore(c, "skip_previous", S_EncoreIcon.e6, w * 0.075f, 0xfff3eeff);
+        icNext = msOrEncore(c, "skip_forward", S_EncoreIcon.h6, w * 0.075f, 0xfff3eeff);
+        icRepeat = msOrEncore(c, "repeat", S_EncoreIcon.Q5, w * 0.06f, 0xddf3eeff);
+        icVolume = msOrEncore(c, "volume", S_EncoreIcon.y7, w * 0.05f, 0xccf3eeff);
+        icPlay = msOrEncore(c, "play", S_EncoreIcon.L4, w * 0.07f, 0xff14121c);
+        icPause = msOrEncore(c, "pause", S_EncoreIcon.E4, w * 0.07f, 0xff14121c);
+    }
+
+    private static Drawable msOrEncore(Context c, String msName, S_EncoreIcon fallbackIcon, float sizePx, int color) {
+        if (c != null && c.getResources() != null) {
+            int id = c.getResources().getIdentifier("spatch_ms_" + msName, "drawable", c.getPackageName());
+            if (id != 0) {
+                try {
+                    Drawable d = c.getResources().getDrawable(id);
+                    if (d != null) {
+                        d = d.mutate();
+                        d.setColorFilter(color, PorterDuff.Mode.SRC_IN);
+                        return d;
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        return encore(c, fallbackIcon, sizePx, color);
     }
 
     private static Drawable encore(Context c, S_EncoreIcon icon, float sizePx, int color) {

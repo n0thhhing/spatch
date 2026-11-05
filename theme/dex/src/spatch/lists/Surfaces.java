@@ -96,11 +96,11 @@ public final class Surfaces {
     }
 
     static int tintGrey(int argb) {
-        return 0xff000000 | Pill.blend(argb, Palette.color(0xff2b2640), 0.6f) & 0xffffff;
+        return 0xff000000 | Pill.blend(argb, Palette.color(0xff2b2640), 0.45f) & 0xffffff;
     }
 
     static int soften(int argb) {
-        return argb & 0xff000000 | Pill.blend(argb, Palette.color(0xff14121c), 0.68f) & 0xffffff;
+        return argb & 0xff000000 | Pill.blend(argb, Palette.color(0xff14121c), 0.38f) & 0xffffff;
     }
 
     /** Server tile colours keep their hue as a tint on the theme surface, instead of full-saturation panels. */
@@ -116,15 +116,17 @@ public final class Surfaces {
     }
 
     /**
-     * Your Library rows on their own rounded cards, the cover inset inside: 24dp corners less the 8dp
-     * inset matches the cover's own 16dp corners, so the two curves run parallel.
+     * Your Library rows on refined elevated cards with a cohesive 5dp row gap, parallel with 16dp artwork corners.
      */
     public static S_ComposeModifier libraryRow(S_ComposeModifier row) {
-        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 8f, 2f, 0xff1d1a2a, 24f), 8f, 8f) : row);
+        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 10f, 3f, 0xff2b2640, 16f), 8f, 2.5f) : row);
     }
 
+    /**
+     * Playlist track rows as floating pill cards with 4dp vertical spacing, avoiding concave notches between tracks.
+     */
     public static S_ComposeModifier trackRow(S_ComposeModifier row) {
-        return Flourish.trackRow(Settings.playlistCards() ? card(row, 8f, 3f, 0xff1d1a2a) : row);
+        return Flourish.trackRow(Settings.playlistCards() ? S_ComposePadding.y(card(row, 8f, 2.5f, 0xff2b2640, 14f), 8f, 2f) : row);
     }
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color) {
@@ -138,9 +140,9 @@ public final class Surfaces {
         return S_ComposeBackground.f(clipped, (long) Palette.color(color) << 32, shape);
     }
 
-    /** Selected toggle chips are full pills, like the Home filters; Compose eases the colour between them. */
+    /** Toggle chips are full pills across the entire row, matching Home filters. */
     public static S_ComposeShape chipShape(S_ComposeShape shape, boolean selected) {
-        return selected && Settings.libraryChips() ? S_ComposeShapes.a : shape;
+        return Settings.libraryChips() ? S_ComposeShapes.a : shape;
     }
 
     /** S_SidePanelItemStyle.a with mask 47 replaces only the outer padding. */

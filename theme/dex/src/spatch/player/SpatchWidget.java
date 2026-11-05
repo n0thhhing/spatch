@@ -305,7 +305,9 @@ public final class SpatchWidget extends MediaController.Callback implements Runn
             v.setColorStateList(id(r, pkg, bar), "setIndeterminateTintList", accent);
         }
         v.setColorStateList(id(r, pkg, "image"), "setIndeterminateTintList", accent);
-        v.setImageViewResource(id(r, pkg, "icon"), r.getIdentifier(playing ? "encore_icon_pause_24" : "encore_icon_play_24", "drawable", pkg));
+        int playIconId = r.getIdentifier(playing ? "spatch_ms_pause" : "spatch_ms_play", "drawable", pkg);
+        if (playIconId == 0) playIconId = r.getIdentifier(playing ? "encore_icon_pause_24" : "encore_icon_play_24", "drawable", pkg);
+        v.setImageViewResource(id(r, pkg, "icon"), playIconId);
         v.setInt(id(r, pkg, "icon"), "setColorFilter", 0xff14121c);
         v.setContentDescription(id(r, pkg, "play_button"), playing ? "Pause" : "Play");
         v.setInt(id(r, pkg, "previous_button"), "setColorFilter", 0xfff3eeff);

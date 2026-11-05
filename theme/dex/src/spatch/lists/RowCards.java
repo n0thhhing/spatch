@@ -22,7 +22,7 @@ import android.view.ViewGroup;
  * it in 3D with a fast diagonal specular glint across its surface.
  */
 public final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeListener, View.OnTouchListener {
-    private static final float MIN = 48, MAX = 100, SIDES = 8, ENDS = 3, RADIUS = 20, MAX_TILT = 4.5f; // dp, degrees
+    private static final float MIN = 48, MAX = 100, SIDES = 8, ENDS = 2.5f, RADIUS = 16, MAX_TILT = 4.5f; // dp, degrees
     private final float dp;
     private final boolean queue;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -262,7 +262,7 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
         }
         if (row && Settings.get(Settings.LIST_CARDS)) {
             paint.setShader(null);
-            paint.setColor(Palette.color(0xff1d1a2a));
+            paint.setColor(Palette.color(0xff2b2640));
             canvas.drawRoundRect(card, RADIUS * dp, RADIUS * dp, paint);
         }
         if (Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled() && now - glintAt >= 0 && now - glintAt < GLINT_MILLIS) {

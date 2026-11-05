@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded "search" (Google, Apache 2.0) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="960" android:viewportHeight="960">
+    <group android:translateX="-0" android:translateY="960">
+        <path android:fillColor="#ffffffff" android:pathData="M796-121 533-384q-30 26-69.5 41T380-328q-109 0-184.5-75.5T120-588q0-109 75.5-184.5T380-848q109 0 184.5 75.5T640-588q0 44-15 83.5T584-435l264 262q9 9 9 21t-9 21q-9 9-21 9t-21-9ZM380-400q78 0 133-55t55-133q0-78-55-133t-133-55q-78 0-133 55t-55 133q0 78 55 133t133 55Z" />
+    </group>
+</vector>
