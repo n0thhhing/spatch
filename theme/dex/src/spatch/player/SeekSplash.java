@@ -59,18 +59,25 @@ final class SeekSplash extends Drawable implements Runnable {
     public void draw(Canvas c) {
         float t = Math.max(0, Math.min(1, (SystemClock.uptimeMillis()-started)/(float)MILLIS)), seconds = t*.32f;
         paint.setColor(Tint.color(Settings.PLAYER_COLOR));
-        paint.setAlpha(Math.round(210*(1-t)));
+        float fade = (1-t)*(1-t);
+        paint.setAlpha(Math.round(150*fade));
         paint.setStyle(Paint.Style.FILL);
-        for (int i = 0; i < 8; i++) {
-            double angle = Math.toRadians(-140 + i*100f/7);
-            float speed = 150+i*5;
-            c.drawCircle(x+(float)Math.cos(angle)*speed*seconds*dp, y+dropY(seconds, (float)Math.sin(angle)*speed)*dp, 2.5f*(1-t)*dp, paint);
+        // Uneven, small droplets read as a release, rather than a radial confetti burst.
+        for (int i = 0; i < 5; i++) {
+            double angle = Math.toRadians(-155 + i*31f);
+            float speed = (i % 2 == 0 ? 78 : 108);
+            float dx = (float)Math.cos(angle)*speed*seconds*dp;
+            float dy = dropY(seconds, (float)Math.sin(angle)*speed)*dp;
+            float radius = (i % 2 == 0 ? 1.5f : 2f)*(1-t*.7f)*dp;
+            c.drawCircle(x+dx, y+dy, radius, paint);
         }
-        float radius = 14*(1-(1-t)*(1-t))*dp;
-        paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth((1.5f-t)*dp);
-        c.drawRoundRect(x-radius, y-radius*.3f, x+radius, y+radius*.3f, radius, radius*.3f, paint);
-        radius *= .6f;
-        c.drawRoundRect(x-radius, y-radius*.3f, x+radius, y+radius*.3f, radius, radius*.3f, paint);
+        // One quiet surface ripple; no stacked rings competing with the playhead.
+        float radius = (3 + 12*(1-(1-t)*(1-t)))*dp;
+        paint.setAlpha(Math.round(95*fade));
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(dp);
+        c.drawRoundRect(x-radius, y-radius*.22f, x+radius, y+radius*.22f,
+            radius, radius*.22f, paint);
     }
 
     public void setAlpha(int alpha) {}

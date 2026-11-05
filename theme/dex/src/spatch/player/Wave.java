@@ -48,6 +48,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     static volatile boolean paused; // the session says at once; position updates and audio both trail a pause
     private float amp; // 0 = flat, 1 = full wave
     private float thick; // 0 = normal stroke, 1 = dragging stroke
+    private float liquid; // independent of the optional thick-track setting
     private float phase; // how far the crests have travelled, in pixels
     private long phaseAt;
 
@@ -151,6 +152,9 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         amp = motion && Settings.wave() ? approach(amp, playing ? 1f : 0f) : 0f;
         thick = !Settings.waveThick() ? 0f : motion ? approach(thick, pressed || hovered ? 1f : 0f) : (pressed ? 1f : 0f);
 
+        liquid = motion && Settings.get(Settings.LIQUID_SCRUBBER)
+            ? approach(liquid, pressed ? 1f : 0f) : 0f;
+
         // Proportions of the drawable height so the seekbar and the mini-player share one drawable.
         float stroke = h / 3f + (h * 0.6f - h / 3f) * thick;
         float restStroke = h / 5f;
@@ -218,19 +222,28 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             played.setStrokeWidth(stroke);
             canvas.drawPath(path, played);
         }
-        if (end > x0 && thick > 0.05f && Settings.get(Settings.LIQUID_SCRUBBER)) {
-            float dropRadius = stroke * (0.6f + 0.45f * thick);
-            played.setStyle(Paint.Style.FILL);
-            canvas.drawCircle(px, cy, dropRadius, played);
-            if (seeking && motion) {
-                float beadR = dropRadius * 0.35f;
-                float drift = (float) Math.sin(now * 0.015f) * dropRadius * 0.8f;
-                canvas.drawCircle(px - dropRadius * 1.4f, cy + drift, beadR, played);
-                canvas.drawCircle(px + dropRadius * 1.3f, cy - drift * 0.7f, beadR * 0.8f, played);
+        if (end > x0 && liquid > 0f) {
+            // A single connected meniscus, contained in the drawable. Keep Spotify's
+            // own thumb clear instead of painting another knob over it.
+            float radius = Math.min(h * .46f, stroke * .5f + h * .14f * liquid);
+            float tip = Math.min(end, b.right) - radius;
+            float start = Math.max(x0, tip - h * 2f);
+            float neck = Math.min(stroke * .5f, radius);
+            if (tip > start) {
+                path.reset();
+                path.moveTo(start, cy - neck);
+                path.quadTo(tip - radius, cy - neck, tip - radius, cy - radius);
+                path.quadTo(tip + radius, cy - radius, tip + radius, cy);
+                path.quadTo(tip + radius, cy + radius, tip - radius, cy + radius);
+                path.quadTo(tip - radius, cy + neck, start, cy + neck);
+                path.close();
+                played.setStyle(Paint.Style.FILL);
+                canvas.drawPath(path, played);
+                played.setStyle(Paint.Style.STROKE);
             }
-            played.setStyle(Paint.Style.STROKE);
         }
-        boolean settling = (amp > 0f && amp < 1f) || (thick > 0f && thick < 1f) || (seeking && motion);
+        boolean settling = (amp > 0f && amp < 1f) || (thick > 0f && thick < 1f)
+            || (liquid > 0f && liquid < 1f);
         if (amp > 0f || settling) {
             if (onScreen(this)) scheduleSelf(this, now + 16);
         }
