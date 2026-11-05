@@ -311,7 +311,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private final SettingsHero hero;
     private final View barTitle;
     private LinearLayout content;
-    private View resetRow, homeToggle, reviewRow;
+    private View resetRow, homeToggle;
     private LinearLayout homeList;
     private ImageView bannerPreview;
     private View chooseBanner, removeBanner;
@@ -773,10 +773,6 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         View contentPage = category(categories, "hidden", "Content", "Hidden sections, media, navigation and profile", "Content");
         LinearLayout sectionsPage = subPage("Home sections");
         homeList = addGroup();
-        reviewRow = createSettingRow("hidden", "Review on Home", "Swipe away sections right on Home", icon("chevron_right"));
-        reviewRow.setOnClickListener(this);
-        describe(reviewRow, "Review on Home", "Swipe away sections right on Home");
-        homeList.addView(reviewRow);
         for (String[] section : Settings.sections()) {
             M3Switch s = new M3Switch(context);
             boolean hidden = false;
@@ -1638,11 +1634,6 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             ProfileBanner.file().delete();
             ProfileBanner.changed();
             refreshBanner();
-            return;
-        }
-        if (v == reviewRow) {
-            if (HomeReview.start((ViewGroup) getParent())) close();
-            else new AlertDialog.Builder(getContext(), Palette.dialogTheme()).setTitle("Open Home first").setMessage("Review works on the Home tab, once its sections have loaded.").setPositiveButton("OK", null).show();
             return;
         }
         if (v.getTag() instanceof Object[] && !(v.getTag() instanceof String[])) {

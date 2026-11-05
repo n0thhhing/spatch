@@ -1,6 +1,10 @@
 package spatch;
 
 import android.animation.ValueAnimator;
+import android.app.AlertDialog;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -42,6 +46,92 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private long drawn;
     private View nav;
     private MotionEvent tapUp;
+    private boolean homeHeld;
+    private final Runnable homeHold = new Runnable() {
+        public void run() {
+            if (!pressing || dragging || pressTab != 0 || !isAttachedToWindow() || !isShown() || !hasWindowFocus()) return;
+            long now = SystemClock.uptimeMillis();
+            MotionEvent cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, downX, downY, 0);
+            forward(cancel, MotionEvent.ACTION_CANCEL);
+            cancel.recycle();
+            forwarding = pressing = false;
+            homeHeld = true;
+            invalidate();
+            Haptics.navigation(NavIndicator.this);
+            homeMenu();
+        }
+    };
+    private Runnable reviewStart;
+
+    private void homeMenu() {
+        LinearLayout actions = new LinearLayout(getContext());
+        actions.setOrientation(LinearLayout.VERTICAL);
+        final AlertDialog dialog = new AlertDialog.Builder(getContext(), Palette.dialogTheme())
+            .setTitle("Home").setView(actions).setNegativeButton("Cancel", null).create();
+        String[] labels = {"Hide Home sections", "Show all Home sections", "Spatch settings"};
+        for (int i=0; i<labels.length; i++) {
+            final int action = i;
+            TextView row = new TextView(getContext());
+            row.setText(labels[i]);
+            row.setTextSize(16);
+            row.setTextColor(Palette.color(0xfff3eeff));
+            row.setTypeface(Fonts.settings(500));
+            float dp = getResources().getDisplayMetrics().density;
+            row.setPadding((int)(24*dp), (int)(18*dp), (int)(24*dp), (int)(18*dp));
+            row.setClickable(true);
+            row.setFocusable(true);
+            row.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    dialog.dismiss();
+                    if (action == 0) reviewHome();
+                    else if (action == 1) new AlertDialog.Builder(getContext(), Palette.dialogTheme())
+                        .setTitle("Show all Home sections?")
+                        .setMessage("Restore sections you hid manually. Podcast and audiobook filters stay as they are.")
+                        .setPositiveButton("Show all", (d, which) -> {
+                            for (String[] section : Settings.sections())
+                                for (int j=1; j<section.length; j++) Settings.hideSection(section[j], false);
+                            Content.refresh();
+                        }).setNegativeButton("Cancel", null).show();
+                    else Settings.show(NavIndicator.this, false);
+                }
+            });
+            actions.addView(row);
+        }
+        dialog.show();
+    }
+
+    private void reviewHome() {
+        if (selected != 0) {
+            float x = getWidth() / (2f * count);
+            if (rtl()) x = getWidth()-x;
+            long now = SystemClock.uptimeMillis();
+            MotionEvent tap = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, getHeight()/2f, 0);
+            nav.dispatchTouchEvent(tap);
+            tap.setAction(MotionEvent.ACTION_UP);
+            nav.dispatchTouchEvent(tap);
+            tap.recycle();
+        }
+        if (reviewStart != null) removeCallbacks(reviewStart);
+        reviewStart = new Runnable() {
+            int tries;
+            public void run() {
+                if (!isAttachedToWindow()) return;
+                View root = getRootView();
+                if (selected == 0 && root instanceof ViewGroup && HomeReview.start((ViewGroup)root)) {
+                    reviewStart = null;
+                    return;
+                }
+                if (++tries < 10) postDelayed(this, 150);
+                else {
+                    reviewStart = null;
+                    new AlertDialog.Builder(getContext(), Palette.dialogTheme()).setTitle("Home is still loading")
+                        .setMessage("Wait for Home sections to load, then hold Home and choose Hide Home sections again.")
+                        .setPositiveButton("OK", null).show();
+                }
+            }
+        };
+        postDelayed(reviewStart, 150);
+    }
 
     public NavIndicator(Context c, AttributeSet a) {
         super(c, a);
@@ -127,15 +217,26 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             if (nav == null || selected < 0 || rail() || !Settings.navStyle()) return false;
             downX = e.getX();
             downY = e.getY();
+            removeCallbacks(homeHold);
+            homeHeld = false;
             dragging = false;
             forwarding = pressing = true;
             pressTab = Math.round(dragPosition(downX, getWidth(), count, rtl()));
+            if (pressTab == 0) postDelayed(homeHold, ViewConfiguration.getLongPressTimeout());
             invalidate();
             forward(e, action);
             return true;
         }
         if (nav == null) return false;
+        if (homeHeld) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) homeHeld = false;
+            return true;
+        }
+        if (action == MotionEvent.ACTION_MOVE &&
+            (Math.abs(e.getX()-downX) > ViewConfiguration.get(getContext()).getScaledTouchSlop() ||
+             Math.abs(e.getY()-downY) > ViewConfiguration.get(getContext()).getScaledTouchSlop())) removeCallbacks(homeHold);
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            removeCallbacks(homeHold);
             pressing = false;
             invalidate();
         }
@@ -235,6 +336,10 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
 
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        removeCallbacks(homeHold);
+        if (reviewStart != null) removeCallbacks(reviewStart);
+        reviewStart = null;
+        homeHeld = false;
         if (animator != null) animator.cancel();
         animator = null;
         removeCallbacks(this);
