@@ -13,6 +13,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 sdk=${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}
 bt=$(ls -d "$sdk"/build-tools/* | sort -V | tail -1)
 jar=$(ls "$sdk"/platforms/android-*/android.jar | sort -V | tail -1)
+[ -n "${JAVA_HOME:-}" ] && export PATH="$JAVA_HOME/bin:$PATH"
 javac=${JAVA_HOME:+$JAVA_HOME/bin/}javac
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
