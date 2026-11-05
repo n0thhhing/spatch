@@ -179,14 +179,16 @@ fn diff_all(jobs: &[(&[u8], &[u8])]) -> Result<Vec<Vec<u8>>> {
         .map(|p| p.join("spatch/diffs-v1"));
     std::thread::scope(|s| {
         for _ in 0..threads.min(jobs.len()) {
-            s.spawn(|| {
-                loop {
-                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let Some((old, new)) = jobs.get(i) else { break };
-                    let patch = cached_diff(old, new, cache.as_deref()).map_err(|e| e.to_string());
-                    done.lock().unwrap()[i] = Some(patch);
-                }
-            });
+            let _ = std::thread::Builder::new()
+                .stack_size(8 * 1024 * 1024)
+                .spawn_scoped(s, || {
+                    loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some((old, new)) = jobs.get(i) else { break };
+                        let patch = cached_diff(old, new, cache.as_deref()).map_err(|e| e.to_string());
+                        done.lock().unwrap()[i] = Some(patch);
+                    }
+                });
         }
     });
     done.into_inner()

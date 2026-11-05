@@ -455,9 +455,11 @@ pub fn run(
     crate::names::load_resources(&dump);
     // Resource and DEX builds have separate inputs and staging paths; neither waits on the other.
     let ((mut compiled, new_entries), mut dexes) = std::thread::scope(|scope| -> Result<_> {
-        let dex = scope.spawn(|| {
-            dex::build(&base, &staging.path, tools, theme, debug).map_err(|e| e.to_string())
-        });
+        let dex = std::thread::Builder::new()
+            .stack_size(8 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                dex::build(&base, &staging.path, tools, theme, debug).map_err(|e| e.to_string())
+            })?;
         let resources = compile_targets(&base, &staging.path, tools, theme);
         let dexes = dex.join().map_err(|_| "DEX build thread panicked")?;
         Ok((resources?, dexes?))
