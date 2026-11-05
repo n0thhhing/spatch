@@ -300,7 +300,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private static final int VIZ_THIN = 10, VIZ_FLOATING = 11;
     private static final int STAGGERED = 8; // entrance animation covers what is on screen at first
 
-    final int surface = Palette.color(0xff14121c), card = Palette.color(0xff1d1a2a), high = Palette.color(0xff2b2640),
+    final int surface = Palette.color(0xff14121c), card = Palette.color(0xff2b2640), high = Palette.color(0xff363050),
         text = Palette.color(0xfff3eeff), subdued = Palette.color(0xffbcb3dc), accent = Palette.color(0xffd0bcff);
     private final java.util.ArrayList<TextView> pillViews = new java.util.ArrayList<TextView>();
     private final View[] choiceRows = new View[Settings.CHOICES.length];
@@ -924,7 +924,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         box.setTypeface(Fonts.settings(400));
         box.setSingleLine(true);
         box.setPadding(dp(18), dp(12), dp(18), dp(12));
-        box.setBackground(rounded(Palette.color(0xff1d1a2a), dp(24)));
+        box.setBackground(rounded(card, dp(24)));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
         lp.topMargin = dp(14);
         home.addView(box, lp);

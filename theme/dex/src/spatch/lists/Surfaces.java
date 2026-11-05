@@ -112,7 +112,7 @@ public final class Surfaces {
     /** Side drawer rows (x571): tonal rounded surfaces; the clip keeps the row's ripple inside. */
     public static S_ComposeModifier drawerRow(S_ComposeModifier row) {
         if (!Settings.sideCards()) return row;
-        return card(row, 12f, 3f, 0xff2b2640);
+        return card(row, 12f, 2.5f, 0xff2b2640, 16f);
     }
 
     /**

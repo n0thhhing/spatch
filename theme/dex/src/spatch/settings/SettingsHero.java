@@ -89,12 +89,24 @@ final class SettingsHero extends View {
         paint.setColor(ink);
         paint.setAlpha(255);
         paint.setTypeface(Fonts.settings(700));
-        paint.setTextSize(38 * dp);
-        c.drawText("Spatch", 22 * dp, 58 * dp, paint);
-        paint.setTypeface(Fonts.settings(400));
-        paint.setTextSize(13 * dp);
-        paint.setAlpha(190);
-        c.drawText("for Spotify 9.1.98.521", 23 * dp, 80 * dp, paint);
+        paint.setTextSize(36 * dp);
+        c.drawText("Spatch", 22 * dp, 56 * dp, paint);
+
+        // Expressive Material 3 version pill badge
+        float badgeX = 22 * dp, badgeY = 68 * dp, badgeW = 142 * dp, badgeH = 22 * dp, badgeR = 11 * dp;
+        paint.setColor(ink);
+        paint.setAlpha(36);
+        c.drawRoundRect(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, badgeR, badgeR, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(1 * dp);
+        paint.setColor(0x22ffffff);
+        c.drawRoundRect(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, badgeR, badgeR, paint);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(ink);
+        paint.setAlpha(210);
+        paint.setTypeface(Fonts.settings(700));
+        paint.setTextSize(11 * dp);
+        c.drawText("v2.0 • Material You", badgeX + 12 * dp, badgeY + 15 * dp, paint);
         c.restoreToCount(saved);
         if (motion && !offscreen) postInvalidateOnAnimation();
     }
