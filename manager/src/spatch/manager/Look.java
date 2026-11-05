@@ -88,7 +88,9 @@ final class Look {
     LinearLayout card(LinearLayout page, String title) {
         LinearLayout card = column();
         card.setPadding(dp(20), dp(18), dp(20), dp(18));
-        card.setBackground(shape(container, 28));
+        GradientDrawable bg = shape(container, 24);
+        bg.setStroke(dp(1), blend(container, outline, 0.22f));
+        card.setBackground(bg);
         TextView heading = text(title, 18, onSurface, true);
         heading.setPadding(0, 0, 0, dp(6));
         card.addView(heading);
@@ -256,7 +258,9 @@ final class Look {
         b.setTextColor(fg);
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         b.setPadding(dp(8), dp(3), dp(8), dp(3));
-        b.setBackground(shape(bg, 10));
+        GradientDrawable d = shape(bg, 10);
+        d.setStroke(dp(1), blend(bg, fg, 0.25f));
+        b.setBackground(d);
         return b;
     }
 
