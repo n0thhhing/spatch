@@ -48,6 +48,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
     static volatile boolean paused; // the session says at once; position updates and audio both trail a pause
     private float amp; // 0 = flat, 1 = full wave
     private float thick; // 0 = normal stroke, 1 = dragging stroke
+    private float liquidStretch;
     private float liquid; // independent of the optional thick-track setting
     private float phase; // how far the crests have travelled, in pixels
     private long phaseAt;
@@ -98,6 +99,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         detent(newLevel);
         int step = newLevel - level;
         level = newLevel;
+        if (pressed) liquidStretch = Math.min(1f, Math.abs(step) / 350f);
         if (!pressed && step > 0 && step <= MAX_PLAYBACK_STEP) {
             lastAdvance = SystemClock.uptimeMillis();
         }
@@ -152,8 +154,10 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         amp = motion && Settings.wave() ? approach(amp, playing ? 1f : 0f) : 0f;
         thick = !Settings.waveThick() ? 0f : motion ? approach(thick, pressed || hovered ? 1f : 0f) : (pressed ? 1f : 0f);
 
+        liquidStretch *= .85f;
         liquid = motion && Settings.get(Settings.LIQUID_SCRUBBER)
             ? approach(liquid, pressed ? 1f : 0f) : 0f;
+        if (liquid > 0f) amp = 0f; // let the wave ease back in after the ribbon settles
 
         // Proportions of the drawable height so the seekbar and the mini-player share one drawable.
         float stroke = h / 3f + (h * 0.6f - h / 3f) * thick;
@@ -189,7 +193,36 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         int opacity = played.getAlpha();
         played.setColor(Tint.color(Settings.PLAYER_COLOR));
         played.setAlpha(opacity);
-        if (end > x0 && scope) {
+        if (end > x0 && liquid > 0f) {
+            // One continuous ribbon instead of a wave with a blob painted over it.
+            // Its rounded shoulder stretches behind the playhead as the finger moves.
+            float base = h / 6f;
+            float radius = base + h * .25f * liquid;
+            float cap = Math.min(radius, (end-x0)/2f);
+            float centre = end-cap;
+            float reach = h * (1.5f + liquidStretch * 3f);
+            path.reset();
+            path.moveTo(x0, cy-base);
+            for (float x=x0; x<centre; x=Math.min(centre,x+2f)) {
+                float u = Math.max(0f, 1f-(centre-x)/reach);
+                float half = base + (cap-base)*u*u*(3f-2f*u);
+                path.lineTo(x,cy-half);
+            }
+            path.lineTo(centre,cy-cap);
+            path.quadTo(end,cy-cap,end,cy);
+            path.quadTo(end,cy+cap,centre,cy+cap);
+            for (float x=centre; x>x0; x=Math.max(x0,x-2f)) {
+                float u = Math.max(0f, 1f-(centre-x)/reach);
+                float half = base + (cap-base)*u*u*(3f-2f*u);
+                path.lineTo(x,cy+half);
+            }
+            path.lineTo(x0,cy+base);
+            path.quadTo(x0-base,cy,x0,cy-base);
+            path.close();
+            played.setStyle(Paint.Style.FILL);
+            canvas.drawPath(path,played);
+            played.setStyle(Paint.Style.STROKE);
+        } else if (end > x0 && scope) {
             float energy = real ? AudioScope.energy(Spectrum.bands)*Spectrum.alpha*amp : 0;
             AudioScope.draw(canvas, played, path, x0, b.top, end, b.bottom, energy, (now%120000)/800f, false, h/12f);
         } else if (end > x0 && "beads".equals(style)) {
@@ -221,26 +254,6 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
             }
             played.setStrokeWidth(stroke);
             canvas.drawPath(path, played);
-        }
-        if (end > x0 && liquid > 0f) {
-            // A single connected meniscus, contained in the drawable. Keep Spotify's
-            // own thumb clear instead of painting another knob over it.
-            float radius = Math.min(h * .46f, stroke * .5f + h * .14f * liquid);
-            float tip = Math.min(end, b.right) - radius;
-            float start = Math.max(x0, tip - h * 2f);
-            float neck = Math.min(stroke * .5f, radius);
-            if (tip > start) {
-                path.reset();
-                path.moveTo(start, cy - neck);
-                path.quadTo(tip - radius, cy - neck, tip - radius, cy - radius);
-                path.quadTo(tip + radius, cy - radius, tip + radius, cy);
-                path.quadTo(tip + radius, cy + radius, tip - radius, cy + radius);
-                path.quadTo(tip - radius, cy + neck, start, cy + neck);
-                path.close();
-                played.setStyle(Paint.Style.FILL);
-                canvas.drawPath(path, played);
-                played.setStyle(Paint.Style.STROKE);
-            }
         }
         boolean settling = (amp > 0f && amp < 1f) || (thick > 0f && thick < 1f)
             || (liquid > 0f && liquid < 1f);
