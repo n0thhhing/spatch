@@ -26,6 +26,8 @@ with tempfile.TemporaryDirectory(prefix='spatch-player-test-') as tmp:
         text = re.sub(r'((?:public|protected) (?:static |final )*([\w.]+) \w+\([^)]*\)) \{ throw new RuntimeException\(\); \}',
                       lambda m: m[1] + ' {' + {'void': '', 'int': 'return 0;', 'float': 'return 0;', 'long': 'return 10000;', 'boolean': 'return false;'}.get(m[2], 'return null;') + '}', text)
         text = text.replace('{ throw new RuntimeException(); }', '{}')
+        if source.name == 'ViewConfiguration.java':
+            text=text.replace('return null;', 'return new ViewConfiguration();')
         if source.name == 'View.java':
             text = text.replace('public interface OnClickListener', 'public static View root; public int screenX; public int testHeight=2000; public int testWidth=1000; public android.content.Context testContext; public Runnable testPosted; public static long nextDraw; public interface OnClickListener')
             text = text.replace('public static View root;', 'private boolean enabled=true,pressed,hovered; public static View root;')
@@ -1250,6 +1252,17 @@ public class PlayerRuntimeTest {
         tapNow.setLong(null,android.os.SystemClock.uptimeMillis());
         sawRows.invoke(null,Flourish.PLAYLIST); check(armedNow.getBoolean(null),"a tap that opens a playlist rises");
         Flourish.tab(0); check(!armedNow.getBoolean(null),"leaving for another tab must not leave a rise waiting");
+
+        java.lang.reflect.Constructor<Flourish> flourishConstructor=Flourish.class.getDeclaredConstructor(View.class,android.view.Window.Callback.class);flourishConstructor.setAccessible(true);
+        View barsRoot=new View(new android.content.Context()) { public android.content.res.Resources getResources(){return new android.content.res.Resources();} };
+        Flourish barsTest=flourishConstructor.newInstance(barsRoot,null);
+        Field navBarField=Flourish.class.getDeclaredField("nav");navBarField.setAccessible(true);navBarField.set(barsTest,new View(new android.content.Context()));
+        java.lang.reflect.Method slideBars=Flourish.class.getDeclaredMethod("bars",int.class);slideBars.setAccessible(true);
+        Flourish.navigationTouch(true);slideBars.invoke(barsTest,1);
+        check(!Flourish.barsGone,"upward menu drag cannot auto-hide navigation while the gesture owns it");
+        Flourish.navigationTouch(false);slideBars.invoke(barsTest,1);
+        check(Flourish.barsGone,"normal auto-hide resumes after releasing the navigation gesture");
+        slideBars.invoke(barsTest,-1);
         System.out.println("PASS row cascade and hold ring");
 
         // Mini-player fling-to-skip, gooey tab pill and 3D card tilt/glint.

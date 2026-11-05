@@ -83,7 +83,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
     private void homeMenu() {
         View root = getRootView();
         if (!(root instanceof ViewGroup)) { homeHeld=false; return; }
-        dismissHomeMenu();
+        dismissHomeMenu(false);
         homeMenuHost = (ViewGroup)root;
         float dp = getResources().getDisplayMetrics().density;
         int[] anchor = new int[2], origin = new int[2];
@@ -102,13 +102,29 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         FrameLayout.LayoutParams placement = new FrameLayout.LayoutParams((int)menuWidth,(int)(3*menuRow+2*menuPad),Gravity.TOP|Gravity.LEFT);
         placement.leftMargin=(int)menuX; placement.topMargin=(int)menuY;
         homeMenuOverlay.addView(actions,placement);
-        // A short stem keeps the menu visually joined to its Home navigation cell.
-        View stem = new View(getContext());
-        stem.setBackground(menuShape(Palette.color(0xff2b2640),6*dp));
-        FrameLayout.LayoutParams stemPlacement = new FrameLayout.LayoutParams((int)(12*dp),(int)(16*dp),Gravity.TOP|Gravity.LEFT);
-        stemPlacement.leftMargin=(int)(centre-6*dp);
-        stemPlacement.topMargin=(int)(menuY+3*menuRow+2*menuPad-4*dp);
-        homeMenuOverlay.addView(stem,stemPlacement);
+        // Broad curved shoulders blend into the navigation surface at the Home cell.
+        final float joinX=centre, joinTop=menuY+3*menuRow+2*menuPad-16*dp;
+        final float joinBottom=anchor[1]-origin[1]+14*dp, joinDp=dp;
+        homeMenuOverlay.setBackground(new android.graphics.drawable.Drawable() {
+            final Paint fill=new Paint(Paint.ANTI_ALIAS_FLAG);
+            final Path bridge=new Path();
+            public void draw(Canvas canvas) {
+                float middle=(joinTop+joinBottom)/2;
+                bridge.reset();
+                bridge.moveTo(joinX-30*joinDp,joinTop);
+                bridge.quadTo(joinX-8*joinDp,middle,joinX-12*joinDp,joinBottom-8*joinDp);
+                bridge.quadTo(joinX-13*joinDp,joinBottom,joinX-28*joinDp,joinBottom);
+                bridge.lineTo(joinX+28*joinDp,joinBottom);
+                bridge.quadTo(joinX+13*joinDp,joinBottom,joinX+12*joinDp,joinBottom-8*joinDp);
+                bridge.quadTo(joinX+8*joinDp,middle,joinX+30*joinDp,joinTop);
+                bridge.close();
+                fill.setColor(Palette.color(0xff2b2640));
+                canvas.drawPath(bridge,fill);
+            }
+            public void setAlpha(int alpha) { fill.setAlpha(alpha); }
+            public void setColorFilter(android.graphics.ColorFilter filter) { fill.setColorFilter(filter); }
+            public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        });
         String[] labels = {"Hide Home sections", "Show all Home sections", "Spatch settings"};
         homeOptions = new TextView[labels.length];
         for (int i=0;i<labels.length;i++) {
@@ -128,6 +144,14 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         }
         homeMenuHost.addView(homeMenuOverlay,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
         homeMenuOverlay.bringToFront();
+        if (Wave.animationsEnabled()) {
+            homeMenuOverlay.setPivotX(centre);
+            homeMenuOverlay.setPivotY(joinBottom);
+            homeMenuOverlay.setScaleX(.92f); homeMenuOverlay.setScaleY(.92f);
+            homeMenuOverlay.setAlpha(0f);
+            homeMenuOverlay.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setInterpolator(new OvershootInterpolator(.65f)).setDuration(240).start();
+        }
         getParent().requestDisallowInterceptTouchEvent(true);
         if (android.os.Build.VERSION.SDK_INT>=33) homeMenuBack=Back.register(homeMenuOverlay,new Runnable(){public void run(){dismissHomeMenu();}});
     }
@@ -139,9 +163,10 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
 
     private void hoverHomeMenu(MotionEvent e) {
         if (homeMenuHost==null || homeOptions==null) return;
-        int[] origin=new int[2]; homeMenuHost.getLocationOnScreen(origin);
-        int option=menuOption(e.getRawX()-origin[0]-menuX-menuPad,
-            e.getRawY()-origin[1]-menuY-menuPad,menuWidth-2*menuPad,menuRow);
+        int[] origin=new int[2]; homeMenuOverlay.getLocationOnScreen(origin);
+        float scale=Math.max(.01f,homeMenuOverlay.getScaleX());
+        int option=menuOption((e.getRawX()-origin[0])/scale-menuX-menuPad,
+            (e.getRawY()-origin[1])/scale-menuY-menuPad,menuWidth-2*menuPad,menuRow);
         if (option==menuHover) return;
         menuHover=option;
         float dp=getResources().getDisplayMetrics().density;
@@ -152,10 +177,21 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         if (option>=0) Haptics.navigation(this);
     }
 
-    private void dismissHomeMenu() {
+    private void dismissHomeMenu() { dismissHomeMenu(true); }
+
+    private void dismissHomeMenu(boolean animate) {
         if (homeMenuBack!=null) homeMenuBack.unregister();
         homeMenuBack=null;
-        if (homeMenuHost!=null && homeMenuOverlay!=null) homeMenuHost.removeView(homeMenuOverlay);
+        if (homeMenuHost!=null && homeMenuOverlay!=null) {
+            final ViewGroup host=homeMenuHost;
+            final FrameLayout overlay=homeMenuOverlay;
+            overlay.animate().cancel();
+            if (animate && isAttachedToWindow() && Wave.animationsEnabled()) {
+                overlay.animate().alpha(0f).scaleX(.96f).scaleY(.96f).setDuration(120).start();
+                host.postDelayed(new Runnable(){public void run(){host.removeView(overlay);}},120);
+            } else host.removeView(overlay);
+            Flourish.navigationTouch(false);
+        }
         homeMenuHost=null; homeMenuOverlay=null; homeOptions=null; menuHover=-1;
         if (getParent()!=null) getParent().requestDisallowInterceptTouchEvent(false);
     }
@@ -290,6 +326,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
         if (action == MotionEvent.ACTION_DOWN) {
             nav = ((View) getParent()).findViewById(getResources().getIdentifier("navigation_bar", "id", getContext().getPackageName()));
             if (nav == null || selected < 0 || rail() || !Settings.navStyle()) return false;
+            Flourish.navigationTouch(true);
             downX = e.getX();
             downY = e.getY();
             removeCallbacks(homeHold);
@@ -303,6 +340,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             return true;
         }
         if (nav == null) return false;
+        if (action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL) Flourish.navigationTouch(false);
         if (homeHeld) {
             if (action==MotionEvent.ACTION_MOVE || action==MotionEvent.ACTION_UP) hoverHomeMenu(e);
             if (action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_CANCEL) {
@@ -417,8 +455,9 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
 
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        Flourish.navigationTouch(false);
         removeCallbacks(homeHold);
-        dismissHomeMenu();
+        dismissHomeMenu(false);
         if (reviewStart != null) removeCallbacks(reviewStart);
         reviewStart = null;
         homeHeld = false;

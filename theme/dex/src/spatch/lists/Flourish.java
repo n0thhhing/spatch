@@ -50,6 +50,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     };
     private static int page;
     private static boolean armed;
+    private static boolean navigationHeld;
     private static long cascadeAt = -100000, tickSeen, tapAt = -100000;
     private static int order;
     private static Flourish current;
@@ -204,6 +205,15 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
         return page == LIBRARY ? Settings.get(Settings.LIBRARY_GLOW) : page == PLAYLIST && Settings.get(Settings.PLAYLIST_GLOW);
     }
 
+    /** A navigation gesture owns the finger; its upward motion is not a page scroll. */
+    static void navigationTouch(boolean held) {
+        navigationHeld=held;
+        Flourish f=current;
+        if(f==null)return;
+        f.pulled=0;
+        if(held) { f.bars(0); f.bars(-1); }
+    }
+
     private void touch(MotionEvent e) {
         int action = e.getActionMasked();
         x = e.getX();
@@ -219,7 +229,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             lastY = y;
             bars(0);
         } else if (action == MotionEvent.ACTION_MOVE) {
-            if (Settings.get(Settings.HIDE_BARS)) {
+            if (Settings.get(Settings.HIDE_BARS) && !navigationHeld) {
                 pulled += y - lastY;
                 if (Math.abs(x - downX) < Math.abs(y - downY)) {
                     if (pulled < -Settings.strength(Settings.HIDE_DISTANCE) * dp) bars(1);
@@ -256,6 +266,7 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
             return;
         }
         boolean hide = way > 0;
+        if (hide && navigationHeld) return;
         if (hide == barsHidden || hide && (nav == null || !nav.isShown())) return;
         barsHidden = hide;
         barsGone = hide;
