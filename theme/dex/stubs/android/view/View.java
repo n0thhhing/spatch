@@ -66,6 +66,7 @@ public class View implements android.graphics.drawable.Drawable.Callback { publi
     public boolean isPressed() { return false; }
     public int getId() { return 0; }
     public static final int NO_ID = -1;
+    public void setDuplicateParentStateEnabled(boolean enabled) {}
     public void setId(int id) {}
     public static class MeasureSpec {
         public static final int EXACTLY = 1073741824, UNSPECIFIED = 0;

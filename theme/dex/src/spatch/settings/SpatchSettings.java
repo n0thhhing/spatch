@@ -142,7 +142,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Liquid scrubber",
         "Frosted glass pill",
         "Jelly switches",
-        "Jelly scrolling"
+        "Jelly scrolling",
+        "Shaped icon tiles"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -257,7 +258,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Fluid meniscus and audio droplets when seeking",
         "Translucent acrylic surface with a luminous specular rim",
         "Switch thumbs stretch as they slide and snap round when they land",
-        "Rows here trail the scroll a little and spring back together"
+        "Rows here trail the scroll a little and spring back together",
+        "Icons here sit in cookies, clovers and flowers that round out when pressed"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -267,7 +269,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen", "soundwave", "album", "soundwave", "enhance", "cat_animation", "cat_swipe"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen", "soundwave", "album", "soundwave", "enhance", "cat_animation", "cat_swipe", "cat_palette"
     };
 
     /** Section layout: Settings indices per group. */
@@ -764,6 +766,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         motion.addView(featureRows[Settings.BOUNCY_PRESS]);
         motion.addView(featureRows[Settings.JELLY_SWITCHES]);
         motion.addView(featureRows[Settings.JELLY_SCROLL]);
+        motion.addView(featureRows[Settings.SHAPED_TILES]);
         addChoice(motion, Settings.BOUNCE, "Bounce", "How far tiles spring back", new String[] {"Normal", "Soft", "Wild"});
         motion.addView(featureRows[Settings.HERO_TOUCH]);
         motion.addView(featureRows[Settings.TAP_RIPPLE]);
@@ -1597,7 +1600,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         if (iconName != null) {
             ImageView tile = icon(iconName);
-            tile.setBackground(rounded(Pill.blend(card, accent, 0.16f), dp(20))); // a tonal accent container
+            tile.setBackground(new IconTile(Pill.blend(card, accent, 0.16f), iconName)); // a tonal accent container in an expressive shape
+            tile.setDuplicateParentStateEnabled(true); // the shape answers a press on the whole row
             LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(40), dp(40));
             iconLp.rightMargin = dp(14);
             row.addView(tile, iconLp);
