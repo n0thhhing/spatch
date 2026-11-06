@@ -1556,6 +1556,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             live = Palette.apply(getContext(), themeName);
         } catch (RuntimeException | LinkageError e) { // the saved choice still applies on a restart
             android.util.Log.i("Spatch", "live theme failed: " + e);
+            Palette.failure = e.toString();
         }
         if (!live) askThemeRestart();
     }
@@ -1567,7 +1568,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private void askThemeRestart() {
         new AlertDialog.Builder(getContext(), Palette.dialogTheme()) // android.R.style.Theme_DeviceDefault_Dialog_Alert: system Material dialog, not Holo
             .setTitle("Restart to apply theme?")
-            .setMessage("Spotify needs to restart to apply the new color palette.")
+            .setMessage("It couldn't switch while running, so the new palette applies after a restart." + (Palette.failure == null ? "" : "\n\nWhy: " + Palette.failure))
             .setPositiveButton("Restart now", this)
             .setNegativeButton("Later", this)
             .setOnDismissListener(this)

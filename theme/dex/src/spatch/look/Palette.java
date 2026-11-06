@@ -120,13 +120,17 @@ public final class Palette {
         throw new IllegalArgumentException("Unknown theme");
     }
     /** Every colour source swapped in place, then each screen rebuilt from them; the process and playback carry on. False leaves the running theme alone. */
+    /** Why the last live switch fell back to a restart, for the dialog and logs. */
+    static String failure;
     static boolean apply(Context host,String name){
         android.app.Activity shown=activity(host);
         int next=index(name);
         boolean previousLight=light;
         light=wantsLight(host);
         wallpaper=wallpaper(host);
-        if(base==null || shown==null || android.os.Build.VERSION.SDK_INT<30 || !PaletteResources.swap(base,name,next==indexDefault() && !light && next!=CUSTOM)){light=previousLight;return false;}
+        failure=base==null?"settings not loaded":shown==null?"no screen":android.os.Build.VERSION.SDK_INT<30?"Android 10":null;
+        if(failure==null && !PaletteResources.swap(base,name,next==indexDefault() && !light && next!=CUSTOM))failure="couldn't load the "+name+" colours: "+PaletteResources.failure;
+        if(failure!=null){light=previousLight;android.util.Log.i("Spatch","live theme failed: "+failure);return false;}
         active=next;
         swapped=true;
         p.S_EncoreColorTokens.rebuild();

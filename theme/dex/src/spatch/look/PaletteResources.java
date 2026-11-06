@@ -61,12 +61,21 @@ final class PaletteResources {
      * The overlay is prepared once and kept in the cache, named for the theme, this install and (for the
      * wallpaper theme) its colours, so a launch only maps it; preparing it cost 30-60ms of startup.
      */
+    static String failure;
+
+    /** A damaged cached overlay is built again once before giving up. */
     static boolean install(Context context,String theme){
+        if(install(context,theme,false))return true;
+        return install(context,theme,true);
+    }
+
+    private static boolean install(Context context,String theme,boolean fresh){
         try{
             int[] row=Palette.selectedRow(theme);
             long installed=context.getPackageManager().getPackageInfo(context.getPackageName(),0).lastUpdateTime;
             String key=theme+"-"+Long.toHexString(installed)+("-"+Integer.toHexString(java.util.Arrays.hashCode(row)));
             File file=new File(context.getCacheDir(),"spatch-theme-"+key+".apk");
+            if(fresh)file.delete();
             if(!file.isFile()){
                 File[] old=context.getCacheDir().listFiles();
                 if(old!=null)for(File f:old)if(f.getName().startsWith("spatch-theme-"))f.delete();
@@ -74,7 +83,7 @@ final class PaletteResources {
                 try(InputStream in=context.getAssets().open("spatch-themes/lavender.apk");OutputStream out=new FileOutputStream(part)){
                     recolored(in,out,row);
                 }
-                if(!part.renameTo(file))return false;
+                if(!part.renameTo(file)){failure="couldn't save the overlay";return false;}
             }
             ResourcesLoader loader=new ResourcesLoader();
             try(ParcelFileDescriptor fd=ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY)){
@@ -83,6 +92,6 @@ final class PaletteResources {
             context.getResources().addLoaders(loader);
             current=loader;
             return true;
-        }catch(IOException|RuntimeException|android.content.pm.PackageManager.NameNotFoundException e){return false;}
+        }catch(IOException|RuntimeException|android.content.pm.PackageManager.NameNotFoundException e){failure=e.toString();android.util.Log.i("Spatch","theme overlay: "+e);return false;}
     }
 }

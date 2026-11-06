@@ -104,7 +104,7 @@ final class Hero extends View {
             float base = h * (layer == 0 ? 0.74f : 0.84f), amp = look.dp(layer == 0 ? 9 : 6);
             path.moveTo(0, h);
             for (float x = 0; x <= w; x += look.dp(6)) {
-                path.lineTo(x, base + amp * (float) Math.sin(x / w * Math.PI * 2 * (layer == 0 ? 1.2 : 1.7) + phase * (layer == 0 ? 1 : -1.3)));
+                path.lineTo(x, base + amp * (float) Math.sin(x / w * Math.PI * 2 * (layer == 0 ? 1.2 : 1.7) + phase * (layer == 0 ? 1 : 1.3)));
             }
             path.lineTo(w, h);
             path.close();

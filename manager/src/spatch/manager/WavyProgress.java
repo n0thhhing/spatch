@@ -65,7 +65,7 @@ final class WavyProgress extends ProgressBar {
         if (b > a) {
             path.reset();
             for (float x = a; x <= b; x += density) {
-                float y = mid + amp * (float) Math.sin((x / length) * Math.PI * 2 - phase);
+                float y = mid + amp * (float) Math.sin((x / length) * Math.PI * 2 + phase); // + phase: crests travel left, as Spatch's seek bar
                 if (x == a) path.moveTo(x, y);
                 else path.lineTo(x, y);
             }
