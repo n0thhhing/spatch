@@ -37,7 +37,8 @@ build_manager() {
         export MANAGER_KS_PASS
     fi
     if [ -f "$ks" ] && [ -n "${MANAGER_KS_PASS:-}" ]; then
-        mgr_ver=$(gh release list --limit 50 --json tagName -q '[.[] | select(.tagName | startswith("manager-v"))][0].tagName | sub("^manager-v"; "")' 2>/dev/null || true)
+        # The version being worked towards (manager/VERSION), so a nightly is never older than the last release.
+        mgr_ver=$(cat "$work/src/manager/VERSION" 2>/dev/null || gh release list --limit 50 --json tagName -q '[.[] | select(.tagName | startswith("manager-v"))][0].tagName | sub("^manager-v"; "")' 2>/dev/null || true)
         mgr_ver=${mgr_ver:-0.9.0}
         "$work/src/manager/build.sh" "$mgr_ver-$(echo "$manager_id" | cut -c1-7)" "$out/spatch-manager.apk" \
             --keystore "$ks" --alias "${MANAGER_KS_ALIAS:-spatch-test}" --ks-pass-env MANAGER_KS_PASS
