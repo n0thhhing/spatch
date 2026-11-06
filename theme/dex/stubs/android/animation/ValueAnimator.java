@@ -9,6 +9,7 @@ public class ValueAnimator { public void removeAllUpdateListeners() {}
     public void setInterpolator(TimeInterpolator value) { throw new RuntimeException(); }
     public void start() { throw new RuntimeException(); }
     public boolean isRunning() { throw new RuntimeException(); }
+    public float getAnimatedFraction() { throw new RuntimeException(); }
     public void cancel() { throw new RuntimeException(); }
     public Object getAnimatedValue() { throw new RuntimeException(); }
 }

@@ -17,5 +17,6 @@ public class LinearLayout extends android.view.ViewGroup {
 
     public LinearLayout(android.content.Context c) { super(c, null); }
     public void setOrientation(int o) {}
+    public int getOrientation() { return 0; }
     public void setGravity(int g) {}
 }

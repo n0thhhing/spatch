@@ -47,9 +47,17 @@ final class M3Switch extends View implements ValueAnimator.AnimatorUpdateListene
         animator.start();
     }
 
+    private long movedAt;
+    private float speed; // shown per second, for the jelly stretch
+
     @Override
     public void onAnimationUpdate(ValueAnimator a) {
-        shown = ((Float) a.getAnimatedValue()).floatValue();
+        float next = ((Float) a.getAnimatedValue()).floatValue();
+        long now = System.nanoTime();
+        if (movedAt != 0) speed = (next - shown) / Math.max(0.004f, (now - movedAt) / 1e9f);
+        movedAt = a.isRunning() && a.getAnimatedFraction() < 1f ? now : 0;
+        if (movedAt == 0) speed = 0;
+        shown = next;
         invalidate();
     }
 
@@ -70,7 +78,12 @@ final class M3Switch extends View implements ValueAnimator.AnimatorUpdateListene
         }
         float cx = h / 2 + (w - h) * shown, cy = h / 2, r = (8 + 4 * t) * dp;
         paint.setColor(t > 0.5f ? ink : outline);
-        c.drawCircle(cx, cy, r, paint);
+        if (Settings.get(Settings.JELLY_SWITCHES) && Wave.animationsEnabled() && speed != 0) {
+            // jelly: the thumb stretches along its path with speed and thins to keep its volume
+            float stretch = Math.min(1.7f, 1f + Math.abs(speed) * 0.09f), rx = r * stretch, ry = r / (float) Math.sqrt(stretch);
+            float lead = (rx - r) * Math.signum(speed) * 0.5f;
+            c.drawRoundRect(cx - rx + lead, cy - ry, cx + rx + lead, cy + ry, ry, ry, paint);
+        } else c.drawCircle(cx, cy, r, paint);
         if (t > 0.5f) {
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(2 * dp);
