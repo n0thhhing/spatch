@@ -854,23 +854,23 @@ public final class MainActivity extends Activity {
             } else {
                 for (int i = 0; i < releases.commits.size(); i++) {
                     Releases.Note c = releases.commits.get(i);
-                    if (i > 0) {
-                        View div = new View(this);
-                        div.setBackgroundColor(Look.blend(look.container, look.outline, 0.22f));
-                        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, look.dp(1)));
-                        lp.topMargin = look.dp(10);
-                        lp.bottomMargin = look.dp(10);
-                        card.addView(div, lp);
-                    }
                     boolean onPhone = (installed != null && installed.startsWith(c.tag))
                         || ownName().endsWith("-" + c.tag.replaceFirst("^nightly-", ""));
                     boolean newest = releases.nightly != null ? releases.nightly.tag.equals(c.tag) : i == 0;
                     String meta = c.tag.replaceFirst("^nightly-", "")
                         + (c.date.isEmpty() ? "" : "  •  " + c.date)
                         + (onPhone ? "  •  Installed" : newest ? "  •  Newest nightly" : "");
-                    card.addView(look.text(c.title, 15, look.onSurface, true));
-                    card.addView(look.text(meta, 13, onPhone || newest ? look.primary : look.onSurfaceVariant, onPhone || newest), look.spaced(2));
-                    if (!c.body.isEmpty()) card.addView(look.text(c.body, 13, look.onSurfaceVariant, false), look.spaced(4));
+                    LinearLayout words = look.column();
+                    words.setPadding(0, 0, 0, look.dp(14));
+                    words.addView(look.text(c.title, 15, look.onSurface, true));
+                    words.addView(look.text(meta, 13, onPhone || newest ? look.primary : look.onSurfaceVariant, onPhone || newest), look.spaced(2));
+                    if (!c.body.isEmpty()) words.addView(look.text(c.body, 13, look.onSurfaceVariant, false), look.spaced(4));
+                    LinearLayout row = new LinearLayout(this);
+                    row.addView(look.timeline(i == 0, i == releases.commits.size() - 1, onPhone || newest), new LinearLayout.LayoutParams(look.dp(24), LinearLayout.LayoutParams.MATCH_PARENT));
+                    LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                    wl.setMarginStart(look.dp(10));
+                    row.addView(words, wl);
+                    card.addView(row, look.spaced(i == 0 ? 6 : 0));
                 }
             }
         }

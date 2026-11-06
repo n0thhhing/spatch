@@ -371,6 +371,26 @@ final class Look {
         return out;
     }
 
+    /** One stop on a vertical timeline: a line through it (not past the ends) and a dot, filled when lit. */
+    View timeline(boolean first, boolean last, boolean lit) {
+        return new View(context) {
+            private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                float x = getWidth() / 2f, y = dp(10), r = dp(lit ? 6 : 4.5f);
+                paint.setStrokeWidth(dp(2));
+                paint.setColor(blend(container, outline, 0.4f));
+                if (!first) c.drawLine(x, 0, x, y - r - dp(3), paint);
+                if (!last) c.drawLine(x, y + r + dp(3), x, getHeight(), paint);
+                paint.setColor(lit ? primary : blend(container, outline, 0.6f));
+                paint.setStyle(lit ? android.graphics.Paint.Style.FILL : android.graphics.Paint.Style.STROKE);
+                c.drawCircle(x, y, r, paint);
+                paint.setStyle(android.graphics.Paint.Style.FILL);
+            }
+        };
+    }
+
     ProgressBar progress() {
         return new WavyProgress(context, primary, blend(container, onSurfaceVariant, 0.35f));
     }
