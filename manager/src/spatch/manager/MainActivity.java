@@ -357,10 +357,14 @@ public final class MainActivity extends Activity {
         boolean change = !pages[index].isShown();
         for (int i = 0; i < pages.length; i++) pages[i].setVisibility(i == index ? View.VISIBLE : View.GONE);
         if (change && Look.motion(this)) {
-            View page = pages[index];
-            page.setAlpha(0f);
-            page.setTranslationY(look.dp(24));
-            page.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+            LinearLayout page = pages[index];
+            for (int i = 0; i < page.getChildCount(); i++) { // cards rise one after another
+                View card = page.getChildAt(i);
+                card.setAlpha(0f);
+                card.setTranslationY(look.dp(28 + 10 * Math.min(i, 4)));
+                card.animate().alpha(1f).translationY(0f).setStartDelay(45L * Math.min(i, 6)).setDuration(380)
+                    .setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)).start();
+            }
         }
         heading.set(HEADINGS[index], LINES[index]);
         look.select(nav, index);
@@ -566,6 +570,7 @@ public final class MainActivity extends Activity {
             Button uninst = look.button("Uninstall", "delete", Look.Kind.TEXT, v -> {
                 startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + c.pkg)));
             });
+            for (Button b : new Button[] {open, upd, uninst}) b.setPadding(look.dp(6), 0, look.dp(6), 0); // three to a row: room for the words
             item.addView(look.row(open, upd, uninst), look.spaced(8));
 
             clonesListBox.addView(item, look.spaced(8));

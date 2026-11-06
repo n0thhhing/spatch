@@ -156,6 +156,7 @@ final class Look {
         b.setEllipsize(android.text.TextUtils.TruncateAt.END);
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(ink & 0xffffff | 0x1f000000), fill == 0 ? null : shape(fill, 24), shape(0xffffffff, 24)));
         b.setOnClickListener(click);
+        squish(b);
         return b;
     }
 
@@ -266,6 +267,19 @@ final class Look {
     }
 
     static final String MOTION = "playful_motion";
+
+    /** Presses sink a little and spring back past their size, like jelly. */
+    static void squish(View v) {
+        v.setOnTouchListener((view, e) -> {
+            if (!motion(view.getContext())) return false;
+            if (e.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
+                view.animate().scaleX(0.94f).scaleY(0.9f).setDuration(120).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+            } else if (e.getActionMasked() == android.view.MotionEvent.ACTION_UP || e.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f).setDuration(480).setInterpolator(new android.view.animation.OvershootInterpolator(4f)).start();
+            }
+            return false; // the click still happens as usual
+        });
+    }
 
     TextView badge(String text, int fg, int bg) {
         TextView b = new TextView(context);
