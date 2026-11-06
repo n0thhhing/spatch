@@ -314,6 +314,11 @@ public final class MainActivity extends Activity {
         });
         profileCard.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
 
+        Switch playful = new Switch(this);
+        playful.setChecked(prefs.getBoolean(Look.MOTION, true));
+        playful.setOnCheckedChangeListener((v, on) -> prefs.edit().putBoolean(Look.MOTION, on).apply());
+        profileCard.addView(look.switchRow("Playful motion", "Jelly navigation, springy pages and pops; Android's animation setting still applies", playful));
+
         // --- Page 1: Clones ---
         cloneLayout(pages[1]);
 
@@ -351,7 +356,14 @@ public final class MainActivity extends Activity {
     }
 
     private void show(int index) {
+        boolean change = !pages[index].isShown();
         for (int i = 0; i < pages.length; i++) pages[i].setVisibility(i == index ? View.VISIBLE : View.GONE);
+        if (change && Look.motion(this)) {
+            View page = pages[index];
+            page.setAlpha(0f);
+            page.setTranslationY(look.dp(24));
+            page.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        }
         heading.setText(HEADINGS[index]);
         look.select(nav, index);
         scroll.scrollTo(0, 0);

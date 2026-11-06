@@ -209,7 +209,7 @@ final class Look {
 
     /** A Material 3 navigation bar: icon and label per page, a pill behind the chosen page's icon. */
     LinearLayout navBar(String[] labels, String[] icons, Pick pick) {
-        LinearLayout bar = new LinearLayout(context);
+        JellyBar bar = new JellyBar(context, secondaryContainer, pick);
         bar.setBackgroundColor(container);
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
@@ -244,12 +244,24 @@ final class Look {
             android.widget.ImageView icon = (android.widget.ImageView) item.getChildAt(0);
             TextView label = (TextView) item.getChildAt(1);
             boolean on = i == index;
-            icon.setBackground(on ? shape(secondaryContainer, 16) : null);
             icon.getDrawable().setTint(on ? onSecondaryContainer : onSurfaceVariant);
             label.setTextColor(on ? onSurface : onSurfaceVariant);
+            if (on && !item.isSelected() && motion(context)) {
+                icon.setScaleX(0.7f);
+                icon.setScaleY(0.7f);
+                icon.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+            }
             item.setSelected(on);
         }
+        if (bar instanceof JellyBar) ((JellyBar) bar).moveTo(index, true);
     }
+
+    /** Whether to play the manager's playful motion: the user's switch, and Android's own animation setting. */
+    static boolean motion(Context context) {
+        return android.animation.ValueAnimator.areAnimatorsEnabled() && context.getSharedPreferences("manager", Context.MODE_PRIVATE).getBoolean(MOTION, true);
+    }
+
+    static final String MOTION = "playful_motion";
 
     TextView badge(String text, int fg, int bg) {
         TextView b = new TextView(context);
