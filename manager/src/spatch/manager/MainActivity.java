@@ -92,6 +92,8 @@ public final class MainActivity extends Activity {
     private LinearLayout statusCard, changesBox, clonesListBox;
     private Look.StepTracker stepTracker;
 
+    private android.widget.ImageView spotifyIcon;
+    private TextView stateBadge;
     private TextView spotifyStatus, apkmStatus, patchStatus, whatsNew, keyStatus, managerStatus, status, cloneStatus;
     private Hero heading;
     private TextView profileBadge, profileDesc, diagnosticsText, exitsText;
@@ -261,13 +263,26 @@ public final class MainActivity extends Activity {
 
         LinearLayout spotify = look.card(pages[0], "Spotify");
         spotifyStatus = look.text("", 16, look.onSurface, false);
-        spotify.addView(spotifyStatus);
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        spotifyIcon = new android.widget.ImageView(this);
+        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(look.dp(52), look.dp(52));
+        il.setMarginEnd(look.dp(14));
+        head.addView(spotifyIcon, il);
+        LinearLayout headWords = look.column();
+        stateBadge = look.badge("", look.onPrimaryContainer, look.primaryContainer);
+        headWords.addView(stateBadge, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        headWords.addView(spotifyStatus, look.spaced(4));
+        head.addView(headWords, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        spotify.addView(head);
         apkmStatus = look.text("", 14, look.onSurfaceVariant, false);
         spotify.addView(apkmStatus, look.spaced(6));
         patchStatus = look.text("", 14, look.onSurfaceVariant, false);
         spotify.addView(patchStatus, look.spaced(2));
         profileBadge = look.badge("Profile: Standard", look.onPrimaryContainer, look.primaryContainer);
-        spotify.addView(profileBadge, look.spaced(6));
+        LinearLayout.LayoutParams hug = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        hug.topMargin = look.dp(6);
+        spotify.addView(profileBadge, hug); // a chip, as wide as its words
         whatsNew = look.text("", 13, look.primary, false);
         whatsNew.setVisibility(View.GONE);
         spotify.addView(whatsNew, look.spaced(4));
@@ -977,6 +992,16 @@ public final class MainActivity extends Activity {
         whatsNew.setText(headline);
         whatsNew.setVisibility(headline.isEmpty() ? View.GONE : View.VISIBLE);
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
+        boolean current = ours && (wanted == null || wanted.equals(installed));
+        spotifyIcon.setImageDrawable(info != null ? info.applicationInfo.loadIcon(getPackageManager()) : getApplicationInfo().loadIcon(getPackageManager()));
+        spotifyIcon.setAlpha(info == null ? 0.4f : 1f);
+        stateBadge.setText(info == null ? "Not installed" : !ours ? "Another key" : current ? "Up to date" : "Update ready");
+        int badgeBg = current ? look.primaryContainer : ours ? look.tertiaryContainer : look.secondaryContainer;
+        int badgeFg = current ? look.onPrimaryContainer : ours ? look.onTertiaryContainer : look.onSecondaryContainer;
+        stateBadge.setTextColor(badgeFg);
+        android.graphics.drawable.GradientDrawable bd = look.shape(badgeBg, 10);
+        bd.setStroke(look.dp(1), Look.blend(badgeBg, badgeFg, 0.25f));
+        stateBadge.setBackground(bd);
         Look.label(patch, !ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
         Look.label(choose, apkm.isFile() ? "Another APKM" : "Choose APKM");
         look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null || source != null));
