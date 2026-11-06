@@ -359,11 +359,7 @@ final class Look {
     }
 
     ProgressBar progress() {
-        ProgressBar p = new ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal);
-        p.setProgressTintList(ColorStateList.valueOf(primary));
-        p.setProgressBackgroundTintList(ColorStateList.valueOf(secondaryContainer));
-        p.setIndeterminateTintList(ColorStateList.valueOf(primary));
-        return p;
+        return new WavyProgress(context, primary, blend(container, onSurfaceVariant, 0.35f));
     }
 
     void enable(View v, boolean on) {
