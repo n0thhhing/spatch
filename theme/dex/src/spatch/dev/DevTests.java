@@ -140,7 +140,8 @@ final class DevTests {
             public String run() {
                 ArrayList<String> missing = new ArrayList<String>();
                 for (String icon : new HashSet<String>(Arrays.asList(SpatchSettings.FEATURE_ICONS))) {
-                    if (id("encore_icon_" + icon + "_24", "drawable") == 0) missing.add(icon);
+                    // as SpatchSettings.icon finds them: Spatch's own symbols first, then Spotify's
+                    if (id("spatch_ms_" + icon, "drawable") == 0 && id("encore_icon_" + icon + "_24", "drawable") == 0) missing.add(icon);
                 }
                 check(missing.isEmpty(), "missing " + missing);
                 return "";
