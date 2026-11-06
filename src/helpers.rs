@@ -1,7 +1,7 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 63] = [
+pub const HELPERS: [(&str, &str); 64] = [
     (
         "ThemeImport",
         include_str!("../theme/dex/src/spatch/look/ThemeImport.java"),
@@ -109,6 +109,10 @@ pub const HELPERS: [(&str, &str); 63] = [
     (
         "M3Switch",
         include_str!("../theme/dex/src/spatch/settings/M3Switch.java"),
+    ),
+    (
+        "ThemeSwitch",
+        include_str!("../theme/dex/src/spatch/settings/ThemeSwitch.java"),
     ),
     (
         "IconTile",
@@ -557,6 +561,10 @@ pub const STUBS: &[(&str, &str)] = &[
     (
         "Window.java",
         include_str!("../theme/dex/stubs/android/view/Window.java"),
+    ),
+    (
+        "PixelCopy.java",
+        include_str!("../theme/dex/stubs/android/view/PixelCopy.java"),
     ),
     (
         "Choreographer.java",

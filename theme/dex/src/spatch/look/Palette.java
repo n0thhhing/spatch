@@ -123,10 +123,7 @@ public final class Palette {
     /** Why the last live switch fell back to a restart, for the dialog and logs. */
     static String failure;
     static boolean apply(Context host,String name){
-        android.app.Activity shown=activity(host);
-        // Reopened after a switch, the settings page hangs off the window's decor view, whose context isn't the
-        // Activity: the newest open screen stands in, or every second switch would ask for a restart.
-        if(shown==null && !OPEN.isEmpty())shown=OPEN.get(OPEN.size()-1);
+        android.app.Activity shown=screen(host);
         int next=index(name);
         boolean previousLight=light;
         light=wantsLight(host);
@@ -144,6 +141,14 @@ public final class Palette {
         if(!OPEN.contains(shown))OPEN.add(shown);
         for(android.app.Activity a:new java.util.ArrayList<>(OPEN)){PaletteResources.sync(a.getResources());a.recreate();}
         return true;
+    }
+    /**
+     * The screen a view belongs to. Reopened after a switch, the settings page hangs off the window's decor
+     * view, whose context isn't the Activity: the newest open screen stands in.
+     */
+    static android.app.Activity screen(Context c){
+        android.app.Activity a=activity(c);
+        return a!=null||OPEN.isEmpty()?a:OPEN.get(OPEN.size()-1);
     }
     private static android.app.Activity activity(Context c){
         while(c instanceof android.content.ContextWrapper && !(c instanceof android.app.Activity))c=((android.content.ContextWrapper)c).getBaseContext();

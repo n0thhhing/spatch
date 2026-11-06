@@ -175,8 +175,14 @@ public final class Settings implements S_DrawerRowSource {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         page.bringToFront();
         page.requestFocus();
-        page.enter();
-        if (themes) page.showThemes();
+        if (themes && ThemeSwitch.scroll >= 0) { // a live switch: no entrance, the copy of the old screen opens instead
+            page.returnToThemes(ThemeSwitch.scroll);
+            ThemeSwitch.scroll = -1;
+            ThemeSwitch.cover((ViewGroup) root);
+        } else {
+            page.enter();
+            if (themes) page.showThemes();
+        }
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             page.back = Back.register(page, page);
         }

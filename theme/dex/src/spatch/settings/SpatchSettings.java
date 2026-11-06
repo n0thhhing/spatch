@@ -1537,18 +1537,26 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
     private void onThemeSelected(int index, final String themeName) {
         String current = Palette.requested();
-        if (themeName.equals(current) || reveal != null || index==Palette.CUSTOM && !Palette.hasCustom()) return;
+        if (themeName.equals(current) || reveal != null || switching || index==Palette.CUSTOM && !Palette.hasCustom()) return;
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
         refreshThemes(themeName, true);
-        reveal = ThemeReveal.open(this, themeRows[index], index, themeTitle(index));
-        if (reveal == null) { applyTheme(themeName); return; }
-        postDelayed(new Runnable() {
+        // The new theme opens from the swatch over a copy of this screen, once every page has rebuilt behind it.
+        View swatch = themeRows[index];
+        int[] at = new int[2];
+        swatch.getLocationInWindow(at);
+        View top = stack.get(stack.size() - 1);
+        ThemeSwitch.scroll = top instanceof ScrollView ? ((ScrollView) top).getScrollY() : -1;
+        switching = true;
+        ThemeSwitch.capture(Palette.screen(getContext()), at[0] + swatch.getWidth() / 2f, at[1] + swatch.getHeight() / 2f, new Runnable() {
             public void run() {
+                switching = false;
                 if (isAttachedToWindow()) applyTheme(themeName);
             }
-        }, ThemeReveal.MILLIS);
+        });
     }
+
+    private boolean switching; // a copy is being taken: one switch at a time
 
     private void applyTheme(String themeName) {
         boolean live = false;
@@ -1558,11 +1566,31 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             android.util.Log.i("Spatch", "live theme failed: " + e);
             Palette.failure = e.toString();
         }
-        if (!live) askThemeRestart();
+        if (!live) {
+            ThemeSwitch.forget();
+            askThemeRestart();
+        }
     }
 
     void showThemes() {
         open(palettePage);
+    }
+
+    /** Back from a live theme change: the theme page at once, scrolled where it was, so the reveal lines up. */
+    void returnToThemes(final int scrollY) {
+        View to = (View) palettePage.getParent(), from = stack.get(stack.size() - 1);
+        stack.add(to);
+        barTitle.setAlpha(1f);
+        ((TextView) barTitle).setText((String) palettePage.getTag());
+        hero.setOffscreen(true);
+        to.setVisibility(View.VISIBLE);
+        from.setVisibility(View.GONE);
+        if (scrollY > 0) to.post(new Runnable() {
+            public void run() {
+                to.scrollTo(0, scrollY);
+            }
+        });
+        post(cover); // hide what's behind straight away, as enter would after its slide
     }
 
     private void askThemeRestart() {

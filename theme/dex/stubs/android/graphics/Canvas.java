@@ -6,7 +6,7 @@ public class Canvas {
  public Canvas(){} public Canvas(Bitmap b){}
  public void translate(float x,float y){} public void scale(float x,float y,float px,float py){}
  public int saveLayerAlpha(float l,float t,float r,float b,int alpha){return 0;}
- public int save(){return 0;} public boolean clipPath(Path p){return false;} public void restoreToCount(int n){}
+ public int save(){return 0;} public boolean clipPath(Path p){return false;} public boolean clipOutPath(Path p){return false;} public void restoreToCount(int n){}
  public boolean clipRect(float left,float top,float right,float bottom){return false;}
  public void drawPath(Path p,Paint q){} public void drawColor(int c){} public void rotate(float d,float px,float py){} public void drawBitmap(Bitmap b,float x,float y,Paint p){}
  public void drawRect(float l,float t,float r,float b,Paint p){}
