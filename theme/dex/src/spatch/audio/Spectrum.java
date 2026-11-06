@@ -141,16 +141,9 @@ final class Spectrum {
     /** Level for a position 0..1 along the row: mirrored puts bass at the centre, treble at the sides. */
     static float at(float[] levels, float pos, boolean mirrored) {
         float t = mirrored ? Math.abs(pos * 2 - 1) : pos; // 0 = bass, 1 = treble
-        // Slight asymmetric harmonic shift near the center so the two middle bars don't mirror into identical twins.
-        float shift = mirrored ? (pos < 0.5f ? -0.4f : 0.4f) * (1f - t) : 0;
-        float f = Math.max(0, Math.min(levels.length - 1, t * (levels.length - 1) + shift));
+        float f = Math.max(0, Math.min(levels.length - 1, t * (levels.length - 1)));
         int b0 = (int) f, b1 = Math.min(levels.length - 1, b0 + 1);
-        float base = levels[b0] + (levels[b1] - levels[b0]) * (f - b0);
-        if (mirrored && t < 0.15f) {
-            float variance = pos < 0.5f ? 0.94f : 1.06f;
-            return Math.min(CEILING, base * variance);
-        }
-        return base;
+        return levels[b0] + (levels[b1] - levels[b0]) * (f - b0);
     }
 
     /** Height factor for a position: flat, or easing off slightly at the sides. */
@@ -172,7 +165,7 @@ final class Spectrum {
                 motion ? (android.os.SystemClock.uptimeMillis()%120000)/800f : 0, true, dp);
             return;
         }
-        int bars = thin ? 48 : 24;
+        int bars = (thin ? 48 : 24) + (mirrored ? 1 : 0); // mirrored: one bar on the centre line, not a matched pair
         float step = (right - left) / bars, barW = step * 0.62f;
         boolean centre = "centre".equals(shape), contour = "contour".equals(shape), dots = "dots".equals(shape);
         float mid = base - maxH / 2;
