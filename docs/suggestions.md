@@ -12,7 +12,9 @@ hasn't been started. Findings from attempts are included so nobody repeats them.
 builds each page (`xr61`) and its rows (`jgb1`, icon spec `xt61` with an Encore icon such as `bkx.c`), but the row
 drawing hasn't been found: `ga51.e(hux, ryn1, xt61, Modifier, Composer, I)` takes the icon spec and a Modifier, yet
 hooking it changed nothing on the main list or the Playback page. The main-thread sampler doesn't catch rows while
-scrolling (lazy rows don't recompose); sample while the page first opens instead.
+scrolling (lazy rows don't recompose), nor clearly while the page opens. Rows with an icon are `wq61`
+(`rs61` row, `hux`, `ryn1`, `xt61`), drawn by `rt11` through `ga51.e` with a **null** Modifier, so a
+hook there must handle null; that path didn't run for the main list either.
 
 **Spotify's white pills (Refresh, Log out, round play buttons on Home).** Turning white into the accent
 in `Surfaces.bg`, including near-white, changed nothing, so these don't paint through `yw9`. The next
