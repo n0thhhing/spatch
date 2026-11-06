@@ -358,6 +358,19 @@ final class Look {
         return new StepTracker();
     }
 
+    /** Self-test lines with their verdict as a coloured, bold word: PASS in primary, WARN amber, FAIL red. */
+    CharSequence verdicts(String text) {
+        android.text.SpannableStringBuilder out = new android.text.SpannableStringBuilder(text);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?m)^(PASS|WARN|FAIL|INFO)\\b").matcher(text);
+        while (m.find()) {
+            String v = m.group(1);
+            int color = v.equals("PASS") ? primary : v.equals("WARN") ? (dark ? 0xffffcc80 : 0xff8a5a00) : v.equals("FAIL") ? (dark ? 0xffffb4ab : 0xffba1a1a) : onSurfaceVariant;
+            out.setSpan(new android.text.style.ForegroundColorSpan(color), m.start(), m.end(), 0);
+            out.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), m.start(), m.end(), 0);
+        }
+        return out;
+    }
+
     ProgressBar progress() {
         return new WavyProgress(context, primary, blend(container, onSurfaceVariant, 0.35f));
     }

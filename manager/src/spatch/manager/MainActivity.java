@@ -730,7 +730,7 @@ public final class MainActivity extends Activity {
             sb.append("\nResults: ").append(pass).append(" passed, ").append(warn).append(" warnings, ").append(fail).append(" failed");
             String resultText = sb.toString();
             main.post(() -> {
-                if (diagnosticsText != null) diagnosticsText.setText(resultText);
+                if (diagnosticsText != null) diagnosticsText.setText(look.verdicts(resultText));
             });
         });
     }
