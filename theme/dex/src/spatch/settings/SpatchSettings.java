@@ -1541,6 +1541,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
         refreshThemes(themeName, false); // at once: the copy taken next must already show the new choice
+        themeNote.setText("Applied"); // it applies live; if it can't, the restart dialog says so
         // The new theme opens from the swatch over a copy of this screen, once every page has rebuilt behind it.
         View swatch = themeRows[index];
         int[] at = new int[2];
