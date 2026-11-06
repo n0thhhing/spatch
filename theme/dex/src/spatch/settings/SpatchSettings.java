@@ -441,6 +441,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             modeRows.addView(row);
         }
         finish(modeRows);
+        LinearLayout tintRows=addGroup();
+        addChoice(tintRows,Settings.SURFACE_TINT,"Tinted cards","Home shortcuts and other raised tiles: a lift of the theme's text colour, or its accent",new String[]{"Neutral","Accent"});
+        finish(tintRows);
         addSectionHeader("Import");
         LinearLayout imports=addGroup();
         View importTheme=createSettingRow("plus","Import theme","JSON or TOML, with dark and light colours",icon("chevron_right"));
@@ -1670,7 +1673,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         if (v.getTag() instanceof String[]) {
             String[] tag = (String[]) v.getTag();
             int setting = Integer.parseInt(tag[0]);
+            boolean was = tag[1].equals(Settings.choice(setting));
             Settings.setChoice(setting, tag[1]);
+            if (setting == Settings.SURFACE_TINT && !was) applyTheme(Palette.requested()); // Encore builds its tints once: build them again
             if ((setting == Settings.ART_SPECTRUM && !"off".equals(tag[1]) || setting == Settings.ART_OUTLINE && "audio".equals(tag[1]))
                 && getContext().checkSelfPermission(AudioSpectrum.PERMISSION) != 0) {
                 AudioSpectrum.requestPermission(getContext());

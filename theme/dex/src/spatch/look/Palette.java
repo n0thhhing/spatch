@@ -186,5 +186,11 @@ public final class Palette {
 
     /** One of the running theme's own colours (alpha ignored), so policy that reshades server colours leaves it be. */
     static boolean ours(int argb){for(int c:row(active))if(c==(argb&0xffffff))return true;return false;}
+    /** Encore's tinted surfaces, white at some opacity: lifted towards the theme's text by default, or its accent about 1.4x as strong. */
+    public static int tinted(int white){
+        int alpha=white>>>24;
+        if("accent".equals(Settings.choice(Settings.SURFACE_TINT)))return Math.min(255,Math.round(alpha*1.4f))<<24|color(0xffd0bcff)&0xffffff;
+        return alpha<<24|color(0xfff3eeff)&0xffffff;
+    }
     public static long compose(long argb){return (argb & ~0xffffffffL)==0 ? color((int)argb)&0xffffffffL : argb;}
 }

@@ -113,10 +113,10 @@ pub const EDITS: [Edit; 103] = [
     Edit { file: "S_EncoreColorTokens", anchor: ".field public static final a:Lp/S_EncoreColorsBuild;\n", replacement: ".field public static a:Lp/S_EncoreColorsBuild;\n" },
     Edit { file: "S_EncoreColorTokens", anchor: ".method static constructor <clinit>()V\n    .locals 62\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/S_EncoreColorTokens;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 62\n" },
     // Encore's tinted surfaces (Home shortcut tiles and the like) are white at 10/14/21% over the
-    // page; they become the theme accent through Palette, about 1.4x as strong so they stay as bright.
-    Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x1affffff\n", replacement: "    const v0, 0x24d0bcff\n\n    invoke-static {v0}, Lspatch/Palette;->color(I)I\n\n    move-result v0\n" },
-    Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x24ffffff\n", replacement: "    const v0, 0x32d0bcff\n\n    invoke-static {v0}, Lspatch/Palette;->color(I)I\n\n    move-result v0\n" },
-    Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x36ffffff\n", replacement: "    const v0, 0x4cd0bcff\n\n    invoke-static {v0}, Lspatch/Palette;->color(I)I\n\n    move-result v0\n" },
+    // page; Palette.tinted lifts them towards the theme's text (or its accent, as chosen).
+    Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x1affffff\n", replacement: "    const v0, 0x1affffff\n\n    invoke-static {v0}, Lspatch/Palette;->tinted(I)I\n\n    move-result v0\n" },
+    Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x24ffffff\n", replacement: "    const v0, 0x24ffffff\n\n    invoke-static {v0}, Lspatch/Palette;->tinted(I)I\n\n    move-result v0\n" },
+    Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x36ffffff\n", replacement: "    const v0, 0x36ffffff\n\n    invoke-static {v0}, Lspatch/Palette;->tinted(I)I\n\n    move-result v0\n" },
     Edit { file: "S_EncoreTheme", anchor: ".field public static final a:Lp/S_EncoreColorScheme;\n", replacement: ".field public static a:Lp/S_EncoreColorScheme;\n" },
     Edit { file: "S_EncoreTheme", anchor: ".method static constructor <clinit>()V\n    .locals 6\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/S_EncoreTheme;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 6\n" },
     Edit { file: "S_EncoreTint", anchor: ".method public static final g(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final g(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
