@@ -58,8 +58,9 @@ public final class MainActivity extends Activity {
     private static final String PROFILE = "patch_profile", CLONES_SET = "clones_packages";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
     private static final String[] PAGES = {"Spatch", "Clones", "Diagnostics", "Changes"};
-    private static final String[] PAGE_ICONS = {"music_note", "content_copy", "tune", "system_update"};
+    private static final String[] PAGE_ICONS = {"music_note", "content_copy", "stethoscope", "system_update"};
     private static final String[] HEADINGS = {"Spatch", "Clones", "Diagnostics", "Changes"};
+    private static final String[] LINES = {"Patched here, signed with this phone's key", "Second Spotifys with their own names", "What the phone and Spatch report", "What's new in each release"};
 
     enum PresetProfile {
         STANDARD("Standard (Full)", "Dynamic UI, living controls, lyrics, spectrum visualizers, gestures, ad-free experience.", false, false),
@@ -91,7 +92,8 @@ public final class MainActivity extends Activity {
     private LinearLayout statusCard, changesBox, clonesListBox;
     private Look.StepTracker stepTracker;
 
-    private TextView spotifyStatus, apkmStatus, patchStatus, whatsNew, keyStatus, managerStatus, status, heading, cloneStatus;
+    private TextView spotifyStatus, apkmStatus, patchStatus, whatsNew, keyStatus, managerStatus, status, cloneStatus;
+    private Hero heading;
     private TextView profileBadge, profileDesc, diagnosticsText, exitsText;
     private Button displayMode, choose, seeChanges, patch, uninstall, managerUpdate, check, refreshChanges, exportKey, importKey, invite;
     private Button chooseProfile, cloneInstall, cloneIconPick, cloneIconReset;
@@ -224,9 +226,8 @@ public final class MainActivity extends Activity {
         LinearLayout page = look.column();
         page.setPadding(look.dp(16), look.dp(56), look.dp(16), look.dp(32));
 
-        heading = look.text("Spatch", 36, look.onSurface, false);
-        heading.setPadding(look.dp(8), 0, look.dp(8), look.dp(4));
-        page.addView(heading);
+        heading = new Hero(this, look);
+        page.addView(heading, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, look.dp(132)));
 
         statusCard = look.column();
         statusCard.setPadding(look.dp(20), look.dp(16), look.dp(20), look.dp(16));
@@ -249,9 +250,6 @@ public final class MainActivity extends Activity {
         }
 
         // --- Page 0: Spatch ---
-        TextView subtitle = look.text("Patches Spotify on this phone and signs it with this phone's own key.", 15, look.onSurfaceVariant, false);
-        subtitle.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
-        pages[0].addView(subtitle);
 
         LinearLayout manager = look.card(pages[0], "Spatch Manager");
         managerStatus = look.text("", 14, look.onSurfaceVariant, false);
@@ -364,7 +362,7 @@ public final class MainActivity extends Activity {
             page.setTranslationY(look.dp(24));
             page.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         }
-        heading.setText(HEADINGS[index]);
+        heading.set(HEADINGS[index], LINES[index]);
         look.select(nav, index);
         scroll.scrollTo(0, 0);
         prefs.edit().putInt(PAGE, index).apply();

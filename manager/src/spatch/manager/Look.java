@@ -219,6 +219,7 @@ final class Look {
             android.widget.ImageView icon = new android.widget.ImageView(context);
             icon.setImageDrawable(context.getDrawable(context.getResources().getIdentifier("ic_" + icons[i], "drawable", context.getPackageName())).mutate());
             icon.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            icon.setTag(icons[i]);
             icon.setPadding(dp(20), dp(4), dp(20), dp(4)); // a 24dp icon in the 64x32 pill
             item.addView(icon, new LinearLayout.LayoutParams(dp(64), dp(32)));
             TextView label = text(labels[i], 12, onSurfaceVariant, true);
@@ -244,6 +245,9 @@ final class Look {
             android.widget.ImageView icon = (android.widget.ImageView) item.getChildAt(0);
             TextView label = (TextView) item.getChildAt(1);
             boolean on = i == index;
+            String name = (String) icon.getTag();
+            int filled = name == null ? 0 : context.getResources().getIdentifier("ic_" + name + (on ? "_fill" : ""), "drawable", context.getPackageName());
+            if (filled != 0) icon.setImageDrawable(context.getDrawable(filled).mutate()); // filled when chosen, outlined otherwise
             icon.getDrawable().setTint(on ? onSecondaryContainer : onSurfaceVariant);
             label.setTextColor(on ? onSurface : onSurfaceVariant);
             if (on && !item.isSelected() && motion(context)) {
