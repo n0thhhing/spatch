@@ -93,7 +93,10 @@ final class SettingsHero extends View {
         c.drawText("Spatch", 22 * dp, 56 * dp, paint);
 
         // Expressive Material 3 version pill badge
-        float badgeX = 22 * dp, badgeY = 68 * dp, badgeW = 142 * dp, badgeH = 22 * dp, badgeR = 11 * dp;
+        String badge = "v@VERSION@ • Material You"; // the patcher's version, stamped in at build time
+        paint.setTypeface(Fonts.settings(700));
+        paint.setTextSize(11 * dp);
+        float badgeX = 22 * dp, badgeY = 68 * dp, badgeW = paint.measureText(badge) + 24 * dp, badgeH = 22 * dp, badgeR = 11 * dp;
         paint.setColor(ink);
         paint.setAlpha(36);
         c.drawRoundRect(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, badgeR, badgeR, paint);
@@ -106,7 +109,7 @@ final class SettingsHero extends View {
         paint.setAlpha(210);
         paint.setTypeface(Fonts.settings(700));
         paint.setTextSize(11 * dp);
-        c.drawText("v2.0 • Material You", badgeX + 12 * dp, badgeY + 15 * dp, paint);
+        c.drawText(badge, badgeX + 12 * dp, badgeY + 15 * dp, paint);
         c.restoreToCount(saved);
         if (motion && !offscreen) postInvalidateOnAnimation();
     }

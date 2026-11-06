@@ -507,6 +507,7 @@ fn compile_helper(
     for ((_, src), p) in helpers.iter().zip(&helper_paths) {
         let source = helper_source(src, theme)
             .replace("@THEME@", theme.name)
+            .replace("@VERSION@", env!("CARGO_PKG_VERSION"))
             .replace("@OBFUSCATED@", &obfuscated_classes())
             .replace("@HOOKS@", &hooks())
             .replace("@MEMBERS@", &stub_members());
