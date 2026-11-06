@@ -140,7 +140,7 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
 
     private String statusText() {
         StringBuilder out = new StringBuilder();
-        out.append("Spotify 9.1.98.521, debug build\n");
+        out.append("Spotify ").append(Palette.spotifyVersion(context)).append(", debug build\n");
         out.append("Theme ").append(Palette.activeName());
         if (!Palette.activeName().equals(Palette.requested())) out.append(", ").append(Palette.requested()).append(" after restart");
         out.append('\n');

@@ -8,6 +8,12 @@ hasn't been started. Findings from attempts are included so nobody repeats them.
 
 **Cards on Spotify's settings rows and the queue.** Search, albums and artist pages are `RecyclerView`s, so `RowCards` gives their rows cards. Spotify's settings is one full-screen `ComposeView`, and `kro1.d` doesn't reach it. The first needs the real row function. The queue now joins from its layout manager, not yet seen on a phone.
 
+**Spotify's own Settings screen (2026-11-06).** The main list is one `ComposeView` with no test tags. `ocl.create()`
+builds each page (`xr61`) and its rows (`jgb1`, icon spec `xt61` with an Encore icon such as `bkx.c`), but the row
+drawing hasn't been found: `ga51.e(hux, ryn1, xt61, Modifier, Composer, I)` takes the icon spec and a Modifier, yet
+hooking it changed nothing on the main list or the Playback page. The main-thread sampler doesn't catch rows while
+scrolling (lazy rows don't recompose); sample while the page first opens instead.
+
 **Spotify's white pills (Refresh, Log out, round play buttons on Home).** Turning white into the accent
 in `Surfaces.bg`, including near-white, changed nothing, so these don't paint through `yw9`. The next
 step is finding Encore's contained button.

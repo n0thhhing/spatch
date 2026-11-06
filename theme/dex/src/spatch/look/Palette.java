@@ -109,6 +109,10 @@ public final class Palette {
         return new String(bytes,java.nio.charset.StandardCharsets.UTF_8).replace("["+from,"["+to).getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
     private static String channels(int rgb){return String.format(java.util.Locale.ROOT,"%.6f,%.6f,%.6f",((rgb>>16)&255)/255.0,((rgb>>8)&255)/255.0,(rgb&255)/255.0);}
+    /** The installed Spotify's version name, for labels. */
+    static String spotifyVersion(Context c){
+        try{return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception e){return "?";}
+    }
     static String activeName(){return NAMES[active];}
     static String requested(){return preferences==null?NAMES[active]:NAMES[index(preferences.getString("theme",NAMES[active]))];}
     static boolean choose(String name){
