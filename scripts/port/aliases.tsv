@@ -211,3 +211,5 @@ OrientationHost		smali_classes2/rqq0
 LyricPositionMapper		smali_classes9/btf0
 PlayerClock		smali_classes2/yqg
 PlayerOptional		smali/spq0
+LottieCache	-	smali/gcf0
+LottieLru	-	smali/ydf0

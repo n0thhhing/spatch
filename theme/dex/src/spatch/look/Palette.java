@@ -127,6 +127,7 @@ public final class Palette {
         swapped=true;
         p.S_EncoreColorTokens.rebuild();
         p.S_EncoreTheme.rebuild();
+        p.S_LottieCache.b.a.f(-1); // Lottie keeps animations by resource id: drop them, or the old theme's colours come back
         reopen=true;
         RowCards.watch(shown.getApplication()); // too early at startup: there's no application to ask yet
         if(!OPEN.contains(shown))OPEN.add(shown);

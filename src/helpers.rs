@@ -499,6 +499,14 @@ pub const STUBS: &[(&str, &str)] = &[
         include_str!("../theme/dex/stubs/p/S_DrawerLinkStyle.java"),
     ),
     (
+        "S_LottieCache.java",
+        include_str!("../theme/dex/stubs/p/S_LottieCache.java"),
+    ),
+    (
+        "S_LottieLru.java",
+        include_str!("../theme/dex/stubs/p/S_LottieLru.java"),
+    ),
+    (
         "S_ComposePaddingSides.java",
         include_str!("../theme/dex/stubs/p/S_ComposePaddingSides.java"),
     ),
