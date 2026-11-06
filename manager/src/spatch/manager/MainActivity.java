@@ -287,7 +287,7 @@ public final class MainActivity extends Activity {
         chooseProfile = look.button("Patch preset: Standard", "tune", Look.Kind.TONAL, v -> pickProfile());
         profileCard.addView(chooseProfile, look.spaced(10));
 
-        developer = new Switch(this);
+        developer = new M3Switch(this, look);
         developer.setChecked(prefs.getBoolean(DEBUG, false));
         developer.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(DEBUG, on).apply();
@@ -295,7 +295,7 @@ public final class MainActivity extends Activity {
         });
         profileCard.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer));
 
-        nightly = new Switch(this);
+        nightly = new M3Switch(this, look);
         nightly.setChecked(prefs.getBoolean(NIGHTLY, false));
         nightly.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(NIGHTLY, on).apply();
@@ -303,7 +303,7 @@ public final class MainActivity extends Activity {
         });
         profileCard.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
 
-        notify = new Switch(this);
+        notify = new M3Switch(this, look);
         notify.setChecked(prefs.getBoolean(NOTIFY, true));
         notify.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(NOTIFY, on).apply();
@@ -312,7 +312,7 @@ public final class MainActivity extends Activity {
         });
         profileCard.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
 
-        Switch playful = new Switch(this);
+        Switch playful = new M3Switch(this, look);
         playful.setChecked(prefs.getBoolean(Look.MOTION, true));
         playful.setOnCheckedChangeListener((v, on) -> prefs.edit().putBoolean(Look.MOTION, on).apply());
         profileCard.addView(look.switchRow("Playful motion", "Jelly navigation, springy pages and pops; Android's animation setting still applies", playful));
