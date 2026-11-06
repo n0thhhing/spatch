@@ -143,7 +143,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Frosted glass pill",
         "Jelly switches",
         "Jelly scrolling",
-        "Shaped icon tiles"
+        "Shaped icon tiles",
+        "Styled Spotify settings"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -259,7 +260,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Translucent acrylic surface with a luminous specular rim",
         "Switch thumbs stretch as they slide and snap round when they land",
         "Rows here trail the scroll a little and spring back together",
-        "Icons here sit in cookies, clovers and flowers that round out when pressed"
+        "Icons here sit in cookies, clovers and flowers that round out when pressed",
+        "Spotify's own Settings rows on cards, their icons in tonal circles"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -269,7 +271,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen", "soundwave", "album", "soundwave", "enhance", "cat_animation", "cat_swipe", "cat_palette"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen", "soundwave", "album", "soundwave", "enhance", "cat_animation", "cat_swipe", "cat_palette", "cat_dashboard"
     };
 
     /** Section layout: Settings indices per group. */
@@ -736,6 +738,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addSectionHeader("Cards & lists");
         LinearLayout cardRows = addGroup();
         cardRows.addView(featureRows[Settings.LIST_CARDS]);
+        cardRows.addView(featureRows[Settings.SPOTIFY_SETTINGS]);
         cardRows.addView(featureRows[Settings.CARD_GLINT]);
         cardRows.addView(featureRows[Settings.SOFT_HEADERS]);
         cardRows.addView(featureRows[Settings.LIST_RISE]);

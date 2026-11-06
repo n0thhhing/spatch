@@ -141,6 +141,19 @@ public final class Surfaces {
         return S_ComposeBackground.f(clipped, (long) Palette.color(color) << 32, shape);
     }
 
+    /** Spotify's Settings page links sit on cards like Spatch's own rows. */
+    public static S_ComposeModifier settingsRow(S_ComposeModifier row) {
+        if (!Settings.get(Settings.SPOTIFY_SETTINGS)) return row;
+        return card(row, 12f, 3f, 0xff2b2640, 22f);
+    }
+
+    /** Their icons sit in a tonal circle, as Spatch's settings icons do. */
+    public static S_ComposeModifier settingsIcon(S_ComposeModifier icon) {
+        if (!Settings.get(Settings.SPOTIFY_SETTINGS)) return icon;
+        int tile = Pill.blend(Palette.color(0xff2b2640), Palette.color(0xffd0bcff), 0.16f);
+        return S_ComposePadding.y(S_ComposeBackground.f(icon, (long) tile << 32, S_ComposeShapes.a), 8f, 8f);
+    }
+
     /** Toggle chips are full pills across the entire row, matching Home filters. */
     public static S_ComposeShape chipShape(S_ComposeShape shape, boolean selected) {
         return Settings.libraryChips() ? S_ComposeShapes.a : shape;

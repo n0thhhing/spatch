@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 104] = [
+pub const EDITS: [Edit; 106] = [
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
     Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
@@ -118,6 +118,18 @@ pub const EDITS: [Edit; 104] = [
         file: "S_BarProtection",
         anchor: "    const/high16 v1, -0x1000000\n",
         replacement: "    const/high16 v1, -0x1000000\n\n    const v1, 0xff14121c\n\n    invoke-static {v1}, Lspatch/Palette;->color(I)I\n\n    move-result v1\n",
+    },
+    // Spotify's Settings page links (Account, Playback...): each row on a card, its icon in a tonal
+    // circle. The icon slot passes no Modifier, so it gets one and its default bit (0x4) is cleared.
+    Edit {
+        file: "S_SettingsLinkRow",
+        anchor: "    move-object v9, v7\n\n    .line 231\n    invoke-static/range {v8 .. v27}, Lp/jto1;->b(",
+        replacement: "    move-object v9, v7\n\n    invoke-static {v8}, Lspatch/Surfaces;->settingsRow(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    move-result-object v8\n\n    .line 231\n    invoke-static/range {v8 .. v27}, Lp/jto1;->b(",
+    },
+    Edit {
+        file: "S_SettingsLinkSlots",
+        anchor: "    const/4 v10, 0x0\n\n    .line 79\n    invoke-static/range {v3 .. v13}, Lp/w0h1;->a(",
+        replacement: "    const/4 v10, 0x0\n\n    sget-object v5, Lp/S_ComposeModifierEmpty;->a:Lp/S_ComposeModifierEmpty;\n\n    invoke-static {v5}, Lspatch/Surfaces;->settingsIcon(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    move-result-object v5\n\n    const/16 v13, 0x38\n\n    .line 79\n    invoke-static/range {v3 .. v13}, Lp/w0h1;->a(",
     },
     // Encore's tinted surfaces (Home shortcut tiles and the like) are white at 10/14/21% over the
     // page; Palette.tinted lifts them towards the theme's text (or its accent, as chosen).
