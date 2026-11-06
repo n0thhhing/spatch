@@ -35,7 +35,8 @@ def display_kitty(png: bytes, rows: int) -> None:
 
 
 def default_path(ext: str) -> str:
-    stamp = datetime.datetime.now(datetime.UTC).astimezone().strftime('%Y%m%d-%H%M%S')
+    utc = getattr(datetime, 'UTC', datetime.timezone.utc)
+    stamp = datetime.datetime.now(utc).astimezone().strftime('%Y%m%d-%H%M%S')
     return os.path.join(ROOT, 'dist', 'captures', f'capture-{stamp}.{ext}')
 
 
@@ -44,14 +45,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     ap.add_argument('path', nargs='?', help='output file path (same as --out)')
     ap.add_argument('-o', '--out', help='output file path (default: dist/captures/capture-<timestamp>.png)')
+    ap.add_argument('-s', '--serial', default=os.environ.get('ANDROID_SERIAL'), help='adb device serial (or $ANDROID_SERIAL)')
     ap.add_argument('-d', '--display', action='store_true', help='display inline via Kitty graphics protocol')
     ap.add_argument('--rows', type=int, default=default_rows, help='terminal rows for --display (0 = 1:1 pixels)')
     ap.add_argument('--record', type=int, metavar='SEC', help='record video for SEC seconds instead of a screenshot')
     args = ap.parse_args()
 
+    adb = ['adb'] + (['-s', args.serial] if args.serial else [])
     out = args.out or args.path or default_path('mp4' if args.record else 'png')
 
-    state = subprocess.run(['adb', 'get-state'], capture_output=True, text=True, check=False)
+    state = subprocess.run([*adb, 'get-state'], capture_output=True, text=True, check=False)
     if state.returncode != 0:
         sys.exit(f"adb: {state.stderr.strip() or 'no device connected'}")
 
@@ -60,18 +63,28 @@ def main() -> int:
     if args.record:
         remote = '/sdcard/spatch-capture.mp4'
         try:
-            subprocess.run(['adb', 'shell', 'screenrecord', '--time-limit', str(args.record), remote], check=True)
-            subprocess.run(['adb', 'pull', '-q', remote, out], check=True)
+            subprocess.run([*adb, 'shell', 'screenrecord', '--time-limit', str(args.record), remote], check=True)
+            subprocess.run([*adb, 'pull', '-q', remote, out], check=True)
         finally:
-            subprocess.run(['adb', 'shell', 'rm', '-f', remote], capture_output=True, check=False)
+            subprocess.run([*adb, 'shell', 'rm', '-f', remote], capture_output=True, check=False)
         print(os.path.relpath(out, ROOT) if out.startswith(ROOT) else out)
         return 0
 
-    res = subprocess.run(['adb', 'exec-out', 'screencap', '-p'], capture_output=True, check=False)
-    if res.returncode != 0 or not res.stdout.startswith(PNG_MAGIC):
-        sys.exit(f"screencap failed: {res.stderr.decode('utf-8', 'replace').strip() or 'invalid PNG output'}")
+    res = subprocess.run([*adb, 'exec-out', 'screencap', '-p'], capture_output=True, check=False)
+    if res.returncode == 0 and res.stdout.startswith(PNG_MAGIC):
+        png = res.stdout
+    else:
+        remote = '/sdcard/spatch-capture.png'
+        try:
+            subprocess.run([*adb, 'shell', 'screencap', '-p', remote], check=True, capture_output=True)
+            subprocess.run([*adb, 'pull', '-q', remote, out], check=True, capture_output=True)
+            png = Path(out).read_bytes()
+        except Exception as e:
+            err = res.stderr.decode('utf-8', 'replace').strip() if res.stderr else str(e)
+            sys.exit(f"screencap failed: {err or 'invalid PNG output'}")
+        finally:
+            subprocess.run([*adb, 'shell', 'rm', '-f', remote], capture_output=True, check=False)
 
-    png = res.stdout
     Path(out).write_bytes(png)
     w, h = struct.unpack('>II', png[16:24])
     if args.display:
