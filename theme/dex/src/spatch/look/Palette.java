@@ -124,6 +124,9 @@ public final class Palette {
     static String failure;
     static boolean apply(Context host,String name){
         android.app.Activity shown=activity(host);
+        // Reopened after a switch, the settings page hangs off the window's decor view, whose context isn't the
+        // Activity: the newest open screen stands in, or every second switch would ask for a restart.
+        if(shown==null && !OPEN.isEmpty())shown=OPEN.get(OPEN.size()-1);
         int next=index(name);
         boolean previousLight=light;
         light=wantsLight(host);
