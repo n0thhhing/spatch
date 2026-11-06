@@ -1540,7 +1540,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         if (themeName.equals(current) || reveal != null || switching || index==Palette.CUSTOM && !Palette.hasCustom()) return;
 
         if (!Palette.choose(themeName)) return; // not saved: leave the selection as it was
-        refreshThemes(themeName, true);
+        refreshThemes(themeName, false); // at once: the copy taken next must already show the new choice
         // The new theme opens from the swatch over a copy of this screen, once every page has rebuilt behind it.
         View swatch = themeRows[index];
         int[] at = new int[2];
@@ -1548,10 +1548,20 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         View top = stack.get(stack.size() - 1);
         ThemeSwitch.scroll = top instanceof ScrollView ? ((ScrollView) top).getScrollY() : -1;
         switching = true;
-        ThemeSwitch.capture(Palette.screen(getContext()), at[0] + swatch.getWidth() / 2f, at[1] + swatch.getHeight() / 2f, new Runnable() {
+        final float x = at[0] + swatch.getWidth() / 2f, y = at[1] + swatch.getHeight() / 2f;
+        final Runnable apply = new Runnable() {
             public void run() {
                 switching = false;
                 if (isAttachedToWindow()) applyTheme(themeName);
+            }
+        };
+        postOnAnimation(new Runnable() { // two frames on, the new selection has been drawn and can be copied
+            public void run() {
+                postOnAnimation(new Runnable() {
+                    public void run() {
+                        ThemeSwitch.capture(Palette.screen(getContext()), x, y, apply);
+                    }
+                });
             }
         });
     }
