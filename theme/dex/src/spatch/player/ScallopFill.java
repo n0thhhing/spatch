@@ -19,7 +19,7 @@ public final class ScallopFill extends Drawable {
     private ColorStateList tint;
 
     public ScallopFill() {
-        paint.setColor(0xffd0bcff); // theme accent token until a tint arrives
+        paint.setColor(Palette.color(0xffd0bcff)); // theme accent token until a tint arrives
     }
 
     @Override

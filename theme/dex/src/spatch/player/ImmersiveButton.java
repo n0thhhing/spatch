@@ -70,17 +70,17 @@ final class ImmersiveButton {
         if (alternate != null) {
             paint.setColor(0xffffff);paint.setAlpha(Math.round(28*hover*alpha));
             c.drawCircle(0,0,radius*1.18f,paint);
-            paint.setColor(0xffd0bcff); paint.setAlpha(Math.round(255*alpha));
+            paint.setColor(Palette.color(0xffd0bcff)); paint.setAlpha(Math.round(255*alpha));
             Scallop.draw(c,radius,paint,playing ? 9 : 5,surface);
             if (!playKnown || !motion) { playMix=playing?1:0;playKnown=true; }
             else playMix += ((playing?1:0)-playMix)*(1-(float)Math.exp(-dt/85f));
-            drawIcon(c,icon,radius*.9f,Math.round(255*alpha*(1-playMix)),0xff14121c);
-            drawIcon(c,alternate,radius*.9f,Math.round(255*alpha*playMix),0xff14121c);
+            drawIcon(c,icon,radius*.9f,Math.round(255*alpha*(1-playMix)),Palette.color(0xff14121c));
+            drawIcon(c,alternate,radius*.9f,Math.round(255*alpha*playMix),Palette.color(0xff14121c));
         } else {
             surface.setBounds(Math.round(-radius),Math.round(-radius),Math.round(radius),Math.round(radius));
             surface.draw(c);
-            drawIcon(c,icon,radius,Math.round(255*alpha),selected?0xffd0bcff:0xfff3eeff);
-            if (selected && enabled) {paint.setColor(0xffd0bcff);c.drawCircle(0,radius*.8f,radius*.06f,paint);}
+            drawIcon(c,icon,radius,Math.round(255*alpha),selected?Palette.color(0xffd0bcff):Palette.color(0xfff3eeff));
+            if (selected && enabled) {paint.setColor(Palette.color(0xffd0bcff));c.drawCircle(0,radius*.8f,radius*.06f,paint);}
         }
         c.restoreToCount(save);
     }

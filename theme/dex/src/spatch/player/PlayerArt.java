@@ -172,8 +172,8 @@ public final class PlayerArt extends ImageView {
                 // Spotify white; give it the theme accent. Exact class, so SeekBars are left alone.
                 headerProgress=findProgress((ViewGroup)root);
                 if(headerProgress!=null) {
-                    headerProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(0xffd0bcff));
-                    headerProgress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x4dd0bcff));
+                    headerProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(Palette.color(0xffd0bcff)));
+                    headerProgress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Palette.color(0x4dd0bcff)));
                 }
             }
         }

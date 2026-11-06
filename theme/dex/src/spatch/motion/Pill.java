@@ -21,7 +21,7 @@ import p.S_ComposeSnapshot;
  * S_NavBarTabState instances are rebuilt on every recomposition and can't hold it.
  */
 public final class Pill implements ValueAnimator.AnimatorUpdateListener {
-    private static int container() { return 0x40d0bcff; } // theme accent token at 25% alpha
+    private static int container() { return Palette.color(0x40d0bcff); } // theme accent token at 25% alpha
     private static final float TOP = 10f, BOTTOM = 15f; // with k1u.d's 4dp and the indicator, a 64dp bar
     private static final long MILLIS = 320;
     private static final float POP = 0.1f; // the selected icon sits this much larger
