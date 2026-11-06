@@ -418,7 +418,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             describe(featureRows[i], FEATURE_TITLES[i], Settings.get(i) ? "On" : "Off");
         }
 
-        View appearance = appearancePage = (LinearLayout) category(categories, "enhance", "Appearance", "Palettes, light/dark, imports and fonts", "Appearance");
+        View appearance = appearancePage = (LinearLayout) category(categories, "cat_palette", "Appearance", "Palettes, light/dark, imports and fonts", "Appearance");
         palettePage=subPage("Themes & display");
         addSectionHeader("Display mode");
         LinearLayout modeRows=addGroup();
@@ -471,12 +471,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         new Typography(this, content);
         content=(LinearLayout)appearance;
         LinearLayout appearanceLinks=addGroup();
-        link(appearanceLinks,"t_shirt","Themes & display","Palettes, imports and light / dark / system",palettePage);
-        link(appearanceLinks,"track","Fonts","Typefaces, weights and font import",fontsPage);
+        link(appearanceLinks,"cat_palette","Themes & display","Palettes, imports and light / dark / system",palettePage);
+        link(appearanceLinks,"cat_text_fields","Fonts","Typefaces, weights and font import",fontsPage);
         finish(appearanceLinks);
         finishCategory(appearance);
 
-        View playerPage = category(categories, "now_playing", "Player", "Artwork, lyrics, gestures and immersive", "Player");
+        View playerPage = category(categories, "cat_play_circle", "Player", "Artwork, lyrics, gestures and immersive", "Player");
         addPlayerPreview((LinearLayout) playerPage);
         LinearLayout artworkPage = subPage("Artwork");
         addPlayerPreview(artworkPage);
@@ -603,7 +603,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         finish(player);
         addSectionHeader("Gestures");
         LinearLayout gestureRows = addGroup();
-        link(gestureRows, "arrow_left", "Gestures & touch", "Swipe to skip, tilt, scratch and hold to seek", gesturesPage);
+        link(gestureRows, "cat_swipe", "Gestures & touch", "Swipe to skip, tilt, scratch and hold to seek", gesturesPage);
         finish(gestureRows);
         addSectionHeader("Lyrics");
         LinearLayout lyrics = addGroup();
@@ -613,12 +613,12 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addSectionHeader("Other surfaces");
         LinearLayout others = addGroup();
         others.addView(master(4, immersivePage));
-        link(others, "device_mobile", "Mini player", "New song pop and artwork flight", miniPage);
+        link(others, "cat_picture_in_picture", "Mini player", "New song pop and artwork flight", miniPage);
         finish(others);
         resetFor(new int[] {5, Settings.BEAT_BOUNCE, Settings.SEEK_BUBBLE, Settings.HIDE_PLAYER_LYRICS, Settings.LYRICS_FOCUS}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
         finishCategory(playerPage);
 
-        View visualizers = category(categories, "soundwave", "Visualizers", "Spectrum styles and where they show", "Visualizers");
+        View visualizers = category(categories, "cat_graphic_eq", "Visualizers", "Spectrum styles and where they show", "Visualizers");
         LinearLayout barsPage = subPage("Full-screen visualizer");
         LinearLayout visualizer = addGroup();
         preview = new SpectrumPreview(context);
@@ -638,7 +638,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         resetFor(new int[] {MINI_VISUALIZER}, new int[] {Settings.ART_SPECTRUM});
         finishCategory(visualizers);
 
-        View screens = category(categories, "home", "Screens", "Bars, panels, lists, profile and widget", "Screens");
+        View screens = category(categories, "cat_dashboard", "Screens", "Bars, panels, lists, profile and widget", "Screens");
         LinearLayout navPage = subPage("Navigation bar");
         LinearLayout navRows = addGroup();
         for (int i : NAV_PARTS) navRows.addView(featureRows[i]);
@@ -721,7 +721,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         addSectionHeader("Library & playlists");
         LinearLayout libraryRowsGroup = addGroup();
         libraryRowsGroup.addView(master(39, libraryPage));
-        link(libraryRowsGroup, "playlist", "Playlists", "Track cards and the play button", playlistPage);
+        link(libraryRowsGroup, "cat_queue_music", "Playlists", "Track cards and the play button", playlistPage);
         finish(libraryRowsGroup);
         addSectionHeader("Cards & lists");
         LinearLayout cardRows = addGroup();
@@ -744,7 +744,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         resetFor(new int[] {Settings.LIST_CARDS, Settings.CARD_GLINT, Settings.SOFT_HEADERS, Settings.LIST_RISE, Settings.ROW_EQUALIZER, Settings.TITLE_ALBUM, Settings.QUEUE_SHIMMER, Settings.WIDGET_WALLPAPER}, new int[0]);
         finishCategory(screens);
 
-        View navigation = category(categories, "notifications_active", "Motion & haptics", "Transitions, springs and feedback", "Motion & haptics");
+        View navigation = category(categories, "cat_animation", "Motion & haptics", "Transitions, springs and feedback", "Motion & haptics");
         addSectionHeader("Motion");
         LinearLayout motion = addGroup();
         motion.addView(featureRows[6]);
@@ -771,7 +771,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         resetFor(concat(concat(MOTION, HAPTICS), new int[] {Settings.TAP_RIPPLE, Settings.HERO_TOUCH, Settings.BOUNCY_PRESS, Settings.HIDE_BARS}), new int[] {Settings.BOUNCE, Settings.RIPPLE_COLOR});
         finishCategory(navigation);
 
-        View contentPage = category(categories, "hidden", "Content", "Hidden sections, media, navigation and profile", "Content");
+        View contentPage = category(categories, "cat_visibility_off", "Content", "Hidden sections, media, navigation and profile", "Content");
         LinearLayout sectionsPage = subPage("Home sections");
         homeList = addGroup();
         for (String[] section : Settings.sections()) {
@@ -989,7 +989,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         renderPresets(savedPage);
         LinearLayout saved = new LinearLayout(getContext());
         saved.setOrientation(LinearLayout.VERTICAL);
-        link(saved, "playlist", "Your presets", "Save and restore your own settings", savedPage);
+        link(saved, "cat_bookmarks", "Your presets", "Save and restore your own settings", savedPage);
         finish(saved); // a card like every other row
         LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         gap.bottomMargin = dp(14);

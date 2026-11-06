@@ -231,7 +231,7 @@ macro_rules! new_file {
     };
 }
 
-pub const NEW_RESOURCES: [(arsc::NewFile, &str); 76] = [
+pub const NEW_RESOURCES: [(arsc::NewFile, &str); 87] = [
     new_file!("drawable", "spatch_widget_bg"),
     new_file!("drawable", "spatch_widget_art"),
     new_file!("drawable", "spatch_widget_scallop"),
@@ -305,6 +305,17 @@ pub const NEW_RESOURCES: [(arsc::NewFile, &str); 76] = [
     new_file!("drawable", "spatch_ms_close"),
     new_file!("drawable", "spatch_ms_skip_previous"),
     new_file!("drawable", "spatch_ms_volume"),
+    new_file!("drawable", "spatch_ms_cat_palette"),
+    new_file!("drawable", "spatch_ms_cat_play_circle"),
+    new_file!("drawable", "spatch_ms_cat_graphic_eq"),
+    new_file!("drawable", "spatch_ms_cat_dashboard"),
+    new_file!("drawable", "spatch_ms_cat_animation"),
+    new_file!("drawable", "spatch_ms_cat_visibility_off"),
+    new_file!("drawable", "spatch_ms_cat_bookmarks"),
+    new_file!("drawable", "spatch_ms_cat_text_fields"),
+    new_file!("drawable", "spatch_ms_cat_swipe"),
+    new_file!("drawable", "spatch_ms_cat_picture_in_picture"),
+    new_file!("drawable", "spatch_ms_cat_queue_music"),
     new_file!("drawable", "spatch_ms_queue"),
     new_file!("drawable", "spatch_ms_lyrics"),
     new_file!("drawable", "spatch_ms_share"),
