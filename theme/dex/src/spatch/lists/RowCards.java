@@ -135,10 +135,20 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
     static void scan(View view) {
         if (view.getVisibility() != View.VISIBLE || !(view instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) view;
-        if (view.getClass().getName().endsWith("RecyclerView") && !JOINED.containsKey(view)) {
+        if (view.getClass().getName().endsWith("RecyclerView") && !JOINED.containsKey(view) && !tiles(view)) {
             list(group, false);
         }
         for (int i = 0; i < group.getChildCount(); i++) scan(group.getChildAt(i));
+    }
+
+    /** Search's browse page is a grid of category tiles, already cards: a card behind a row of them shows between. */
+    private static boolean tiles(View list) {
+        if (list.getId() == View.NO_ID) return false;
+        try {
+            return "browse_recycler_view".equals(list.getResources().getResourceEntryName(list.getId()));
+        } catch (RuntimeException unnamed) {
+            return false;
+        }
     }
 
     private static final java.util.WeakHashMap<View, Boolean> JOINED = new java.util.WeakHashMap<View, Boolean>();
