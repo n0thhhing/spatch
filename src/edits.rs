@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 103] = [
+pub const EDITS: [Edit; 104] = [
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
     Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
@@ -112,6 +112,13 @@ pub const EDITS: [Edit; 103] = [
     // Encore's colours are built once from Palette: a live theme change builds them again.
     Edit { file: "S_EncoreColorTokens", anchor: ".field public static final a:Lp/S_EncoreColorsBuild;\n", replacement: ".field public static a:Lp/S_EncoreColorsBuild;\n" },
     Edit { file: "S_EncoreColorTokens", anchor: ".method static constructor <clinit>()V\n    .locals 62\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/S_EncoreColorTokens;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 62\n" },
+    // The status and navigation bar protection (androidx GradientProtection): the theme's page colour,
+    // not black, so it blends on every theme and suits light mode.
+    Edit {
+        file: "S_BarProtection",
+        anchor: "    const/high16 v1, -0x1000000\n",
+        replacement: "    const/high16 v1, -0x1000000\n\n    const v1, 0xff14121c\n\n    invoke-static {v1}, Lspatch/Palette;->color(I)I\n\n    move-result v1\n",
+    },
     // Encore's tinted surfaces (Home shortcut tiles and the like) are white at 10/14/21% over the
     // page; Palette.tinted lifts them towards the theme's text (or its accent, as chosen).
     Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x1affffff\n", replacement: "    const v0, 0x1affffff\n\n    invoke-static {v0}, Lspatch/Palette;->tinted(I)I\n\n    move-result v0\n" },
