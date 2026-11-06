@@ -300,8 +300,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
     private static final int VIZ_THIN = 10, VIZ_FLOATING = 11;
     private static final int STAGGERED = 8; // entrance animation covers what is on screen at first
 
-    final int surface = Palette.color(0xff14121c), card = Palette.color(0xff2b2640), high = Palette.color(0xff363050),
+    final int surface = Palette.color(0xff14121c), card = Palette.color(0xff2b2640),
         text = Palette.color(0xfff3eeff), subdued = Palette.color(0xffbcb3dc), accent = Palette.color(0xffd0bcff);
+    final int high = Pill.blend(card, accent, 0.07f); // a step above the cards, in the running theme's own hue
     private final java.util.ArrayList<TextView> pillViews = new java.util.ArrayList<TextView>();
     private final View[] choiceRows = new View[Settings.CHOICES.length];
     private final android.widget.SeekBar[] strengthSliders = new android.widget.SeekBar[Settings.STRENGTH_KEYS.length];
@@ -975,7 +976,9 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
                     pop(v);
                 }
             });
-            LinearLayout.LayoutParams each = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            pill.setPadding(dp(12), 0, dp(12), 0);
+            pill.setSingleLine(true);
+            LinearLayout.LayoutParams each = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48), 1f); // longer names get more room
             if (i > 0) each.leftMargin = dp(8);
             presets.addView(pill, each);
         }
@@ -984,7 +987,13 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         home.addView(presets, under);
         LinearLayout savedPage = subPage("Your presets");
         renderPresets(savedPage);
-        link(home, "playlist", "Your presets", "Save and restore your own settings", savedPage);
+        LinearLayout saved = new LinearLayout(getContext());
+        saved.setOrientation(LinearLayout.VERTICAL);
+        link(saved, "playlist", "Your presets", "Save and restore your own settings", savedPage);
+        finish(saved); // a card like every other row
+        LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        gap.bottomMargin = dp(14);
+        home.addView(saved, gap);
         inside(home);
     }
 
@@ -1577,7 +1586,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
 
         if (iconName != null) {
             ImageView tile = icon(iconName);
-            tile.setBackground(rounded(high, dp(20)));
+            tile.setBackground(rounded(Pill.blend(card, accent, 0.16f), dp(20))); // a tonal accent container
             LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(40), dp(40));
             iconLp.rightMargin = dp(14);
             row.addView(tile, iconLp);
