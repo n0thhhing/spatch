@@ -15,6 +15,10 @@ final class DevSampler implements Runnable {
     private static final long EVERY = 6, REPORT = 6000;
     private static volatile boolean on;
 
+    static boolean on() {
+        return on;
+    }
+
     static void set(boolean value) {
         if (value == on) return;
         on = value;

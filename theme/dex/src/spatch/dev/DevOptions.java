@@ -79,6 +79,7 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         framesSwitch = new M3Switch(context);
         frames = toggle(live, framesSwitch, "time", "Frame monitor", "Frame rate, slow frames, memory and audio, over the app");
         samplerSwitch = new M3Switch(context);
+        samplerSwitch.setChecked(DevSampler.on()); // it keeps running after the page closes
         sampler = toggle(live, samplerSwitch, "time", "Main thread sampler", "Logs where the main thread spends its time to logcat");
         inspectSwitch = new M3Switch(context);
         inspect = toggle(live, inspectSwitch, "search", "Touch inspector", "Shows the view under your finger. Compose content shows as one view.");

@@ -441,6 +441,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
             modeRows.addView(row);
         }
         finish(modeRows);
+        addSectionHeader("Surfaces");
         LinearLayout tintRows=addGroup();
         addChoice(tintRows,Settings.SURFACE_TINT,"Tinted cards","Home shortcuts and other raised tiles: a lift of the theme's text colour, or its accent",new String[]{"Neutral","Accent"});
         finish(tintRows);
