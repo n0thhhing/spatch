@@ -29,7 +29,7 @@ import java.util.Set;
 
 /**
  * Every Spotify Mix load (p.S_MixFontLoaderD.c, p.S_MixFontLoaderE.K, p.S_MixFontLoaderC.a) asks here first; null keeps Spotify's own font.
- * Compose and laid-out text cache faces for the process, so a selection takes effect at the next start
+ * Views that use Android's own sans are swept by cover(). Compose and laid-out text cache faces for the process, so a selection takes effect at the next start
  * (applied) while settings previews it at once (selected). Assets are stored uncompressed and mapped.
  */
 public final class Fonts {
@@ -165,6 +165,36 @@ public final class Fonts {
     static Typeface settings(int weight) {
         Typeface face = DEFAULT.equals(selected) ? null : face(selected, weight);
         return face != null ? face : weight >= 600 ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT;
+    }
+
+    private static Set<Typeface> stock;
+
+    /** Android's own sans faces, as XML families and plain TextViews get them (Spotify's @font faces go through the hooks). */
+    private static synchronized boolean stock(Typeface face) {
+        if (stock == null) {
+            stock = Collections.newSetFromMap(new IdentityHashMap<Typeface, Boolean>());
+            for (Typeface t : new Typeface[] {Typeface.DEFAULT, Typeface.DEFAULT_BOLD, Typeface.SANS_SERIF}) stock.add(t);
+            for (String family : new String[] {"sans-serif", "sans-serif-light", "sans-serif-medium", "sans-serif-black", "sans-serif-condensed"}) {
+                stock.add(Typeface.create(family, Typeface.NORMAL));
+                stock.add(Typeface.create(family, Typeface.BOLD));
+            }
+        }
+        return stock.contains(face);
+    }
+
+    /** Text Spotify styles with Android's sans instead of its own fonts takes the applied family too. */
+    static void cover(View view) {
+        if (DEFAULT.equals(applied) || Build.VERSION.SDK_INT < 29 || view.getVisibility() != View.VISIBLE) return;
+        if (view instanceof TextView) {
+            TextView text = (TextView) view;
+            Typeface now = text.getTypeface();
+            if (now == null || !stock(now)) return;
+            Typeface face = face(applied, Math.max(400, Math.min(800, now.getWeight())));
+            if (face != null) text.setTypeface(face);
+        } else if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) cover(group.getChildAt(i));
+        }
     }
 
     /** Restyles a view tree in place; views tagged PINNED show their own family. */

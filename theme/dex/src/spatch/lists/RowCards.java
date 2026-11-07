@@ -106,6 +106,7 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
             public void run() {
                 looking = false;
                 if (Settings.get(Settings.LIST_CARDS) || Settings.get(Settings.CARD_GLINT)) scan(decor);
+                Fonts.cover(decor);
             }
         };
         decor.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {

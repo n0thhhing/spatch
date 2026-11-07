@@ -49,6 +49,7 @@ final class ThemeSwatch extends View {
         c.drawRoundRect(inner, inner + 30 * dp, w - inner, inner + 42 * dp, 6 * dp, 6 * dp, paint);
         paint.setColor(text);
         paint.setTextSize(11.5f * dp);
+        paint.setTypeface(Fonts.settings(500));
         paint.setTextAlign(Paint.Align.CENTER);
         c.drawText(name, w / 2, h - pad - (secondLine==null?11:23) * dp, paint);
         if(secondLine!=null)c.drawText(secondLine,w/2,h-pad-9*dp,paint);

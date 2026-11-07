@@ -28,6 +28,7 @@ final class SpectrumPreview extends View {
             Settings.vizMirrored(), Settings.vizThin(), false, "subtle".equals(Settings.choice(Settings.VIZ_TAPER)), dp);
         paint.setColor(Palette.color(0xffbcb3dc));
         paint.setTextSize(11 * dp);
+        paint.setTypeface(Fonts.settings(500));
         c.drawText("Sample", 18 * dp, 12 * dp, paint);
     }
 }
