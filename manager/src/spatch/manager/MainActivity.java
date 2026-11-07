@@ -271,7 +271,9 @@ public final class MainActivity extends Activity {
         buildUrl = r.url;
         buildTitle.setText(r.title);
         long minutes = r.started == 0 ? -1 : Math.max(0, (System.currentTimeMillis() - r.started) / 60000);
-        buildMeta.setText(r.commit + "  •  " + (active ? r.step + (minutes >= 0 ? "  •  " + minutes + " min" : "") : "Build failed, tap for the log"));
+        long left = r.started == 0 || r.typical == 0 ? -1 : (r.started + r.typical - System.currentTimeMillis() + 59_999) / 60000;
+        String time = minutes < 0 ? "" : left > 0 ? "  •  about " + left + " min left" : "  •  " + minutes + " min";
+        buildMeta.setText(r.commit + "  •  " + (active ? r.step + time : "Build failed, tap for the log"));
         buildMeta.setTextColor(active ? look.primary : look.onSurfaceVariant);
         buildBar.setVisibility(active ? View.VISIBLE : View.GONE);
         buildBar.setIndeterminate(r.progress <= 0);

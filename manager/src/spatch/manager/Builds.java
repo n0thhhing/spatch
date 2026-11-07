@@ -18,6 +18,7 @@ final class Builds {
         final boolean active, failed;
         final float progress;
         final long started; // epoch millis, 0 when unknown
+        long typical; // how long the last successful build took, 0 when unknown
 
         Run(String title, String commit, String url, String step, boolean active, boolean failed, float progress, long started) {
             this.title = title;
@@ -30,6 +31,8 @@ final class Builds {
             this.started = started;
         }
     }
+
+    private static long typical = -1; // read once per process: one more request
 
     /** The newest run when it is building or failed, else null. Two requests while building, one otherwise. */
     static Run newest() throws IOException {
@@ -64,8 +67,20 @@ final class Builds {
                 progress = jobs.length() == 0 ? 0 : sum / jobs.length();
             }
             String sha = run.optString("head_sha", "");
-            return new Run(run.optString("display_title", "Nightly"), sha.length() >= 7 ? sha.substring(0, 7) : sha,
+            if (active && typical < 0) {
+                typical = 0;
+                // the longest of the last five: runs that changed nothing skip the bundles and finish in a minute
+                JSONArray ok = new JSONObject(Releases.get(RUNS.replace("per_page=1", "per_page=5") + "&status=success")).getJSONArray("workflow_runs");
+                for (int i = 0; i < ok.length(); i++) {
+                    JSONObject last = ok.getJSONObject(i);
+                    long from = time(last.optString("run_started_at", "")), to = time(last.optString("updated_at", ""));
+                    if (from > 0 && to > from) typical = Math.max(typical, to - from);
+                }
+            }
+            Run out = new Run(run.optString("display_title", "Nightly"), sha.length() >= 7 ? sha.substring(0, 7) : sha,
                 run.optString("html_url", Releases.PAGE), step, active, failed, progress, time(run.optString("run_started_at", "")));
+            out.typical = Math.max(0, typical);
+            return out;
         } catch (JSONException e) {
             throw new IOException("unexpected Actions reply", e);
         }
