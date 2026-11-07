@@ -91,6 +91,10 @@ pub const HELPERS: [(&str, &str); 64] = [
         include_str!("../theme/dex/src/spatch/motion/Haptics.java"),
     ),
     (
+        "TrackTitle",
+        include_str!("../theme/dex/src/spatch/player/TrackTitle.java"),
+    ),
+    (
         "MiniBar",
         include_str!("../theme/dex/src/spatch/mini/MiniBar.java"),
     ),
