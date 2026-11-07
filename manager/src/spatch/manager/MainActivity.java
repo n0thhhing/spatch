@@ -89,7 +89,11 @@ public final class MainActivity extends Activity {
     private volatile boolean replaceImport; // the chosen APKM was the wrong one and the user tapped Install again
     private volatile boolean inheriting, inheritFailed; // an update replacing base.apk alone; a failed one goes back to all five
     private Look look;
-    private LinearLayout statusCard, changesBox, clonesListBox;
+    private LinearLayout statusCard, changesBox, clonesListBox, buildBox;
+    private TextView buildTitle, buildMeta;
+    private ProgressBar buildBar;
+    private String buildUrl = Releases.PAGE;
+    private boolean buildWasActive, resumed;
     private Look.StepTracker stepTracker;
 
     private android.widget.ImageView spotifyIcon;
@@ -215,6 +219,53 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh(); // Spotify may have been installed or removed meanwhile
+        resumed = true;
+        main.post(pollBuild);
+    }
+
+    @Override
+    protected void onPause() {
+        resumed = false;
+        main.removeCallbacks(pollBuild);
+        super.onPause();
+    }
+
+    /** Reads the nightly's newest Actions run; while it builds, again every 30 s (GitHub allows 60 unsigned requests an hour). */
+    private final Runnable pollBuild = new Runnable() {
+        public void run() {
+            main.removeCallbacks(this);
+            new Thread(() -> {
+                Builds.Run run;
+                try {
+                    run = Builds.newest();
+                } catch (Exception offline) {
+                    run = null; // offline or rate limited: the card just hides
+                }
+                Builds.Run r = run;
+                main.post(() -> showBuild(r));
+            }).start();
+        }
+    };
+
+    private void showBuild(Builds.Run r) {
+        if (buildBox == null || isDestroyed()) return;
+        boolean active = r != null && r.active;
+        if (buildWasActive && !active) checkUpdates(); // finished: the new nightly is out, or the card says why not
+        buildWasActive = active;
+        buildBox.setVisibility(r == null ? View.GONE : View.VISIBLE);
+        if (r == null) return;
+        buildUrl = r.url;
+        buildTitle.setText(r.title);
+        long minutes = r.started == 0 ? -1 : Math.max(0, (System.currentTimeMillis() - r.started) / 60000);
+        buildMeta.setText(r.commit + "  •  " + (active ? r.step + (minutes >= 0 ? "  •  " + minutes + " min" : "") : "Build failed, tap for the log"));
+        buildMeta.setTextColor(active ? look.primary : look.onSurfaceVariant);
+        buildBar.setVisibility(active ? View.VISIBLE : View.GONE);
+        buildBar.setIndeterminate(r.progress <= 0);
+        if (r.progress > 0) {
+            buildBar.setMax(1000);
+            buildBar.setProgress(Math.round(r.progress * 1000));
+        }
+        if (active && resumed) main.postDelayed(pollBuild, 30_000);
     }
 
     @Override
@@ -813,9 +864,23 @@ public final class MainActivity extends Activity {
         TextView note = look.text("Recent commits in Nightly and release notes from published Spatch updates.", 15, look.onSurfaceVariant, false);
         note.setPadding(look.dp(8), look.dp(4), look.dp(8), 0);
         page.addView(note);
-        refreshChanges = look.button("Refresh", "refresh", Look.Kind.TONAL, v -> checkUpdates());
+        refreshChanges = look.button("Refresh", "refresh", Look.Kind.TONAL, v -> {
+            checkUpdates();
+            main.post(pollBuild);
+        });
         Button openGithub = look.button("GitHub releases", "open_in_new", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(Releases.PAGE))));
         page.addView(look.row(refreshChanges, openGithub), look.spaced(10));
+        buildBox = look.column();
+        buildBox.setVisibility(View.GONE);
+        page.addView(buildBox);
+        LinearLayout build = look.card(buildBox, "Nightly build");
+        buildTitle = look.text("", 15, look.onSurface, true);
+        build.addView(buildTitle);
+        buildMeta = look.text("", 13, look.primary, false);
+        build.addView(buildMeta, look.spaced(2));
+        buildBar = look.progress();
+        build.addView(buildBar, look.spaced(10));
+        build.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(buildUrl))));
         changesBox = look.column();
         page.addView(changesBox);
 

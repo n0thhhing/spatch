@@ -75,7 +75,7 @@ final class Releases {
         return parse(releasesJson, commitsJson);
     }
 
-    private static String get(String url) throws IOException {
+    static String get(String url) throws IOException {
         HttpURLConnection c = open(url, "application/vnd.github+json");
         try (InputStream in = c.getInputStream()) {
             java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
