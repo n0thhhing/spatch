@@ -183,7 +183,7 @@ public final class NavIndicator extends View implements ValueAnimator.AnimatorUp
             TextView row=new TextView(getContext());
             row.setText(labels[i]); row.setTextSize(14.5f);
             row.setTextColor(Palette.color(0xfff3eeff));
-            row.setTypeface(Fonts.settings(500));
+            row.setTypeface(Fonts.applied(500, android.graphics.Typeface.DEFAULT));
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding((int)(16*dp),0,(int)(16*dp),0);
             try {

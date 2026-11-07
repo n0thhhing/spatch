@@ -484,7 +484,8 @@ public final class Immersive extends View implements Runnable {
         // Metadata, ellipsized to the seek row's width
         float maxText = contentWidth;
         Typeface face = titleView != null ? titleView.getTypeface() : null;
-        paint.setTypeface(face != null ? Typeface.create(face, Typeface.BOLD) : Typeface.DEFAULT_BOLD); // Spotify's title face
+        Typeface stockTitle = face != null ? Typeface.create(face, Typeface.BOLD) : Typeface.DEFAULT_BOLD;
+        paint.setTypeface(Fonts.applied(700, stockTitle));
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setColor(Palette.color(0xfff3eeff));
         paint.setTextSize(Math.min(30*dp, controlSize * .058f));
@@ -499,7 +500,7 @@ public final class Immersive extends View implements Runnable {
         paint.setAlpha(Math.round(255 * ease));
         canvas.drawText(fit(title, maxText), contentCx + slide, titleY, paint);
         Typeface subFace = subtitleView != null ? subtitleView.getTypeface() : null;
-        paint.setTypeface(subFace != null ? subFace : Typeface.DEFAULT); // Spotify's own subtitle face, regular weight
+        paint.setTypeface(Fonts.applied(400, subFace != null ? subFace : Typeface.DEFAULT));
         paint.setColor(Palette.color(0xffbcb3dc));
         paint.setTextSize(Math.min(20*dp, controlSize * .038f));
         String sub = subtitleView != null && subtitleView.getText() != null ? subtitleView.getText().toString() : "";

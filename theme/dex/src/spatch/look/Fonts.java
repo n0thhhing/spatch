@@ -155,6 +155,12 @@ public final class Fonts {
         return face != null ? face : weight >= 600 ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT;
     }
 
+    /** Use the active replacement when available, otherwise preserve the caller's stock face. */
+    static Typeface applied(int weight, Typeface stock) {
+        Typeface replacement = DEFAULT.equals(applied) ? null : face(applied, weight);
+        return replacement != null ? replacement : stock;
+    }
+
     /** Settings text: the selection, previewed before it is applied; Default keeps the system look. */
     static Typeface settings(int weight) {
         Typeface face = DEFAULT.equals(selected) ? null : face(selected, weight);

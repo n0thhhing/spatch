@@ -54,7 +54,7 @@ final class SeekBubble extends Drawable {
     }
 
     public void draw(Canvas c) {
-        paint.setTypeface(Fonts.settings(700));
+        paint.setTypeface(Fonts.applied(700, android.graphics.Typeface.DEFAULT_BOLD));
         paint.setTextSize(15 * dp);
         paint.setTextAlign(Paint.Align.CENTER);
         float half = paint.measureText(text) / 2 + 12 * dp;

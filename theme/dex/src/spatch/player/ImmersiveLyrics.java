@@ -57,8 +57,7 @@ public final class ImmersiveLyrics {
         if (shown == lyrics && selected == next && width == pixels && textSize == size) return text;
         shown = lyrics; selected = next; width = pixels; textSize = size;
         paint.setTextSize(size);
-        android.graphics.Typeface tf = Fonts.settings(700);
-        paint.setTypeface(tf != null ? tf : android.graphics.Typeface.DEFAULT_BOLD);
+        paint.setTypeface(Fonts.applied(700, android.graphics.Typeface.DEFAULT_BOLD));
         for (int i = 0; i < lines.length; i++) {
             int row = next + i - 1;
             String value = lyrics != null && lyrics.a != null && row >= 0 && row < lyrics.a.size() ? lyrics.a.get(row).b : "";

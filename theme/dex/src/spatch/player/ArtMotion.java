@@ -178,7 +178,7 @@ final class ArtMotion implements Runnable {
         float cx = art.getWidth() / 2f, cy = art.getHeight() / 2f;
         canvas.rotate(-spin, cx, cy); // the record turns, its label stays level
         String time = SeekBubble.time(preview) + " / " + SeekBubble.time(duration);
-        paint.setTypeface(Fonts.settings(700));
+        paint.setTypeface(Fonts.applied(700, android.graphics.Typeface.DEFAULT_BOLD));
         paint.setTextSize(18 * dp);
         paint.setTextAlign(Paint.Align.CENTER);
         float half = paint.measureText(time) / 2 + 16 * dp;

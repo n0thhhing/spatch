@@ -54,7 +54,7 @@ final class HomeReview extends FrameLayout implements View.OnClickListener, Runn
         count = new TextView(getContext());
         count.setTextSize(14f);
         count.setTextColor(Palette.color(0xfff3eeff));
-        count.setTypeface(Fonts.settings(700));
+        count.setTypeface(Fonts.applied(700, android.graphics.Typeface.DEFAULT_BOLD));
         bar.addView(count, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         undo = button("Undo");
         done = button("Done");
@@ -69,7 +69,7 @@ final class HomeReview extends FrameLayout implements View.OnClickListener, Runn
         view.setText(label);
         view.setTextSize(14f);
         view.setTextColor(Palette.color(0xffd0bcff));
-        view.setTypeface(Fonts.settings(700));
+        view.setTypeface(Fonts.applied(700, android.graphics.Typeface.DEFAULT_BOLD));
         view.setGravity(Gravity.CENTER);
         view.setPadding(dp(12), 0, dp(12), 0);
         view.setClickable(true);
