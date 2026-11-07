@@ -94,6 +94,7 @@ public final class MainActivity extends Activity {
     private ProgressBar buildBar;
     private String buildUrl = Releases.PAGE;
     private boolean buildWasActive, resumed;
+    private Builds.Run build;
     private Look.StepTracker stepTracker;
 
     private android.widget.ImageView spotifyIcon;
@@ -247,11 +248,24 @@ public final class MainActivity extends Activity {
         }
     };
 
+    /** Home's one line of news: a nightly building right now, else the latest change or release note. */
+    private void showHeadline(Releases.Release bundle) {
+        String headline = nightly.isChecked() && build != null && build.active
+            ? "Nightly building: " + build.title + (build.progress > 0 ? "  •  " + Math.round(build.progress * 100) + "%" : "")
+            : nightly.isChecked() && releases != null && !releases.commits.isEmpty()
+            ? "Latest change: " + releases.commits.get(0).title
+            : bundle != null && !bundle.notes.isEmpty() ? "What's new: " + Releases.summary(bundle.notes) : "";
+        whatsNew.setText(headline);
+        whatsNew.setVisibility(headline.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
     private void showBuild(Builds.Run r) {
         if (buildBox == null || isDestroyed()) return;
         boolean active = r != null && r.active;
         if (buildWasActive && !active) checkUpdates(); // finished: the new nightly is out, or the card says why not
         buildWasActive = active;
+        build = r;
+        if (whatsNew != null) showHeadline(releases == null ? null : releases.bundle(nightly.isChecked()));
         buildBox.setVisibility(r == null ? View.GONE : View.VISIBLE);
         if (r == null) return;
         buildUrl = r.url;
@@ -1051,11 +1065,7 @@ public final class MainActivity extends Activity {
         if (chooseProfile != null) chooseProfile.setText("Patch preset: " + pLabel);
         if (profileDesc != null) profileDesc.setText(matched != null && !profName.equals("custom") ? matched.description : "Custom configuration toggled below.");
 
-        String headline = nightly.isChecked() && releases != null && !releases.commits.isEmpty()
-            ? "Latest change: " + releases.commits.get(0).title
-            : bundle != null && !bundle.notes.isEmpty() ? "What's new: " + Releases.summary(bundle.notes) : "";
-        whatsNew.setText(headline);
-        whatsNew.setVisibility(headline.isEmpty() ? View.GONE : View.VISIBLE);
+        showHeadline(bundle);
         String wanted = bundle == null ? null : variant(bundle.tag, debug);
         boolean current = ours && (wanted == null || wanted.equals(installed));
         spotifyIcon.setImageDrawable(info != null ? info.applicationInfo.loadIcon(getPackageManager()) : getApplicationInfo().loadIcon(getPackageManager()));
