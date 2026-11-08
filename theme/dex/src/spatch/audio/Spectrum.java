@@ -53,6 +53,7 @@ final class Spectrum {
         java.util.Arrays.fill(bands, 0);
         alpha = 0.8f;
         bassReady = false; kickAt = 0; kickEnergy = 0;
+        Cava.reset();
     }
 
     /** Advances the model one frame. Call once per drawn frame, from one visible renderer per frame. */
@@ -64,6 +65,18 @@ final class Spectrum {
         }
         float dt = Math.min(64, Math.max(1, now - frame));
         frame = now;
+        if ("cava".equals(Settings.choice(Settings.VIZ_ENGINE))) {
+            Cava.step(AudioSpectrum.SHARED.linear, motion ? dt : 1000 / 66f, motion ? Settings.strength(Settings.VIZ_SMOOTHING) / 100.0 : 0,
+                Settings.strength(Settings.VIZ_SPREAD) / 10.0, Settings.strength(Settings.VIZ_SENSITIVITY) / 100.0, bands);
+            float mean = 0;
+            for (float v : raw) mean += v;
+            mean /= BANDS;
+            seeded = true;
+            float present = clamp01(mean * 4);
+            alpha = motion ? alpha + (present - alpha) * (1 - (float) Math.exp(-dt / 200f)) : present;
+            trackBass((bands[0] + bands[1]) / 2, now, motion && mean >= VALID && alpha > .05f);
+            return;
+        }
         float rise = motion ? 1 - (float) Math.exp(-dt / (smooth ? 70f : 15f)) : 1;
         float fall = motion ? 1 - (float) Math.exp(-dt / (smooth ? 260f : 60f)) : 1;
         float rawMean = 0;
@@ -166,7 +179,8 @@ final class Spectrum {
             return;
         }
         int bars = (thin ? 48 : 24) + (mirrored ? 1 : 0); // mirrored: one bar on the centre line, not a matched pair
-        float step = (right - left) / bars, barW = step * 0.62f;
+        boolean blocks = "blocks".equals(shape); // Backbeat's: solid and square
+        float step = (right - left) / bars, barW = step * (blocks ? 0.7f : 0.62f);
         boolean centre = "centre".equals(shape), contour = "contour".equals(shape), dots = "dots".equals(shape);
         float mid = base - maxH / 2;
         path.reset();
@@ -191,7 +205,9 @@ final class Spectrum {
                 float h = maxH * at(levels, pos, mirrored) * taper(pos, taper);
                 float x = left + i * step + (step - barW) / 2, r = barW / 2;
                 float minH = Math.max(dp * 2.5f, barW);
-                if (centre) {
+                if (blocks) {
+                    path.addRect(x, base - Math.max(dp * 2, h), x + barW, base, Path.Direction.CW);
+                } else if (centre) {
                     float half = Math.max(dp * 1.5f, Math.max(r, h / 2));
                     path.addRoundRect(x, mid - half, x + barW, mid + half, r, r, Path.Direction.CW);
                 } else if (dots) {
@@ -208,10 +224,11 @@ final class Spectrum {
         float top = centre ? mid - maxH / 2 : base - maxH;
         float bottom = centre ? mid + maxH / 2 : base;
         int accent = Palette.color(0xffd0bcff) & 0x00ffffff;
-        if (barGradient == null || top != gradTop || bottom != gradBottom || accent != gradColor || centre != gradCentre || floating != gradFloating) {
-            gradTop = top; gradBottom = bottom; gradColor = accent; gradCentre = centre; gradFloating = floating;
+        if (barGradient == null || top != gradTop || bottom != gradBottom || accent != gradColor || centre != gradCentre || floating != gradFloating || blocks != gradBlocks) {
+            gradTop = top; gradBottom = bottom; gradColor = accent; gradCentre = centre; gradFloating = floating; gradBlocks = blocks;
             barGradient = new LinearGradient(0, top, 0, bottom,
-                centre ? new int[] {0x66000000 | accent, 0xe6000000 | accent, 0x66000000 | accent}
+                blocks ? new int[] {0xe6000000 | accent, 0xe6000000 | accent}
+                : centre ? new int[] {0x66000000 | accent, 0xe6000000 | accent, 0x66000000 | accent}
                        : new int[] {0xe6000000 | accent, (floating ? 0x4d000000 : 0x1a000000) | accent},
                 null, Shader.TileMode.CLAMP);
         }
@@ -223,7 +240,7 @@ final class Spectrum {
     private static LinearGradient barGradient;
     private static float gradTop, gradBottom;
     private static int gradColor;
-    private static boolean gradCentre, gradFloating;
+    private static boolean gradCentre, gradFloating, gradBlocks;
 
     private static final int RAYS = 72;
     private static final float[] boundary = new float[4], outerX = new float[RAYS], outerY = new float[RAYS], innerX = new float[RAYS], innerY = new float[RAYS];

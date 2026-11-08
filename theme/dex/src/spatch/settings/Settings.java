@@ -35,10 +35,10 @@ public final class Settings implements S_DrawerRowSource {
     private static final int CUSTOMIZE = R_string_mixing_edit_page_customize_button; // R.string.mixing_edit_page_customize_button (rewritten to "Spatch" at render time)
     /** Multi-choice settings: stable stored values, first is the default (today's look). */
     static final int MINI_VISUALIZER = 16, HAPTICS = 17, LIBRARY_CASCADE = 64, LIBRARY_HOLD = 65, LIBRARY_GLOW = 66, PLAYLIST_CASCADE = 67, PLAYLIST_HOLD = 68, PLAYLIST_GLOW = 69, BURST = 70, BURST_PLAYER = 71, BURST_MINI = 72, BURST_IMMERSIVE = 73, BURST_LISTS = 74, ART_TILT = 75, ART_SCRATCH = 76, HOLD_SEEK = 77, SEEK_BUBBLE = 78, MINI_ALBUM = 79, TAP_RIPPLE = 80, HERO_TOUCH = 81, BOUNCY_PRESS = 82, HIDE_BARS = 83, BEAT_BOUNCE = 84, MINI_HOLD_LIKE = 85, MINI_SPIN = 86, IMM_SWIPE = 87, LIST_CARDS = 88, SOFT_HEADERS = 89, LIST_RISE = 90, WAVE_AUDIO = 91, TITLE_ALBUM = 92, LYRICS_FOCUS = 93, QUEUE_SHIMMER = 94, WIDGET_WALLPAPER = 95, HIDE_PREMIUM_TAB = 96, HIDE_ACCOUNT_SWITCHER = 97, HIDE_PARENTAL_CONTROLS = 98, SEEK_SPLASH = 99, BASS_SHOCKWAVE = 100, MINI_FLING = 101, CARD_GLINT = 102, HIDE_PLAYER_LYRICS = 103, IMM_LYRICS = 104, IMM_LANDSCAPE = 105, ROW_EQUALIZER = 106, VINYL_EFFECT = 107, LIQUID_SCRUBBER = 108, MINI_FROSTED = 109, JELLY_SWITCHES = 110, JELLY_SCROLL = 111, SHAPED_TILES = 112, SPOTIFY_SETTINGS = 113;
-    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5, ART_SKIP = 6, IMM_CHANGE = 7, RING_COLOR = 8, GLOW_COLOR = 9, GLOW_STYLE = 10, RING_WIDTH = 11, RING_SPEED = 12, WAVE_SPEED = 13, NAV_COLOR = 14, BURST_SHAPE = 15, BURST_AMOUNT = 16, BURST_SIZE = 17, BURST_TONES = 18, BURST_COLOR = 19, BURST_WHEN = 20, ART_SHAPE = 21, RIPPLE_COLOR = 22, BOUNCE = 23, BACKDROP_FX = 24, SEEK_STYLE = 25, PLAYER_COLOR = 26, WAVE_REACTS = 27, WAVE_FOLLOWS = 28, WAVE_STRENGTH = 29, SURFACE_TINT = 30;
-    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position", "art_skip", "imm_change", "ring_color", "glow_color", "glow_style", "ring_width", "ring_speed", "wave_speed", "nav_color", "burst_shape", "burst_amount", "burst_size", "burst_tones", "burst_color", "burst_when", "art_shape", "ripple_color", "bounce", "backdrop_fx", "seek_style", "player_color", "wave_reacts", "wave_follows", "wave_strength", "surface_tint"};
+    static final int VIZ_SHAPE = 0, VIZ_TAPER = 1, ART_OUTLINE = 2, ART_GLOW = 3, ART_SPECTRUM = 4, PROFILE_POSITION = 5, ART_SKIP = 6, IMM_CHANGE = 7, RING_COLOR = 8, GLOW_COLOR = 9, GLOW_STYLE = 10, RING_WIDTH = 11, RING_SPEED = 12, WAVE_SPEED = 13, NAV_COLOR = 14, BURST_SHAPE = 15, BURST_AMOUNT = 16, BURST_SIZE = 17, BURST_TONES = 18, BURST_COLOR = 19, BURST_WHEN = 20, ART_SHAPE = 21, RIPPLE_COLOR = 22, BOUNCE = 23, BACKDROP_FX = 24, SEEK_STYLE = 25, PLAYER_COLOR = 26, WAVE_REACTS = 27, WAVE_FOLLOWS = 28, WAVE_STRENGTH = 29, SURFACE_TINT = 30, VIZ_ENGINE = 31;
+    static final String[] CHOICE_KEYS = {"viz_shape", "viz_taper", "art_outline", "art_glow", "art_spectrum", "profile_position", "art_skip", "imm_change", "ring_color", "glow_color", "glow_style", "ring_width", "ring_speed", "wave_speed", "nav_color", "burst_shape", "burst_amount", "burst_size", "burst_tones", "burst_color", "burst_when", "art_shape", "ripple_color", "bounce", "backdrop_fx", "seek_style", "player_color", "wave_reacts", "wave_follows", "wave_strength", "surface_tint", "viz_engine"};
     static final String[][] CHOICES = {
-        {"bars", "centre", "contour", "dots", "scope"},
+        {"bars", "blocks", "centre", "contour", "dots", "scope"},
         {"subtle", "none"},
         {"wavy", "simple", "none", "audio"},
         {"current", "soft", "off"},
@@ -69,12 +69,13 @@ public final class Settings implements S_DrawerRowSource {
         {"mix", "beat", "melody"},
         {"normal", "subtle", "strong"},
         {"neutral", "accent"},
+        {"adaptive", "cava"},
     };
     private static final String[] chosen = new String[CHOICES.length];
-    static final int TILT_STRENGTH = 0, RIPPLE_SIZE = 1, HIDE_DISTANCE = 2, SHOCK_STRENGTH = 3, SPLASH_SIZE = 4, IMM_BLUR = 5, IMM_COLOUR = 6, IMM_DARKNESS = 7, IMM_FLOW = 8;
-    static final String[] STRENGTH_KEYS = {"tilt_strength", "ripple_size", "hide_distance", "shock_strength", "splash_size", "imm_blur", "imm_colour", "imm_darkness", "imm_flow"};
-    static final int[] STRENGTH_DEFAULTS = {11, 54, 40, 100, 100, 100, 100, 55, 100}, STRENGTH_MIN = {0, 16, 16, 0, 50, 0, 0, 0, 0}, STRENGTH_MAX = {20, 120, 160, 200, 200, 200, 200, 100, 200};
-    static final int[] STRENGTH_FEATURES = {ART_TILT, TAP_RIPPLE, HIDE_BARS, BASS_SHOCKWAVE, SEEK_SPLASH, 4, 4, 4, 4};
+    static final int TILT_STRENGTH = 0, RIPPLE_SIZE = 1, HIDE_DISTANCE = 2, SHOCK_STRENGTH = 3, SPLASH_SIZE = 4, IMM_BLUR = 5, IMM_COLOUR = 6, IMM_DARKNESS = 7, IMM_FLOW = 8, VIZ_SMOOTHING = 9, VIZ_SPREAD = 10, VIZ_SENSITIVITY = 11;
+    static final String[] STRENGTH_KEYS = {"tilt_strength", "ripple_size", "hide_distance", "shock_strength", "splash_size", "imm_blur", "imm_colour", "imm_darkness", "imm_flow", "viz_smoothing", "viz_spread", "viz_sensitivity"};
+    static final int[] STRENGTH_DEFAULTS = {11, 54, 40, 100, 100, 100, 100, 55, 100, 60, 10, 100}, STRENGTH_MIN = {0, 16, 16, 0, 50, 0, 0, 0, 0, 0, 0, 10}, STRENGTH_MAX = {20, 120, 160, 200, 200, 200, 200, 100, 200, 99, 30, 300};
+    static final int[] STRENGTH_FEATURES = {ART_TILT, TAP_RIPPLE, HIDE_BARS, BASS_SHOCKWAVE, SEEK_SPLASH, 4, 4, 4, 4, 7, 7, 7};
     private static final int[] strengths = STRENGTH_DEFAULTS.clone();
     public static final boolean[] on = DEFAULTS.clone(); // public: classes9 reads it directly, having no method references to spare
     private static SharedPreferences prefs;

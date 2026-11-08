@@ -93,6 +93,8 @@ public final class AudioSpectrum {
     private byte[] fft;
     private long sampledAt, retryAt;
     final float[] levels = new float[24];
+    /** Band magnitudes before any dB or easing, with CAVA's treble lift: what the CAVA response reads. */
+    final float[] linear = new float[24];
     String status;
 
     void update(Context context, boolean active) {
@@ -119,7 +121,7 @@ public final class AudioSpectrum {
             sampledAt = now;
             if (visualizer.getFft(fft) != 0) throw new IllegalStateException("Audio session unavailable");
             int rate = visualizer.getSamplingRate() / 1000;
-            float[] target = bands(fft, rate, levels.length);
+            float[] target = bands(fft, rate, levels.length, linear);
             for (int i = 0; i < levels.length; i++) {
                 float a = 1 - (float)Math.exp(-dt / (target[i] > levels[i] ? 20 : 110)); // snappy attack, short release
                 levels[i] += (target[i] - levels[i]) * a;
@@ -132,6 +134,10 @@ public final class AudioSpectrum {
 
     /** Energy in log-frequency bands. Fractional-bin integration avoids duplicated bass bins. */
     static float[] bands(byte[] fft, int rate, int count) {
+        return bands(fft, rate, count, null);
+    }
+
+    static float[] bands(byte[] fft, int rate, int count, float[] linear) {
         float[] out = new float[count];
         if (rate <= 0 || fft.length < 4) return out;
         int max = fft.length/2-1;
@@ -148,6 +154,8 @@ public final class AudioSpectrum {
             // Display dB of band energy rather than a peak biased by bin count. Silence stays zero.
             // A band sums several bins: it can exceed 0 dB. Clipping here flattens loud music.
             out[i]=power==0 ? 0 : Math.max(0,(float)((10*Math.log10(power)+50)/50));
+            // CAVA's EQ: per-bin level lifted by f^0.85 so treble reads beside bass; auto sensitivity sets the scale.
+            if (linear!=null) linear[i]=(float)(Math.sqrt(power/Math.max(1,end-start))*Math.pow(low*Math.pow(high/low,(i+.5)/count)/1000,0.85));
         }
         return out;
     }
@@ -158,6 +166,7 @@ public final class AudioSpectrum {
         }
         visualizer = null; sampledAt = 0;
         java.util.Arrays.fill(levels, 0);
+        java.util.Arrays.fill(linear, 0);
     }
 
     static void requestPermission(Context c) {

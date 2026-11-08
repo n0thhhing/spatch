@@ -1,7 +1,7 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 65] = [
+pub const HELPERS: [(&str, &str); 66] = [
     (
         "ThemeImport",
         include_str!("../theme/dex/src/spatch/look/ThemeImport.java"),
@@ -145,6 +145,10 @@ pub const HELPERS: [(&str, &str); 65] = [
     (
         "Spectrum",
         include_str!("../theme/dex/src/spatch/audio/Spectrum.java"),
+    ),
+    (
+        "Cava",
+        include_str!("../theme/dex/src/spatch/audio/Cava.java"),
     ),
     (
         "SpectrumPreview",

@@ -302,6 +302,24 @@ final class DevTests {
                 return "";
             }
         });
+        test("CAVA response", new Test() {
+            public String run() {
+                double[] raw = new double[Spectrum.BANDS], loop = new double[raw.length];
+                for (int i = 0; i < raw.length; i++) raw[i] = loop[i] = Math.abs(Math.sin(i * 7.3));
+                for (int z = 0; z < raw.length; z++) for (int m = 0; m < raw.length; m++) if (m != z) loop[m] = Math.max(loop[m], loop[z] / Math.pow(1.5, Math.abs(m - z)));
+                Cava.monstercat(raw, 1.5);
+                for (int i = 0; i < raw.length; i++) check(Math.abs(raw[i] - loop[i]) < 1e-12, "spread differs at " + i);
+                float[] tone = new float[Spectrum.BANDS], out = new float[Spectrum.BANDS];
+                tone[10] = 0.3f;
+                Cava.reset();
+                for (int f = 0; f < 120; f++) Cava.step(tone, 15, 0.6, 1, 1, out);
+                check(out[10] > 0.5f, "tone level " + out[10]);
+                for (int f = 0; f < 240; f++) Cava.step(new float[Spectrum.BANDS], 15, 0.6, 1, 1, out);
+                for (float level : out) check(level == 0, "silence left " + level);
+                Cava.reset();
+                return "";
+            }
+        });
         test("Audio permission", new Test() {
             public String run() {
                 if (context.checkSelfPermission(AudioSpectrum.PERMISSION) != 0) throw new Skip("not granted, so visualizers stay off");
