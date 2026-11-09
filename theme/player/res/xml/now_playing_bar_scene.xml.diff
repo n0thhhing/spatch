@@ -1,5 +1,5 @@
 a1 1
-<!-- Spatch: save, Previous, play/pause, Next on one even 48dp pitch, end-anchored; the Connect slot is a hidden 1dp stub. The track carousel ends at save, so a sliding title never passes under the buttons. Play/pause draws the scalloped lot0 drawable and progress_bar is the ring around it (spatch.MiniRing). -->
+<!-- Spatch: save, Previous, play/pause, Next on one even 48dp pitch, end-anchored; the Connect slot is a hidden 1dp stub. The track carousel ends at save, so a sliding title never passes under the buttons. large_size, which Spotify switches to on a skip, repeats default_size so the title stays centred. Play/pause draws the scalloped lot0 drawable and progress_bar is the ring around it (spatch.MiniRing). -->
 d6 1
 a6 1
             <Layout motion:layout_constraintEnd_toStartOf="@id/add_to_button" android:layout_width="0.0dp" android:layout_height="0.0dp" android:layout_marginStart="@dimen/now_playing_bar_carousel_margin" android:layout_marginEnd="4.0dp" motion:layout_constraintBottom_toBottomOf="parent" motion:layout_constraintStart_toEndOf="@id/content_container" motion:layout_constraintTop_toTopOf="parent" />
@@ -31,20 +31,23 @@ a30 9
         </Constraint>
 d34 1
 a34 1
-            <Layout motion:layout_constraintEnd_toStartOf="@id/add_to_button" android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_marginTop="@dimen/floating_now_playing_bar_content_padding" android:layout_marginStart="@dimen/now_playing_bar_carousel_margin" android:layout_marginEnd="4.0dp" motion:layout_constraintBottom_toBottomOf="parent" motion:layout_constraintStart_toEndOf="@id/content_container" motion:layout_constraintTop_toTopOf="parent" motion:layout_constraintVertical_bias="0.0" />
+            <Layout motion:layout_constraintEnd_toStartOf="@id/add_to_button" android:layout_width="0.0dp" android:layout_height="0.0dp" android:layout_marginStart="@dimen/now_playing_bar_carousel_margin" android:layout_marginEnd="4.0dp" motion:layout_constraintBottom_toBottomOf="parent" motion:layout_constraintStart_toEndOf="@id/content_container" motion:layout_constraintTop_toTopOf="parent" />
 d37 2
 a38 2
-            <Layout motion:layout_constraintEnd_toEndOf="parent" android:layout_width="1.0dp" android:layout_height="1.0dp" android:layout_marginBottom="@dimen/now_playing_bar_large_button_spacing" motion:layout_constraintBottom_toBottomOf="parent" />
+            <Layout motion:layout_constraintEnd_toEndOf="parent" android:layout_width="1.0dp" android:layout_height="1.0dp" motion:layout_constraintBottom_toBottomOf="parent" motion:layout_constraintTop_toTopOf="parent" />
             <PropertySet android:alpha="0.0" motion:visibilityMode="ignore" />
 d41 1
 a41 1
-            <Layout motion:layout_constraintEnd_toStartOf="@id/add_to_button" android:layout_width="@dimen/now_playing_bar_actions_button_size" android:layout_height="@dimen/now_playing_bar_actions_button_size" android:layout_marginBottom="@dimen/now_playing_bar_large_button_spacing" android:layout_marginStart="@dimen/now_playing_bar_large_button_spacing" motion:layout_constraintBottom_toBottomOf="parent" />
+            <Layout motion:layout_constraintEnd_toStartOf="@id/add_to_button" android:layout_width="@dimen/now_playing_bar_actions_button_size" android:layout_height="@dimen/now_playing_bar_actions_button_size" motion:layout_constraintBottom_toBottomOf="parent" motion:layout_constraintTop_toTopOf="parent" />
 d45 1
 a45 1
-            <Layout motion:layout_constraintEnd_toStartOf="@id/previous_button" android:layout_width="48.0dp" android:layout_height="48.0dp" android:layout_marginBottom="@dimen/now_playing_bar_large_button_spacing" android:layout_marginStart="@dimen/now_playing_bar_large_button_spacing" motion:layout_constraintBottom_toBottomOf="parent" />
+            <Layout motion:layout_constraintEnd_toStartOf="@id/previous_button" android:layout_width="48.0dp" android:layout_height="48.0dp" motion:layout_constraintBottom_toBottomOf="parent" motion:layout_constraintTop_toTopOf="parent" />
 d49 1
 a49 1
-            <Layout motion:layout_constraintEnd_toStartOf="@id/next_button" android:layout_width="48.0dp" android:layout_height="48.0dp" android:layout_marginBottom="@dimen/now_playing_bar_large_button_spacing" motion:layout_constraintBottom_toBottomOf="parent" />
+            <Layout motion:layout_constraintEnd_toStartOf="@id/next_button" android:layout_width="48.0dp" android:layout_height="48.0dp" motion:layout_constraintBottom_toBottomOf="parent" motion:layout_constraintTop_toTopOf="parent" />
+d53 1
+a53 1
+            <Layout android:layout_width="0.0dp" android:layout_height="wrap_content" motion:layout_constraintBottom_toBottomOf="@id/tracks_carousel_view" motion:layout_constraintEnd_toEndOf="@id/tracks_carousel_view" motion:layout_constraintStart_toStartOf="@id/tracks_carousel_view" motion:layout_constraintTop_toTopOf="@id/tracks_carousel_view" />
 d57 1
 a57 10
             <Layout android:layout_width="48.0dp" android:layout_height="48.0dp" motion:layout_constraintBottom_toBottomOf="@id/play_pause_button" motion:layout_constraintEnd_toEndOf="@id/play_pause_button" motion:layout_constraintStart_toStartOf="@id/play_pause_button" motion:layout_constraintTop_toTopOf="@id/play_pause_button" />
