@@ -11,11 +11,12 @@ import android.widget.LinearLayout;
 
 /**
  * The navigation bar's indicator as a jelly pill: its two edges run on separate springs, the leading
- * one quicker, so it stretches towards the chosen page and settles with a small wobble. Dragging
+ * one quicker, so it stretches towards the chosen page, then overshoots and wobbles. Its area stays
+ * about the same: stretched it thins, squeezed it bulges. Dragging
  * across the bar pulls the pill along; letting go picks the page under it. Without motion it jumps.
  */
 final class JellyBar extends LinearLayout {
-    private static final float LEAD = 700f, TRAIL = 240f, ZETA = 0.55f; // spring stiffness (1/s²) and damping ratio
+    private static final float LEAD = 900f, TRAIL = 170f, ZETA = 0.36f; // spring stiffness (1/s²) and damping ratio
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF pill = new RectF();
@@ -82,8 +83,8 @@ final class JellyBar extends LinearLayout {
         this.right = r[0];
         rightV = r[1];
         float rest = rightTo - leftTo, width = Math.max(this.right - left, 1f);
-        float squash = (float) Math.min(1f, Math.sqrt(rest / width)); // a stretched pill thins, like jelly
-        float mid = (top + bottom) / 2f, half = (bottom - top) / 2f * (0.75f + 0.25f * squash);
+        float squash = Math.max(0.6f, Math.min(1.25f, (float) Math.sqrt(rest / width))); // thin when stretched, fat when squeezed
+        float mid = (top + bottom) / 2f, half = (bottom - top) / 2f * squash;
         pill.set(left, mid - half, this.right, mid + half);
         canvas.drawRoundRect(pill, half, half, paint);
         boolean moving = Math.abs(leftV) + Math.abs(rightV) > 1f || Math.abs(left - leftTo) + Math.abs(this.right - rightTo) > 0.5f;
@@ -107,6 +108,12 @@ final class JellyBar extends LinearLayout {
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
             downX = e.getX();
             dragging = false;
+            if (placed && Look.motion(getContext())) { // a press wobbles the pill: the feedback a ripple used to give
+                float kick = 260f * getResources().getDisplayMetrics().density;
+                leftV -= kick;
+                rightV += kick;
+                postInvalidateOnAnimation();
+            }
         } else if (e.getActionMasked() == MotionEvent.ACTION_MOVE && Math.abs(e.getX() - downX) > slop && Look.motion(getContext())) {
             dragging = true;
             getParent().requestDisallowInterceptTouchEvent(true);

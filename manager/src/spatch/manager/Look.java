@@ -229,7 +229,7 @@ final class Look {
             lp.topMargin = dp(4);
             item.addView(label, lp);
             item.setContentDescription(labels[i]);
-            item.setBackground(new RippleDrawable(ColorStateList.valueOf(onSurface & 0xffffff | 0x1f000000), null, null));
+            // no ripple: the jelly pill is the press feedback
             item.setOnClickListener(v -> {
                 select(bar, index);
                 pick.page(index);
