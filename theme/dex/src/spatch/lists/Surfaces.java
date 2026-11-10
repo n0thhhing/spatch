@@ -117,10 +117,11 @@ public final class Surfaces {
     }
 
     /**
-     * Your Library rows on refined elevated cards with a cohesive 5dp row gap, parallel with 16dp artwork corners.
+     * Your Library rows as cards the cover sits evenly in: Spotify's row keeps its 12dp sides and has no
+     * vertical padding, so the card adds 10dp above and below; Spotify's own list spacing separates them.
      */
     public static S_ComposeModifier libraryRow(S_ComposeModifier row) {
-        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 6f, 2f, 0xff2b2640, 16f), 8f, 2.5f) : row);
+        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 8f, 0f, 0xff2b2640, 24f), 0f, 10f) : row);
     }
 
     /**
