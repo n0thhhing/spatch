@@ -68,6 +68,16 @@ public final class MiniBar extends MotionLayout implements Runnable {
         }
     }
 
+    /** roundCover turns off child clipping so the cover can spring; the title carousel still stays in its slot, or a sliding title runs under the buttons. */
+    protected boolean drawChild(android.graphics.Canvas canvas, View child, long drawingTime) {
+        if (child.getId() != id("tracks_carousel_view")) return super.drawChild(canvas, child, drawingTime);
+        int saved = canvas.save();
+        canvas.clipRect(child.getLeft(), 0, child.getRight(), getHeight());
+        boolean more = super.drawChild(canvas, child, drawingTime);
+        canvas.restoreToCount(saved);
+        return more;
+    }
+
     private int id(String name) {
         Integer known = IDS.get(name); // run() asks every update: getIdentifier was a measured cost
         if (known != null) return known.intValue();
