@@ -129,6 +129,12 @@ public final class Surfaces {
         return Flourish.libraryRow(library ? S_ComposePadding.y(card, 0f, 10f) : card);
     }
 
+    /** An artist's "See more" footer sits on the page colour: under it, the row card of its list item would show past Spotify's fade. */
+    public static S_ComposeModifier seeMore(S_ComposeModifier footer) {
+        if (!Settings.get(Settings.LIST_CARDS)) return footer;
+        return S_ComposeBackground.f(footer, (long) Palette.color(0xff14121c) << 32, S_ComposeShapes.b(0f));
+    }
+
     /**
      * Playlist track rows as floating pill cards with 4dp vertical spacing, avoiding concave notches between tracks.
      */

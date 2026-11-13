@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 106] = [
+pub const EDITS: [Edit; 107] = [
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
     Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
@@ -461,6 +461,13 @@ pub const EDITS: [Edit; 106] = [
         file: "S_OwnProfileTopBar",
         anchor: "    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->e(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
         replacement: "    invoke-static {v5, v0}, Lspatch/ProfileBanner;->brush(Landroidx/compose/ui/graphics/Brush;Lp/S_ProfileModel;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object v5\n\n    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->e(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
+    },
+    // An artist's Popular "See more" footer (c680.r): spatch.Surfaces backs it with the page colour, so the
+    // list card behind the item doesn't show under the button where Spotify's fade ends.
+    Edit {
+        file: "S_ArtistSeeMore",
+        anchor: ".method public static final r(Lp/egf1;Lp/fqg0;Lp/S_ComposeModifier;Lkotlin/jvm/functions/Function0;Lp/S_Composer;I)V\n    .locals 15\n",
+        replacement: ".method public static final r(Lp/egf1;Lp/fqg0;Lp/S_ComposeModifier;Lkotlin/jvm/functions/Function0;Lp/S_Composer;I)V\n    .locals 15\n\n    invoke-static/range {p2 .. p2}, Lspatch/Surfaces;->seeMore(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    move-result-object p2\n",
     },
     // Your Library rows (r0a1.d): spatch.Surfaces lays each on a card.
     Edit {
