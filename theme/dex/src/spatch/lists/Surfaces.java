@@ -121,7 +121,12 @@ public final class Surfaces {
      * vertical padding, so the card adds 10dp above and below; Spotify's own list spacing separates them.
      */
     public static S_ComposeModifier libraryRow(S_ComposeModifier row) {
-        return Flourish.libraryRow(Settings.libraryCards() ? S_ComposePadding.y(card(row, 8f, 0f, 0xff2b2640, 24f), 0f, 10f) : row);
+        if (!Settings.libraryCards()) return Flourish.libraryRow(row);
+        // Same row component shows "Liked songs" on artist pages at a fixed height: padding there pushes the cover
+        // and its heart badge out of the card and clips them, so only the Library tab gets the inner padding.
+        boolean library = NavIndicator.tab() == 2;
+        S_ComposeModifier card = card(row, 8f, 0f, 0xff2b2640, library ? 24f : 16f);
+        return Flourish.libraryRow(library ? S_ComposePadding.y(card, 0f, 10f) : card);
     }
 
     /**
