@@ -209,5 +209,10 @@ public final class Palette {
         if("accent".equals(Settings.choice(Settings.SURFACE_TINT)))return Math.min(255,Math.round(alpha*1.4f))<<24|color(0xffd0bcff)&0xffffff;
         return alpha<<24|color(0xfff3eeff)&0xffffff;
     }
-    public static long compose(long argb){return (argb & ~0xffffffffL)==0 ? color((int)argb)&0xffffffffL : argb;}
+    /** Spotify's literal Compose colours; its fixed #282828 placeholder grey (Library's "Add artists" tiles and kin) takes the card colour. */
+    public static long compose(long argb){
+        if ((argb & ~0xffffffffL)!=0) return argb;
+        int c=(int)argb;
+        return color(c==0xff282828 ? 0xff2b2640 : c)&0xffffffffL;
+    }
 }

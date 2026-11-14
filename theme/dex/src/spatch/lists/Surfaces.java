@@ -120,14 +120,12 @@ public final class Surfaces {
      * Your Library rows as cards the cover sits evenly in: Spotify's row keeps its 12dp sides and has no
      * vertical padding, so the card adds 10dp above and below; Spotify's own list spacing separates them.
      */
-    public static S_ComposeModifier libraryRow(S_ComposeModifier row) {
+    public static S_ComposeModifier libraryRow(S_ComposeModifier row, boolean compact) {
         if (!Settings.libraryCards()) return Flourish.libraryRow(row);
-        // Same row component shows "Liked songs" on artist pages at a fixed height: padding there pushes the cover
-        // and its heart badge out of the card and clips them, so only the Library tab gets the inner padding.
-        boolean library = NavIndicator.tab() == 2;
-        // and that row's content runs past its own height, so there the card doesn't clip
-        S_ComposeModifier card = card(row, 8f, 0f, 0xff2b2640, library ? 24f : 16f, library);
-        return Flourish.libraryRow(library ? S_ComposePadding.y(card, 0f, 10f) : card);
+        // Compact rows (the artist page's Liked songs) have a fixed height their cover and heart badge run past:
+        // there the card neither pads nor clips, or it cuts them off.
+        S_ComposeModifier card = card(row, 8f, 0f, 0xff2b2640, compact ? 16f : 24f, !compact);
+        return Flourish.libraryRow(compact ? card : S_ComposePadding.y(card, 0f, 10f));
     }
 
     /** An artist's "See more" footer sits on the page colour: under it, the row card of its list item would show past Spotify's fade. */

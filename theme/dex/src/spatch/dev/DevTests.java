@@ -549,6 +549,7 @@ final class DevTests {
                 inApp();
                 check(Surfaces.bg((long) 0xff292929 << 32) == (long) Palette.color(0xff2b2640) << 32, "grey card");
                 check(Surfaces.bg((long) 0xff282828 << 32) == (long) Palette.color(0xff2b2640) << 32, "grey tile");
+                check(Palette.compose(0xff282828L) == (Palette.color(0xff2b2640) & 0xffffffffL), "compose grey tile");
                 check(Surfaces.bg((long) 0xff123456 << 32) == (long) 0xff123456 << 32, "other colours must pass through");
                 return "";
             }
@@ -1343,7 +1344,7 @@ final class DevTests {
     /** Runs a row through Spotify's real shape, padding and layer code; returns how many modifiers it added. */
     private static int modifiers(boolean library) {
         final int[] added = {0};
-        if (library) Surfaces.libraryRow(row(added)); else Surfaces.trackRow(row(added));
+        if (library) Surfaces.libraryRow(row(added), false); else Surfaces.trackRow(row(added));
         return added[0];
     }
 

@@ -469,11 +469,12 @@ pub const EDITS: [Edit; 107] = [
         anchor: ".method public static final r(Lp/egf1;Lp/fqg0;Lp/S_ComposeModifier;Lkotlin/jvm/functions/Function0;Lp/S_Composer;I)V\n    .locals 15\n",
         replacement: ".method public static final r(Lp/egf1;Lp/fqg0;Lp/S_ComposeModifier;Lkotlin/jvm/functions/Function0;Lp/S_Composer;I)V\n    .locals 15\n\n    invoke-static/range {p2 .. p2}, Lspatch/Surfaces;->seeMore(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    move-result-object p2\n",
     },
-    // Your Library rows (r0a1.d): spatch.Surfaces lays each on a card.
+    // Your Library rows (r0a1.d): spatch.Surfaces lays each on a card. p1 is Spotify's compact flag (48dp cover
+    // instead of 64dp), which the artist page's Liked songs row sets; v4 is overwritten right after.
     Edit {
         file: "S_LibraryRow",
         anchor: "    :goto_b\n    invoke-interface {v2, v4}, Lp/S_ComposeModifier;->then(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    .line 365\n    .line 366\n    .line 367\n    move-result-object v2\n",
-        replacement: "    :goto_b\n    invoke-interface {v2, v4}, Lp/S_ComposeModifier;->then(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    .line 365\n    .line 366\n    .line 367\n    move-result-object v2\n\n    invoke-static {v2}, Lspatch/Surfaces;->libraryRow(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    move-result-object v2\n",
+        replacement: "    :goto_b\n    invoke-interface {v2, v4}, Lp/S_ComposeModifier;->then(Lp/S_ComposeModifier;)Lp/S_ComposeModifier;\n\n    .line 365\n    .line 366\n    .line 367\n    move-result-object v2\n\n    move/from16 v4, p1\n\n    invoke-static {v2, v4}, Lspatch/Surfaces;->libraryRow(Lp/S_ComposeModifier;Z)Lp/S_ComposeModifier;\n\n    move-result-object v2\n",
     },
     // Toggle chips (n0k0.c, Library filters among them): the selected chip turns into a pill.
     Edit {
