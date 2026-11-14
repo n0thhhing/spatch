@@ -186,6 +186,7 @@ public final class Wave extends Drawable implements Runnable, View.OnTouchListen
         float thumbGap = Math.max(thumbVisible, pressed ? thick : 0f) * h * .5f; // Spotify's own line thumb shows while dragging
         float restStart = Math.max(px + Math.max(stroke,thumbGap), x0);
         if (restStart < x1) {
+            rest.setColor(0x4d000000 | Tint.color(Settings.PLAYER_COLOR) & 0xffffff); // follows the played colour, which can change per song
             rest.setStrokeWidth(restStroke);
             canvas.drawLine(restStart, cy, x1, cy, rest);
         }

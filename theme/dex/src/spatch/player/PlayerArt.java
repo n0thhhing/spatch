@@ -495,6 +495,17 @@ public final class PlayerArt extends ImageView {
             int wanted=Settings.get(Settings.ART_THEME)?Tint.player(0xffbcb3dc):artistColour;
             if(wanted!=artist.getCurrentTextColor()) artist.setTextColor(wanted);
         }
+        // The footer card and the controls tray are tinted in the layout; Tint.player gives those same colours when off.
+        surface(getRootView().findViewById(id("player_overlay_footer")), Tint.player(0xeb1d1a2a));
+        surface(getRootView().findViewById(ids[1]), Tint.player(0xff2b2640));
+        View play=getRootView().findViewById(ids[4]);
+        if(play!=null && Settings.get(Settings.ART_THEME) && Tint.fading()) play.invalidate(); // its scallop takes the new colour as it fades
+    }
+
+    private static void surface(View v, int colour) {
+        if(v==null) return;
+        android.content.res.ColorStateList now=v.getBackgroundTintList();
+        if(now==null || now.getDefaultColor()!=colour) v.setBackgroundTintList(android.content.res.ColorStateList.valueOf(colour));
     }
 
     void hideForHero(boolean hide) {
