@@ -19,7 +19,7 @@ import p.S_ComposePaddingSides;
  * Search category tile o6e. Compose colours here are sRGB ARGB in the high 32 bits.
  */
 public final class Surfaces {
-    private static final int GREY_CARD = 0xff292929, SKELETON = 0x1affffff;
+    private static final int GREY_CARD = 0xff292929, GREY_TILE = 0xff282828, SKELETON = 0x1affffff; // GREY_TILE: Library's "Add artists"-style placeholder tiles
 
     private static final int VIVID = 70, GREY_CHROMA = 20;
     private static final java.util.WeakHashMap<Object, Boolean> MADE = new java.util.WeakHashMap<Object, Boolean>();
@@ -35,7 +35,7 @@ public final class Surfaces {
     public static long bg(long c) {
         if (!plain(c)) return c;
         int argb = (int) (c >>> 32);
-        if (argb == GREY_CARD) return (long) Palette.color(0xff2b2640) << 32;
+        if (argb == GREY_CARD || argb == GREY_TILE) return (long) Palette.color(0xff2b2640) << 32;
         if (argb == SKELETON) return (long) (Palette.color(0xffd0bcff) & 0xffffff | 0x24000000) << 32;
         if (black(argb)) return (long) (argb & 0xff000000 | Palette.color(0xff14121c) & 0xffffff) << 32;
         return c;

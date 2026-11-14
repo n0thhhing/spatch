@@ -548,6 +548,7 @@ final class DevTests {
             public String run() {
                 inApp();
                 check(Surfaces.bg((long) 0xff292929 << 32) == (long) Palette.color(0xff2b2640) << 32, "grey card");
+                check(Surfaces.bg((long) 0xff282828 << 32) == (long) Palette.color(0xff2b2640) << 32, "grey tile");
                 check(Surfaces.bg((long) 0xff123456 << 32) == (long) 0xff123456 << 32, "other colours must pass through");
                 return "";
             }
