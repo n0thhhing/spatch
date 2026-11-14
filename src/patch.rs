@@ -84,7 +84,7 @@ macro_rules! target {
 /// Now Playing slice. Ownership: p.jcs inflates revised_template_page_layout (which includes
 /// revised_template_overlay); p.u1o inflates track_info_nowplaying_view; the seekbar drawables are
 /// reached only through the NowPlayingSeekBar style and p.S_SeekbarTint.
-pub const TARGETS: [Target; 20] = [
+pub const TARGETS: [Target; 22] = [
     // Mini-player surface (also its live-room and hat variants): adds a faint outline.
     target!(
         "res/drawable/floating_layout_bg.xml",
@@ -145,6 +145,15 @@ pub const TARGETS: [Target; 20] = [
     ),
     target!(
         "res/drawable/library_onboarding_card_circular_background.xml",
+        "0abe5c33408e437abe9d5f36c0808e069038efe408b150555173ec0258d9ee1c"
+    ),
+    // The list-view versions of those tiles (Add artists, podcasts, events, Import): Spotify's gray_15.
+    target!(
+        "res/drawable/library_onboarding_row_default_background.xml",
+        "65226115797f31bc7bed7fe58404af00f1ab62f014592c512a03003b12dc4ddd"
+    ),
+    target!(
+        "res/drawable/library_onboarding_row_circular_background.xml",
         "0abe5c33408e437abe9d5f36c0808e069038efe408b150555173ec0258d9ee1c"
     ),
     // Page changes (tvn0.r): the fade Spotify already uses gains a small rise.

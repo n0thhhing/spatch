@@ -1,0 +1,6 @@
+d2 4
+a5 4
+<!-- Spatch: translucent accent like the card versions, so the tile takes the theme instead of Spotify's grey. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#1fd0bcff" />
+    <corners android:radius="8dp" />
