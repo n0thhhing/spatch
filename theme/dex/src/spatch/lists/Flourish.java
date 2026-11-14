@@ -283,14 +283,14 @@ public final class Flourish extends Drawable implements InvocationHandler, Runna
     }
 
     /**
-     * What sat behind the bars follows them: the fade that shaded content under them, and the strip that
-     * swallowed touches there. The layout pass that follows hands pages the freed space.
+     * What sat behind the bars follows them: the fade that shaded content under them, the dark block over the
+     * gesture bar below it, and the strip that swallowed touches there. The layout pass that follows hands pages the freed space.
      */
     private void reflow(boolean hide) {
         if (nav == null || !(nav.getParent() instanceof View)) return;
         View main = (View) nav.getParent();
         String pkg = main.getContext().getPackageName();
-        for (String name : new String[] {"bottom_gradient", "bottom_gradient_black_fade", "fragment_container_bottom_overlap_touch_event_consumer"}) {
+        for (String name : new String[] {"bottom_gradient", "bottom_gradient_window_insets", "bottom_gradient_black_fade", "fragment_container_bottom_overlap_touch_event_consumer"}) {
             View v = main.findViewById(main.getResources().getIdentifier(name, "id", pkg));
             if (v == null) continue;
             if (name.endsWith("consumer")) v.setVisibility(hide ? View.INVISIBLE : View.VISIBLE);
