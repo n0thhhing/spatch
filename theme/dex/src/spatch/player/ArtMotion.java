@@ -182,9 +182,9 @@ final class ArtMotion implements Runnable {
         paint.setTextSize(18 * dp);
         paint.setTextAlign(Paint.Align.CENTER);
         float half = paint.measureText(time) / 2 + 16 * dp;
-        paint.setColor(Palette.color(0xe614121c));
+        paint.setColor(Tint.player(0xe614121c));
         canvas.drawRoundRect(cx - half, cy - 22 * dp, cx + half, cy + 22 * dp, 22 * dp, 22 * dp, paint);
-        paint.setColor(Palette.color(0xffd0bcff));
+        paint.setColor(Tint.player(0xffd0bcff));
         canvas.drawText(time, cx, cy + 6 * dp, paint);
         canvas.rotate(spin, cx, cy);
     }

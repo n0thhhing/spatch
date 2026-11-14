@@ -113,6 +113,9 @@ public final class Palette {
     static String spotifyVersion(Context c){
         try{return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception e){return "?";}
     }
+    static boolean isLight(){return light;}
+    /** Which of the running theme's roles a colour is (alpha ignored), or -1. */
+    static int role(int argb){int[] r=row(active);for(int i=0;i<r.length;i++)if(r[i]==(argb&0xffffff))return i;return -1;}
     static String activeName(){return NAMES[active];}
     static String requested(){return preferences==null?NAMES[active]:NAMES[index(preferences.getString("theme",NAMES[active]))];}
     static boolean choose(String name){

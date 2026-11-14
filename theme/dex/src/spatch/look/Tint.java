@@ -88,11 +88,39 @@ public final class Tint {
         return Math.min(HUES - 1, (int) (angle / (2 * Math.PI) * HUES));
     }
 
+    /**
+     * A theme colour for the player and immersive player: with Artwork colours on, the theme's roles are
+     * rebuilt around the cover's colour (surfaces deep in its hue, text faintly tinted, the accent itself).
+     * Literals reach here already themed (the patcher wraps them), so the colour is matched by its role.
+     */
+    static int player(int token) {
+        int role = Settings.get(Settings.ART_THEME) ? Palette.role(token) : -1;
+        return role < 0 ? Palette.color(token) : token & 0xff000000 | artRole(role, album(), Palette.isLight()) & 0xffffff;
+    }
+
+    /** One of the theme's nine roles (Palette's order: background, surface, card, text, ..., accent) made from art. */
+    static int artRole(int role, int art, boolean light) {
+        int ground = light ? 0xffffffff : 0xff000000, ink = light ? 0xff000000 : 0xffffffff;
+        if (light) art = Pill.blend(art, 0xff000000, .35f); // the lifted cover colour is too pale to read on white
+        switch (role) {
+            case 0: return Pill.blend(ground, art, .12f); // background
+            case 1: return Pill.blend(ground, art, .18f); // raised surface
+            case 2: return Pill.blend(ground, art, .26f); // card
+            case 3: return Pill.blend(ink, art, .08f); // text
+            case 4: return Pill.blend(art, ink, .2f);
+            case 5: return Pill.blend(Pill.blend(ink, ground, .25f), art, .3f); // secondary text
+            case 6: return art; // accent
+            case 7: return Pill.blend(art, ink, .3f);
+            default: return Pill.blend(art, ground, .15f);
+        }
+    }
+
     /** The colour picked in a choice made of NAMES. */
     static int color(int choice) {
         String name = Settings.choice(choice);
         if ("album".equals(name)) return album();
         for (int i = 2; i < NAMES.length; i++) if (NAMES[i].equals(name)) return SWATCHES[i];
-        return Palette.color(0xffd0bcff);
+        boolean player = choice == Settings.PLAYER_COLOR || choice == Settings.RING_COLOR || choice == Settings.GLOW_COLOR;
+        return player ? player(0xffd0bcff) : Palette.color(0xffd0bcff);
     }
 }

@@ -42,7 +42,7 @@ public final class PlayerArt extends ImageView {
     private float squishTarget = 1;
     private long squishAt;
     private boolean heroHidden, radialOn;
-    private int titleColour;
+    private int titleColour, artistColour;
     private static final float TITLE_ALBUM=.7f;
     private float beatLevel;
     private final ArtMotion motion = new ArtMotion(this);
@@ -171,10 +171,10 @@ public final class PlayerArt extends ImageView {
                 // Collapsed-player header (built in code by p.S_CollapsedPlayerHeader, no id): its plain ProgressBar is
                 // Spotify white; give it the theme accent. Exact class, so SeekBars are left alone.
                 headerProgress=findProgress((ViewGroup)root);
-                if(headerProgress!=null) {
-                    headerProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(Palette.color(0xffd0bcff)));
-                    headerProgress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Palette.color(0x4dd0bcff)));
-                }
+            }
+            if(headerProgress!=null) { // retinted each pass: with Artwork colours it follows the song
+                headerProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(Tint.player(0xffd0bcff)));
+                headerProgress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Tint.player(0x4dd0bcff)));
             }
         }
         TapBounce.tick(getRootView());
@@ -477,15 +477,24 @@ public final class PlayerArt extends ImageView {
         canvas.restoreToCount(save);
     }
 
-    /** Mostly the cover's colour, kept part theme text so a dark cover stays readable; restored when off. */
+    /** Mostly the cover's colour, kept part theme text so a dark cover stays readable; restored when off. Artwork colours tint the artist line too. */
     private void colourTitle() {
         if(preview) return;
         View found=getRootView().findViewById(ids[2]);
-        if(!(found instanceof android.widget.TextView)) return;
-        android.widget.TextView title=(android.widget.TextView)found;
-        if(titleColour==0) titleColour=title.getCurrentTextColor();
-        int wanted=Settings.get(Settings.TITLE_ALBUM)?Pill.blend(titleColour,Tint.album(),TITLE_ALBUM):titleColour;
-        if(wanted!=title.getCurrentTextColor()) title.setTextColor(wanted);
+        if(found instanceof android.widget.TextView) {
+            android.widget.TextView title=(android.widget.TextView)found;
+            if(titleColour==0) titleColour=title.getCurrentTextColor();
+            int base=Settings.get(Settings.ART_THEME)?Tint.player(0xfff3eeff):titleColour;
+            int wanted=Settings.get(Settings.TITLE_ALBUM)?Pill.blend(base,Tint.album(),TITLE_ALBUM):base;
+            if(wanted!=title.getCurrentTextColor()) title.setTextColor(wanted);
+        }
+        found=getRootView().findViewById(ids[3]);
+        if(found instanceof android.widget.TextView) {
+            android.widget.TextView artist=(android.widget.TextView)found;
+            if(artistColour==0) artistColour=artist.getCurrentTextColor();
+            int wanted=Settings.get(Settings.ART_THEME)?Tint.player(0xffbcb3dc):artistColour;
+            if(wanted!=artist.getCurrentTextColor()) artist.setTextColor(wanted);
+        }
     }
 
     void hideForHero(boolean hide) {

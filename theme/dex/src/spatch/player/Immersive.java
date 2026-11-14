@@ -390,12 +390,12 @@ public final class Immersive extends View implements Runnable {
             atmosphere.draw(canvas);
         }
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Settings.backdrop() ? (Math.round(Settings.strength(Settings.IMM_DARKNESS)*2.55f)<<24)|(Palette.color(0xff14121c)&0xffffff) : Palette.color(0xff14121c)); // keep an opaque surface when the backdrop is off
+        paint.setColor(Settings.backdrop() ? (Math.round(Settings.strength(Settings.IMM_DARKNESS)*2.55f)<<24)|(Tint.player(0xff14121c)&0xffffff) : Tint.player(0xff14121c)); // keep an opaque surface when the backdrop is off
         canvas.drawRect(0, 0, w, h, paint);
         // Calmer ground for the controls and spectrum: the surface deepens over the lower 45%.
         if (shade == null || shadeH != h) {
             shadeH = h;
-            shade = new LinearGradient(0, h * 0.55f, 0, h, new int[] {Palette.color(0x0014121c), Palette.color(0xb314121c)}, null, Shader.TileMode.CLAMP);
+            shade = new LinearGradient(0, h * 0.55f, 0, h, new int[] {Tint.player(0x0014121c), Tint.player(0xb314121c)}, null, Shader.TileMode.CLAMP);
         }
         paint.setShader(shade);
         canvas.drawRect(0, h * 0.55f, w, h, paint);
@@ -427,7 +427,7 @@ public final class Immersive extends View implements Runnable {
             String glowStyle = Settings.choice(Settings.GLOW_STYLE);
             float strength = "soft".equals(glowChoice) ? 0.22f : 0.45f;
             if ("fade".equals(glowStyle) && motion) strength *= 0.55f + 0.45f * (float) Math.sin(now / 700.0);
-            paint.setColor(Palette.color(0xff14121c));
+            paint.setColor(Tint.player(0xff14121c));
             paint.setShadowLayer(("wide".equals(glowStyle) ? 60 : 36) * dp, 0, 0, (Math.round(uiAlpha * strength) << 24) | Tint.color(Settings.GLOW_COLOR) & 0xffffff);
             canvas.drawRoundRect(left, top, left + size, top + size, radius, radius, paint);
             paint.setShadowLayer(20 * dp, 0, 10 * dp, Math.round(bgAlpha * 0.55f) << 24);
@@ -441,7 +441,7 @@ public final class Immersive extends View implements Runnable {
         if (art != null) {
             playerArt.drawHeroImage(canvas, cxArt, cyArt, size, visualProgress);
         } else {
-            paint.setColor(Palette.color(0xff2b2640));
+            paint.setColor(Tint.player(0xff2b2640));
             canvas.drawRect(left, top, left + size, top + size, paint);
         }
         canvas.restoreToCount(save);
@@ -477,7 +477,7 @@ public final class Immersive extends View implements Runnable {
         float topY = closeY;
         float closeR = Math.max(18 * dp, controlSize * .045f);
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Palette.color(0x44f3eeff));
+        paint.setColor(Tint.player(0x44f3eeff));
         canvas.drawCircle(closeX, topY, closeR, paint);
         buttons[0].draw(canvas,icClose,null,closeX,topY,controlSize*.06f,false);
 
@@ -487,7 +487,7 @@ public final class Immersive extends View implements Runnable {
         Typeface stockTitle = face != null ? Typeface.create(face, Typeface.BOLD) : Typeface.DEFAULT_BOLD;
         paint.setTypeface(Fonts.applied(700, stockTitle));
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setColor(Palette.color(0xfff3eeff));
+        paint.setColor(Tint.player(0xfff3eeff));
         paint.setTextSize(Math.min(30*dp, controlSize * .058f));
         String title = titleView != null && titleView.getText() != null ? titleView.getText().toString() : "Spotify";
         if (!title.equals(shownTitle)) {
@@ -501,7 +501,7 @@ public final class Immersive extends View implements Runnable {
         canvas.drawText(fit(title, maxText), contentCx + slide, titleY, paint);
         Typeface subFace = subtitleView != null ? subtitleView.getTypeface() : null;
         paint.setTypeface(Fonts.applied(400, subFace != null ? subFace : Typeface.DEFAULT));
-        paint.setColor(Palette.color(0xffbcb3dc));
+        paint.setColor(Tint.player(0xffbcb3dc));
         paint.setTextSize(Math.min(20*dp, controlSize * .038f));
         String sub = subtitleView != null && subtitleView.getText() != null ? subtitleView.getText().toString() : "";
         paint.setAlpha(Math.round(255 * ease));
@@ -512,7 +512,7 @@ public final class Immersive extends View implements Runnable {
         float prog = 0f;
         if (seekBar != null && seekBar.getMax() > 0) prog = clamp01((float) seekBar.getProgress() / seekBar.getMax());
         paint.setTextSize(13 * dp);
-        paint.setColor(Palette.color(0xccf3eeff));
+        paint.setColor(Tint.player(0xccf3eeff));
         paint.setTextAlign(Paint.Align.RIGHT);
         String posText = posView != null && posView.getText() != null ? posView.getText().toString() : "0:00";
         canvas.drawText(posText, seekL - 8 * dp, seekY + 4.5f * dp, paint);
@@ -528,7 +528,7 @@ public final class Immersive extends View implements Runnable {
         float thumbWidth = 4 * dp * seekThumb;
         float thumbX = seekL + (seekR-seekL)*prog;
         if (seekThumb > .01f) {
-            paint.setStyle(Paint.Style.FILL);paint.setColor(Palette.color(0xffd0bcff));
+            paint.setStyle(Paint.Style.FILL);paint.setColor(Tint.player(0xffd0bcff));
             paint.setAlpha(Math.round(255*seekThumb));
             canvas.drawRoundRect(thumbX-thumbWidth/2,seekY-9*dp,thumbX+thumbWidth/2,seekY+9*dp,thumbWidth/2,thumbWidth/2,paint);
             paint.setAlpha(255);
@@ -552,13 +552,13 @@ public final class Immersive extends View implements Runnable {
         }
         float t = 2 * dp;
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Palette.color(0x33f3eeff));
+        paint.setColor(Tint.player(0x33f3eeff));
         float currentVolX = volL + (volR - volL) * volProg;
         float targetWidth = isDraggingVol ? 2 : 4;
         volumeThumb = Wave.animationsEnabled() ? volumeThumb + (targetWidth-volumeThumb)*.25f : targetWidth;
         float half = volumeThumb * dp / 2, gap = half + 4*dp;
         if (currentVolX+gap<volR) canvas.drawRoundRect(currentVolX+gap,volY-t,volR,volY+t,t,t,paint);
-        paint.setColor(Palette.color(0xffd0bcff));
+        paint.setColor(Tint.player(0xffd0bcff));
         if (currentVolX-gap>volL) canvas.drawRoundRect(volL,volY-t,currentVolX-gap,volY+t,t,t,paint);
         canvas.drawRoundRect(currentVolX-half,volY-10*dp,currentVolX+half,volY+10*dp,half,half,paint);
 
@@ -573,7 +573,7 @@ public final class Immersive extends View implements Runnable {
                 lyricsAt=now;
             }
             if (lyricsExpanded) {
-                paint.setColor(Palette.color(0xf014121c));
+                paint.setColor(Tint.player(0xf014121c));
                 canvas.drawRoundRect(lyricCx-lyricWidth/2-8*dp,artY,lyricCx+lyricWidth/2+8*dp,lyricY+lyricHeight,18*dp,18*dp,paint);
             }
             lyrics.draw(canvas,lyricCx,lyricsExpanded ? artY : lyricY,
@@ -587,17 +587,21 @@ public final class Immersive extends View implements Runnable {
         return n >= text.length() ? text : text.substring(0, Math.max(0, n - 1)) + "\u2026";
     }
 
+    private int iconInk;
+
     private void ensureIcons(float w) {
-        if (icPrev != null) return;
+        int ink = Tint.player(0xfff3eeff);
+        if (icPrev != null && (ink == iconInk || Tint.fading())) return; // Artwork colours: retint once the song's fade settles
+        iconInk = ink;
         Context c = getContext();
-        icClose = msOrEncore(c, "close", S_EncoreIcon.J1, w * 0.06f, Palette.color(0xfff3eeff));
-        icShuffle = msOrEncore(c, "shuffle", S_EncoreIcon.a6, w * 0.06f, Palette.color(0xddf3eeff));
-        icPrev = msOrEncore(c, "skip_previous", S_EncoreIcon.e6, w * 0.075f, Palette.color(0xfff3eeff));
-        icNext = msOrEncore(c, "skip_forward", S_EncoreIcon.h6, w * 0.075f, Palette.color(0xfff3eeff));
-        icRepeat = msOrEncore(c, "repeat", S_EncoreIcon.Q5, w * 0.06f, Palette.color(0xddf3eeff));
-        icVolume = msOrEncore(c, "volume", S_EncoreIcon.y7, w * 0.05f, Palette.color(0xccf3eeff));
-        icPlay = msOrEncore(c, "play", S_EncoreIcon.L4, w * 0.07f, Palette.color(0xff14121c));
-        icPause = msOrEncore(c, "pause", S_EncoreIcon.E4, w * 0.07f, Palette.color(0xff14121c));
+        icClose = msOrEncore(c, "close", S_EncoreIcon.J1, w * 0.06f, Tint.player(0xfff3eeff));
+        icShuffle = msOrEncore(c, "shuffle", S_EncoreIcon.a6, w * 0.06f, Tint.player(0xddf3eeff));
+        icPrev = msOrEncore(c, "skip_previous", S_EncoreIcon.e6, w * 0.075f, Tint.player(0xfff3eeff));
+        icNext = msOrEncore(c, "skip_forward", S_EncoreIcon.h6, w * 0.075f, Tint.player(0xfff3eeff));
+        icRepeat = msOrEncore(c, "repeat", S_EncoreIcon.Q5, w * 0.06f, Tint.player(0xddf3eeff));
+        icVolume = msOrEncore(c, "volume", S_EncoreIcon.y7, w * 0.05f, Tint.player(0xccf3eeff));
+        icPlay = msOrEncore(c, "play", S_EncoreIcon.L4, w * 0.07f, Tint.player(0xff14121c));
+        icPause = msOrEncore(c, "pause", S_EncoreIcon.E4, w * 0.07f, Tint.player(0xff14121c));
     }
 
     private static Drawable msOrEncore(Context c, String msName, S_EncoreIcon fallbackIcon, float sizePx, int color) {
@@ -658,7 +662,7 @@ public final class Immersive extends View implements Runnable {
             paint.setStyle(Paint.Style.FILL);
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setTextSize(13 * dp);
-            paint.setColor(Palette.color(0xffbcb3dc));
+            paint.setColor(Tint.player(0xffbcb3dc));
             canvas.drawText(AudioSpectrum.SHARED.status, w / 2, h - 64 * dp, paint);
             return;
         }
@@ -669,7 +673,7 @@ public final class Immersive extends View implements Runnable {
         float maxH = Math.max(0, Math.min(150 * dp, base - volY - 40 * dp));
         if (Spectrum.alpha <= 0.001f || maxH <= 0) return;
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Palette.color(0xffd0bcff));
+        paint.setColor(Tint.player(0xffd0bcff));
         paint.setAlpha(Math.round(255 * Math.max(0.04f, Spectrum.alpha)));
         Spectrum.draw(canvas, paint, spectrumPath, Spectrum.bands, Settings.choice(Settings.VIZ_SHAPE), margin, w - margin,
             base, maxH, Settings.vizMirrored(), Settings.vizThin(), floating, "subtle".equals(Settings.choice(Settings.VIZ_TAPER)), dp);

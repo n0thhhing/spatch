@@ -241,6 +241,18 @@ final class DevTests {
                 return "";
             }
         });
+        test("Artwork colours rebuild the theme roles", new Test() {
+            public String run() {
+                int art = 0xff3080dc;
+                check(Tint.artRole(6, art, false) == art, "the accent should be the cover colour");
+                int ground = Tint.artRole(0, art, false);
+                check((ground & 0xff) > (ground >> 16 & 0xff) && (ground & 0xff) < 0x40, "the background should be a deep blue");
+                check((Tint.artRole(3, art, false) & 0xff) > 0xe0, "text should stay near white");
+                check((Tint.artRole(0, art, true) & 0xff) > 0xe0, "light mode should keep a pale background");
+                check(Palette.role(Palette.color(0xffd0bcff)) >= 0, "a themed accent should be found among the roles");
+                return "";
+            }
+        });
         test("Stacked rows join into one group", new Test() {
             public String run() {
                 float[] middle = RowCards.corners(true, true, 16, 4), alone = RowCards.corners(false, false, 16, 4), first = RowCards.corners(false, true, 16, 4);

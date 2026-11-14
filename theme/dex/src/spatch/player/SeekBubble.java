@@ -63,9 +63,9 @@ final class SeekBubble extends Drawable {
         paint.setColor(0x38000000);
         c.drawRoundRect(cx - half, y - 15 * dp, cx + half, y + 19 * dp, 17 * dp, 17 * dp, paint);
         // Pill body
-        paint.setColor(Palette.color(0xffd0bcff));
+        paint.setColor(Tint.player(0xffd0bcff));
         c.drawRoundRect(cx - half, y - 17 * dp, cx + half, y + 17 * dp, 17 * dp, 17 * dp, paint);
-        paint.setColor(Palette.color(0xff14121c));
+        paint.setColor(Tint.player(0xff14121c));
         c.drawText(text, cx, y + 5 * dp, paint);
     }
 

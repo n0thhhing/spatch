@@ -50,7 +50,7 @@ public final class Atmosphere extends Drawable implements Runnable {
         float blend=blend();
         for(int i=0;i<3;i++) fromColors[i]=mix(fromColors[i],colors[i],blend);
         Paint copy=new Paint(3);
-        int bg=Palette.color(0xff14121c);
+        int bg=Tint.player(0xff14121c);
         previousSample.eraseColor(bg);
         new Canvas(previousSample).drawBitmap(sample,null,new RectF(0,0,raster,raster),copy);
         sample.eraseColor(bg);
@@ -61,7 +61,7 @@ public final class Atmosphere extends Drawable implements Runnable {
     }
     public void draw(Canvas c) {
         Rect b=getBounds();
-        int bg=Palette.color(0xff14121c);
+        int bg=Tint.player(0xff14121c);
         c.drawColor(bg);
         float w=b.width(),h=b.height();
         float phase=Wave.animationsEnabled()&&Settings.artDrift()?(float)((SystemClock.uptimeMillis()/30000.0*flow/100)%1)*6.283185f:0;

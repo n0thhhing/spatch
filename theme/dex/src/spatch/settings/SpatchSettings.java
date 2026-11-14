@@ -144,7 +144,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Jelly switches",
         "Jelly scrolling",
         "Shaped icon tiles",
-        "Styled Spotify settings"
+        "Styled Spotify settings",
+        "Artwork colours"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -261,7 +262,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Switch thumbs stretch as they slide and snap round when they land",
         "Rows here trail the scroll a little and spring back together",
         "Icons here sit in cookies, clovers and flowers that round out when pressed",
-        "Spotify's own Settings rows on cards, their icons in tonal circles"
+        "Spotify's own Settings rows on cards, their icons in tonal circles",
+        "The player and immersive player take their colours from the cover"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -611,6 +613,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         player.addView(master(Settings.BURST, burstPage));
         player.addView(featureRows[5]);
         player.addView(featureRows[Settings.SEEK_BUBBLE]);
+        player.addView(featureRows[Settings.ART_THEME]);
         addColors(player, Settings.PLAYER_COLOR, "Player colour");
         finish(player);
         addSectionHeader("Gestures");
@@ -627,7 +630,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         others.addView(master(4, immersivePage));
         link(others, "cat_picture_in_picture", "Mini player", "New song pop and artwork flight", miniPage);
         finish(others);
-        resetFor(new int[] {5, Settings.BEAT_BOUNCE, Settings.SEEK_BUBBLE, Settings.HIDE_PLAYER_LYRICS, Settings.LYRICS_FOCUS}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
+        resetFor(new int[] {5, Settings.BEAT_BOUNCE, Settings.SEEK_BUBBLE, Settings.ART_THEME, Settings.HIDE_PLAYER_LYRICS, Settings.LYRICS_FOCUS}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
         finishCategory(playerPage);
 
         View visualizers = category(categories, "cat_graphic_eq", "Visualizers", "Spectrum styles and where they show", "Visualizers");

@@ -79,15 +79,15 @@ public final class ImmersiveLyrics {
         canvas.clipRect(cx-width/2f, top, cx+width/2f, top+height);
         boolean focus = Settings.get(Settings.LYRICS_FOCUS);
         int accent = Tint.album();
-        if (accent == 0 || (accent & 0xffffff) == 0) accent = Palette.color(0xffd0bcff);
+        if (accent == 0 || (accent & 0xffffff) == 0) accent = Tint.player(0xffd0bcff);
         for (int i = start; i < end; i++) {
             if (i == 1) {
-                paint.setColor(focus ? accent : Palette.color(0xfff3eeff));
+                paint.setColor(focus ? accent : Tint.player(0xfff3eeff));
                 if (focus) paint.setShadowLayer(8f, 0, 0, (accent & 0x66ffffff) | 0x55000000);
                 else paint.clearShadowLayer();
             } else {
                 paint.clearShadowLayer();
-                paint.setColor(focus ? Palette.color(0x66bcb3dc) : Palette.color(0x99f3eeff));
+                paint.setColor(focus ? Tint.player(0x66bcb3dc) : Tint.player(0x99f3eeff));
             }
             int row = canvas.save();
             canvas.translate(cx-width/2f, top+(i-start)*rowHeight+Math.max(0,(rowHeight-lines[i].getHeight())/2));

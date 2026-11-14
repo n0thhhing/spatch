@@ -25,7 +25,7 @@ public final class SaveBurst extends Drawable implements ValueAnimator.AnimatorU
     private SaveBurst(View host) {
         this.host = host;
         int accent = Tint.album();
-        if (accent == 0 || (accent & 0xffffff) == 0) accent = Palette.color(0xffd0bcff);
+        if (accent == 0 || (accent & 0xffffff) == 0) accent = Tint.player(0xffd0bcff);
         paint.setColor(accent);
     }
 
