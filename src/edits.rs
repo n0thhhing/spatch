@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 107] = [
+pub const EDITS: [Edit; 108] = [
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
     Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
@@ -461,6 +461,14 @@ pub const EDITS: [Edit; 107] = [
         file: "S_OwnProfileTopBar",
         anchor: "    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->e(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
         replacement: "    invoke-static {v5, v0}, Lspatch/ProfileBanner;->brush(Landroidx/compose/ui/graphics/Brush;Lp/S_ProfileModel;)Landroidx/compose/ui/graphics/Brush;\n\n    move-result-object v5\n\n    invoke-static {v2, v5, v6, v12, v14}, Lp/S_ComposeBackground;->e(Lp/S_ComposeModifier;Landroidx/compose/ui/graphics/Brush;Lp/S_ComposeShape;FI)Lp/S_ComposeModifier;\n",
+    },
+    // An artist's Liked songs row (xto1.l) pads 16dp above itself only. Spatch's row card covers the whole item,
+    // so the cover sat low and the heart badge ran off the bottom: split it, 8dp above and 8dp below (mask 5:
+    // start and end stay default).
+    Edit {
+        file: "S_ArtistLikedSongsRow",
+        anchor: "    .line 155\n    .line 156\n    invoke-static/range {v13 .. v18}, Lp/S_ComposePadding;->B(Lp/S_ComposeModifier;FFFFI)Lp/S_ComposeModifier;\n",
+        replacement: "    .line 155\n    .line 156\n    const/high16 v15, 0x41000000    # 8.0f\n\n    const/high16 v17, 0x41000000    # 8.0f\n\n    const/16 v18, 0x5\n\n    invoke-static/range {v13 .. v18}, Lp/S_ComposePadding;->B(Lp/S_ComposeModifier;FFFFI)Lp/S_ComposeModifier;\n",
     },
     // An artist's Popular "See more" footer (c680.r): spatch.Surfaces backs it with the page colour, so the
     // list card behind the item doesn't show under the button where Spotify's fade ends.
