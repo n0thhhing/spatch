@@ -6,6 +6,7 @@ import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -19,14 +20,16 @@ import android.view.ViewGroup;
  * Lists built as RecyclerViews (search results, albums, artist pages) hold one view per row, so each
  * row can wear the same card as Library rows. The card measures itself: headings and shelves are the
  * wrong height and draw nothing, so it can sit behind every child. Pressing a row or grid card tilts
- * it in 3D with a fast diagonal specular glint across its surface.
+ * it in 3D with a fast diagonal specular glint across its surface. Rows stacked edge to edge join into
+ * one segmented group: a 2dp seam between them, tight inner corners and full corners only at its ends.
  */
 public final class RowCards extends Drawable implements ViewGroup.OnHierarchyChangeListener, View.OnTouchListener {
-    private static final float MIN = 48, MAX = 100, SIDES = 8, ENDS = 2.5f, RADIUS = 16, MAX_TILT = 4.5f; // dp, degrees
+    private static final float MIN = 48, MAX = 100, SIDES = 8, ENDS = 2.5f, RADIUS = 16, MAX_TILT = 4.5f, SEAM = 1, INNER = 4; // dp, degrees
     private final float dp;
     private final boolean queue;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF card = new RectF();
+    private final Path shape = new Path();
     private final Camera camera = new Camera();
     private final Matrix matrix = new Matrix();
     private final float[] tiltX = new float[2], tiltY = new float[2];
@@ -52,6 +55,23 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
     /** Multi-column album or library grid cards: taller than a row and at most two-thirds of the list wide. */
     static boolean fitsGrid(float heightDp, float widthDp, float width, float listWidth) {
         return heightDp > MAX && heightDp <= 280 && widthDp >= 110 && width <= listWidth * .65f;
+    }
+
+    /** Corner radii (Path order) for a row: tight where it meets the row above or below, full at the group's ends. */
+    static float[] corners(boolean above, boolean below, float outer, float inner) {
+        float top = above ? inner : outer, bottom = below ? inner : outer;
+        return new float[] {top, top, top, top, bottom, bottom, bottom, bottom};
+    }
+
+    /** Whether another carded row sits flush against this one, above or below. */
+    private boolean joined(ViewGroup list, View row, boolean above) {
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View other = list.getChildAt(i);
+            if (other == row || other.getVisibility() != View.VISIBLE) continue;
+            if (Math.abs(above ? other.getBottom() - row.getTop() : other.getTop() - row.getBottom()) > dp) continue;
+            if (fits(other.getHeight() / dp, other.getWidth(), list.getWidth())) return true;
+        }
+        return false;
     }
 
     /** Subtle 3D lean {rotateX, rotateY} toward the pressed point on a card. */
@@ -178,9 +198,19 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
             child.setBackground(null); // releases it, so the layer can take it without a second owner
             child.setBackground(new android.graphics.drawable.LayerDrawable(new Drawable[] {rowCard, was}));
         }
+        regroup(parent);
     }
 
-    public void onChildViewRemoved(View parent, View child) {}
+    public void onChildViewRemoved(View parent, View child) {
+        regroup(parent);
+    }
+
+    /** Scrolling moves cached rows without redrawing them, so a row coming or going redraws the rest to fix their corners. */
+    private static void regroup(View parent) {
+        if (!(parent instanceof ViewGroup)) return;
+        ViewGroup list = (ViewGroup) parent;
+        for (int i = 0; i < list.getChildCount(); i++) list.getChildAt(i).invalidate();
+    }
 
     public boolean onTouch(View v, MotionEvent e) {
         int action = e.getActionMasked();
@@ -241,8 +271,13 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
         boolean row = fits(b.height() / dp, b.width(), parent.getWidth());
         boolean grid = !row && fitsGrid(b.height() / dp, b.width() / dp, b.width(), parent.getWidth());
         if (!row && !grid) return;
-        float padX = (row ? SIDES : ENDS) * dp, padY = ENDS * dp;
-        card.set(b.left + padX, b.top + padY, b.right - padX, b.bottom - padY);
+        boolean above = row && parent instanceof ViewGroup && joined((ViewGroup) parent, (View) owner, true);
+        boolean below = row && parent instanceof ViewGroup && joined((ViewGroup) parent, (View) owner, false);
+        float padX = (row ? SIDES : ENDS) * dp;
+        card.set(b.left + padX, b.top + (above ? SEAM : ENDS) * dp, b.right - padX, b.bottom - (below ? SEAM : ENDS) * dp);
+        float outer = (grid ? 18 : RADIUS) * dp;
+        shape.reset();
+        shape.addRoundRect(card, corners(above, below, outer, INNER * dp), Path.Direction.CW);
         long now = android.os.SystemClock.uptimeMillis();
         boolean active = false;
         if (Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled()) {
@@ -275,12 +310,11 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
             paint.setShader(null);
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(Palette.color(0xff2b2640));
-            float r = (grid ? 18 : RADIUS) * dp;
-            canvas.drawRoundRect(card, r, r, paint);
+            canvas.drawPath(shape, paint);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(1f * dp);
             paint.setColor(Palette.color(0x18ffffff));
-            canvas.drawRoundRect(card, r, r, paint);
+            canvas.drawPath(shape, paint);
             paint.setStyle(Paint.Style.FILL);
         }
         if (Settings.get(Settings.CARD_GLINT) && Wave.animationsEnabled() && now - glintAt >= 0 && now - glintAt < GLINT_MILLIS) {
@@ -321,7 +355,7 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
         int peak = (Math.round(0x38 * (1f - t * 0.6f)) << 24) | 0xffffff;
         paint.setColor(0xffffffff);
         paint.setShader(new LinearGradient(x, card.top, x + band * 0.7f, card.bottom, new int[] {0x00ffffff, peak, 0x00ffffff}, null, Shader.TileMode.CLAMP));
-        canvas.drawRoundRect(card, RADIUS * dp, RADIUS * dp, paint);
+        canvas.drawPath(shape, paint);
         paint.setShader(null);
     }
 
@@ -339,7 +373,7 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
         int light = 0x30ffffff & Tint.album() | 0x30000000;
         paint.setColor(0xffffffff);
         paint.setShader(new LinearGradient(x, 0, x + band, 0, new int[] {light & 0xffffff, light, light & 0xffffff}, null, Shader.TileMode.CLAMP));
-        canvas.drawRoundRect(card, RADIUS * dp, RADIUS * dp, paint);
+        canvas.drawPath(shape, paint);
         row.postInvalidateDelayed(16);
     }
 

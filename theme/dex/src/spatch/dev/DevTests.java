@@ -241,6 +241,14 @@ final class DevTests {
                 return "";
             }
         });
+        test("Stacked rows join into one group", new Test() {
+            public String run() {
+                float[] middle = RowCards.corners(true, true, 16, 4), alone = RowCards.corners(false, false, 16, 4), first = RowCards.corners(false, true, 16, 4);
+                check(middle[0] == 4 && middle[7] == 4 && alone[0] == 16 && alone[7] == 16, "wrong group corners");
+                check(first[0] == 16 && first[4] == 4, "the first row should round only its top");
+                return "";
+            }
+        });
         test("Audio ring fits its view", new Test() {
             public String run() {
                 float reach = 1.045f + .012f + 1.12f * PlayerArt.AUDIO_REACH + .012f * PlayerArt.BOLD / 2;
