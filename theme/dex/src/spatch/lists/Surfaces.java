@@ -125,7 +125,8 @@ public final class Surfaces {
         // Same row component shows "Liked songs" on artist pages at a fixed height: padding there pushes the cover
         // and its heart badge out of the card and clips them, so only the Library tab gets the inner padding.
         boolean library = NavIndicator.tab() == 2;
-        S_ComposeModifier card = card(row, 8f, 0f, 0xff2b2640, library ? 24f : 16f);
+        // and that row's content runs past its own height, so there the card doesn't clip
+        S_ComposeModifier card = card(row, 8f, 0f, 0xff2b2640, library ? 24f : 16f, library);
         return Flourish.libraryRow(library ? S_ComposePadding.y(card, 0f, 10f) : card);
     }
 
@@ -147,9 +148,13 @@ public final class Surfaces {
     }
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color, float radius) {
+        return card(row, sides, ends, color, radius, true);
+    }
+
+    private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color, float radius, boolean clip) {
         S_ComposeRoundedCornerShape shape = S_ComposeShapes.b(radius);
         S_ComposeModifier inset = S_ComposePadding.y(row, sides, ends);
-        S_ComposeModifier clipped = S_ComposeGraphicsLayer.D(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, true, 0L, 0L, 0, null, 0xfe7ff);
+        S_ComposeModifier clipped = S_ComposeGraphicsLayer.D(inset, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 0L, shape, clip, 0L, 0L, 0, null, 0xfe7ff);
         return S_ComposeBackground.f(clipped, (long) Palette.color(color) << 32, shape);
     }
 
