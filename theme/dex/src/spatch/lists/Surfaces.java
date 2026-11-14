@@ -135,10 +135,12 @@ public final class Surfaces {
     }
 
     /**
-     * Playlist track rows as floating pill cards with 4dp vertical spacing, avoiding concave notches between tracks.
+     * Playlist track rows stack into one segmented panel: 2dp seams and 10dp corners, with the same 8dp
+     * side inset as other carded lists. Compose hands the row over without its position, so the ends of
+     * the list can't take larger corners than the seams.
      */
     public static S_ComposeModifier trackRow(S_ComposeModifier row) {
-        return Flourish.trackRow(Settings.playlistCards() ? S_ComposePadding.y(card(row, 6f, 1.5f, 0xff2b2640, 14f), 8f, 2f) : row);
+        return Flourish.trackRow(Settings.playlistCards() ? S_ComposePadding.y(card(row, 8f, 1f, 0xff2b2640, 10f), 8f, 2f) : row);
     }
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color) {
