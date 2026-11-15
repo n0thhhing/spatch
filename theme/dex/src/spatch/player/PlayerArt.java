@@ -19,7 +19,13 @@ public final class PlayerArt extends ImageView {
     // from a fresh page's blank backdrop (which flashed dark).
     private static Drawable lastArt;
     private static int[] ids; // background, controls, title, subtitle view ids, looked up once
-    static boolean isPlayButton(Object v){return ids!=null && v instanceof View && ((View)v).getId()==ids[4];}
+    /** Spotify can wrap the button's drawable and give the id to a parent, so follow both a few steps up. */
+    static boolean isPlayButton(Object v){
+        if(ids==null) return false;
+        for(int i=0;i<4 && v instanceof android.graphics.drawable.Drawable;i++) v=((android.graphics.drawable.Drawable)v).getCallback();
+        for(int i=0;i<3 && v instanceof View;i++){ if(((View)v).getId()==ids[4]) return true; v=((View)v).getParent(); }
+        return false;
+    }
     private final Path ring = new Path();
     private float ringRadius, ringCx, ringCy;
     private static Atmosphere atmosphere;
