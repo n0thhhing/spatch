@@ -511,6 +511,33 @@ public final class PlayerArt extends ImageView {
         int from=Palette.color(0xffd0bcff), to=Tint.player(0xffd0bcff);
         accentRemap(getRootView().findViewById(id("feedback_buttons_container")), from, to);
         accentRemap(getRootView().findViewById(id("connect_entry_point_container")), from, to);
+        // Below the player: the page and Spotify's scroll cards (Up Next, lyrics, artist...) on the cover's ground and card colours.
+        View cards=getRootView().findViewById(id("widgets_container"));
+        if(cards!=null){
+            View page=cards.getParent() instanceof View ? (View)((View)cards.getParent()).getParent() : null;
+            retint(page, Tint.player(0xff14121c));
+            if(cards instanceof ViewGroup){ ViewGroup g=(ViewGroup)cards; int card=Tint.player(0xff2b2640);
+                for(int i=0;i<g.getChildCount();i++) retint(cardOf(g.getChildAt(i),2), card); }
+        }
+    }
+
+    private static final java.util.WeakHashMap<View,Boolean> retinted=new java.util.WeakHashMap<View,Boolean>();
+
+    /** Solid backgrounds only, and undone when Artwork colours goes off, so Spotify's own colours come back. */
+    private static void retint(View v, int colour) {
+        if(v==null) return;
+        if(!Settings.get(Settings.ART_THEME)){ if(retinted.remove(v)!=null) v.setBackgroundTintList(null); return; }
+        surface(v, colour);
+        retinted.put(v, Boolean.TRUE);
+    }
+
+    /** The card's own view: the child itself or a wrapper's first child with a plain colour or shape background. */
+    private static View cardOf(View v, int depth) {
+        if(v==null) return null;
+        Drawable bg=v.getBackground();
+        if(bg instanceof android.graphics.drawable.ColorDrawable || bg instanceof android.graphics.drawable.GradientDrawable) return v;
+        if(depth>0 && v instanceof ViewGroup && ((ViewGroup)v).getChildCount()>0) return cardOf(((ViewGroup)v).getChildAt(0), depth-1);
+        return null;
     }
 
     private static final java.util.WeakHashMap<View,Integer> remapped=new java.util.WeakHashMap<View,Integer>();
