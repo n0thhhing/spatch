@@ -517,8 +517,13 @@ public final class PlayerArt extends ImageView {
         ring.close();
     }
 
+    private static final java.util.HashMap<String,Integer> IDS=new java.util.HashMap<String,Integer>();
+
+    /** Resource ids by name, looked up once: getIdentifier is a slow string search. */
     private int id(String name) {
-        return getContext().getResources().getIdentifier(name,"id",getContext().getPackageName());
+        Integer known=IDS.get(name);
+        if(known==null){ known=getContext().getResources().getIdentifier(name,"id",getContext().getPackageName()); IDS.put(name,known); }
+        return known;
     }
 
     void drawHeroDecoration(Canvas canvas, float cx, float cy, float size, float progress, boolean ring) {
@@ -538,8 +543,14 @@ public final class PlayerArt extends ImageView {
     }
 
     /** Mostly the cover's colour, kept part theme text so a dark cover stays readable; restored when off. Artwork colours tint the artist line too. */
+    private static long colouredAt;
+
     private void colourTitle() {
         if(preview) return;
+        // Runs from onDraw: a few times a second normally, ~30fps while a song's colours fade in.
+        long now=SystemClock.uptimeMillis();
+        if(now-colouredAt < (Tint.fading() ? 33 : 400) && now>=colouredAt) return;
+        colouredAt=now;
         View found=getRootView().findViewById(ids[2]);
         if(found instanceof android.widget.TextView) {
             android.widget.TextView title=(android.widget.TextView)found;

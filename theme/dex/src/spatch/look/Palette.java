@@ -218,7 +218,7 @@ public final class Palette {
     public static long compose(long argb){
         if ((argb & ~0xffffffffL)!=0) return argb;
         int c=(int)argb;
-        if (PlayerArt.shown() && Settings.get(Settings.ART_THEME)) { // Now Playing's fixed greys (About the artist's panel) follow the cover
+        if (Settings.get(Settings.ART_THEME) && PlayerArt.shown()) { // Now Playing's fixed greys (About the artist's panel) follow the cover
             long art=Surfaces.playerCard(c);
             if (art!=0) return (art>>>32)&0xffffffffL;
         }

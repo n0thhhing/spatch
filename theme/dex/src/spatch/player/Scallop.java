@@ -15,7 +15,7 @@ import android.view.View;
  */
 public final class Scallop implements Runnable {
     // Theme accent token, resolved each call (the theme can change live); Now Playing's buttons (the player's and its sticky header's) follow Artwork colours.
-    private static int accent(Object key) { return (PlayerArt.shown() || PlayerArt.isPlayButton(key) ? Tint.player(0xffd0bcff) : Palette.color(0xffd0bcff)) & 0xffffff; }
+    private static int accent(Object key) { return (Settings.get(Settings.ART_THEME) && (PlayerArt.shown() || PlayerArt.isPlayButton(key)) ? Tint.player(0xffd0bcff) : Palette.color(0xffd0bcff)) & 0xffffff; }
     private static final int STEPS = 180;
 
     private static final WeakHashMap<Object,Scallop> STATES=new WeakHashMap<Object,Scallop>();
