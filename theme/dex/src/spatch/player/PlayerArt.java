@@ -574,6 +574,7 @@ public final class PlayerArt extends ImageView {
         View sticky=getRootView().findViewById(id("revised_template_sticky_header"));
         retint(cardOf(sticky,1), Tint.player(0xff1d1a2a));
         accentRemap(sticky, from, to); // its like check
+        if(sticky!=null && Settings.get(Settings.ART_THEME) && Tint.fading()) redraw(sticky, 3); // its play button picks the new colour as it fades
     }
 
     private static final java.util.WeakHashMap<View,Boolean> retinted=new java.util.WeakHashMap<View,Boolean>();
@@ -584,6 +585,11 @@ public final class PlayerArt extends ImageView {
         if(!Settings.get(Settings.ART_THEME)){ if(retinted.remove(v)!=null) v.setBackgroundTintList(null); return; }
         surface(v, colour);
         retinted.put(v, Boolean.TRUE);
+    }
+
+    private static void redraw(View v, int depth) {
+        v.invalidate();
+        if(depth>0 && v instanceof ViewGroup){ ViewGroup g=(ViewGroup)v; for(int i=0;i<g.getChildCount();i++) redraw(g.getChildAt(i), depth-1); }
     }
 
     /** Grey or theme-surface panels inside a card (About the artist's lower half and kin); images and colourful fills are left. */

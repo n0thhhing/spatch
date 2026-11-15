@@ -40,12 +40,13 @@ public final class PlayerSwipe {
         if (action==MotionEvent.ACTION_MOVE && !horizontal) {
             PlayerArt art=PlayerArt.currentPage(host);
             if (art!=null && art.scratching()) {candidate=false;return false;}
-            if (Math.abs(dy)>8*dp && Math.abs(dy)>Math.abs(dx)*1.3f) {
+            // Anything at least as vertical as it is sideways is a scroll; only a clearly sideways drag skips.
+            if (Math.abs(dy)>8*dp && Math.abs(dy)>=Math.abs(dx)) {
                 candidate=false;
                 if (parent!=null) parent.requestDisallowInterceptTouchEvent(false);
                 return false;
             }
-            if (Math.abs(dx)>=8*dp && Math.abs(dx)>=Math.abs(dy)*.7f) {
+            if (Math.abs(dx)>=10*dp && Math.abs(dx)>=Math.abs(dy)*1.5f) {
                 horizontal=true;
                 MotionEvent cancel=MotionEvent.obtain(event);
                 cancel.setAction(MotionEvent.ACTION_CANCEL);
