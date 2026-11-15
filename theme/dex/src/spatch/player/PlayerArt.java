@@ -544,9 +544,11 @@ public final class PlayerArt extends ImageView {
             View page=cards.getParent() instanceof View ? (View)((View)cards.getParent()).getParent() : null;
             if(!(page!=null && page.getBackground() instanceof Atmosphere)) retint(page, Tint.player(0xff14121c));
             if(cards instanceof ViewGroup){ ViewGroup g=(ViewGroup)cards; int card=Tint.player(0xff2b2640);
-                for(int i=0;i<g.getChildCount();i++) retint(cardOf(g.getChildAt(i),2), card); }
+                for(int i=0;i<g.getChildCount();i++){ View c=g.getChildAt(i); retint(cardOf(c,2), card); panels(c, card, 4); } }
         }
-        retint(cardOf(getRootView().findViewById(id("revised_template_sticky_header")),1), Tint.player(0xff1d1a2a));
+        View sticky=getRootView().findViewById(id("revised_template_sticky_header"));
+        retint(cardOf(sticky,1), Tint.player(0xff1d1a2a));
+        accentRemap(sticky, from, to); // its like check
     }
 
     private static final java.util.WeakHashMap<View,Boolean> retinted=new java.util.WeakHashMap<View,Boolean>();
@@ -557,6 +559,22 @@ public final class PlayerArt extends ImageView {
         if(!Settings.get(Settings.ART_THEME)){ if(retinted.remove(v)!=null) v.setBackgroundTintList(null); return; }
         surface(v, colour);
         retinted.put(v, Boolean.TRUE);
+    }
+
+    /** Grey or theme-surface panels inside a card (About the artist's lower half and kin); images and colourful fills are left. */
+    private static void panels(View v, int card, int depth) {
+        if(v==null) return;
+        Drawable bg=v.getBackground();
+        if(bg instanceof android.graphics.drawable.ColorDrawable && (retinted.containsKey(v) || panel(((android.graphics.drawable.ColorDrawable)bg).getColor()))) retint(v, card);
+        if(depth>0 && v instanceof ViewGroup){ ViewGroup g=(ViewGroup)v; for(int i=0;i<g.getChildCount();i++) panels(g.getChildAt(i), card, depth-1); }
+    }
+
+    static boolean panel(int argb) {
+        if((argb>>>24)<0x80) return false;
+        int role=Palette.role(argb);
+        if(role==1 || role==2) return true;
+        int max=Math.max(argb>>16&255,Math.max(argb>>8&255,argb&255));
+        return Surfaces.chroma(argb)<20 && max>0x18 && max<0x70;
     }
 
     /** The card's own view: the child itself or a wrapper's first child with a plain colour or shape background. */
