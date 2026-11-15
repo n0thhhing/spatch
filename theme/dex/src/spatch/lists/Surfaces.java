@@ -185,8 +185,8 @@ public final class Surfaces {
      * Playlist play button (Encore PlayButtonBehavior.t): rides the header's bottom edge as before, then stops
      * centred on the collapsed toolbar's row (back arrow and title) instead of hanging off its bottom.
      */
-    public static void placePlay(android.view.View button, android.view.View header, android.view.View toolbar, int size) {
-        float natural = header.getY() + header.getHeight() - size;
+    public static void placePlay(android.view.View button, android.view.View header, android.view.View toolbar, int size, int overhang) {
+        float natural = header.getY() + header.getHeight() - size + overhang;
         float centre = toolbar.getHeight() / 2f;
         if (toolbar instanceof android.view.ViewGroup) {
             android.view.ViewGroup bar = (android.view.ViewGroup) toolbar;

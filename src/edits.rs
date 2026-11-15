@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 111] = [
+pub const EDITS: [Edit; 112] = [
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
     Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
@@ -494,14 +494,21 @@ pub const EDITS: [Edit; 111] = [
     // Encore track row (kto1.e): inside a playlist card its content padding is trimmed (spatch.Surfaces.rowPadding).
     Edit {
         file: "S_EncoreTrackRow",
-        anchor: "    iget-object v1, v14, Lp/uvx;->e:Lp/vzq0;\n",
-        replacement: "    iget-object v1, v14, Lp/uvx;->e:Lp/vzq0;\n\n    invoke-static {v13, v1}, Lspatch/Surfaces;->rowPadding(Lp/S_ComposeModifier;Lp/S_ComposePaddingValues;)Lp/S_ComposePaddingValues;\n\n    move-result-object v1\n",
+        anchor: "    iget-object v8, v14, Lp/uvx;->d:Lp/vzq0;\n",
+        replacement: "    iget-object v8, v14, Lp/uvx;->d:Lp/vzq0;\n\n    invoke-static {v13, v8}, Lspatch/Surfaces;->rowPadding(Lp/S_ComposeModifier;Lp/S_ComposePaddingValues;)Lp/S_ComposePaddingValues;\n\n    move-result-object v8\n",
     },
-    // Playlist play button placement: spatch.Surfaces.placePlay stops it centred on the collapsed toolbar.
+    // Playlist play button placement (the Compose header's behaviour): spatch.Surfaces.placePlay stops it
+    // centred on the collapsed toolbar. 0x7f0703b7 is the overhang Spotify adds below the header edge.
+    Edit {
+        file: "smali_classes3/com/spotify/encoreconsumermobile/layout/headers/ComposePlayButtonBehavior.smali",
+        anchor: ".method public static t(Landroidx/compose/ui/platform/ComposeView;Landroid/view/View;Landroidx/appcompat/widget/Toolbar;)V\n    .locals 4\n",
+        replacement: ".method public static t(Landroidx/compose/ui/platform/ComposeView;Landroid/view/View;Landroidx/appcompat/widget/Toolbar;)V\n    .locals 4\n\n    invoke-virtual {p0}, Landroid/view/View;->getHeight()I\n\n    move-result v0\n\n    invoke-virtual {p0}, Landroid/view/View;->getResources()Landroid/content/res/Resources;\n\n    move-result-object v1\n\n    const v2, 0x7f0703b7\n\n    invoke-virtual {v1, v2}, Landroid/content/res/Resources;->getDimensionPixelSize(I)I\n\n    move-result v1\n\n    invoke-static {p0, p1, p2, v0, v1}, Lspatch/Surfaces;->placePlay(Landroid/view/View;Landroid/view/View;Landroid/view/View;II)V\n\n    return-void\n",
+    },
+    // The same for the View play button behaviour.
     Edit {
         file: "smali_classes3/com/spotify/encoreconsumermobile/layout/headers/PlayButtonBehavior.smali",
         anchor: ".method public static t(Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;Landroid/view/View;Landroidx/appcompat/widget/Toolbar;)V\n    .locals 1\n",
-        replacement: ".method public static t(Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;Landroid/view/View;Landroidx/appcompat/widget/Toolbar;)V\n    .locals 1\n\n    invoke-virtual {p0}, Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;->getPlayButtonHeightWithoutBadge()I\n\n    move-result v0\n\n    invoke-static {p0, p1, p2, v0}, Lspatch/Surfaces;->placePlay(Landroid/view/View;Landroid/view/View;Landroid/view/View;I)V\n\n    return-void\n",
+        replacement: ".method public static t(Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;Landroid/view/View;Landroidx/appcompat/widget/Toolbar;)V\n    .locals 2\n\n    invoke-virtual {p0}, Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;->getPlayButtonHeightWithoutBadge()I\n\n    move-result v0\n\n    const/4 v1, 0x0\n\n    invoke-static {p0, p1, p2, v0, v1}, Lspatch/Surfaces;->placePlay(Landroid/view/View;Landroid/view/View;Landroid/view/View;II)V\n\n    return-void\n",
     },
     // Playlist track rows (eeb1, via kro1.d): spatch.Surfaces lays each on a card.
     Edit {
