@@ -30,7 +30,10 @@ public final class Scallop implements Runnable {
     public void run(){Drawable d=owner==null?null:owner.get();if(d!=null)d.invalidateSelf();}
 
     /** Canvas is already translated to the centre; r is the circle radius lbg would have drawn. */
-    public static void draw(Canvas canvas, float r, Paint source, int bumps, Drawable drawable) {
+    public static void draw(Canvas canvas, float r, Paint source, int bumps, Drawable drawable) { draw(canvas, r, source, bumps, drawable, 0); }
+
+    /** colour (RGB) replaces the theme accent; 0 keeps it. The immersive player passes its own. */
+    static void draw(Canvas canvas, float r, Paint source, int bumps, Drawable drawable, int colour) {
         // Play and pause are separate lbg instances but share the same ImageButton callback.
         // Key by that callback so switching drawable retains the current outline, including
         // rapid toggles. Weak keys and a weak drawable reference avoid retaining the player.
@@ -38,7 +41,7 @@ public final class Scallop implements Runnable {
         if(key==null)key=drawable;
         if(!Settings.shapes()) { // plain circle, still in the theme accent
             Paint plain = new Paint(source);
-            plain.setColor((source.getAlpha() << 24) | accent(key));
+            plain.setColor((source.getAlpha() << 24) | (colour != 0 ? colour & 0xffffff : accent(key)));
             canvas.drawCircle(0,0,r,plain);
             return;
         }
@@ -87,7 +90,7 @@ public final class Scallop implements Runnable {
         path.close();
         Paint paint = new Paint(source);
         // Keep lbg's state alpha (pressed 70%, disabled 50%) and swap only the colour.
-        paint.setColor((source.getAlpha() << 24) | accent(key));
+        paint.setColor((source.getAlpha() << 24) | (colour != 0 ? colour & 0xffffff : accent(key)));
         canvas.drawPath(path, paint);
         if((desired==1 || progress<1 || bt<1) && Wave.animationsEnabled() && drawable.isVisible() && Wave.onScreen(drawable)){
             if(key instanceof View)((View)key).postOnAnimation(state); // every display frame, not a fixed 60

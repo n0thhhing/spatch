@@ -223,7 +223,7 @@ final class Spectrum {
         }
         float top = centre ? mid - maxH / 2 : base - maxH;
         float bottom = centre ? mid + maxH / 2 : base;
-        int accent = Palette.color(0xffd0bcff) & 0x00ffffff;
+        int accent = Tint.player(0xffd0bcff) & 0x00ffffff;
         if (barGradient == null || top != gradTop || bottom != gradBottom || accent != gradColor || centre != gradCentre || floating != gradFloating || blocks != gradBlocks) {
             gradTop = top; gradBottom = bottom; gradColor = accent; gradCentre = centre; gradFloating = floating; gradBlocks = blocks;
             barGradient = new LinearGradient(0, top, 0, bottom,
