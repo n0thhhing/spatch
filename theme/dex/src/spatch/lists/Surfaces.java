@@ -13,6 +13,7 @@ import p.S_ComposeRoundedCornerShape;
 import p.S_ComposeShapes;
 import p.S_ComposeGraphicsLayer;
 import p.S_ComposePaddingSides;
+import p.S_ComposePaddingValues;
 
 /**
  * Compose surface policy, called from yw9 (every background modifier), S_ComposeShapes.b (rounded shapes) and the
@@ -165,8 +166,36 @@ public final class Surfaces {
      * the list can't take larger corners than the seams.
      */
     public static S_ComposeModifier trackRow(S_ComposeModifier row) {
-        // Cards line up with the header's 16dp column; Spotify's row already pads its content, so no inner inset.
-        return Flourish.trackRow(Settings.playlistCards() ? card(row, 16f, 2f, 0xff2b2640, 12f) : row);
+        // Cards line up with the header's 16dp column; rowPadding then trims Spotify's own inset inside them.
+        if (!Settings.playlistCards()) return Flourish.trackRow(row);
+        S_ComposeModifier carded = Flourish.trackRow(card(row, 16f, 2f, 0xff2b2640, 12f));
+        synchronized (CARDED) { CARDED.put(carded, Boolean.TRUE); }
+        return carded;
+    }
+
+    private static final java.util.WeakHashMap<Object, Boolean> CARDED = new java.util.WeakHashMap<Object, Boolean>();
+
+    /** Encore's track row content padding (16dp sides): inside a playlist card the art sits 8dp in, as far as it does from the top. */
+    public static S_ComposePaddingValues rowPadding(S_ComposeModifier row, S_ComposePaddingValues padding) {
+        synchronized (CARDED) { if (!CARDED.containsKey(row)) return padding; }
+        return new S_ComposePaddingSides(8f, 8f, 4f, 8f);
+    }
+
+    /**
+     * Playlist play button (Encore PlayButtonBehavior.t): rides the header's bottom edge as before, then stops
+     * centred on the collapsed toolbar's row (back arrow and title) instead of hanging off its bottom.
+     */
+    public static void placePlay(android.view.View button, android.view.View header, android.view.View toolbar, int size) {
+        float natural = header.getY() + header.getHeight() - size;
+        float centre = toolbar.getHeight() / 2f;
+        if (toolbar instanceof android.view.ViewGroup) {
+            android.view.ViewGroup bar = (android.view.ViewGroup) toolbar;
+            for (int i = 0; i < bar.getChildCount(); i++) {
+                android.view.View child = bar.getChildAt(i);
+                if (child.getVisibility() == 0 && child.getHeight() > 0) { centre = child.getTop() + child.getHeight() / 2f; break; }
+            }
+        }
+        button.setTranslationY(Math.max(natural, toolbar.getY() + centre - size / 2f));
     }
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color) {

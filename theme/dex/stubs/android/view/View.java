@@ -1,6 +1,6 @@
 package android.view;
 // Compile-time stub only; never packaged (the device provides the real class).
-public class View implements android.graphics.drawable.Drawable.Callback { public void postOnAnimation(Runnable r){} public android.content.res.ColorStateList getBackgroundTintList(){return null;} public void setBackgroundTintList(android.content.res.ColorStateList t){} public static final int LAYER_TYPE_NONE = 0, LAYER_TYPE_HARDWARE = 2; public void setLayerType(int t, android.graphics.Paint p){} public int getLayerType(){return 0;} public int getWindowVisibility(){return 0;}
+public class View implements android.graphics.drawable.Drawable.Callback { public void postOnAnimation(Runnable r){} public android.content.res.ColorStateList getBackgroundTintList(){return null;} public void setBackgroundTintList(android.content.res.ColorStateList t){} public static final int LAYER_TYPE_NONE = 0, LAYER_TYPE_HARDWARE = 2; public void setLayerType(int t, android.graphics.Paint p){} public int getLayerType(){return 0;} public int getWindowVisibility(){return 0;} public float getY(){return 0;}
     public static final int VISIBLE = 0, INVISIBLE = 4;
     public void setAlpha(float a) {}
     public int getSystemUiVisibility() { return 0; }

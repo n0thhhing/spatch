@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 109] = [
+pub const EDITS: [Edit; 111] = [
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
     Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
@@ -490,6 +490,18 @@ pub const EDITS: [Edit; 109] = [
         file: "S_ToggleChip",
         anchor: ".method public static final d(ZLp/S_KotlinFunction1;Lp/S_ToggleChipColors;Lp/S_ToggleChipColor;Lp/S_ComposeShape;Lp/S_ToggleChipShape;ZLp/S_ToggleChipStyle;Lp/S_ToggleChipBorder;Lp/S_ComposeModifier;Lp/S_ComposeLambda;Lp/S_Composer;I)V\n    .locals 29\n",
         replacement: ".method public static final d(ZLp/S_KotlinFunction1;Lp/S_ToggleChipColors;Lp/S_ToggleChipColor;Lp/S_ComposeShape;Lp/S_ToggleChipShape;ZLp/S_ToggleChipStyle;Lp/S_ToggleChipBorder;Lp/S_ComposeModifier;Lp/S_ComposeLambda;Lp/S_Composer;I)V\n    .locals 29\n\n    move/from16 v0, p0\n\n    move-object/from16 v1, p4\n\n    invoke-static {v1, v0}, Lspatch/Surfaces;->chipShape(Lp/S_ComposeShape;Z)Lp/S_ComposeShape;\n\n    move-result-object v1\n\n    move-object/from16 p4, v1\n",
+    },
+    // Encore track row (kto1.e): inside a playlist card its content padding is trimmed (spatch.Surfaces.rowPadding).
+    Edit {
+        file: "S_EncoreTrackRow",
+        anchor: "    iget-object v1, v14, Lp/uvx;->e:Lp/vzq0;\n",
+        replacement: "    iget-object v1, v14, Lp/uvx;->e:Lp/vzq0;\n\n    invoke-static {v13, v1}, Lspatch/Surfaces;->rowPadding(Lp/S_ComposeModifier;Lp/S_ComposePaddingValues;)Lp/S_ComposePaddingValues;\n\n    move-result-object v1\n",
+    },
+    // Playlist play button placement: spatch.Surfaces.placePlay stops it centred on the collapsed toolbar.
+    Edit {
+        file: "smali_classes3/com/spotify/encoreconsumermobile/layout/headers/PlayButtonBehavior.smali",
+        anchor: ".method public static t(Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;Landroid/view/View;Landroidx/appcompat/widget/Toolbar;)V\n    .locals 1\n",
+        replacement: ".method public static t(Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;Landroid/view/View;Landroidx/appcompat/widget/Toolbar;)V\n    .locals 1\n\n    invoke-virtual {p0}, Lcom/spotify/encoreconsumermobile/elements/playbutton/PlayButtonView;->getPlayButtonHeightWithoutBadge()I\n\n    move-result v0\n\n    invoke-static {p0, p1, p2, v0}, Lspatch/Surfaces;->placePlay(Landroid/view/View;Landroid/view/View;Landroid/view/View;I)V\n\n    return-void\n",
     },
     // Playlist track rows (eeb1, via kro1.d): spatch.Surfaces lays each on a card.
     Edit {

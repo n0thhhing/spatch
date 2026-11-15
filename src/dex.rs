@@ -67,7 +67,7 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Each is an alias (`S_...`) or a smali path.
-const RELOCATED: [&str; 15] = [
+const RELOCATED: [&str; 16] = [
     "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali",
     // Typography and the Home filter row: these DEX tables are full too.
     "S_MixFontLoaderD",
@@ -82,6 +82,7 @@ const RELOCATED: [&str; 15] = [
     "S_EncoreTint",
     // Encore Text: Now Playing's accent text follows Artwork colours (spatch.Surfaces.text).
     "S_EncoreText",
+    "S_EncoreTrackRow",
     // Widget hooks: Glance's RemoteViews hand-off and an outlined MediaSession constructor.
     "S_GlanceRemoteViews",
     "S_MediaSessionSite",
