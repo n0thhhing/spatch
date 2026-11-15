@@ -19,6 +19,7 @@ public final class PlayerArt extends ImageView {
     // from a fresh page's blank backdrop (which flashed dark).
     private static Drawable lastArt;
     private static int[] ids; // background, controls, title, subtitle view ids, looked up once
+    static boolean isPlayButton(Object v){return ids!=null && v instanceof View && ((View)v).getId()==ids[4];}
     private final Path ring = new Path();
     private float ringRadius, ringCx, ringCy;
     private static Atmosphere atmosphere;
