@@ -14,8 +14,8 @@ import android.view.View;
  * (5 while paused, 9 while playing). Called from the patched p.S_PlayButtonShape.draw() in place of drawCircle.
  */
 public final class Scallop implements Runnable {
-    // Theme accent token, resolved each call (the theme can change live); the player's own button follows Artwork colours.
-    private static int accent(Object key) { return (PlayerArt.isPlayButton(key) ? Tint.player(0xffd0bcff) : Palette.color(0xffd0bcff)) & 0xffffff; }
+    // Theme accent token, resolved each call (the theme can change live); Now Playing's buttons (the player's and its sticky header's) follow Artwork colours.
+    private static int accent(Object key) { return (PlayerArt.shown || PlayerArt.isPlayButton(key) ? Tint.player(0xffd0bcff) : Palette.color(0xffd0bcff)) & 0xffffff; }
     private static final int STEPS = 180;
 
     private static final WeakHashMap<Object,Scallop> STATES=new WeakHashMap<Object,Scallop>();
