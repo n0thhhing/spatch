@@ -187,15 +187,22 @@ public final class Surfaces {
      */
     public static void placePlay(android.view.View button, android.view.View header, android.view.View toolbar, int size, int overhang) {
         float natural = header.getY() + header.getHeight() - size + overhang;
+        // The header never scrolls above the toolbar, so natural bottoms out here; over the last button-height
+        // of travel the button slides up to the toolbar's row instead.
+        float floor = toolbar.getY() + toolbar.getHeight() - size + overhang;
         float centre = toolbar.getHeight() / 2f;
         if (toolbar instanceof android.view.ViewGroup) {
             android.view.ViewGroup bar = (android.view.ViewGroup) toolbar;
-            for (int i = 0; i < bar.getChildCount(); i++) {
+            int smallest = Integer.MAX_VALUE;
+            for (int i = 0; i < bar.getChildCount(); i++) { // the back arrow or title, not a full-height backdrop
                 android.view.View child = bar.getChildAt(i);
-                if (child.getVisibility() == 0 && child.getHeight() > 0) { centre = child.getTop() + child.getHeight() / 2f; break; }
+                if (child.getVisibility() == 0 && child.getHeight() > 0 && child.getHeight() < smallest) { smallest = child.getHeight(); centre = child.getTop() + child.getHeight() / 2f; }
             }
         }
-        button.setTranslationY(Math.max(natural, toolbar.getY() + centre - size / 2f));
+        float pinned = toolbar.getY() + centre - size / 2f;
+        float t = Math.max(0, Math.min(1, (natural - floor) / Math.max(1, size)));
+        float y = pinned + (natural - pinned) * t;
+        button.setTranslationY(y);
     }
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color) {
