@@ -79,7 +79,7 @@ public class View implements android.graphics.drawable.Drawable.Callback { publi
     public void layout(int l, int t, int r, int b) {}
     public void draw(android.graphics.Canvas c) {}
     protected void onFinishInflate() {}
-    public static final int LAYOUT_DIRECTION_RTL = 1, IMPORTANT_FOR_ACCESSIBILITY_NO = 2, IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 4;
+    public static final int LAYOUT_DIRECTION_RTL = 1, IMPORTANT_FOR_ACCESSIBILITY_AUTO = 0, IMPORTANT_FOR_ACCESSIBILITY_NO = 2, IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 4;
     public boolean performHapticFeedback(int c) { return true; }
     public boolean isAttachedToWindow() { return true; }
     public int getLayoutDirection() { return 0; }

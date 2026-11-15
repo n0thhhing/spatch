@@ -41,6 +41,9 @@ public final class Tint {
         glowLyrics();
     }
 
+    /** The artwork last followed: a new one means a new song for whoever is watching. */
+    static Object artwork() { return source; }
+
     static boolean fading() {
         return Wave.animationsEnabled() && from != to && SystemClock.uptimeMillis() - changedAt < FADE_MILLIS;
     }

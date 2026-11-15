@@ -2,6 +2,8 @@ package android.view;
 
 public final class ViewTreeObserver {
     public interface OnDrawListener { void onDraw(); }
+    public interface OnPreDrawListener { boolean onPreDraw(); }
+    public void addOnPreDrawListener(OnPreDrawListener l) {}
     public interface OnGlobalLayoutListener { void onGlobalLayout(); }
     public interface OnScrollChangedListener { void onScrollChanged(); }
     public void addOnScrollChangedListener(OnScrollChangedListener l) {}

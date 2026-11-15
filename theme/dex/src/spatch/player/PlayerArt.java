@@ -582,6 +582,7 @@ public final class PlayerArt extends ImageView {
             boolean hide=Settings.get(Settings.PLAYER_ONLY);
             if(hide && cards.getVisibility()!=8){ cards.setVisibility(8); cardsHidden=true; }
             else if(!hide && cardsHidden){ cards.setVisibility(0); cardsHidden=false; }
+            PlayerCards.watch(cards);
         }
         if(cards!=null){
             View page=cards.getParent() instanceof View ? (View)((View)cards.getParent()).getParent() : null;
