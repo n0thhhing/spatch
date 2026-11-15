@@ -57,6 +57,7 @@ public final class PlayerArt extends ImageView {
     private final Matrix flipMatrix = new Matrix();
     private Expansion expansion;
     private static Drawable original; // controls background before any page's backdrop replaced it
+    private static boolean cardsHidden;
     private static Drawable pageOriginal; // the Now Playing page's own background, while the backdrop covers it
     public PlayerArt(Context c, AttributeSet a) { super(c, a); Settings.load(c); }
 
@@ -565,6 +566,12 @@ public final class PlayerArt extends ImageView {
         accentRemap(getRootView().findViewById(id("connect_entry_point_container")), from, to);
         // Below the player: the page and Spotify's scroll cards (Up Next, lyrics, artist...) on the cover's ground and card colours.
         View cards=getRootView().findViewById(id("widgets_container"));
+        // Just the player: Spotify's cards under it are hidden, and only shown again if this hid them.
+        if(cards!=null){
+            boolean hide=Settings.get(Settings.PLAYER_ONLY);
+            if(hide && cards.getVisibility()!=8){ cards.setVisibility(8); cardsHidden=true; }
+            else if(!hide && cardsHidden){ cards.setVisibility(0); cardsHidden=false; }
+        }
         if(cards!=null){
             View page=cards.getParent() instanceof View ? (View)((View)cards.getParent()).getParent() : null;
             if(!(page!=null && page.getBackground() instanceof Atmosphere)) retint(page, Tint.player(0xff14121c));

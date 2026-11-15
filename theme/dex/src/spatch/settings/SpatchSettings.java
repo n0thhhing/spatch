@@ -145,7 +145,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Jelly scrolling",
         "Shaped icon tiles",
         "Styled Spotify settings",
-        "Artwork colours"
+        "Artwork colours",
+        "Just the player"
     };
 
     static final String[] FEATURE_SUBTITLES = {
@@ -263,7 +264,8 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "Rows here trail the scroll a little and spring back together",
         "Icons here sit in cookies, clovers and flowers that round out when pressed",
         "Spotify's own Settings rows on cards, their icons in tonal circles",
-        "The player and immersive player take their colours from the cover"
+        "The player and immersive player take their colours from the cover",
+        "Hides the cards under the player (lyrics, artist, credits, Up Next), so it doesn't scroll"
     };
 
     /** Icon names for each feature row: a bundled Material Symbol (spatch_ms_<name>), else encore_icon_<name>_24; a missing name leaves the tile empty. */
@@ -273,7 +275,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         "external_link", "arrow_left", "list_view", "track", "enhance", "filter", "enhance", "arrow_top_left", "t_shirt", "play", "user", "t_shirt", "collection_active", "list_view", "filter_active", "playlist",
         "device_mobile", "arrow_left", "fullscreen", "arrow_up", "enhance", "star", "heart", "star", "track", "shuffle", "skip_forward", "repeat", "enhance", "edit", "fullscreen", "minimize", "t_shirt", "star", "fullscreen", "time", "arrow_left",
         "arrow_up", "time", "enhance", "arrow_up", "time", "enhance", "star", "now_playing", "device_mobile", "fullscreen", "playlist",
-        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen", "soundwave", "album", "soundwave", "enhance", "cat_animation", "cat_swipe", "cat_palette", "cat_dashboard", "album"
+        "enhance", "repeat", "skip_forward", "time", "device_mobile", "star", "enhance", "enhance", "arrow_up", "soundwave", "heart", "album", "skip_forward", "list_view", "image", "arrow_up", "soundwave", "image", "enhance", "list_view", "home", "gem", "group", "user", "star", "soundwave", "skip_forward", "enhance", "track", "track", "fullscreen", "soundwave", "album", "soundwave", "enhance", "cat_animation", "cat_swipe", "cat_palette", "cat_dashboard", "album", "fullscreen"
     };
 
     /** Section layout: Settings indices per group. */
@@ -614,6 +616,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         player.addView(featureRows[5]);
         player.addView(featureRows[Settings.SEEK_BUBBLE]);
         player.addView(featureRows[Settings.ART_THEME]);
+        player.addView(featureRows[Settings.PLAYER_ONLY]);
         addColors(player, Settings.PLAYER_COLOR, "Player colour");
         finish(player);
         addSectionHeader("Gestures");
@@ -630,7 +633,7 @@ public final class SpatchSettings extends FrameLayout implements View.OnClickLis
         others.addView(master(4, immersivePage));
         link(others, "cat_picture_in_picture", "Mini player", "New song pop and artwork flight", miniPage);
         finish(others);
-        resetFor(new int[] {5, Settings.BEAT_BOUNCE, Settings.SEEK_BUBBLE, Settings.ART_THEME, Settings.HIDE_PLAYER_LYRICS, Settings.LYRICS_FOCUS}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
+        resetFor(new int[] {5, Settings.BEAT_BOUNCE, Settings.SEEK_BUBBLE, Settings.ART_THEME, Settings.PLAYER_ONLY, Settings.HIDE_PLAYER_LYRICS, Settings.LYRICS_FOCUS}, new int[] {Settings.ART_SKIP, Settings.ART_SHAPE, Settings.BACKDROP_FX, Settings.PLAYER_COLOR});
         finishCategory(playerPage);
 
         View visualizers = category(categories, "cat_graphic_eq", "Visualizers", "Spectrum styles and where they show", "Visualizers");
