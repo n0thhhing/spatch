@@ -57,6 +57,7 @@ public final class PlayerArt extends ImageView {
     private final Matrix flipMatrix = new Matrix();
     private Expansion expansion;
     private static Drawable original; // controls background before any page's backdrop replaced it
+    private static Drawable pageOriginal; // the Now Playing page's own background, while the backdrop covers it
     public PlayerArt(Context c, AttributeSet a) { super(c, a); Settings.load(c); }
 
     static PlayerArt preview(Context c, Drawable art) {
@@ -151,19 +152,32 @@ public final class PlayerArt extends ImageView {
         updateAudio();
         Tint.follow(art);
         colourTitle();
+        // With Artwork colours the backdrop sits behind the whole page, so Spotify's scroll cards ride on it too;
+        // otherwise it fills the player and fades into the page's theme colour.
+        View page=background!=null && background.getParent() instanceof View ? (View)((View)background.getParent()).getParent() : null;
+        boolean whole=page!=null && Settings.get(Settings.ART_THEME);
         if(background!=null && !Settings.backdrop()) {
-            if(background.getBackground() instanceof Atmosphere) background.setBackground(original);
+            if(background.getBackground() instanceof Atmosphere || whole && background.getBackground()==null) background.setBackground(original);
+            if(page!=null && page.getBackground() instanceof Atmosphere) page.setBackground(pageOriginal);
         } else if(background!=null && art!=null) {
             if(art!=lastArt) {
                 lastArt=art;
-                if(atmosphere==null){ atmosphere=new Atmosphere(); atmosphere.fadeBottom=true; }
+                if(atmosphere==null) atmosphere=new Atmosphere();
                 atmosphere.capture(art);
             }
-            if(background.getBackground()!=atmosphere) {
+            atmosphere.fadeBottom=!whole;
+            View host=whole?page:background;
+            if(!whole && page!=null && page.getBackground() instanceof Atmosphere) page.setBackground(pageOriginal);
+            if(whole && background.getBackground()!=null) {
                 if(!(background.getBackground() instanceof Atmosphere)) original=background.getBackground();
-                background.setBackground(atmosphere);
+                background.setBackground(null);
             }
-            atmosphere.follow(this,background,Math.min(getWidth(),getHeight())*(Settings.roundArt() && !ad ? .44f : .5f)*size);
+            if(host.getBackground()!=atmosphere) {
+                if(host==page){ if(!(page.getBackground() instanceof Atmosphere)) pageOriginal=page.getBackground(); }
+                else if(!(background.getBackground() instanceof Atmosphere) && background.getBackground()!=null) original=background.getBackground();
+                host.setBackground(atmosphere);
+            }
+            atmosphere.follow(this,host,Math.min(getWidth(),getHeight())*(Settings.roundArt() && !ad ? .44f : .5f)*size);
         }
         if(now-lastSetup>750) {
             lastSetup=now;
@@ -520,7 +534,7 @@ public final class PlayerArt extends ImageView {
         View cards=getRootView().findViewById(id("widgets_container"));
         if(cards!=null){
             View page=cards.getParent() instanceof View ? (View)((View)cards.getParent()).getParent() : null;
-            retint(page, Tint.player(0xff14121c));
+            if(!(page!=null && page.getBackground() instanceof Atmosphere)) retint(page, Tint.player(0xff14121c));
             if(cards instanceof ViewGroup){ ViewGroup g=(ViewGroup)cards; int card=Tint.player(0xff2b2640);
                 for(int i=0;i<g.getChildCount();i++) retint(cardOf(g.getChildAt(i),2), card); }
         }
