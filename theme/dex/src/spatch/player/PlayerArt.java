@@ -155,6 +155,7 @@ public final class PlayerArt extends ImageView {
         // With Artwork colours the backdrop sits behind the whole page, so Spotify's scroll cards ride on it too;
         // otherwise it fills the player and fades into the page's theme colour.
         View page=background!=null && background.getParent() instanceof View ? (View)((View)background.getParent()).getParent() : null;
+        if(page!=null && !preview && (playerPage==null || playerPage.get()!=page)) playerPage=new java.lang.ref.WeakReference<View>(page);
         boolean whole=page!=null && Settings.get(Settings.ART_THEME);
         if(background!=null && !Settings.backdrop()) {
             if(background.getBackground() instanceof Atmosphere || whole && background.getBackground()==null) background.setBackground(original);
@@ -355,11 +356,35 @@ public final class PlayerArt extends ImageView {
         showing(visibility == 0);
     }
 
-    /** Now Playing is its own activity, so while it shows, Compose colours being chosen are its own cards'. */
-    static volatile boolean shown;
-    // Every carousel page reports in, and neighbours come and go with each song: shown while any page is up.
+    // Every carousel page reports in, and neighbours come and go with each song.
     private static final java.util.WeakHashMap<PlayerArt,Boolean> VISIBLE=new java.util.WeakHashMap<PlayerArt,Boolean>();
-    private void showing(boolean on){ if(on && !preview) VISIBLE.put(this,Boolean.TRUE); else VISIBLE.remove(this); shown=!VISIBLE.isEmpty(); }
+    private static long shownAt; private static boolean shownLast;
+    private static java.lang.ref.WeakReference<View> playerPage;
+    private void showing(boolean on){ if(on && !preview) VISIBLE.put(this,Boolean.TRUE); else VISIBLE.remove(this); shownAt=0; }
+
+    /**
+     * Now Playing is expanded and its artwork is on screen. The player shares the main window, so window
+     * visibility alone stays on after it collapses; checked at most every 100ms as Compose asks often.
+     */
+    static boolean shown(){
+        long now=SystemClock.uptimeMillis();
+        if(now-shownAt<100) return shownLast;
+        shownAt=now;
+        boolean any=false;
+        int[] at=new int[2];
+        try {
+            View page=playerPage==null?null:playerPage.get();
+            boolean live=false;
+            for(PlayerArt p:VISIBLE.keySet()) if(p!=null && p.isShown()){ live=true; break; }
+            // The whole Now Playing page (it stays put while its cards scroll): expanded when it sits near the top.
+            if(live && page!=null && page.isShown() && page.getHeight()>0){
+                page.getLocationOnScreen(at);
+                any=at[1] < page.getResources().getDisplayMetrics().heightPixels*0.4f;
+            }
+        } catch(RuntimeException e) { any=false; } // a page added mid-walk: ask again next time
+        shownLast=any;
+        return any;
+    }
 
     public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);

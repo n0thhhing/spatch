@@ -36,7 +36,7 @@ public final class Surfaces {
     public static long bg(long c) {
         if (!plain(c)) return c;
         int argb = (int) (c >>> 32);
-        if (PlayerArt.shown && Settings.get(Settings.ART_THEME)) {
+        if (PlayerArt.shown() && Settings.get(Settings.ART_THEME)) {
             long art = playerCard(argb);
             if (art != 0) return art;
         }
@@ -48,7 +48,7 @@ public final class Surfaces {
 
     /** Encore Text's colour: in Now Playing with Artwork colours, the theme's text and accent roles follow the cover. */
     public static long text(long c) {
-        if (!plain(c) || !PlayerArt.shown || !Settings.get(Settings.ART_THEME)) return c;
+        if (!plain(c) || !PlayerArt.shown() || !Settings.get(Settings.ART_THEME)) return c;
         int argb = (int) (c >>> 32);
         int role = Palette.role(argb);
         if (role < 3) return c;
