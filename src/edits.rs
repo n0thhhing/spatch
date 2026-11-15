@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 108] = [
+pub const EDITS: [Edit; 109] = [
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
     Edit { file: "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali", anchor: ".method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n", replacement: ".method public dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n    .locals 1\n\n    invoke-static {p0, p1}, Lspatch/PlayerSwipe;->touch(Landroid/view/View;Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    if-eqz v0, :spatch_native_touch\n\n    const/4 v0, 0x1\n\n    return v0\n\n    :spatch_native_touch\n    invoke-super {p0, p1}, Landroidx/core/widget/NestedScrollView;->dispatchTouchEvent(Landroid/view/MotionEvent;)Z\n\n    move-result v0\n\n    return v0\n.end method\n\n.method public constructor <init>(Landroid/content/Context;Landroid/util/AttributeSet;)V\n" },
     // Preserve the page policy while immersive temporarily permits user-controlled rotation.
@@ -138,6 +138,7 @@ pub const EDITS: [Edit; 108] = [
     Edit { file: "S_EncoreColorTokens", anchor: "    const v0, 0x36ffffff\n", replacement: "    const v0, 0x36ffffff\n\n    invoke-static {v0}, Lspatch/Palette;->tinted(I)I\n\n    move-result v0\n" },
     Edit { file: "S_EncoreTheme", anchor: ".field public static final a:Lp/S_EncoreColorScheme;\n", replacement: ".field public static a:Lp/S_EncoreColorScheme;\n" },
     Edit { file: "S_EncoreTheme", anchor: ".method static constructor <clinit>()V\n    .locals 6\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/S_EncoreTheme;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 6\n" },
+    Edit { file: "S_EncoreText", anchor: ".method public static final e(Ljava/lang/String;Lp/qim0;Lp/lee1;JLp/a0e1;Lp/iu30;IZLp/djc0;ILp/qx8;Lp/b0k;III)V\n    .locals 34\n", replacement: ".method public static final e(Ljava/lang/String;Lp/qim0;Lp/lee1;JLp/a0e1;Lp/iu30;IZLp/djc0;ILp/qx8;Lp/b0k;III)V\n    .locals 34\n\n    invoke-static/range {p3 .. p4}, Lspatch/Surfaces;->text(J)J\n\n    move-result-wide p3\n" },
     Edit { file: "S_EncoreTint", anchor: ".method public static final g(J)J\n    .locals 1\n\n    .line 1\n", replacement: ".method public static final g(J)J\n    .locals 1\n\n    .line 1\n    invoke-static {p0, p1}, Lspatch/Palette;->compose(J)J\n\n    move-result-wide p0\n\n" },
     Edit { file: "S_EncoreSurfaces", anchor: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n", replacement: "    invoke-static {p0}, Lcom/google/android/play/core/splitcompat/SplitCompat;->install(Landroid/content/Context;)Z\n\n    invoke-static {p0}, Lspatch/Settings;->load(Landroid/content/Context;)V\n" },
 

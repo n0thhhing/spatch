@@ -45,6 +45,15 @@ public final class Surfaces {
         return c;
     }
 
+    /** Encore Text's colour: in Now Playing with Artwork colours, the theme's text and accent roles follow the cover. */
+    public static long text(long c) {
+        if (!plain(c) || !PlayerArt.shown || !Settings.get(Settings.ART_THEME)) return c;
+        int argb = (int) (c >>> 32);
+        int role = Palette.role(argb);
+        if (role < 3) return c;
+        return (long) (argb & 0xff000000 | Tint.player(argb | 0xff000000) & 0xffffff) << 32;
+    }
+
     /** Now Playing's Compose cards: Spotify's greys and the theme's surfaces, cards and accent pills follow the cover. 0 = leave it. */
     static long playerCard(int argb) {
         int role = Palette.role(argb);
