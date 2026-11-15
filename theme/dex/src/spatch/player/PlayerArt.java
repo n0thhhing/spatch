@@ -352,22 +352,30 @@ public final class PlayerArt extends ImageView {
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
         if (visibility != 0) AudioSpectrum.drop(AudioSpectrum.RADIAL);
-        shown = visibility == 0;
+        showing(visibility == 0);
     }
 
     /** Now Playing is its own activity, so while it shows, Compose colours being chosen are its own cards'. */
     static volatile boolean shown;
+    // Every carousel page reports in, and neighbours come and go with each song: shown while any page is up.
+    private static final java.util.WeakHashMap<PlayerArt,Boolean> VISIBLE=new java.util.WeakHashMap<PlayerArt,Boolean>();
+    private void showing(boolean on){ if(on && !preview) VISIBLE.put(this,Boolean.TRUE); else VISIBLE.remove(this); shown=!VISIBLE.isEmpty(); }
 
     public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);
         if (!focus) AudioSpectrum.drop(AudioSpectrum.RADIAL);
     }
 
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if(getWindowVisibility()==0) showing(true);
+    }
+
     protected void onDetachedFromWindow() {
         if(expansion!=null) expansion.finish();
         expansion=null;
         AudioSpectrum.drop(AudioSpectrum.RADIAL);
-        shown = false;
+        showing(false);
         super.onDetachedFromWindow();
     }
 
