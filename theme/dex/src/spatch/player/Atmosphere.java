@@ -37,6 +37,11 @@ public final class Atmosphere extends Drawable implements Runnable {
     private int shockTint;
     private float shockX,shockY,shockRadius;
     private float artX,artY,artRadius;
+    /** The player's backdrop ends where Spotify's scroll cards begin: fade it into the page colour there. */
+    boolean fadeBottom;
+    private LinearGradient fade;
+    private int fadeColor;
+    private float fadeTop,fadeBottomEdge;
     private final int[] artAt=new int[2],surfaceAt=new int[2];
 
     /** The art and backdrop can have different origins, especially when inline lyrics change height. */
@@ -90,6 +95,16 @@ public final class Atmosphere extends Drawable implements Runnable {
         glowRadius=w;
         paint.setShader(null); paint.setColor(bg & 0xffffff | 0x55000000);
         c.drawRect(b.left,b.top,b.right,b.bottom,paint);
+        if(fadeBottom){
+            float top=b.bottom-h*.22f;
+            if(fade==null||fadeColor!=bg||fadeTop!=top||fadeBottomEdge!=b.bottom){
+                fade=new LinearGradient(0,top,0,b.bottom,new int[]{bg&0xffffff,bg&0xffffff|0x99000000,bg},null,Shader.TileMode.CLAMP);
+                fadeColor=bg;fadeTop=top;fadeBottomEdge=b.bottom;
+            }
+            paint.setShader(fade); paint.setAlpha(255);
+            c.drawRect(b.left,top,b.right,b.bottom,paint);
+            paint.setShader(null);
+        }
         boolean shocks=drawShockwaves(c,w,h);
         String fx=Settings.choice(Settings.BACKDROP_FX);
         boolean motes=!"none".equals(fx);

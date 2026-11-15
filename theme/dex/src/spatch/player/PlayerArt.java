@@ -156,7 +156,7 @@ public final class PlayerArt extends ImageView {
         } else if(background!=null && art!=null) {
             if(art!=lastArt) {
                 lastArt=art;
-                if(atmosphere==null) atmosphere=new Atmosphere();
+                if(atmosphere==null){ atmosphere=new Atmosphere(); atmosphere.fadeBottom=true; }
                 atmosphere.capture(art);
             }
             if(background.getBackground()!=atmosphere) {
@@ -338,7 +338,11 @@ public final class PlayerArt extends ImageView {
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
         if (visibility != 0) AudioSpectrum.drop(AudioSpectrum.RADIAL);
+        shown = visibility == 0;
     }
+
+    /** Now Playing is its own activity, so while it shows, Compose colours being chosen are its own cards'. */
+    static volatile boolean shown;
 
     public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);
@@ -349,6 +353,7 @@ public final class PlayerArt extends ImageView {
         if(expansion!=null) expansion.finish();
         expansion=null;
         AudioSpectrum.drop(AudioSpectrum.RADIAL);
+        shown = false;
         super.onDetachedFromWindow();
     }
 
@@ -519,6 +524,7 @@ public final class PlayerArt extends ImageView {
             if(cards instanceof ViewGroup){ ViewGroup g=(ViewGroup)cards; int card=Tint.player(0xff2b2640);
                 for(int i=0;i<g.getChildCount();i++) retint(cardOf(g.getChildAt(i),2), card); }
         }
+        retint(cardOf(getRootView().findViewById(id("revised_template_sticky_header")),1), Tint.player(0xff1d1a2a));
     }
 
     private static final java.util.WeakHashMap<View,Boolean> retinted=new java.util.WeakHashMap<View,Boolean>();

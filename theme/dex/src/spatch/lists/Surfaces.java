@@ -35,10 +35,26 @@ public final class Surfaces {
     public static long bg(long c) {
         if (!plain(c)) return c;
         int argb = (int) (c >>> 32);
+        if (PlayerArt.shown && Settings.get(Settings.ART_THEME)) {
+            long art = playerCard(argb);
+            if (art != 0) return art;
+        }
         if (argb == GREY_CARD || argb == GREY_TILE) return (long) Palette.color(0xff2b2640) << 32;
         if (argb == SKELETON) return (long) (Palette.color(0xffd0bcff) & 0xffffff | 0x24000000) << 32;
         if (black(argb)) return (long) (argb & 0xff000000 | Palette.color(0xff14121c) & 0xffffff) << 32;
         return c;
+    }
+
+    /** Now Playing's Compose cards: Spotify's greys and the theme's surfaces, cards and accent pills follow the cover. 0 = leave it. */
+    static long playerCard(int argb) {
+        int role = Palette.role(argb);
+        int alpha = argb & 0xff000000;
+        if (role == 0 || black(argb)) return (long) (alpha | Tint.player(0xff14121c) & 0xffffff) << 32;
+        if (role == 1 || role == 2 || role == 6) return (long) (alpha | Tint.player(argb | 0xff000000) & 0xffffff) << 32;
+        int lum = Math.max(argb >> 16 & 255, Math.max(argb >> 8 & 255, argb & 255));
+        if (argb == GREY_CARD || argb == GREY_TILE || chroma(argb) < GREY_CHROMA && lum > 0x1c && lum < 0x70)
+            return (long) (alpha | Tint.player(0xff2b2640) & 0xffffff) << 32;
+        return 0;
     }
 
     /**
