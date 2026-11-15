@@ -212,6 +212,8 @@ public final class Palette {
         if("accent".equals(Settings.choice(Settings.SURFACE_TINT)))return Math.min(255,Math.round(alpha*1.4f))<<24|color(0xffd0bcff)&0xffffff;
         return alpha<<24|color(0xfff3eeff)&0xffffff;
     }
+    /** androidx bar protection by side (2 = top): the status bar has none, the others take the page colour. */
+    public static int barColor(int side){return side==2 ? 0 : color(0xff14121c);}
     /** Spotify's literal Compose colours; its fixed #282828 placeholder grey (Library's "Add artists" tiles and kin) takes the card colour. */
     public static long compose(long argb){
         if ((argb & ~0xffffffffL)!=0) return argb;

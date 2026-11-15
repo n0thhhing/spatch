@@ -112,12 +112,12 @@ pub const EDITS: [Edit; 109] = [
     // Encore's colours are built once from Palette: a live theme change builds them again.
     Edit { file: "S_EncoreColorTokens", anchor: ".field public static final a:Lp/S_EncoreColorsBuild;\n", replacement: ".field public static a:Lp/S_EncoreColorsBuild;\n" },
     Edit { file: "S_EncoreColorTokens", anchor: ".method static constructor <clinit>()V\n    .locals 62\n", replacement: ".method static constructor <clinit>()V\n    .locals 0\n\n    invoke-static {}, Lp/S_EncoreColorTokens;->rebuild()V\n\n    return-void\n.end method\n\n.method public static rebuild()V\n    .locals 62\n" },
-    // The status and navigation bar protection (androidx GradientProtection): the theme's page colour,
-    // not black, so it blends on every theme and suits light mode.
+    // The status and navigation bar protection (androidx GradientProtection): none behind the status bar,
+    // the theme's page colour (not black) behind the navigation bar.
     Edit {
         file: "S_BarProtection",
         anchor: "    const/high16 v1, -0x1000000\n",
-        replacement: "    const/high16 v1, -0x1000000\n\n    const v1, 0xff14121c\n\n    invoke-static {v1}, Lspatch/Palette;->color(I)I\n\n    move-result v1\n",
+        replacement: "    const/high16 v1, -0x1000000\n\n    iget-byte v1, p0, Lp/S_BarProtection;->a:B\n\n    invoke-static {v1}, Lspatch/Palette;->barColor(I)I\n\n    move-result v1\n",
     },
     // Spotify's Settings page links (Account, Playback...): each row on a card, its icon in a tonal
     // circle. The icon slot passes no Modifier, so it gets one and its default bit (0x4) is cleared.
