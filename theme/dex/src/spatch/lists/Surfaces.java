@@ -140,7 +140,8 @@ public final class Surfaces {
      * the list can't take larger corners than the seams.
      */
     public static S_ComposeModifier trackRow(S_ComposeModifier row) {
-        return Flourish.trackRow(Settings.playlistCards() ? S_ComposePadding.y(card(row, 8f, 1f, 0xff2b2640, 10f), 8f, 2f) : row);
+        // Cards line up with the header's 16dp column; Spotify's row already pads its content, so no inner inset.
+        return Flourish.trackRow(Settings.playlistCards() ? card(row, 16f, 2f, 0xff2b2640, 12f) : row);
     }
 
     private static S_ComposeModifier card(S_ComposeModifier row, float sides, float ends, int color) {
