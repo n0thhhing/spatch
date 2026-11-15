@@ -507,6 +507,42 @@ public final class PlayerArt extends ImageView {
         surface(getRootView().findViewById(ids[1]), Tint.player(0xff2b2640));
         View play=getRootView().findViewById(ids[4]);
         if(play!=null && Settings.get(Settings.ART_THEME) && Tint.fading()) play.invalidate(); // its scallop takes the new colour as it fades
+        // Spotify's like check and device label pick their accent by state, so they're recoloured as drawn rather than set.
+        int from=Palette.color(0xffd0bcff), to=Tint.player(0xffd0bcff);
+        accentRemap(getRootView().findViewById(id("feedback_buttons_container")), from, to);
+        accentRemap(getRootView().findViewById(id("connect_entry_point_container")), from, to);
+    }
+
+    private static final java.util.WeakHashMap<View,Integer> remapped=new java.util.WeakHashMap<View,Integer>();
+
+    private static void accentRemap(View v, int from, int to) {
+        if(v==null) return;
+        Integer had=remapped.get(v);
+        float[] m=Settings.get(Settings.ART_THEME) ? remapMatrix(from,to) : null;
+        if(m==null){ if(had!=null){ v.setLayerType(View.LAYER_TYPE_NONE,null); remapped.remove(v);} return; }
+        if(had!=null && had==to) return;
+        Paint layer=new Paint(0);
+        layer.setColorFilter(new android.graphics.ColorMatrixColorFilter(m));
+        v.setLayerType(View.LAYER_TYPE_HARDWARE,layer);
+        remapped.put(v,to);
+    }
+
+    /** A linear RGB map sending from to to while every grey (white, black, Spotify's greys) stays as it is; null when from is itself grey. */
+    static float[] remapMatrix(int from, int to) {
+        float[] a={(from>>16&255)/255f,(from>>8&255)/255f,(from&255)/255f}, b={(to>>16&255)/255f,(to>>8&255)/255f,(to&255)/255f};
+        float[] p={a[2]-a[1],a[0]-a[2],a[1]-a[0]}; // (1,1,1) x a: off the grey axis and off a, kept fixed
+        float[][] src={{1,a[0],p[0]},{1,a[1],p[1]},{1,a[2],p[2]}}, dst={{1,b[0],p[0]},{1,b[1],p[1]},{1,b[2],p[2]}};
+        float det=src[0][0]*(src[1][1]*src[2][2]-src[1][2]*src[2][1])-src[0][1]*(src[1][0]*src[2][2]-src[1][2]*src[2][0])+src[0][2]*(src[1][0]*src[2][1]-src[1][1]*src[2][0]);
+        if(Math.abs(det)<1e-4f) return null;
+        float[][] inv=new float[3][3];
+        for(int r=0;r<3;r++)for(int c=0;c<3;c++){
+            int r1=(c+1)%3,r2=(c+2)%3,c1=(r+1)%3,c2=(r+2)%3;
+            inv[r][c]=(src[r1][c1]*src[r2][c2]-src[r1][c2]*src[r2][c1])/det;
+        }
+        float[] m=new float[20];
+        for(int r=0;r<3;r++)for(int c=0;c<3;c++){float sum=0;for(int k=0;k<3;k++)sum+=dst[r][k]*inv[k][c];m[r*5+c]=sum;}
+        m[18]=1;
+        return m;
     }
 
     private static void surface(View v, int colour) {

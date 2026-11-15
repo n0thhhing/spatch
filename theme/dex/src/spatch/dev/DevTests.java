@@ -241,6 +241,19 @@ final class DevTests {
                 return "";
             }
         });
+        test("Accent remap moves the accent and keeps greys", new Test() {
+            public String run() {
+                float[] m = PlayerArt.remapMatrix(0xff40a0e0, 0xffe07040);
+                check(m != null, "a coloured accent should give a matrix");
+                float[][] cases = {{1,1,1, 1,1,1}, {.5f,.5f,.5f, .5f,.5f,.5f}, {0x40/255f,0xa0/255f,0xe0/255f, 0xe0/255f,0x70/255f,0x40/255f}};
+                for (float[] c : cases) for (int r = 0; r < 3; r++) {
+                    float out = m[r*5]*c[0] + m[r*5+1]*c[1] + m[r*5+2]*c[2];
+                    check(Math.abs(out - c[3+r]) < .01f, "channel " + r + " gave " + out);
+                }
+                check(PlayerArt.remapMatrix(0xff808080, 0xffe07040) == null, "a grey accent has nothing to move");
+                return "";
+            }
+        });
         test("Artwork colours rebuild the theme roles", new Test() {
             public String run() {
                 int art = 0xff3080dc;

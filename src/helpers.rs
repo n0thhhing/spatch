@@ -1249,6 +1249,10 @@ pub const STUBS: &[(&str, &str)] = &[
         include_str!("../theme/dex/stubs/android/graphics/ColorFilter.java"),
     ),
     (
+        "ColorMatrixColorFilter.java",
+        include_str!("../theme/dex/stubs/android/graphics/ColorMatrixColorFilter.java"),
+    ),
+    (
         "PixelFormat.java",
         include_str!("../theme/dex/stubs/android/graphics/PixelFormat.java"),
     ),
