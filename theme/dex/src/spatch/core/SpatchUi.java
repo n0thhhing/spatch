@@ -1085,7 +1085,7 @@ public final class SpatchUi extends FrameLayout {
         toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
         LinearLayout player = card(page, "Player");
         toggle(player, "Floating motes", "Soft particles drift behind the player", "motes", true, false);
-        toggle(player, "Follow the music", "The ring’s bars react to Spotify’s playback. Android lists this as microphone access", "audio", false, false);
+        toggle(player, "Follow the music", "The ring’s bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
         toggle(player, "Keep screen on", "While the player is open", "keep_on", true, false);
         toggle(player, "Haptics", "Little taps on buttons", "haptics", true, false);
         TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.", 13, inkDim, false);
@@ -1871,7 +1871,7 @@ public final class SpatchUi extends FrameLayout {
             float s = Math.min(w, h), bar = dp(34);
             float ring = Math.max(dp(60), s / 2f - bar - dp(8)), artR = ring - dp(7);
             boolean run = playing && motion();
-            boolean audio = pref("audio", false) && Audio.permitted(activity);
+            boolean audio = pref("audio", true) && Audio.permitted(activity);
             long now = SystemClock.uptimeMillis();
             Bitmap b = art(url, 440);
             if (b == null) b = art(url, 180);
@@ -1914,8 +1914,10 @@ public final class SpatchUi extends FrameLayout {
             boolean live = audio && Audio.BANDS[0] + Audio.BANDS[8] > 0;
             for (int k = 0; k < bars; k++) {
                 int half = bars / 2, bi = k < half ? k : bars - 1 - k;
-                float v = live ? Audio.BANDS[Math.min(Audio.BANDS.length - 1, bi * Audio.BANDS.length / half)]
-                    : run ? .12f + .1f * (float) Math.sin(t * 2.2f + bi * .35f) * (float) Math.sin(t * .9f + bi * .13f) : .06f;
+                // Real levels when Spotify's audio is readable; otherwise a lively travelling pulse that still reads as music.
+                float pulse = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - bi / (float) half) * .35f;
+                float v = live ? Math.min(1f, Audio.BANDS[Math.min(Audio.BANDS.length - 1, bi * Audio.BANDS.length / half)] * 1.35f)
+                    : run ? Math.min(1f, .22f + .2f * (float) Math.sin(t * 3.1f + bi * .55f) + .14f * (float) Math.sin(t * 1.7f - bi * .31f) + pulse) : .06f;
                 double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
                 float len = dp(3) + (bar - dp(6)) * Math.max(0, v), start = ring + dp(10);
                 float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
