@@ -357,6 +357,7 @@ const PLAYER: i32 = 2;
 const IMMERSIVE: i32 = 3;
 const QUEUE: i32 = 4;
 const PLAYLIST: i32 = 5;
+const SETTINGS: i32 = 6;
 
 fn navigate(route: i32, action: i32, category: i32) -> i32 {
     let page = route & 7;
@@ -379,13 +380,17 @@ fn navigate(route: i32, action: i32, category: i32) -> i32 {
             next = (next & !(1 << 3)) | (page << 3);
             PLAYLIST
         }
+        7 if page <= LIBRARY => {
+            next = (next & !(1 << 3)) | (page << 3);
+            SETTINGS
+        }
         4 if page == PLAYER || page == IMMERSIVE => {
             next = (next & !(7 << 4)) | (page << 4);
             QUEUE
         }
         5 => match page {
             LIBRARY => HOME,
-            PLAYER | PLAYLIST => browse,
+            PLAYER | PLAYLIST | SETTINGS => browse,
             IMMERSIVE => PLAYER,
             QUEUE => queue_from,
             _ => HOME,
@@ -421,6 +426,15 @@ mod tests {
         let playlist = navigate(library, 6, 0);
         assert_eq!(playlist & 7, PLAYLIST);
         assert_eq!(navigate(playlist, 5, 0), library | (1 << 3));
+    }
+
+    #[test]
+    fn settings_opens_from_browse_and_returns_to_it() {
+        let library = navigate(HOME, 1, 1);
+        let settings = navigate(library, 7, 0);
+        assert_eq!(settings & 7, SETTINGS);
+        assert_eq!(navigate(settings, 2, 0), settings);
+        assert_eq!(navigate(settings, 5, 0) & 7, LIBRARY);
     }
 
     #[test]

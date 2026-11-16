@@ -39,6 +39,28 @@ fn geometry(kind: &str) -> Vec<f32> {
             })
             .collect(),
         "wave" => (0..128).map(|i| (i as f32 / 128.0 * TAU).sin()).collect(),
+        // Eight-tooth gear outline plus its hub, stroked.
+        "settings" => {
+            let teeth: Vec<f32> = (0..=64)
+                .flat_map(|i| {
+                    let angle = i as f32 / 64.0 * TAU;
+                    let tooth = ((angle / TAU * 8.0 + 0.25).fract() < 0.5) as u8 as f32;
+                    polar(angle, 7.0 + 2.2 * tooth, 12.0)
+                })
+                .collect();
+            let hub: Vec<f32> = (0..=24).flat_map(|i| polar(i as f32 / 24.0 * TAU, 3.0, 12.0)).collect();
+            [vec![65.0], teeth, vec![25.0], hub].concat()
+        }
+        // Filled heart from the classic parametric curve, fitted to the 24 box.
+        "heart" => [vec![-48.0], (0..48)
+            .flat_map(|i| {
+                let t = i as f32 / 48.0 * TAU;
+                let x = 16.0 * t.sin().powi(3);
+                let y = 13.0 * t.cos() - 5.0 * (2.0 * t).cos() - 2.0 * (3.0 * t).cos() - (4.0 * t).cos();
+                [12.0 + x * 0.56, 11.2 - y * 0.56]
+            })
+            .collect()]
+        .concat(),
         _ => glyph(kind).to_vec(),
     }
 }
@@ -103,6 +125,9 @@ fn glyph(kind: &str) -> &'static [f32] {
         "queue" => &[
             2., 4., 6., 20., 6., 2., 4., 11., 20., 11., 2., 4., 16., 14., 16.,
         ],
+        "chevron" => &[3., 9., 5., 16., 12., 9., 19.],
+        "close" => &[2., 6., 6., 18., 18., 2., 18., 6., 6., 18.],
+        "sparkle" => &[-8., 12., 3., 14., 10., 21., 12., 14., 14., 12., 21., 10., 14., 3., 12., 10., 10.],
         _ => &[],
     }
 }
@@ -148,6 +173,20 @@ mod tests {
     }
 
     #[test]
+    fn computed_glyphs_stay_in_the_icon_box() {
+        for kind in ["settings", "heart"] {
+            let data = geometry(kind);
+            let mut points = data.as_slice();
+            while let [count, rest @ ..] = points {
+                let length = count.abs() as usize * 2;
+                assert!(rest[..length].iter().all(|v| (0.0..=24.0).contains(v)), "{kind}");
+                points = &rest[length..];
+            }
+            assert!(points.is_empty());
+        }
+    }
+
+    #[test]
     fn transport_glyphs_are_complete_paths_inside_the_icon_box() {
         for kind in [
             "back",
@@ -163,6 +202,9 @@ mod tests {
             "immersive",
             "home",
             "library",
+            "close",
+            "sparkle",
+            "chevron",
         ] {
             let mut points = glyph(kind);
             assert!(!points.is_empty());
