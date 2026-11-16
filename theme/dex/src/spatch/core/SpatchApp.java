@@ -68,6 +68,8 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
                 File[] old = dir.listFiles();
                 if (old != null) for (File f : old) if (!f.equals(lib)) f.delete();
             }
+            // Android 14+ refuses to load a library the app could still write (dynamic code loading rules).
+            if (lib.canWrite() && !lib.setReadOnly()) throw new java.io.IOException("can't make " + lib + " read-only");
             System.load(lib.getAbsolutePath());
             loaded = true;
             loadError = null;
@@ -89,6 +91,25 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
             for (int n; (n = s.read(buf)) > 0;) out.write(buf, 0, n);
             return out.toByteArray();
         }
+    }
+
+    private static final String START = "spatch_app_start";
+    private static boolean startHandled;
+
+    /** Developer options' "Open on start": the Rust app comes up over Spotify's main screen at launch. */
+    static boolean opensOnStart(Context c) {
+        return c.getSharedPreferences("spatch", 0).getBoolean(START, false);
+    }
+
+    static void setOpensOnStart(Context c, boolean on) {
+        c.getSharedPreferences("spatch", 0).edit().putBoolean(START, on).commit();
+    }
+
+    /** Every resumed activity: once per launch, Spotify's main screen gets the app over it when asked for. */
+    static void resumed(Activity a) {
+        if (startHandled || !"com.spotify.music.SpotifyMainActivity".equals(a.getClass().getName())) return;
+        startHandled = true; // after Close, Spotify's own UI stays until the next launch
+        if (opensOnStart(a)) open(a);
     }
 
     /** Opens the Rust app over this activity. False (see loadError) when the library can't load. */
