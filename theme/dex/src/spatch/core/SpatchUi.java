@@ -78,6 +78,7 @@ public final class SpatchUi extends FrameLayout {
     private boolean polling, fetching, libraryReady, seekPending;
     private String libraryStatus = "Connecting to your library…";
     private String title = "", artist = "", album = "", source = "", image = "", uri = "";
+    private String albumArtist = "", release = "", albumPosition = "", rating = "";
     private boolean playing, shuffle;
     private Boolean pendingPlayback;
     private int playbackAttempt;
@@ -89,7 +90,9 @@ public final class SpatchUi extends FrameLayout {
     private ScrollView scroll;
     private ListView libraryList, playlistList;
     private int playlistRow, playlistTop;
-    private TextView playbackSource;
+    private TextView playbackSource, infoTrack, infoArtist, infoAlbum, infoAlbumArtist, infoRelease,
+        infoPosition, infoRating, infoSource;
+    private LinearLayout infoNext;
     private Entry playlist;
     private List<Entry> playlistTracks = new ArrayList<>();
     private int playlistOffset;
@@ -222,13 +225,14 @@ public final class SpatchUi extends FrameLayout {
         position = Long.parseLong(state[9]);
         duration = Long.parseLong(state[10]);
         source = state[11];
+        albumArtist = state[12]; release = state[13]; albumPosition = state[14]; rating = state[15];
         stamp = SystemClock.uptimeMillis();
         List<Entry> next = new ArrayList<>();
-        for (int i = 12; i + 2 < state.length; i += 3) {
+        for (int i = 16; i + 2 < state.length; i += 3) {
             next.add(new Entry(state[i], state[i + 1], "", state[i + 2], -1));
         }
         boolean queueChanged = !upcoming.equals(next);
-        upcoming = next;
+        if (queueChanged) upcoming = next;
         if (screen == QUEUE && queueChanged) redrawPage();
         else refreshPlayer();
     }
@@ -410,7 +414,9 @@ public final class SpatchUi extends FrameLayout {
         libraryList = playlistList = null;
         trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = null;
         trackArt = heroArt = atmosphere = null;
-        playbackSource = null;
+        playbackSource = infoTrack = infoArtist = infoAlbum = null;
+        infoAlbumArtist = infoRelease = infoPosition = infoRating = infoSource = null;
+        infoNext = null;
         playButton = heroPlay = shuffleButton = repeatButton = null;
         wave = null;
         visualizer = null;
@@ -669,7 +675,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout body = column();
         body.setPadding(dp(16), 0, dp(16), dp(12));
         body.setGravity(Gravity.CENTER_HORIZONTAL);
-        content.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
+        if (full) content.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
         trackArt = new Art(screen == PLAYER ? Art.IMMERSIVE : Art.PLAYER_ART);
         body.addView(trackArt, new LinearLayout.LayoutParams(-1, 0, 1));
         trackArt.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
@@ -709,7 +715,98 @@ public final class SpatchUi extends FrameLayout {
             addVolume(details);
             visualizer = new Visualizer();
             details.addView(visualizer, match(dp(82)));
+        } else {
+            addPlayerDetails(body);
         }
+    }
+
+    private void addPlayerDetails(LinearLayout player) {
+        LinearLayout pages = column();
+        ScrollView playerScroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                super.onMeasure(widthSpec, heightSpec);
+                // The scroll container receives the viewport; its vertical child is unbounded.
+                int viewport = getMeasuredHeight();
+                if (viewport != player.getLayoutParams().height) {
+                    player.getLayoutParams().height = viewport;
+                    player.forceLayout();
+                    pages.forceLayout();
+                    super.onMeasure(widthSpec, heightSpec);
+                }
+            }
+        };
+        playerScroll.setVerticalScrollBarEnabled(false);
+        playerScroll.setOverScrollMode(OVER_SCROLL_NEVER);
+        playerScroll.addView(pages, new ScrollView.LayoutParams(-1, -2));
+        content.addView(playerScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        pages.addView(player, match(0));
+
+        LinearLayout section = column();
+        section.setPadding(dp(16), dp(10), dp(16), dp(24));
+        pages.addView(section, match(-2));
+        LinearLayout card = column();
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+        card.setBackground(background(container, 28));
+        section.addView(card, match(-2));
+        TextView heading = text("Track details", 24, onSurface, true);
+        if (android.os.Build.VERSION.SDK_INT >= 28) heading.setAccessibilityHeading(true);
+        card.addView(heading, match(-2));
+        gap(card, 10);
+        infoTrack = detailLine(card, "Track");
+        infoArtist = detailLine(card, "Artist");
+        infoAlbum = detailLine(card, "Album");
+        infoAlbumArtist = detailLine(card, "Album artist");
+        infoRelease = detailLine(card, "Released");
+        infoPosition = detailLine(card, "On album");
+        infoRating = detailLine(card, "Rating");
+        infoSource = detailLine(card, "Playing from");
+
+        gap(section, 14);
+        LinearLayout next = row();
+        next.addView(text("Up next", 23, onSurface, true), weighted());
+        next.addView(chip("View queue", secondaryContainer, onSecondaryContainer, () -> navigate(4, 0)));
+        section.addView(next, match(-2));
+        infoNext = column();
+        section.addView(infoNext, match(-2));
+
+    }
+
+    private TextView detailLine(LinearLayout card, String label) {
+        LinearLayout line = row();
+        line.setPadding(0, dp(5), 0, dp(5));
+        line.addView(text(label, 14, onVariant, false), new LinearLayout.LayoutParams(dp(104), -2));
+        TextView value = text("", 16, onSurface, true);
+        line.addView(value, weighted());
+        card.addView(line, match(-2));
+        return value;
+    }
+
+    private void refreshPlayerDetails() {
+        if (infoTrack == null) return;
+        infoTrack.setText(title.isEmpty() ? "Nothing playing" : duration > 0 ? title + " · " + time(duration) : title);
+        infoArtist.setText(artist.isEmpty() ? "Unavailable" : artist);
+        infoAlbum.setText(album.isEmpty() ? "Unavailable" : album);
+        optionalDetail(infoAlbumArtist, albumArtist);
+        optionalDetail(infoRelease, release);
+        optionalDetail(infoPosition, albumPosition);
+        optionalDetail(infoRating, rating);
+        optionalDetail(infoSource, source.equals(album) ? "" : source);
+        if (infoNext.getTag() == upcoming) return;
+        infoNext.setTag(upcoming);
+        infoNext.removeAllViews();
+        for (int i = 0; i < Math.min(3, upcoming.size()); i++) {
+            EntryRow row = new EntryRow();
+            row.bind(upcoming.get(i));
+            row.setBackground(background(container, 18));
+            infoNext.addView(row, match(-2));
+            gap(infoNext, 4);
+        }
+        if (upcoming.isEmpty()) message(infoNext, "The queue is empty");
+    }
+
+    private void optionalDetail(TextView field, String value) {
+        field.setText(value);
+        ((View) field.getParent()).setVisibility(value.isEmpty() ? GONE : VISIBLE);
     }
 
     private void addVolume(LinearLayout details) {
@@ -757,7 +854,6 @@ public final class SpatchUi extends FrameLayout {
                 if (Math.abs(dy) > Math.abs(dx)) {
                     if (mini && dy < 0) openPlayer();
                     else if (!mini && dy > 0) back();
-                    else if (!mini && screen == PLAYER && dy < 0) navigate(3, 0);
                     else return false;
                 } else if (!mini && !uri.isEmpty()) {
                     command(dx < 0 ? NEXT : PREVIOUS, 0, "");
@@ -926,6 +1022,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void refreshPlayer() {
+        refreshPlayerDetails();
         if (visualizer != null) visualizer.invalidate();
         String shown = title.isEmpty() ? "Nothing playing" : title;
         if (playbackSource != null) playbackSource.setText(source.isEmpty() ? album : source);

@@ -13,6 +13,10 @@ pub struct NowPlaying {
     pub artist: String,
     pub album: String,
     pub source: String,
+    pub album_artist: String,
+    pub release: String,
+    pub album_position: String,
+    pub explicit: bool,
     pub image: String,
     pub playing: bool,
     pub shuffle: bool,
@@ -50,7 +54,18 @@ impl NowPlaying {
             .take(10)
             .map(|t| (meta(t, &["title"]).to_string(), meta(t, &["artist_name"]).to_string(), image_url(meta(t, &["image_url", "image_large_url", "image_small_url"]))))
             .collect();
+        let track_number = meta(&track, &["track_number"]);
+        let disc_number = meta(&track, &["disc_number"]);
+        let album_position = match (track_number, disc_number) {
+            ("", _) => String::new(),
+            (track, "" | "0") => format!("Track {track}"),
+            (track, disc) => format!("Track {track} · Disc {disc}"),
+        };
         Ok(NowPlaying {
+            album_artist: meta(&track, &["album_artist_name"]).into(),
+            release: meta(&track, &["album_release_date", "album_date", "album_year"]).into(),
+            album_position,
+            explicit: matches!(meta(&track, &["is_explicit", "explicit"]), "true" | "1"),
             uri: track.uri.clone(),
             title: meta(&track, &["title"]).to_string(),
             artist: meta(&track, &["artist_name", "album_artist_name"]).to_string(),
@@ -149,8 +164,14 @@ mod tests {
 
     #[test]
     fn decodes_the_track_and_up_next() {
+        let mut current = track("spotify:track:1", "city", "i wanna be a jack-o-lantern");
+        current.context_track.as_mut().unwrap().metadata.extend(
+            [("album_artist_name", "Various Artists"), ("album_release_date", "2022"),
+                ("track_number", "3"), ("disc_number", "2"), ("is_explicit", "true")]
+                .map(|(key, value)| (key.into(), value.into())),
+        );
         let state = es::ContextPlayerState {
-            track: Some(track("spotify:track:1", "city", "i wanna be a jack-o-lantern")),
+            track: Some(current),
             next_tracks: vec![track("spotify:track:2", "annoying", "someone"), track("spotify:delimiter", "", "")],
             is_playing: true,
             position_as_of_timestamp: Some(es::OptionalInt64 { value: 1000 }),
@@ -160,6 +181,10 @@ mod tests {
         };
         let now = NowPlaying::decode(&state.encode_to_vec()).unwrap();
         assert_eq!(now.title, "city");
+        assert_eq!(now.album_artist, "Various Artists");
+        assert_eq!(now.release, "2022");
+        assert_eq!(now.album_position, "Track 3 · Disc 2");
+        assert!(now.explicit);
         assert_eq!(now.artist, "i wanna be a jack-o-lantern");
         assert_eq!(now.image, "https://i.scdn.co/image/ab67");
         assert!(now.playing);

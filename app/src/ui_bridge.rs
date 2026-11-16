@@ -97,6 +97,10 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(
         position.to_string(),
         now.duration_ms.to_string(),
         now.source,
+        now.album_artist,
+        now.release,
+        now.album_position,
+        if now.explicit { "Explicit".into() } else { String::new() },
     ];
     strings(
         &mut env,
