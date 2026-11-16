@@ -991,9 +991,9 @@ public final class SpatchUi extends FrameLayout {
         repeatButton = glyph("repeat", "Repeat", false, () -> command(REPEAT, (repeat + 1) % 3, ""));
         playButton = glyph("play", "Play", true, this::toggle);
         addTransport(controls, shuffleButton, 48, true, false);
-        addTransport(controls, glyph("previous", "Previous track", false, () -> command(PREVIOUS, 0, "")), 50, false, false);
+        addTransport(controls, seeker(false), 50, false, false);
         addTransport(controls, playButton, 74, false, false);
-        addTransport(controls, glyph("next", "Next track", false, () -> command(NEXT, 0, "")), 50, false, false);
+        addTransport(controls, seeker(true), 50, false, false);
         addTransport(controls, repeatButton, 48, false, true);
         details.addView(controls, match(-2));
         if (pref("details", true)) {
@@ -1089,8 +1089,8 @@ public final class SpatchUi extends FrameLayout {
         shuffleButton = glyph("shuffle", "Shuffle", false, () -> command(SHUFFLE, shuffle ? 0 : 1, ""));
         repeatButton = glyph("repeat", "Repeat", false, () -> command(REPEAT, (repeat + 1) % 3, ""));
         playButton = glyph("play", "Play", true, this::toggle);
-        Glyph previous = glyph("previous", "Previous track", false, () -> command(PREVIOUS, 0, ""));
-        Glyph next = glyph("next", "Next track", false, () -> command(NEXT, 0, ""));
+        Glyph previous = seeker(false);
+        Glyph next = seeker(true);
         for (Glyph g : new Glyph[]{shuffleButton, previous, playButton, next, repeatButton}) g.glass = true;
         addTransport(controls, shuffleButton, 48, true, false);
         addTransport(controls, previous, 56, false, false);
@@ -1129,6 +1129,36 @@ public final class SpatchUi extends FrameLayout {
             chrome.animate().translationY(0).alpha(1f).setStartDelay(90).setDuration(420)
                 .setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
         }
+    }
+
+    /** Skip on tap; hold to jump 10 seconds at a time, repeating until released. */
+    private Glyph seeker(boolean forward) {
+        Glyph g = glyph(forward ? "next" : "previous", forward ? "Next track, hold to fast forward" : "Previous track, hold to rewind",
+            false, () -> command(forward ? NEXT : PREVIOUS, 0, ""));
+        boolean[] held = new boolean[1];
+        Runnable[] step = new Runnable[1];
+        step[0] = () -> {
+            if (!held[0] || duration <= 0 || !g.isAttachedToWindow()) return;
+            long target = Math.max(0, Math.min(duration - 1500, playhead() + (forward ? 10_000 : -10_000)));
+            // Show the jump at once; Spotify's next state confirms it.
+            position = target;
+            stamp = SystemClock.uptimeMillis();
+            if (wave != null) wave.invalidate();
+            seek(target / (float) duration);
+            if (pref("haptics", true)) g.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+            g.postDelayed(step[0], 480);
+        };
+        g.setOnLongClickListener(v -> {
+            held[0] = true;
+            step[0].run();
+            return true;
+        });
+        g.setOnTouchListener((v, e) -> {
+            int action = e.getActionMasked();
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) held[0] = false;
+            return false;
+        });
+        return g;
     }
 
     private void toggleChrome() {
