@@ -40,6 +40,13 @@ fn work(rx: &Mutex<Receiver<(String, i32)>>) {
 
 thread_local! {
     static CACHE: std::cell::RefCell<HashMap<String, slint::Image>> = Default::default();
+    /// Each loaded image's seed colour (colors::seed), for art-coloured screens.
+    static SEEDS: std::cell::RefCell<HashMap<String, Option<u32>>> = Default::default();
+}
+
+/// The seed colour of a loaded image: Some(None) for a grey one, None if it hasn't loaded.
+pub fn seed(url: &str) -> Option<Option<u32>> {
+    SEEDS.with(|s| s.borrow().get(url).copied())
 }
 
 /// The image if it's loaded; otherwise starts loading it (once) and returns None.
@@ -68,6 +75,7 @@ pub fn collect() -> bool {
         for (url, image) in done {
             loader().pending.lock().unwrap().remove(&url);
             if let Some((w, h, rgba)) = image {
+                SEEDS.with(|s| s.borrow_mut().insert(url.clone(), crate::colors::seed(&rgba)));
                 let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&rgba, w, h);
                 c.insert(url, slint::Image::from_rgba8(buffer));
             } else {

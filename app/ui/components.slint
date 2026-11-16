@@ -50,7 +50,7 @@ export component Art inherits Rectangle {
     Image { width: parent.width; height: parent.height; source: root.source; image-fit: cover; }
 }
 
-export struct Row { title: string, subtitle: string, art: image, uri: string }
+export struct Row { title: string, subtitle: string, art: image, uri: string, round: bool }
 
 // M3 two-line list item: 72px, 56px leading image.
 export component ListItem inherits Rectangle {
@@ -63,7 +63,8 @@ export component ListItem inherits Rectangle {
         padding-right: 24px;
         spacing: 16px;
         alignment: start;
-        Art { width: 56px; height: 56px; y: 8px; border-radius: 12px; source: root.item.art; }
+        // Artists are round, as in Material's lists; everything else a rounded square.
+        Art { width: 56px; height: 56px; y: 8px; border-radius: root.item.round ? 28px : 12px; source: root.item.art; }
         VerticalLayout {
             alignment: center;
             Text { text: root.item.title; color: Theme.on-surface; font-size: Type.body-large; overflow: elide; }
@@ -182,4 +183,41 @@ export component PlayButton inherits Rectangle {
     StateLayer { pressed: touch.pressed; tint: Theme.on-primary; }
     Icon { icon: root.playing ? Icons.pause : Icons.play; size: 36px; fill: Theme.on-primary; }
     touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// Pixel-style mini player above the navigation bar: the cover, the song, play/pause; tap to open.
+export component MiniPlayer inherits Rectangle {
+    in property <image> cover;
+    in property <string> track;
+    in property <string> artist;
+    in property <bool> playing;
+    in property <float> progress;
+    callback toggle();
+    callback open();
+    height: 64px;
+    border-radius: 16px;
+    background: Theme.surface-container-highest;
+    clip: true;
+    StateLayer { pressed: touch.pressed; }
+    touch := TouchArea { clicked => { root.open(); } }
+    HorizontalLayout {
+        padding: 8px;
+        padding-right: 4px;
+        spacing: 12px;
+        Art { width: 48px; height: 48px; border-radius: 10px; source: root.cover; }
+        VerticalLayout {
+            alignment: center;
+            Text { text: root.track; color: Theme.on-surface; font-size: Type.body-large; font-weight: 600; overflow: elide; }
+            Text { text: root.artist; color: Theme.on-surface-variant; font-size: Type.body-medium; overflow: elide; }
+        }
+        IconButton {
+            icon: root.playing ? Icons.pause : Icons.play;
+            size: 48px;
+            content: Theme.on-surface;
+            y: 0px;
+            clicked => { root.toggle(); }
+        }
+    }
+    // Progress along the bottom edge.
+    Rectangle { x: 12px; y: parent.height - 3px; width: (parent.width - 24px) * clamp(root.progress, 0, 1); height: 2px; border-radius: 1px; background: Theme.primary; }
 }

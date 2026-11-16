@@ -1,7 +1,7 @@
 // Spatch's own Spotify UI: Material 3 Expressive, the Pixel look, coloured by the Spatch theme.
 import { Theme, Type } from "theme.slint";
 import { Icons } from "icons.slint";
-import { Icon, IconButton, Art, Row, ListItem, FilterChip, NavItem, WavyProgress, PlayButton } from "components.slint";
+import { Icon, IconButton, Art, Row, ListItem, FilterChip, NavItem, WavyProgress, PlayButton, MiniPlayer } from "components.slint";
 
 export { Theme, Row }
 
@@ -30,6 +30,16 @@ export component AppWindow inherits Window {
     background: Theme.background;
     property <length> top-bar: Theme.inset-top + 64px;
     property <length> nav-bar: 80px + Theme.inset-bottom;
+    // The mini player rides above the navigation bar off the player page.
+    property <length> mini: root.tab == 0 ? 0px : 76px;
+
+    // The cover's colour washes down from the top behind the player, as on Pixel.
+    Rectangle {
+        y: 0;
+        height: root.height * 0.7;
+        visible: root.tab == 0;
+        background: @linear-gradient(180deg, Theme.primary-container.with-alpha(0.55) 0%, Theme.background 100%);
+    }
 
     // Three bands placed outright (top bar, pages, navigation bar): a layout let the shorter page cap the height.
     Rectangle {
@@ -55,7 +65,7 @@ export component AppWindow inherits Window {
         // Both pages stay built and fill the space between the bars; the tab shows one.
         Rectangle {
         y: root.top-bar;
-        height: root.height - root.top-bar - root.nav-bar;
+        height: root.height - root.top-bar - root.nav-bar - root.mini;
         Flickable {
             visible: root.tab == 0;
             width: parent.width;
@@ -177,6 +187,19 @@ export component AppWindow inherits Window {
             }
         }
 
+        }
+
+        if root.tab != 0: MiniPlayer {
+            x: 12px;
+            y: root.height - root.nav-bar - 72px;
+            width: root.width - 24px;
+            cover: root.cover;
+            track: root.track;
+            artist: root.artist;
+            playing: root.playing;
+            progress: root.progress;
+            toggle => { root.toggle(); }
+            open => { root.tab = 0; }
         }
 
         // M3 navigation bar.

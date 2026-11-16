@@ -28,12 +28,20 @@ fn main() {
     ui.set_progress(0.4);
     ui.set_position("0:34".into());
     ui.set_duration("1:25".into());
-    let row = |t: &str, s: &str| Row { title: t.into(), subtitle: s.into(), art: Default::default(), uri: "".into() };
+    let row = |t: &str, s: &str| Row { title: t.into(), subtitle: s.into(), art: Default::default(), uri: "".into(), round: s == "Artist" };
     ui.set_up_next(ModelRc::new(VecModel::from(vec![row("annoying", "i wanna be mesmerizing to you"), row("ill die before 25", "odihu")])));
     ui.set_library(ModelRc::new(VecModel::from(vec![
         row("Liked Songs", "Playlist"), row("moron", "Playlist • levi"), row("we went no contact", "Album • pooterdabooter"), row("anxiously", "Artist"),
     ])));
     ui.set_library_status("".into());
+    // A cover-coloured theme, as a red cover gives one on the phone.
+    let theme = spatch_app::colors::roles(&spatch_app::colors::from_seed(0xffc0303a));
+    let c = |v: u32| slint::Color::from_argb_encoded(v);
+    let g = ui.global::<spatch_app::ui::Theme>();
+    g.set_background(c(theme.background)); g.set_surface_container(c(theme.surface_container)); g.set_surface_container_high(c(theme.surface_container_high));
+    g.set_surface_container_highest(c(theme.surface_container_highest)); g.set_on_surface(c(theme.on_surface)); g.set_on_surface_variant(c(theme.on_surface_variant));
+    g.set_primary(c(theme.primary)); g.set_on_primary(c(theme.on_primary)); g.set_primary_container(c(theme.primary_container));
+    g.set_secondary_container(c(theme.secondary_container)); g.set_on_secondary_container(c(theme.on_secondary_container)); g.set_outline_variant(c(theme.outline_variant));
     let _ = ui.show();
     for (tab, name) in [(1, "library"), (0, "player")] {
         ui.set_tab(tab);

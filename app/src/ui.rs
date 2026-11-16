@@ -54,6 +54,9 @@ struct App {
     library_asked: bool,
     /// The selected chip (playlists, albums, artists, podcasts), or -1 for everything.
     filter: i32,
+    /// The wallpaper's (or built-in) colours, and the ones on screen now (the cover's when it has some).
+    base_theme: [u32; 9],
+    shown_theme: [u32; 9],
     /// The second the clock last showed: the progress moves once a second, not every frame.
     shown_second: i64,
 }
@@ -90,21 +93,30 @@ fn when_ready<T>(f: impl Fn() -> Result<T, String>) -> Result<T, String> {
 const COVER: i32 = 1200;
 const THUMB: i32 = 160;
 
-fn rows(items: impl Iterator<Item = (String, String, String, String)>) -> ModelRc<Row> {
+fn rows(items: impl Iterator<Item = (String, String, String, String, bool)>) -> ModelRc<Row> {
     let rows: Vec<Row> = items
-        .map(|(title, subtitle, image, uri)| Row { title: title.into(), subtitle: subtitle.into(), art: images::get(&image, THUMB).unwrap_or_default(), uri: uri.into() })
+        .map(|(title, subtitle, image, uri, round)| Row { title: title.into(), subtitle: subtitle.into(), art: images::get(&image, THUMB).unwrap_or_default(), uri: uri.into(), round })
         .collect();
     ModelRc::new(VecModel::from(rows))
 }
 
 impl App {
     /// Cover, Up Next and Library with whatever artwork has loaded so far.
-    fn show_art(&self) {
+    fn show_art(&mut self) {
         self.ui.set_cover(images::get(&self.now.image, COVER).unwrap_or_default());
-        self.ui.set_up_next(rows(self.now.up_next.iter().map(|(t, a, i)| (t.clone(), a.clone(), i.clone(), String::new()))));
+        // Like Pixel's player, the screen takes its colours from the cover; grey covers keep the wallpaper's.
+        let theme = match images::seed(&self.now.image) {
+            Some(Some(seed)) => colors::from_seed(seed),
+            _ => self.base_theme,
+        };
+        if theme != self.shown_theme {
+            self.shown_theme = theme;
+            apply_roles(&self.ui, &theme);
+        }
+        self.ui.set_up_next(rows(self.now.up_next.iter().map(|(t, a, i)| (t.clone(), a.clone(), i.clone(), String::new(), false))));
         let filter = self.filter;
         let shown = self.library.iter().filter(|i| filter < 0 || i.kind.chip() == Some(filter));
-        self.ui.set_library(rows(shown.map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone()))));
+        self.ui.set_library(rows(shown.map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone(), i.kind == library::Kind::Artist))));
     }
 }
 
@@ -134,8 +146,8 @@ pub struct Look {
     pub inset_bottom: f32,
 }
 
-fn apply_theme(ui: &AppWindow, look: &Look) {
-    let r = colors::roles(&look.theme);
+fn apply_roles(ui: &AppWindow, theme: &[u32; 9]) {
+    let r = colors::roles(theme);
     let c = |argb: u32| slint::Color::from_argb_encoded(argb);
     let t = ui.global::<Theme>();
     t.set_background(c(r.background));
@@ -152,6 +164,10 @@ fn apply_theme(ui: &AppWindow, look: &Look) {
     t.set_on_secondary_container(c(r.on_secondary_container));
     t.set_outline(c(r.outline));
     t.set_outline_variant(c(r.outline_variant));
+}
+
+fn apply_insets(ui: &AppWindow, look: &Look) {
+    let t = ui.global::<Theme>();
     t.set_inset_top(look.inset_top / look.density);
     t.set_inset_bottom(look.inset_bottom / look.density);
 }
@@ -173,7 +189,8 @@ pub fn open(look: Look) {
     };
     let Some(window) = NEW_WINDOW.with(|w| w.borrow_mut().take()) else { return };
     window.window().dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: density });
-    apply_theme(&ui, &look);
+    apply_roles(&ui, &look.theme);
+    apply_insets(&ui, &look);
     ui.on_dismiss(core::close_app);
     ui.on_filter_changed(|filter| {
         APP.with(|a| {
@@ -212,7 +229,7 @@ pub fn open(look: Look) {
     });
     let _ = ui.show();
     ui.set_status("Connecting to Spotify's player…".into());
-    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), library_asked: false, filter: -1, shown_second: -1 }));
+    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), library_asked: false, filter: -1, base_theme: look.theme, shown_theme: look.theme, shown_second: -1 }));
     std::thread::spawn(|| {
         match when_ready(subscribe_player) {
             Ok(id) => STREAM.lock().unwrap().replace(id),
@@ -314,20 +331,19 @@ pub fn frame() -> i64 {
 
 /// MotionEvent's masked action and position in pixels.
 pub fn touch(action: i32, x: f32, y: f32) {
-    APP.with(|a| {
-        let a = a.borrow();
-        let Some(app) = a.as_ref() else { return };
-        let position = LogicalPosition::new(x / app.scale, y / app.scale);
-        let event = match action {
-            0 | 5 => WindowEvent::PointerPressed { position, button: PointerEventButton::Left },
-            1 | 6 => WindowEvent::PointerReleased { position, button: PointerEventButton::Left },
-            2 => WindowEvent::PointerMoved { position },
-            3 => WindowEvent::PointerExited,
-            _ => return,
-        };
-        app.window.window().dispatch_event(event);
-        if matches!(action, 1 | 3 | 6) {
-            app.window.window().dispatch_event(WindowEvent::PointerExited); // no hover on a touch screen
-        }
-    });
+    // Take the window out before dispatching: Slint runs callbacks (Library, the chips) inside
+    // dispatch_event, and those borrow the app mutably; holding a borrow here panicked.
+    let Some((window, scale)) = APP.with(|a| a.borrow().as_ref().map(|app| (app.window.clone(), app.scale))) else { return };
+    let position = LogicalPosition::new(x / scale, y / scale);
+    let event = match action {
+        0 | 5 => WindowEvent::PointerPressed { position, button: PointerEventButton::Left },
+        1 | 6 => WindowEvent::PointerReleased { position, button: PointerEventButton::Left },
+        2 => WindowEvent::PointerMoved { position },
+        3 => WindowEvent::PointerExited,
+        _ => return,
+    };
+    window.window().dispatch_event(event);
+    if matches!(action, 1 | 3 | 6) {
+        window.window().dispatch_event(WindowEvent::PointerExited); // no hover on a touch screen
+    }
 }
