@@ -227,6 +227,10 @@ fn find_username() -> Option<String> {
         .take(8)
         .map(|i| i.uri.clone())
         .collect();
+    if candidates.is_empty() {
+        *LIKED_NOTE.lock().unwrap() = "No playlists with a spotify:playlist: link to ask about".into();
+        return None;
+    }
     let mut note = format!("Looked at {} of your playlists:", candidates.len());
     let found = candidates.iter().find_map(|uri| {
         match bridge::call(playlist::SERVICE, "Get", &playlist::request_range(uri, 0, 1)).and_then(|bytes| playlist::decode(&bytes, 0)) {
@@ -306,7 +310,10 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
                 Ok(reply)
             }
             None => {
-                *LIKED_NOTE.lock().unwrap() = attempts.join("\n");
+                let mut note = LIKED_NOTE.lock().unwrap();
+                // Keep what the username lookup said, and put each link's answer under it.
+                let lookup = note.lines().find(|l| l.starts_with("Looked at") || l.starts_with("No playlists")).unwrap_or("Username unknown").to_string();
+                *note = format!("{lookup}\n{}", attempts.join("\n"));
                 Err(attempts.first().cloned().unwrap_or_else(|| "No Liked Songs link worked".into()))
             }
         }
