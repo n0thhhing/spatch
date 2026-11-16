@@ -156,8 +156,12 @@ public final class SpatchUi extends FrameLayout {
 
     /** "" for wallpaper colours, the seed for artwork colours, or null to keep what's shown until the art loads. */
     private String artworkSeedWanted() {
-        if (!pref("art_colors", true) || (screen != PLAYER && screen != IMMERSIVE && screen != QUEUE)) return "";
-        Integer seed = SEEDS.get(image);
+        if (!pref("art_colors", true)) return "";
+        String cover = screen == PLAYLIST && playlist != null ? playlist.image
+            : screen == PLAYER || screen == IMMERSIVE || screen == QUEUE ? image : null;
+        if (cover == null) return "";
+        if (cover.isEmpty()) return "";
+        Integer seed = SEEDS.get(cover);
         return seed == null ? null : String.valueOf(seed);
     }
 
@@ -706,6 +710,13 @@ public final class SpatchUi extends FrameLayout {
         settings.setBackground(background(high, 24));
         heading.addView(settings, control(48));
         bar.addView(heading, match(dp(60)));
+        if (screen == HOME) {
+            int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+            String hello = hour < 5 ? "Up late? Here’s something soft" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+            TextView greeting = text(hello, 15, onVariant, false);
+            greeting.setPadding(0, 0, 0, dp(2));
+            bar.addView(greeting, match(-2));
+        }
         gap(bar, 8);
         LinearLayout group = row();
         group.addView(segment("Home", "home", screen == HOME, true, () -> navigate(0, 0)), new LinearLayout.LayoutParams(0, dp(48), 1));
@@ -1040,6 +1051,28 @@ public final class SpatchUi extends FrameLayout {
         chrome.addView(controls, match(-2));
         gap(chrome, 6);
         addVolume(chrome);
+        if (!upcoming.isEmpty()) {
+            Entry coming = upcoming.get(0);
+            LinearLayout pill = row();
+            pill.setPadding(dp(6), dp(6), dp(14), dp(6));
+            pill.setBackground(background((onSurface & 0x00ffffff) | 0x14000000, 22));
+            Art art = new Art(Art.SQUARE);
+            art.small = true;
+            art.letter = initial(coming.title);
+            art.bind(coming.image);
+            pill.addView(art, control(32));
+            TextView label = text("Next  ", 13, onVariant, true);
+            label.setPadding(dp(10), 0, 0, 0);
+            pill.addView(label);
+            TextView name = text(coming.title + (coming.subtitle.isEmpty() ? "" : " · " + coming.subtitle), 13, onSurface, false);
+            single(name);
+            pill.addView(name, weighted());
+            makeClickable(pill, "Up next: " + coming.title, () -> navigate(4, 0));
+            springPress(pill);
+            LinearLayout.LayoutParams pp = match(-2);
+            pp.topMargin = dp(10);
+            chrome.addView(pill, pp);
+        }
         content.addView(chrome, match(-2));
         if (motionEnabled()) {
             chrome.setTranslationY(dp(28));
@@ -2836,7 +2869,7 @@ public final class SpatchUi extends FrameLayout {
                 loadingImages.remove(key);
                 if (bitmap == null) failedImages.add(key);
                 for (Art art : visibleArt) if (art.url.equals(url)) art.invalidate();
-                if (url.equals(image)) updateMotion();
+                if (url.equals(image) || (screen == PLAYLIST && playlist != null && url.equals(playlist.image))) updateMotion();
             });
         });
     }
