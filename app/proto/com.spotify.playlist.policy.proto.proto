@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.playlist.policy.proto;
+import "com.spotify.cosmos.util.policy.proto.proto";
+
+message AvailableConcepts {
+  float filter_weight_threshold = 1;
+  uint32 max_concepts = 2;
+}
+
+message AvailableLanguages {
+  uint32 min_tracks = 1;
+}
+
+message CollaboratingUsersDecorationPolicy {
+  bool count = 1;
+  int32 limit = 2;
+  CollaboratorPolicy collaborator = 3;
+}
+
+message CollaboratorPolicy {
+  UserDecorationPolicy user = 1;
+  bool number_of_items = 2;
+  bool number_of_tracks = 3;
+  bool number_of_episodes = 4;
+  bool is_owner = 5;
+}
+
+message ItemCurationStatePolicy {
+  bool is_curated = 1;
+}
+
+message ItemExtensionPolicy {
+  int32 link_type = 1;
+  int32 extension = 2;
+}
+
+message ItemMetadataPolicy {
+  bool name = 1;
+  bool image = 2;
+  bool is_explicit = 3;
+}
+
+message ItemOfflineStateDecorationPolicy {
+  bool offline_state = 1;
+  bool sync_progress = 2;
+  bool locally_playable = 3;
+}
+
+message PlaylistAlbumDecorationPolicy {
+  .com.spotify.cosmos.util.policy.proto.AlbumDecorationPolicy album = 1;
+  .com.spotify.cosmos.util.policy.proto.ArtistDecorationPolicy artist = 2;
+}
+
+message PlaylistAllowsDecorationPolicy {
+  bool insert = 1;
+  bool remove = 2;
+  bool can_delete = 3;
+}
+
+message PlaylistDecorationPolicy {
+  bool row_id = 1;
+  bool link = 2;
+  bool name = 3;
+  bool load_state = 4;
+  bool loaded = 5;
+  bool collaborative = 6;
+  bool length = 7;
+  bool last_modification = 8;
+  bool total_length = 9;
+  bool duration = 10;
+  bool description = 11;
+  bool picture = 12;
+  bool playable = 13;
+  bool description_from_annotate = 14;
+  bool picture_from_annotate = 15;
+  bool can_report_annotation_abuse = 16;
+  bool followed = 17;
+  bool followers = 18;
+  bool owned_by_self = 19;
+  bool offline = 20;
+  bool sync_progress = 21;
+  bool published = 22;
+  bool browsable_offline = 23;
+  bool format_list_type = 24;
+  bool format_list_attributes = 25;
+  bool has_explicit_content = 26;
+  bool contains_spotify_tracks = 27;
+  bool contains_tracks = 28;
+  bool contains_episodes = 29;
+  bool contains_audio_episodes = 30;
+  bool only_contains_explicit = 31;
+  bool is_on_demand_in_free = 32;
+  UserDecorationPolicy owner = 33;
+  UserDecorationPolicy made_for = 34;
+  PlaylistAllowsDecorationPolicy allows = 35;
+  bool number_of_episodes = 36;
+  bool number_of_tracks = 37;
+  bool prefer_linear_playback = 38;
+  bool on_demand_in_free_reason = 39;
+  CollaboratingUsersDecorationPolicy collaborating_users = 40;
+  bool base_permission = 41;
+  bool user_capabilities = 42;
+  repeated int32 extension = 43;
+  bool lenses = 44;
+  bool length_ignoring_text_filter = 45;
+  bool number_of_items_per_link_type = 46;
+  bool available_signals = 47;
+  bool ai_curation_reference_id = 48;
+  bool unranged_length = 49;
+  bool unfiltered_length = 50;
+  bool created_at = 51;
+  AvailableConcepts available_concepts = 52;
+  bool content_signature = 53;
+  bool deleted_by_owner = 54;
+  bool user_created = 55;
+  AvailableLanguages available_languages = 56;
+  bool sort_manifest = 57;
+  bool contains_music_videos = 58;
+  bool tag_manifest = 59;
+}
+
+message PlaylistEpisodeDecorationPolicy {
+  .com.spotify.cosmos.util.policy.proto.EpisodeDecorationPolicy episode = 1;
+  bool row_id = 2;
+  bool add_time = 3;
+  bool format_list_attributes = 4;
+  .com.spotify.cosmos.util.policy.proto.EpisodeCollectionDecorationPolicy collection = 5;
+  .com.spotify.cosmos.util.policy.proto.EpisodeSyncDecorationPolicy sync = 6;
+  .com.spotify.cosmos.util.policy.proto.EpisodePlayedStateDecorationPolicy played_state = 7;
+  UserDecorationPolicy added_by = 8;
+  .com.spotify.cosmos.util.policy.proto.ShowDecorationPolicy show = 9;
+  bool signals = 10;
+  bool is_recommendation = 11;
+}
+
+message PlaylistItemDecorationPolicy {
+  bool uri = 1;
+  repeated ItemExtensionPolicy extension_policy = 2;
+  ItemOfflineStateDecorationPolicy offline_state = 3;
+  bool collection_state = 4;
+  ItemMetadataPolicy metadata = 5;
+  ItemCurationStatePolicy curation_state = 6;
+  bool obfuscation_state = 7;
+  bool format_list_attributes = 8;
+  bool row_id = 9;
+  bool add_time = 10;
+  UserDecorationPolicy added_by = 11;
+  bool signals = 12;
+  bool save_source = 13;
+  bool video_offline_state = 14;
+}
+
+message PlaylistRequestDecorationPolicy {
+  PlaylistDecorationPolicy playlist = 1;
+  PlaylistTrackDecorationPolicy track = 2;
+  PlaylistEpisodeDecorationPolicy episode = 3;
+  PlaylistItemDecorationPolicy item = 4;
+}
+
+message PlaylistTrackDecorationPolicy {
+  .com.spotify.cosmos.util.policy.proto.TrackDecorationPolicy track = 1;
+  bool row_id = 2;
+  bool add_time = 3;
+  bool in_collection = 4;
+  bool can_add_to_collection = 5;
+  bool is_banned = 6;
+  bool can_ban = 7;
+  bool local_file = 8;
+  bool offline = 9;
+  bool format_list_attributes = 10;
+  bool display_covers = 11;
+  UserDecorationPolicy added_by = 12;
+  PlaylistAlbumDecorationPolicy album = 13;
+  .com.spotify.cosmos.util.policy.proto.ArtistDecorationPolicy artist = 14;
+  bool signals = 15;
+  bool is_recommendation = 16;
+}
+
+message UserDecorationPolicy {
+  bool username = 1;
+  bool link = 2;
+  bool name = 3;
+  bool image = 4;
+  bool thumbnail = 5;
+  bool color = 6;
+}

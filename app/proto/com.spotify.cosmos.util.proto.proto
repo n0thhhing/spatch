@@ -1,0 +1,225 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.cosmos.util.proto;
+
+message AlbumArtistMetadata {
+  string link = 1;
+  string name = 2;
+}
+
+message AlbumCollectionState {
+}
+
+message AlbumMetadata {
+  repeated AlbumArtistMetadata artists = 1;
+  string link = 2;
+  string name = 3;
+  ImageGroup covers = 5;
+  uint32 year = 6;
+}
+
+message AlbumSyncState {
+  string offline = 1;
+  string inferred_offline = 2;
+  uint32 sync_progress = 3;
+}
+
+message ArtistCollectionState {
+  string collection_link = 1;
+  bool followed = 2;
+  uint32 num_tracks_in_collection = 3;
+  uint32 num_albums_in_collection = 4;
+  bool is_banned = 5;
+  bool can_ban = 6;
+  uint32 num_explicitly_liked_tracks = 7;
+}
+
+message ArtistMetadata {
+  string link = 1;
+  string name = 2;
+  bool is_various_artists = 3;
+  ImageGroup portraits = 4;
+}
+
+message ArtistSyncState {
+  string offline = 1;
+  string inferred_offline = 2;
+  uint32 sync_progress = 3;
+}
+
+message Delta {
+  int32 type = 1;
+  uint32 index = 2;
+  uint32 length = 3;
+}
+
+message EpisodeCollectionState {
+  bool is_following_show = 1;
+  bool is_new = 2;
+  bool is_in_listen_later = 3;
+}
+
+message EpisodeMetadata {
+  EpisodeShowMetadata show = 1;
+  string link = 2;
+  string name = 3;
+  uint32 length = 4;
+  ImageGroup covers = 5;
+  string manifest_id = 6;
+  string description = 7;
+  int64 publish_date = 8;
+  ImageGroup freeze_frames = 9;
+  string language = 10;
+  bool available = 11;
+  int32 media_type_enum = 12;
+  int32 number = 13;
+  bool backgroundable = 14;
+  string preview_manifest_id = 15;
+  bool is_explicit = 16;
+  string preview_id = 17;
+  int32 episode_type = 18;
+  bool is_music_and_talk = 19;
+  repeated Extension extension = 22;
+  bool is_19_plus_only = 23;
+  bool is_book_chapter = 24;
+  bool is_podcast_short = 25;
+  bool is_curated = 26;
+}
+
+message EpisodePlayState {
+  uint32 time_left = 1;
+  bool is_playable = 2;
+  bool is_played = 3;
+  uint32 last_played_at = 4;
+  int32 playability_restriction = 5;
+}
+
+message EpisodeShowMetadata {
+  string link = 1;
+  string name = 2;
+  string publisher = 3;
+  ImageGroup covers = 4;
+}
+
+message EpisodeSyncState {
+  string offline_state = 1;
+  uint32 sync_progress = 2;
+}
+
+message Extension {
+  int32 extension_kind = 1;
+  bytes data = 2;
+}
+
+message ImageGroup {
+  string standard_link = 1;
+  string small_link = 2;
+  string large_link = 3;
+  string xlarge_link = 4;
+}
+
+message ShowCollectionState {
+  bool is_in_collection = 1;
+}
+
+message ShowListAttribute {
+  string key = 1;
+  string value = 2;
+}
+
+message ShowMetadata {
+  string link = 1;
+  string name = 2;
+  string description = 3;
+  uint32 popularity = 4;
+  string publisher = 5;
+  string language = 6;
+  bool is_explicit = 7;
+  ImageGroup covers = 8;
+  uint32 num_episodes = 9;
+  string consumption_order = 10;
+  int32 media_type_enum = 11;
+  repeated string copyright = 12;
+  string trailer_uri = 13;
+  bool is_music_and_talk = 14;
+  repeated Extension extension = 15;
+  bool is_book = 16;
+  bool is_creator_channel = 17;
+  repeated ShowListAttribute format_list_attributes = 18;
+}
+
+message ShowPlayState {
+  string latest_played_episode_link = 1;
+  uint64 played_time = 2;
+  bool is_playable = 3;
+  int32 playability_restriction = 4;
+  int32 label = 5;
+  uint32 played_percentage = 6;
+  string resume_episode_link = 7;
+}
+
+message TrackAlbumArtistMetadata {
+  string link = 1;
+  string name = 2;
+}
+
+message TrackAlbumMetadata {
+  TrackAlbumArtistMetadata artist = 1;
+  string link = 2;
+  string name = 3;
+  ImageGroup covers = 4;
+}
+
+message TrackArtistMetadata {
+  string link = 1;
+  string name = 2;
+  ImageGroup portraits = 3;
+}
+
+message TrackCollectionState {
+  bool is_in_collection = 1;
+  bool can_add_to_collection = 2;
+  bool is_banned = 3;
+  bool can_ban = 4;
+}
+
+message TrackDescriptor {
+  string name = 1;
+  float weight = 2;
+}
+
+message TrackMetadata {
+  TrackAlbumMetadata album = 1;
+  repeated TrackArtistMetadata artist = 2;
+  string link = 3;
+  string name = 4;
+  uint32 length = 5;
+  bool playable = 6;
+  uint32 disc_number = 7;
+  uint32 track_number = 8;
+  bool is_explicit = 9;
+  string preview_id = 10;
+  bool is_local = 11;
+  bool playable_local_track = 12;
+  bool has_lyrics = 13;
+  bool is_premium_only = 14;
+  bool locally_playable = 15;
+  string playable_track_link = 16;
+  uint32 popularity = 17;
+  bool is_19_plus_only = 18;
+  repeated TrackDescriptor track_descriptors = 19;
+  repeated Extension extension = 20;
+  bool is_curated = 21;
+  bool to_be_obfuscated = 22;
+}
+
+message TrackPlayState {
+  bool is_playable = 1;
+  int32 playability_restriction = 2;
+}
+
+message TrackSyncState {
+  string offline = 1;
+  uint32 sync_progress = 2;
+}

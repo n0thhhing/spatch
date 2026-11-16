@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.stream_reporting_attribution.proto;
+
+message StreamReportingAttribution {
+  string provenance = 1;
+  string page_id = 2;
+  string root_specification_id = 3;
+  string leaf_specification_id = 4;
+}

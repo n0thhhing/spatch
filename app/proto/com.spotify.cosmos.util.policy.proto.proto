@@ -1,0 +1,169 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.cosmos.util.policy.proto;
+
+message AlbumCollectionDecorationPolicy {
+}
+
+message AlbumDecorationPolicy {
+  bool link = 1;
+  bool name = 2;
+  bool covers = 4;
+  bool year = 5;
+}
+
+message AlbumSyncDecorationPolicy {
+  bool inferred_offline = 1;
+  bool offline_state = 2;
+  bool sync_progress = 3;
+}
+
+message ArtistCollectionDecorationPolicy {
+  bool collection_link = 1;
+  bool is_followed = 2;
+  bool num_tracks_in_collection = 3;
+  bool num_albums_in_collection = 4;
+  bool is_banned = 5;
+  bool can_ban = 6;
+  bool num_explicitly_liked_tracks = 8;
+}
+
+message ArtistDecorationPolicy {
+  bool link = 1;
+  bool name = 2;
+  bool is_various_artists = 3;
+  bool portraits = 4;
+}
+
+message ArtistSyncDecorationPolicy {
+  bool inferred_offline = 1;
+  bool offline_state = 2;
+  bool sync_progress = 3;
+}
+
+message EpisodeCollectionDecorationPolicy {
+  bool is_following_show = 1;
+  bool is_in_listen_later = 2;
+  bool is_new = 3;
+}
+
+message EpisodeDecorationPolicy {
+  bool link = 1;
+  bool length = 2;
+  bool name = 3;
+  bool manifest_id = 4;
+  bool preview_id = 5;
+  bool preview_manifest_id = 6;
+  bool description = 7;
+  bool publish_date = 8;
+  bool covers = 9;
+  bool freeze_frames = 10;
+  bool language = 11;
+  bool available = 12;
+  bool media_type_enum = 13;
+  bool number = 14;
+  bool backgroundable = 15;
+  bool is_explicit = 16;
+  bool type = 17;
+  bool is_music_and_talk = 18;
+  repeated int32 extension = 21;
+  bool is_19_plus_only = 22;
+  bool is_book_chapter = 23;
+  bool is_podcast_short = 24;
+  bool is_curated = 25;
+}
+
+message EpisodePlayedStateDecorationPolicy {
+  bool time_left = 1;
+  bool is_played = 2;
+  bool playable = 3;
+  bool playability_restriction = 4;
+  bool last_played_at = 5;
+}
+
+message EpisodeSyncDecorationPolicy {
+  bool offline = 1;
+  bool sync_progress = 2;
+}
+
+message ShowCollectionDecorationPolicy {
+  bool is_in_collection = 1;
+}
+
+message ShowDecorationPolicy {
+  bool link = 1;
+  bool name = 2;
+  bool description = 3;
+  bool popularity = 4;
+  bool publisher = 5;
+  bool language = 6;
+  bool is_explicit = 7;
+  bool covers = 8;
+  bool num_episodes = 9;
+  bool consumption_order = 10;
+  bool media_type_enum = 11;
+  bool copyrights = 12;
+  bool trailer_uri = 13;
+  bool is_music_and_talk = 14;
+  repeated int32 extension = 16;
+  bool is_book = 17;
+  bool is_creator_channel = 18;
+  bool format_list_attributes = 19;
+}
+
+message ShowOfflineStateDecorationPolicy {
+  bool offline = 1;
+  bool sync_progress = 2;
+}
+
+message ShowPlayedStateDecorationPolicy {
+  bool latest_played_episode_link = 1;
+  bool played_time = 2;
+  bool is_playable = 3;
+  bool playability_restriction = 4;
+  bool label = 5;
+  bool resume_episode_link = 7;
+}
+
+message TrackCollectionDecorationPolicy {
+  bool is_in_collection = 1;
+  bool can_add_to_collection = 2;
+  bool is_banned = 3;
+  bool can_ban = 4;
+}
+
+message TrackDecorationPolicy {
+  bool has_lyrics = 1;
+  bool link = 2;
+  bool name = 3;
+  bool length = 4;
+  bool playable = 5;
+  bool is_available_in_metadata_catalogue = 6;
+  bool locally_playable = 7;
+  bool playable_local_track = 8;
+  bool disc_number = 9;
+  bool track_number = 10;
+  bool is_explicit = 11;
+  bool preview_id = 12;
+  bool is_local = 13;
+  bool is_premium_only = 14;
+  bool playable_track_link = 15;
+  bool popularity = 16;
+  bool is_19_plus_only = 17;
+  bool track_descriptors = 18;
+  repeated int32 extension = 19;
+  bool is_curated = 20;
+  bool to_be_obfuscated = 22;
+}
+
+message TrackPlayedStateDecorationPolicy {
+  bool playable = 1;
+  bool is_currently_playable = 2;
+  bool playability_restriction = 3;
+}
+
+message TrackSyncDecorationPolicy {
+  bool offline_state = 1;
+  bool sync_progress = 2;
+}

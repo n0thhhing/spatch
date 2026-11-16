@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.metadata.contentratings.v1;
+
+message ContentRatingTagWithMarkets {
+  int32 tag = 1;
+  repeated string markets = 2;
+}
