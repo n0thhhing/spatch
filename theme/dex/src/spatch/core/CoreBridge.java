@@ -76,15 +76,22 @@ public final class CoreBridge implements Transport {
         if (transport != null && service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
             CompletableFuture<Object> reply = new CompletableFuture<>();
             // The call itself may block before suspending, so it runs on its own thread and the wait is bounded.
+            // callSync is the transport's own blocking call: plain bytes, no hand-made coroutine whose empty
+            // context the native side may never resume. The suspending call stays as a fallback.
             Thread caller = new Thread(() -> {
                 try {
-                    Object direct = transport.callSingle(service, method, request, new p.lnm() {
-                        public p.o8n getContext() { return p.o6x.a; }
-                        public void resumeWith(Object value) { reply.complete(value); }
-                    });
-                    if (direct != p.d9n.a) reply.complete(direct);
-                } catch (Throwable e) {
-                    reply.completeExceptionally(e);
+                    reply.complete(transport.callSync(service, method, request));
+                } catch (Throwable sync) {
+                    android.util.Log.w("SpatchCore", "Playlist callSync failed, trying callSingle: " + sync);
+                    try {
+                        Object direct = transport.callSingle(service, method, request, new p.lnm() {
+                            public p.o8n getContext() { return p.o6x.a; }
+                            public void resumeWith(Object value) { reply.complete(value); }
+                        });
+                        if (direct != p.d9n.a) reply.complete(direct);
+                    } catch (Throwable e) {
+                        reply.completeExceptionally(e);
+                    }
                 }
             }, "SpatchPlaylist");
             caller.setDaemon(true);
