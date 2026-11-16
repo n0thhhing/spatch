@@ -96,5 +96,6 @@ The nightly workflow builds the library whenever `app/` exists.
 - **Not yet run on a phone.** Unknowns to check first:
   - whether `GetState` streams through the wrapped transport;
   - whether bare command requests (no logging params) are accepted;
-  - whether Slint finds `/system/fonts` through the software renderer's system-font support;
+  - text rendering: Slint 1.18 finds fonts through fontique, whose Android backend reads
+    `/system/etc/fonts.xml`, so system fonts should load, but this hasn't been seen on a screen yet;
   - frame pacing of full-screen software rendering.
