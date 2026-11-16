@@ -24,7 +24,7 @@ live_design! {
     use link::shaders::*;
     use link::widgets::*;
 
-    FONT_OUTFIT_BOLD = {
+    THEME_FONT_REGULAR = {
         font_family: {
             latin = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
             chinese = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
@@ -33,7 +33,7 @@ live_design! {
         line_spacing: 1.2
     }
 
-    FONT_OUTFIT_EXTRABOLD = {
+    THEME_FONT_BOLD = {
         font_family: {
             latin = font("crate://self/resources/Outfit-ExtraBold.ttf", 0.0, 0.0),
             chinese = font("crate://self/resources/Outfit-ExtraBold.ttf", 0.0, 0.0),
@@ -41,6 +41,37 @@ live_design! {
         }
         line_spacing: 1.15
     }
+
+    THEME_FONT_LABEL = {
+        font_family: {
+            latin = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
+            chinese = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
+            emoji = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
+        }
+        line_spacing: 1.2
+    }
+
+    THEME_FONT_ITALIC = {
+        font_family: {
+            latin = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
+            chinese = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
+            emoji = font("crate://self/resources/Outfit-Bold.ttf", 0.0, 0.0),
+        }
+        line_spacing: 1.2
+    }
+
+    THEME_FONT_BOLD_ITALIC = {
+        font_family: {
+            latin = font("crate://self/resources/Outfit-ExtraBold.ttf", 0.0, 0.0),
+            chinese = font("crate://self/resources/Outfit-ExtraBold.ttf", 0.0, 0.0),
+            emoji = font("crate://self/resources/Outfit-ExtraBold.ttf", 0.0, 0.0),
+        }
+        line_spacing: 1.15
+    }
+
+    FONT_OUTFIT_BOLD = <THEME_FONT_REGULAR> {}
+
+    FONT_OUTFIT_EXTRABOLD = <THEME_FONT_BOLD> {}
 
     IconBtn = <Button> {
         width: 48,

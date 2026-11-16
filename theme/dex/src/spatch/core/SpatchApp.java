@@ -136,38 +136,50 @@ public final class SpatchApp implements SurfaceHolder.Callback, View.OnTouchList
     public static void resumed(Activity a) {
         if (startHandled || !"com.spotify.music.SpotifyMainActivity".equals(a.getClass().getName())) return;
         startHandled = true;
-        open(a);
+        try {
+            open(a);
+        } catch (Throwable t) {
+            android.util.Log.e("SpatchApp", "resumed failed", t);
+        }
     }
 
     /** Opens the Rust app over this activity. False (see loadError) when the library can't load. */
     static boolean open(Activity activity) {
         if (current != null) return true;
-        if (!load(activity)) return false;
-        if (!makepadStarted) {
-            makepadStarted = true;
-            CoreBridge.nativeInit();
-            MakepadNative.activityOnCreate(new Host(activity));
-            float density = activity.getResources().getDisplayMetrics().density;
-            MakepadNative.onAndroidParams(
-                activity.getCacheDir().getAbsolutePath(),
-                density,
-                false,
-                "",
-                "",
-                ""
-            );
-            MakepadNative.initChoreographer(60f, Build.VERSION.SDK_INT);
-            MakepadNative.activityOnStart();
+        try {
+            if (!load(activity)) {
+                android.util.Log.e("SpatchApp", "load failed: " + loadError);
+                return false;
+            }
+            if (!makepadStarted) {
+                makepadStarted = true;
+                CoreBridge.nativeInit();
+                MakepadNative.activityOnCreate(new Host(activity));
+                float density = activity.getResources().getDisplayMetrics().density;
+                MakepadNative.onAndroidParams(
+                    activity.getCacheDir().getAbsolutePath(),
+                    density,
+                    false,
+                    "",
+                    "",
+                    ""
+                );
+                MakepadNative.initChoreographer(60f, Build.VERSION.SDK_INT);
+                MakepadNative.activityOnStart();
+            }
+            MakepadNative.activityOnResume();
+            SpatchApp app = new SpatchApp(activity);
+            current = app;
+            ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+            decor.addView(app.host, new FrameLayout.LayoutParams(-1, -1));
+            app.spotify = decor.findViewById(0x01020002); // android.R.id.content
+            if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
+            else app.spotify = null;
+            return true;
+        } catch (Throwable t) {
+            android.util.Log.e("SpatchApp", "open failed", t);
+            return false;
         }
-        MakepadNative.activityOnResume();
-        SpatchApp app = new SpatchApp(activity);
-        current = app;
-        ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
-        decor.addView(app.host, new FrameLayout.LayoutParams(-1, -1));
-        app.spotify = decor.findViewById(0x01020002); // android.R.id.content
-        if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
-        else app.spotify = null;
-        return true;
     }
 
     /** Called by the Rust app (any thread) to close itself. */
