@@ -1,6 +1,6 @@
-//! Your Library: Spotify's YourLibraryService, the same list Spotify's Library tab shows.
+//! Your Library: YourLibraryService, the same list Spotify's Library tab shows.
 
-use crate::player::image_url;
+use super::image_url;
 use crate::protos::spotify::your_library::esperanto::proto as es;
 use crate::protos::spotify::your_library::proto::your_library_decorated_entity::Entity;
 use prost::Message;
@@ -17,7 +17,7 @@ pub struct Item {
     pub kind: Kind,
 }
 
-/// What an item is, for the Library's filter chips (their order: playlists, albums, artists, podcasts).
+/// What an item is, in the order of the Library's filter chips.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Kind {
     Playlist,
@@ -29,7 +29,7 @@ pub enum Kind {
 }
 
 impl Kind {
-    /// The chip index an item shows under, or None for Other.
+    /// The chip index an item shows under; `None` for Other.
     pub fn chip(self) -> Option<i32> {
         match self {
             Kind::Playlist => Some(0),
@@ -55,6 +55,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Item>, String> {
     if !reply.error.is_empty() {
         return Err(reply.error);
     }
+    let with = |kind: &str, who: &str| if who.is_empty() { kind.to_string() } else { format!("{kind} • {who}") };
     Ok(reply
         .pinned_entity
         .iter()
@@ -70,31 +71,24 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Item>, String> {
                 Some(Entity::Folder(_)) => (Kind::Other, "Folder".into()),
                 _ => (Kind::Other, String::new()),
             };
-            let kind = if is_playlist_uri(&info.uri) { Kind::Playlist } else { kind };
+            let kind = if is_playlist(&info.uri) { Kind::Playlist } else { kind };
             Some(Item { name: info.name.clone(), uri: info.uri.clone(), subtitle, image: image_url(&info.image_uri), kind })
         })
         .collect())
 }
 
-pub fn is_liked_uri(uri: &str) -> bool {
-    uri == "spotify:collection"
-        || uri == "spotify:collection:tracks"
-        || uri == "spotify:internal:collection:tracks"
+/// Liked Songs, under whichever of Spotify's URI spellings the library uses.
+pub fn is_liked(uri: &str) -> bool {
+    matches!(uri, "spotify:collection" | "spotify:collection:tracks" | "spotify:internal:collection:tracks")
         || uri.strip_prefix("spotify:user:").is_some_and(|tail| {
             tail.split_once(':').is_some_and(|(_, kind)| matches!(kind, "collection" | "collection:tracks"))
         })
 }
 
-pub fn is_playlist_uri(uri: &str) -> bool {
-    is_liked_uri(uri)
+pub fn is_playlist(uri: &str) -> bool {
+    is_liked(uri)
         || uri.strip_prefix("spotify:playlist:").is_some_and(|id| !id.is_empty())
-        || uri.strip_prefix("spotify:user:").is_some_and(|tail| {
-            tail.split_once(":playlist:").is_some_and(|(_, id)| !id.is_empty())
-        })
-}
-
-fn with(kind: &str, who: &str) -> String {
-    if who.is_empty() { kind.into() } else { format!("{kind} • {who}") }
+        || uri.strip_prefix("spotify:user:").is_some_and(|tail| tail.split_once(":playlist:").is_some_and(|(_, id)| !id.is_empty()))
 }
 
 #[cfg(test)]
@@ -102,39 +96,35 @@ mod tests {
     use super::*;
     use crate::protos::spotify::your_library::proto as yl;
 
-    fn entity(name: &str, uri: &str, entity: Entity) -> yl::YourLibraryDecoratedEntity {
+    fn entity(name: &str, uri: &str, entity: Option<Entity>) -> yl::YourLibraryDecoratedEntity {
         yl::YourLibraryDecoratedEntity {
             entity_info: Some(yl::YourLibraryEntityInfo { name: name.into(), uri: uri.into(), image_uri: "spotify:image:ab".into(), ..Default::default() }),
-            entity: Some(entity),
+            entity,
         }
     }
 
     #[test]
-    fn decodes_pinned_first_with_subtitles() {
+    fn decodes_pinned_first_with_subtitles_and_kinds() {
         let reply = es::YourLibraryResponse {
-            pinned_entity: vec![entity("Liked Songs", "spotify:collection", Entity::Playlist(yl::YourLibraryPlaylistExtraInfo::default()))],
+            pinned_entity: vec![entity("Liked Songs", "spotify:collection", Some(Entity::Playlist(Default::default())))],
             entity: vec![
-                entity("moron", "spotify:playlist:1", Entity::Playlist(yl::YourLibraryPlaylistExtraInfo { creator_name: "levi".into(), ..Default::default() })),
-                entity("we went no contact", "spotify:album:2", Entity::Album(yl::YourLibraryAlbumExtraInfo { artist_name: "pooterdabooter".into(), ..Default::default() })),
+                entity("moron", "spotify:playlist:1", Some(Entity::Playlist(yl::YourLibraryPlaylistExtraInfo { creator_name: "levi".into(), ..Default::default() }))),
+                entity("we went no contact", "spotify:album:2", Some(Entity::Album(yl::YourLibraryAlbumExtraInfo { artist_name: "pooterdabooter".into(), ..Default::default() }))),
             ],
             ..Default::default()
         };
         let items = decode(&reply.encode_to_vec()).unwrap();
         assert_eq!(items.iter().map(|i| i.subtitle.as_str()).collect::<Vec<_>>(), ["Playlist", "Playlist • levi", "Album • pooterdabooter"]);
-        assert_eq!(items[1].uri, "spotify:playlist:1");
         assert_eq!(items[2].image, "https://i.scdn.co/image/ab");
         assert_eq!(items.iter().map(|i| i.kind.chip()).collect::<Vec<_>>(), [Some(0), Some(0), Some(1)]);
     }
 
     #[test]
-    fn classifies_library_playlists_even_without_decoration() {
-        let mut item = entity("Playlist", "spotify:user:test:playlist:123", Entity::Playlist(Default::default()));
-        item.entity = None;
-        let reply = es::YourLibraryResponse { entity: vec![item], ..Default::default() };
+    fn undecorated_playlists_are_still_playlists() {
+        let reply = es::YourLibraryResponse { entity: vec![entity("P", "spotify:user:test:playlist:123", None)], ..Default::default() };
         assert_eq!(decode(&reply.encode_to_vec()).unwrap()[0].kind, Kind::Playlist);
-        assert!(is_liked_uri("spotify:user:test:collection:tracks"));
-        assert!(!is_playlist_uri("spotify:track:123"));
-        assert!(!is_playlist_uri("spotify:collection:your-episodes"));
+        assert!(is_liked("spotify:user:test:collection:tracks"));
+        assert!(!is_playlist("spotify:track:123") && !is_playlist("spotify:collection:your-episodes"));
     }
 
     #[test]

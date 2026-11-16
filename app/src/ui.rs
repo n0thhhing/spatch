@@ -1,0 +1,264 @@
+//! What SpatchUi.java calls. Every function that touches Spotify blocks, so Java runs them on its
+//! own worker threads; the cheap readers (`nativePlayer`, `nativeEntries`) are safe on the UI thread.
+
+use crate::bridge;
+use crate::spotify::{library, player, playlist};
+#[cfg(not(feature = "preview"))]
+use crate::spotify::collection;
+use jni::JNIEnv;
+use jni::objects::{JClass, JObjectArray, JString};
+use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong, jobjectArray, jstring};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static CONNECTED: AtomicBool = AtomicBool::new(false);
+/// A counter that moves with every state change, and the latest state.
+static PLAYER: Mutex<(i64, Option<player::NowPlaying>)> = Mutex::new((0, None));
+static LIBRARY: Mutex<Option<Vec<library::Item>>> = Mutex::new(None);
+#[cfg(feature = "preview")]
+static SAVED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn strings(env: &mut JNIEnv, values: Vec<String>) -> jobjectArray {
+    let build = |env: &mut JNIEnv| -> jni::errors::Result<jobjectArray> {
+        let array: JObjectArray = env.new_object_array(values.len() as i32, "java/lang/String", JString::default())?;
+        for (i, value) in values.iter().enumerate() {
+            let text = env.new_string(value)?;
+            env.set_object_array_element(&array, i as i32, &text)?;
+            env.delete_local_ref(text)?;
+        }
+        Ok(array.into_raw())
+    };
+    build(env).unwrap_or(std::ptr::null_mut())
+}
+
+fn string(env: &mut JNIEnv, value: &str) -> jstring {
+    env.new_string(value).map_or(std::ptr::null_mut(), JString::into_raw)
+}
+
+fn read(env: &mut JNIEnv, text: &JString) -> Option<String> {
+    env.get_string(text).ok().map(String::from)
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |t| t.as_millis() as u64)
+}
+
+#[cfg(feature = "preview")]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_PreviewActivity_nativePreview(_: JNIEnv, _: JClass) {
+    CONNECTED.store(true, Ordering::Release);
+    *PLAYER.lock().unwrap() = (1, Some(crate::demo::now_playing()));
+    *LIBRARY.lock().unwrap() = Some(crate::demo::library());
+}
+
+/// Opens the player state stream once; true while it is open.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) -> jboolean {
+    if !CONNECTED.swap(true, Ordering::AcqRel) {
+        let opened = bridge::subscribe(player::SERVICE, "GetState", &player::state_request(), |reply| match reply {
+            Ok(bytes) => {
+                if let Ok(now) = player::NowPlaying::decode(bytes) {
+                    let mut state = PLAYER.lock().unwrap();
+                    state.0 += 1;
+                    state.1 = Some(now);
+                }
+            }
+            Err(_) => CONNECTED.store(false, Ordering::Release),
+        });
+        if opened.is_err() {
+            CONNECTED.store(false, Ordering::Release);
+        }
+    }
+    if CONNECTED.load(Ordering::Acquire) { JNI_TRUE } else { JNI_FALSE }
+}
+
+/// The player as strings, or null if nothing changed since `revision`:
+/// revision, uri, title, artist, album, image, playing, shuffle, repeat, position, duration, source,
+/// "Explicit" or "", context uri; then four strings (title, artist, image, uri) per queued track.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JClass, revision: jlong) -> jobjectArray {
+    let (serial, now) = {
+        let state = PLAYER.lock().unwrap();
+        if state.0 == revision {
+            return std::ptr::null_mut();
+        }
+        (state.0, state.1.clone())
+    };
+    let Some(now) = now else { return std::ptr::null_mut() };
+    let mut fields = vec![
+        serial.to_string(),
+        now.uri.clone(),
+        now.title.clone(),
+        now.artist.clone(),
+        now.album.clone(),
+        now.image.clone(),
+        now.playing.to_string(),
+        now.shuffle.to_string(),
+        now.repeat.to_string(),
+        now.position_at(now_ms()).to_string(),
+        now.duration_ms.to_string(),
+        now.source.clone(),
+        if now.explicit { "Explicit".into() } else { String::new() },
+        now.context.clone(),
+    ];
+    for next in &now.up_next {
+        fields.extend([next.title.clone(), next.artist.clone(), next.image.clone(), next.uri.clone()]);
+    }
+    strings(&mut env, fields)
+}
+
+fn fetch_library() -> Result<Vec<library::Item>, String> {
+    bridge::call(library::SERVICE, "All", &library::request(300)).and_then(|bytes| library::decode(&bytes))
+}
+
+/// Loads the library once; "" on success, else Spotify's error.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JClass) -> jstring {
+    if LIBRARY.lock().unwrap().is_some() {
+        return string(&mut env, "");
+    }
+    let status = match fetch_library() {
+        Ok(items) => {
+            *LIBRARY.lock().unwrap() = Some(items);
+            String::new()
+        }
+        Err(error) => error,
+    };
+    string(&mut env, &status)
+}
+
+/// Fetches the library again; true if it differs from what the UI had.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeRefreshLibrary(_: JNIEnv, _: JClass) -> jboolean {
+    if cfg!(feature = "preview") {
+        return JNI_FALSE;
+    }
+    let Ok(items) = fetch_library() else { return JNI_FALSE };
+    let mut current = LIBRARY.lock().unwrap();
+    if current.as_ref() == Some(&items) {
+        return JNI_FALSE;
+    }
+    *current = Some(items);
+    JNI_TRUE
+}
+
+/// Library items under a chip (-1 for all, else playlists 0, albums 1, artists 2, podcasts 3), up to
+/// `limit`, as five strings each: name, subtitle, uri, image, chip (or -1).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeEntries(mut env: JNIEnv, _: JClass, filter: jint, limit: jint) -> jobjectArray {
+    let fields: Vec<String> = LIBRARY
+        .lock()
+        .unwrap()
+        .iter()
+        .flatten()
+        .filter(|item| filter == -1 || item.kind.chip() == Some(filter))
+        .take(limit.max(0) as usize)
+        .flat_map(|item| [item.name.clone(), item.subtitle.clone(), item.uri.clone(), item.image.clone(), item.kind.chip().unwrap_or(-1).to_string()])
+        .collect();
+    strings(&mut env, fields)
+}
+
+/// The library's own URI for Liked Songs.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JClass) -> jstring {
+    let uri = LIBRARY.lock().unwrap().iter().flatten().find(|i| library::is_liked(&i.uri)).map(|i| i.uri.clone());
+    string(&mut env, uri.as_deref().unwrap_or("spotify:collection:tracks"))
+}
+
+/// A page of a playlist: ["loading"], [error], or ["", next offset or "0", then title, artist, uri, image per track].
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: JClass, uri: JString, #[allow(unused_variables)] offset: jint) -> jobjectArray {
+    let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    if !library::is_playlist(&uri) {
+        return std::ptr::null_mut();
+    }
+    #[cfg(feature = "preview")]
+    let reply: Result<playlist::Reply, String> = Ok(playlist::Reply::Page { tracks: crate::demo::playlist(), next: None });
+    #[cfg(not(feature = "preview"))]
+    let reply = bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset)).and_then(|bytes| playlist::decode(&bytes, offset));
+    let fields = match reply {
+        Ok(playlist::Reply::Loading) => vec!["loading".into()],
+        Ok(playlist::Reply::Page { tracks, next }) => ["".to_string(), next.unwrap_or(0).to_string()]
+            .into_iter()
+            .chain(tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]))
+            .collect(),
+        Err(error) => vec![if error.is_empty() { "Couldn’t load playlist".into() } else { error }],
+    };
+    strings(&mut env, fields)
+}
+
+/// Sends a player command; true if Spotify accepted it.
+/// 0 pause, 1 resume, 2 previous, 3 next, 4 seek to `value` ms, 5 shuffle on/off, 6 repeat mode,
+/// 7 play the context `uri`, 8 skip to queue entry `value` (which must still hold `uri`), 9 add `uri` to the queue.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JClass, action: jint, value: jlong, uri: JString) -> jboolean {
+    use player::Command;
+    let target = read(&mut env, &uri).unwrap_or_default();
+    let spotify_uri = target.starts_with("spotify:");
+    let command = match action {
+        0 => Command::Pause,
+        1 => Command::Resume,
+        2 => Command::Previous,
+        3 => Command::Next,
+        4 if value >= 0 => Command::SeekTo(value),
+        5 => Command::Shuffle(value != 0),
+        6 if (0..=2).contains(&value) => Command::Repeat(value as u8),
+        7 if spotify_uri => Command::Play(target),
+        8 if spotify_uri => {
+            let state = PLAYER.lock().unwrap();
+            let Some(next) = state.1.as_ref().and_then(|n| n.up_next.get(value.max(0) as usize)).filter(|t| t.uri == target) else {
+                return JNI_FALSE;
+            };
+            Command::SkipTo { uri: target, uid: next.uid.clone() }
+        }
+        9 if spotify_uri => Command::AddToQueue(target),
+        _ => return JNI_FALSE,
+    };
+    #[cfg(feature = "preview")]
+    {
+        let mut state = PLAYER.lock().unwrap();
+        if let Some(now) = &mut state.1 {
+            crate::demo::apply(now, command);
+            state.0 += 1;
+            return JNI_TRUE;
+        }
+    }
+    let (method, request) = player::command(command);
+    if bridge::call(player::SERVICE, method, &request).is_ok() { JNI_TRUE } else { JNI_FALSE }
+}
+
+/// 1 saved, 0 not saved, -1 unknown.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSaved(mut env: JNIEnv, _: JClass, uri: JString) -> jint {
+    let Some(uri) = read(&mut env, &uri).filter(|u| u.starts_with("spotify:")) else { return -1 };
+    #[cfg(feature = "preview")]
+    return SAVED.lock().unwrap().contains(&uri) as jint;
+    #[cfg(not(feature = "preview"))]
+    match bridge::call(collection::SERVICE, "Contains", &collection::contains_request(&uri)).and_then(|b| collection::decode_contains(&b)) {
+        Ok(saved) => saved as jint,
+        Err(_) => -1,
+    }
+}
+
+/// Saves or unsaves a track in Liked Songs; true if Spotify accepted it.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSave(mut env: JNIEnv, _: JClass, uri: JString, save: jboolean) -> jboolean {
+    let Some(uri) = read(&mut env, &uri).filter(|u| u.starts_with("spotify:")) else { return JNI_FALSE };
+    #[cfg(feature = "preview")]
+    {
+        let mut saved = SAVED.lock().unwrap();
+        saved.retain(|u| u != &uri);
+        if save != JNI_FALSE {
+            saved.push(uri);
+        }
+        return JNI_TRUE;
+    }
+    #[cfg(not(feature = "preview"))]
+    {
+        let method = if save != JNI_FALSE { "Add" } else { "Remove" };
+        match bridge::call(collection::SERVICE, method, &collection::change_request(&uri)).and_then(|b| collection::decode_change(&b)) {
+            Ok(()) => JNI_TRUE,
+            Err(_) => JNI_FALSE,
+        }
+    }
+}

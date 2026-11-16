@@ -1,19 +1,18 @@
-//! Spotify data and commands for the Spatch UI.
+//! Spatch's Rust side: typed access to Spotify's core and the data the Android views draw.
+//!
+//! `bridge` reaches the core through Java (spatch.CoreBridge), `spotify` speaks its services,
+//! `ui` is what SpatchUi.java calls, `shapes` supplies icon and button geometry.
 
-pub mod collection;
-pub mod core;
-mod ui_bridge;
-mod ui_geometry;
-pub mod library;
-pub mod player;
+pub mod bridge;
+pub mod shapes;
+pub mod spotify;
+pub mod ui;
 
-/// Types for Spotify's Esperanto protos (app/proto, rebuilt by scripts/port/protos.py).
+#[cfg(feature = "preview")]
+mod demo;
+
+/// Types for Spotify's Esperanto protos (app/proto, rebuilt from Spotify's own classes).
 #[allow(clippy::all, non_camel_case_types)]
 pub mod protos {
     include!(concat!(env!("OUT_DIR"), "/protos.rs"));
 }
-
-pub use protos::com::spotify::player::esperanto::proto as es_player;
-
-#[cfg(feature = "preview")]
-mod preview;
