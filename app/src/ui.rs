@@ -236,6 +236,35 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClas
     strings(&mut env, fields)
 }
 
+/// Devices that can play your music, as six strings each: name, kind, id, "true" if it is playing,
+/// "true" if it is this phone. Blocks for up to a few seconds; empty if Spotify has none or didn't answer.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeDevices(mut env: JNIEnv, _: JClass) -> jobjectArray {
+    #[cfg(feature = "preview")]
+    let found: Result<Vec<crate::spotify::connect::Device>, String> = Ok(crate::demo::devices());
+    #[cfg(not(feature = "preview"))]
+    let found = crate::spotify::connect::devices(std::time::Duration::from_secs(4));
+    let fields = match found {
+        Ok(devices) => devices.into_iter().flat_map(|d| [d.name, d.kind, d.id, d.active.to_string(), d.this_device.to_string()]).collect(),
+        Err(error) => {
+            log::warn!("Devices: {error}");
+            Vec::new()
+        }
+    };
+    strings(&mut env, fields)
+}
+
+/// Moves playback to a device; "" on success, else why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeTransfer(mut env: JNIEnv, _: JClass, id: JString) -> jstring {
+    let Some(id) = read(&mut env, &id).filter(|id| !id.is_empty()) else { return string(&mut env, "No device chosen") };
+    #[cfg(feature = "preview")]
+    let result: Result<(), String> = Ok(());
+    #[cfg(not(feature = "preview"))]
+    let result = crate::spotify::connect::transfer(&id);
+    string(&mut env, &result.err().unwrap_or_default())
+}
+
 /// Sends a player command; true if Spotify accepted it.
 /// 0 pause, 1 resume, 2 previous, 3 next, 4 seek to `value` ms, 5 shuffle on/off, 6 repeat mode,
 /// 7 play the context `uri`, 8 skip to queue entry `value` (which must still hold `uri`), 9 add `uri` to the queue.

@@ -2,6 +2,7 @@
 //! Nothing here touches the network; `bridge` carries the bytes.
 
 pub mod collection;
+pub mod connect;
 pub mod library;
 pub mod metadata;
 pub mod player;

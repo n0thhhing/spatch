@@ -99,6 +99,11 @@ pub fn page(uri: &str) -> crate::spotify::metadata::Page {
     }
 }
 
+pub fn devices() -> Vec<crate::spotify::connect::Device> {
+    let device = |name: &str, kind: &str, id: &str, active, this_device| crate::spotify::connect::Device { name: name.into(), kind: kind.into(), id: id.into(), active, this_device };
+    vec![device("This phone", "Smartphone", "phone", true, true), device("Kitchen speaker", "Speaker", "kitchen", false, false), device("Desktop", "Computer", "desktop", false, false)]
+}
+
 /// Spotify's recently played, as the demo imagines it: the library's playlists and albums, newest first.
 pub fn recent() -> Vec<Item> {
     library().into_iter().filter(|i| matches!(i.kind, Kind::Playlist | Kind::Album)).rev().take(6).collect()

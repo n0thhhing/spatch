@@ -104,6 +104,14 @@ pub fn geometry(kind: &str) -> Vec<f32> {
         "home" => stroke(&[(3., 12.), (12., 3.), (21., 12.), (19., 12.), (19., 20.), (14., 20.), (14., 14.), (10., 14.), (10., 20.), (5., 20.), (5., 12.), (3., 12.)]),
         "library" => [stroke(&[(5., 4.), (5., 20.)]), stroke(&[(9., 4.), (9., 20.)]), stroke(&[(14., 5.), (19., 19.)])].concat(),
         "settings" => gear(),
+        // A speaker box with a small phone beside it: "play on another device".
+        "devices" => [
+            stroke(&[(3., 5.), (16., 5.), (16., 15.), (3., 15.), (3., 5.)]),
+            stroke(&[(7., 19.), (12., 19.)]),
+            stroke(&[(9.5, 15.), (9.5, 19.)]),
+            stroke(&[(19., 9.), (22., 9.), (22., 19.), (19., 19.), (19., 9.)]),
+        ]
+        .concat(),
         "heart" => heart(true),
         "heart-outline" => heart(false),
         "search" => [ring(10.5, 10.5, 6.5, 24), stroke(&[(15.5, 15.5), (20.5, 20.5)])].concat(),
@@ -127,9 +135,9 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeGeometry(mut env: JNIEnv, _: J
 mod tests {
     use super::*;
 
-    const ICONS: [&str; 21] = [
+    const ICONS: [&str; 22] = [
         "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "shuffle", "repeat", "repeat-one", "volume", "queue",
-        "home", "library", "settings", "heart", "heart-outline", "search", "timer",
+        "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices",
     ];
 
     #[test]

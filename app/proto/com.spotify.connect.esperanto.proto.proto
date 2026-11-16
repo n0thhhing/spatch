@@ -1,0 +1,238 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.connect.esperanto.proto;
+
+message AddDeviceToGroupRequest {
+  string connect_device_identifier = 1;
+  string group_device_identifier = 2;
+  LoggingParams logging_params = 3;
+}
+
+message AddDeviceToGroupResponse {
+  bool success = 1;
+  int32 error = 2;
+}
+
+message ClusterUpdateAfterBackendConnectionResponse {
+  bool has_received_cluster_update_after_backend_connection = 1;
+}
+
+message GroupCapabilities {
+  uint32 max_devices = 1;
+}
+
+message GroupData {
+  repeated GroupDevice devices = 1;
+  GroupCapabilities capabilities = 2;
+}
+
+message GroupDevice {
+  GroupDeviceIdentifiers identifiers = 1;
+  string name = 2;
+  string type = 3;
+  string model_display_name = 4;
+  GroupDeviceCapabilities capabilities = 5;
+  int32 grouping_status = 6;
+  GroupDeviceVolume volume = 7;
+}
+
+message GroupDeviceCapabilities {
+  bool removable = 1;
+  bool removal_dissolves_group = 2;
+}
+
+message GroupDeviceIdentifiers {
+  string group_device_identifier = 1;
+  string local_identifier = 2;
+  string deduplication_id = 3;
+  string connect_state_identifier = 4;
+}
+
+message GroupDeviceVolume {
+  uint32 volume = 1;
+  int32 volume_steps = 2;
+}
+
+message InstallSpotifyRequest {
+  string connect_device_identifier = 1;
+  uint32 port = 2;
+  LoggingParams logging_params = 3;
+}
+
+message InstallSpotifyStatusUpdate {
+  int32 current_state = 1;
+}
+
+message LoggingParams {
+  int64 command_initiated_time = 1;
+  int64 command_received_time = 2;
+  repeated string page_instance_ids = 3;
+  repeated string interaction_ids = 4;
+  string command_id = 5;
+  string feature_identifier = 6;
+}
+
+message LogoutRequest {
+  string connect_device_identifier = 1;
+}
+
+message NotifyAudioRouteChangedRequest {
+  string audio_output_device_name = 1;
+  int32 audio_output_device_connection_type = 2;
+  string audio_output_device_brand = 3;
+  string audio_output_device_model = 4;
+  int32 audio_output_device_category = 5;
+}
+
+message OutputPeripheral {
+  string name = 1;
+  string brand = 2;
+  string model = 3;
+  int32 category = 4;
+  int32 connection_type = 5;
+}
+
+message PullRequest {
+  LoggingParams logging_params = 1;
+  int32 pull_type = 2;
+}
+
+message RemoveDeviceFromGroupRequest {
+  string connect_device_identifier = 1;
+  string group_device_identifier = 2;
+  LoggingParams logging_params = 3;
+}
+
+message RemoveDeviceFromGroupResponse {
+  bool success = 1;
+  int32 error = 2;
+}
+
+message SetPreferredIncarnationRequest {
+  string device_id = 1;
+  int32 preferred_login_type = 2;
+  LoggingParams logging_params = 3;
+}
+
+message StateRequest {
+  bool show_offline_devices_in_core = 1;
+  bool show_offline_amazon_devices_as_online = 2;
+  bool include_local_device = 3;
+  bool exclude_non_local_devices = 4;
+  bool include_user_match_unauthenticated_devices = 5;
+}
+
+message StateResponse {
+  bool is_running = 1;
+  bool is_connected = 2;
+  string local_name = 3;
+  bool should_use_local_playback = 4;
+  repeated StateResponse_Device devices = 5;
+  bool is_active = 6;
+  bool is_active_on_same_device = 7;
+  bool is_synced_with_backend = 8;
+}
+
+message StateResponse_Device {
+  bool is_self = 1;
+  string local_identifier = 2;
+  string deduplication_id = 3;
+  string connect_state_identifier = 4;
+  string name = 5;
+  string type = 6;
+  string state = 7;
+  bool is_disabled = 8;
+  bool is_active = 9;
+  bool is_being_activated = 10;
+  bool is_zeroconf = 11;
+  bool is_webapp = 12;
+  bool is_local = 14;
+  bool is_group = 15;
+  bool is_offline = 16;
+  bool is_social_connect = 17;
+  uint64 creation_time_ms = 18;
+  uint32 volume = 19;
+  StateResponse_Device_Hifi hifi = 20;
+  string license = 21;
+  bool supports_on_demand = 22;
+  bool supports_volume = 23;
+  bool supports_logout = 24;
+  bool supports_rename = 25;
+  bool supports_alarm = 26;
+  bool is_voice_enabled = 27;
+  bool is_newly_discovered = 28;
+  repeated string supported_media_types = 29;
+  string brand_display_name = 30;
+  string model_display_name = 31;
+  uint32 volume_steps = 32;
+  string capabilities = 33;
+  repeated StateResponse_Device_Incarnation incarnations = 34;
+  uint32 alias_id = 35;
+  bool supports_dj = 36;
+  string library_version = 37;
+  OutputPeripheral output_peripheral = 38;
+  string local_ip = 39;
+  uint32 discovery_method = 40;
+  bool supports_remote_sleep_timer = 41;
+  bool supports_playlist_mixing = 42;
+  GroupData group_data = 43;
+  bool is_public = 44;
+  bool supports_remote_audio_quality_control = 45;
+  bool is_authenticated_with_current_user = 46;
+  bool supports_zephyr = 47;
+  bool supports_gapless = 48;
+  bool supports_crossfade = 49;
+  bool supports_remote_equalizer = 50;
+  string logical_playback_identifier = 51;
+  bool supports_remote_normalization = 52;
+}
+
+message StateResponse_Device_Hifi {
+  bool fully_supported = 1;
+  bool user_eligible = 2;
+  bool device_supported = 3;
+}
+
+message StateResponse_Device_Incarnation {
+  int32 login_type = 1;
+  string identifier = 2;
+  bool preferred = 3;
+  int32 preferred_reason = 4;
+  string connect_state_identifier = 5;
+}
+
+message StatusResponse {
+  int32 status = 1;
+}
+
+message TransferRequest {
+  LoggingParams logging_params = 1;
+  string connect_device_identifier = 2;
+  bool dodo = 3;
+  string source_logical_playback_identifier = 4;
+  int32 stream_policy = 5;
+}
+
+message VolumeDownRequest {
+  LoggingParams logging_params = 1;
+  string group_device_identifier = 2;
+}
+
+message VolumeResponse {
+  int32 volume = 1;
+  int32 status = 2;
+  string active_device_connect_state_identifier = 3;
+  map<string, uint32> group_device_volumes = 4;
+}
+
+message VolumeSetRequest {
+  int32 volume = 1;
+  LoggingParams logging_params = 2;
+  string group_device_identifier = 3;
+}
+
+message VolumeUpRequest {
+  LoggingParams logging_params = 1;
+  string group_device_identifier = 2;
+}

@@ -57,6 +57,8 @@ public final class SpatchUi extends FrameLayout {
     private static native String nativeLiked();
     private static native String[] nativePlaylist(String uri, int offset);
     private static native String[] nativePage(String uri);
+    private static native String[] nativeDevices();
+    private static native String nativeTransfer(String id);
     private static native boolean nativeCommand(int action, long value, String uri);
     private static native int nativeSaved(String uri);
     private static native boolean nativeSave(String uri, boolean save);
@@ -142,7 +144,7 @@ public final class SpatchUi extends FrameLayout {
         CoreBridge.cacheDir = covers;
         ART.execute(CoreBridge::pruneCache);
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer"}) {
+                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null);
@@ -1233,6 +1235,7 @@ public final class SpatchUi extends FrameLayout {
         oneLine(pSource);
         from.addView(pSource, fill(-2));
         top.addView(from, weight());
+        top.addView(iconButton(new Icon("devices", ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
         top.addView(iconButton(new Icon("queue", ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
         col.addView(top, fill(-2));
 
@@ -1355,6 +1358,30 @@ public final class SpatchUi extends FrameLayout {
         String[] names = new String[upcoming.size()];
         for (int i = 0; i < names.length; i++) names[i] = upcoming.get(i).title + (upcoming.get(i).subtitle.isEmpty() ? "" : " · " + upcoming.get(i).subtitle);
         sheet("Up next", source.isEmpty() ? "Coming up" : "From " + source, names, i -> command(SKIP_TO, i, upcoming.get(i).uri));
+    }
+
+    /** Lists the devices Spotify can play on and moves playback to the one you pick. */
+    private void openDevices() {
+        Toast.makeText(activity, "Looking for devices…", Toast.LENGTH_SHORT).show();
+        PLAYLISTS.execute(() -> {
+            String[] f = nativeDevices();
+            post(() -> {
+                if (f == null || f.length < 5) { Toast.makeText(activity, "No devices found", Toast.LENGTH_SHORT).show(); return; }
+                int count = f.length / 5;
+                String[] names = new String[count];
+                for (int i = 0; i < count; i++) {
+                    boolean active = Boolean.parseBoolean(f[i * 5 + 3]), here = Boolean.parseBoolean(f[i * 5 + 4]);
+                    names[i] = f[i * 5] + (here ? " (this phone)" : "") + (active ? "  ·  playing" : "");
+                }
+                sheet("Play on", "Pick where your music should play", names, i -> {
+                    String id = f[i * 5 + 2];
+                    PLAYLISTS.execute(() -> {
+                        String error = nativeTransfer(id);
+                        post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? "Playing on " + f[i * 5] : "Couldn’t switch: " + error, Toast.LENGTH_LONG).show());
+                    });
+                });
+            });
+        });
     }
 
     private boolean share() {
