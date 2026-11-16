@@ -14,7 +14,7 @@ export GH_REPO=n0thhhing/spatch # gh runs outside the checkout below
 sha=$(git -C "$repo" rev-parse "${1:-HEAD}")
 short=$(echo "$sha" | cut -c1-7)
 # Source identities are independent of the overall release commit and of each other.
-patch_id=$(git -C "$repo" ls-tree -r "$sha" -- src theme Cargo.toml Cargo.lock scripts/port/aliases.tsv | git hash-object --stdin)
+patch_id=$(git -C "$repo" ls-tree -r "$sha" -- src theme app Cargo.toml Cargo.lock scripts/port/aliases.tsv | git hash-object --stdin)
 manager_id=$(git -C "$repo" rev-parse "$sha:manager")
 labels=$(gh release view "$tag" --json assets -q '.assets[] | [.name, (.label // "")] | @tsv' 2>/dev/null || true)
 changed() { ! printf '%s\n' "$labels" | awk -F '\t' -v name="$1" -v label="nightly-$2" '$1==name && $2==label {found=1} END {exit !found}'; }
