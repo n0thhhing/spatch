@@ -752,6 +752,7 @@ public final class SpatchUi extends FrameLayout {
                 tile.setPadding(dp(6), dp(6), dp(10), dp(6));
                 Art art = new Art(entry.category == 2 ? Art.ROUND : Art.SQUARE);
                 art.small = true;
+                art.letter = initial(entry.title);
                 art.bind(entry.image);
                 tile.addView(art, control(44));
                 TextView name = text(entry.title, 14, onSurface, true);
@@ -833,6 +834,7 @@ public final class SpatchUi extends FrameLayout {
             tile.setBackground(background(container, 20));
             tile.setPadding(dp(6), dp(6), dp(6), dp(6));
             Art art = new Art(category == 2 ? Art.ROUND : Art.SQUARE);
+            art.letter = initial(entry.title);
             art.bind(entry.image);
             tile.addView(art, match(dp(width - 12)));
             TextView name = text(entry.title, 14, onSurface, true);
@@ -1511,6 +1513,27 @@ public final class SpatchUi extends FrameLayout {
         content.addView(top, match(-2));
         LinearLayout page = feed();
 
+        FrameLayout hero = new FrameLayout(activity);
+        GradientDrawable heroShape = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{primary, tertiaryContainer});
+        heroShape.setCornerRadius(dp(32));
+        hero.setBackground(heroShape);
+        hero.setClipToOutline(true);
+        WordmarkDecoration flower = new WordmarkDecoration();
+        flower.petalColor = (onPrimary & 0x00ffffff) | 0x30000000;
+        FrameLayout.LayoutParams flowerParams = new FrameLayout.LayoutParams(dp(150), dp(150), Gravity.END | Gravity.CENTER_VERTICAL);
+        flowerParams.rightMargin = -dp(28);
+        hero.addView(flower, flowerParams);
+        LinearLayout words = column();
+        words.setPadding(dp(20), dp(20), dp(110), dp(20));
+        words.addView(text("Make it yours", 26, onPrimary, true));
+        TextView sub = text("Colours, motion and how the player feels", 14, onPrimary, false);
+        sub.setAlpha(.85f);
+        sub.setPadding(0, dp(4), 0, 0);
+        words.addView(sub);
+        hero.addView(words, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL));
+        hero.setOnClickListener(v -> flower.spin());
+        page.addView(hero, match(dp(124)));
         LinearLayout look = settingsGroup(page, "Look");
         look.addView(choiceRow(new String[]{"System", "Dark", "Light"}, "theme", " theme"), match(-2));
         LinearLayout swatches = row();
@@ -1868,6 +1891,30 @@ public final class SpatchUi extends FrameLayout {
 
     private Runnable sheetClose;
 
+    private final class Shimmer extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final int index;
+        Shimmer(int index) {
+            super(activity);
+            this.index = index;
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight();
+            float t = motionEnabled() ? (SystemClock.uptimeMillis() % 1400) / 1400f : .5f;
+            float x = -w * .5f + (w * 2f) * t - index * dp(18);
+            paint.setShader(new LinearGradient(x - w * .4f, 0, x + w * .4f, 0,
+                new int[]{container, high, container}, null, Shader.TileMode.CLAMP));
+            c.drawRoundRect(0, 0, w, h, dp(18), dp(18), paint);
+            paint.setShader(null);
+            paint.setColor((onSurface & 0x00ffffff) | 0x10000000);
+            c.drawRoundRect(dp(10), dp(8), dp(58), h - dp(8), dp(12), dp(12), paint);
+            c.drawRoundRect(dp(72), h / 2 - dp(12), w * (.62f - .06f * (index % 3)), h / 2 - dp(2), dp(5), dp(5), paint);
+            c.drawRoundRect(dp(72), h / 2 + dp(4), w * .38f, h / 2 + dp(12), dp(4), dp(4), paint);
+            if (motionEnabled() && isShown()) postInvalidateOnAnimation();
+        }
+    }
+
     /** Three bouncing bars: the universal "this one is playing" mark. Still when paused. */
     private final class Bars extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -2084,14 +2131,23 @@ public final class SpatchUi extends FrameLayout {
             single(name); single(subtitle);
             info.addView(name); info.addView(subtitle);
             addView(info, weighted());
+            bars = new Bars(primary);
+            addView(bars, new LinearLayout.LayoutParams(dp(18), dp(16)));
         }
 
+        private final Bars bars;
+
+        /** The track that's playing now reads in the accent colour with bouncing bars. */
         void bind(Entry entry) {
             imageView.shape = entry.category == 2 ? Art.ROUND : Art.SQUARE;
+            imageView.letter = initial(entry.title);
             imageView.bind(entry.image);
             imageView.invalidate();
             name.setText(entry.title);
             subtitle.setText(entry.subtitle);
+            boolean current = screen == PLAYLIST && !title.isEmpty() && entry.title.equals(title) && entry.subtitle.equals(artist);
+            name.setTextColor(current ? primary : onSurface);
+            bars.setVisibility(current ? VISIBLE : GONE);
         }
     }
 
@@ -2281,6 +2337,7 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path petal = new Path();
         private float angle;
+        int petalColor;
         private android.animation.ValueAnimator turn;
 
         void spin() {
@@ -2313,7 +2370,7 @@ public final class SpatchUi extends FrameLayout {
             canvas.translate(w * .55f, h * .58f);
             canvas.rotate(15f + angle);
             canvas.scale(h * .3f, h * .3f);
-            paint.setColor(tertiaryContainer);
+            paint.setColor(petalColor != 0 ? petalColor : tertiaryContainer);
             canvas.drawPath(petal, paint);
             canvas.restore();
             paint.setColor(primary);
@@ -2341,6 +2398,16 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void libraryMessage(LinearLayout parent) {
+        if (!libraryReady && libraryStatus.startsWith("Connecting")) {
+            // Placeholder rows that shimmer while Spotify's library service warms up.
+            gap(parent, 12);
+            for (int i = 0; i < 6; i++) {
+                LinearLayout.LayoutParams p = match(dp(64));
+                p.bottomMargin = dp(6);
+                parent.addView(new Shimmer(i), p);
+            }
+            return;
+        }
         message(parent, libraryStatus);
         if (!libraryReady && !libraryStatus.startsWith("Connecting")) {
             parent.addView(chip("Retry", secondaryContainer, onSecondaryContainer, () -> {
@@ -2393,6 +2460,8 @@ public final class SpatchUi extends FrameLayout {
         private int previousWidth, previousHeight;
         /** Mini player: a progress ring hugs the artwork. */
         boolean ring, small;
+        /** Drawn when an item has no artwork. */
+        String letter = "";
 
         Art(int shape) {
             super(activity);
@@ -2465,7 +2534,8 @@ public final class SpatchUi extends FrameLayout {
             int size = artworkSize();
             String key = url + ':' + size;
             Bitmap bitmap = IMAGES.get(key);
-            if (bitmap == null && !url.isEmpty() && getLocalVisibleRect(visible)) fetchArt(url, size);
+            // Fetch on first draw even off screen: scrolling replays the recorded drawing without calling onDraw again.
+            if (bitmap == null && !url.isEmpty()) fetchArt(url, size);
             if (shape == BACKDROP) {
                 Bitmap blur = IMAGES.get(key + "/blur");
                 if (blur != null) {
@@ -2561,6 +2631,15 @@ public final class SpatchUi extends FrameLayout {
                 if (bitmap == null || alpha < 255) {
                     c.drawRoundRect(0, 0, w, h, r, r, paint);
                     paint.setShader(null);
+                }
+                if (bitmap == null && !letter.isEmpty() && (url.isEmpty() || failedImages.contains(url + ':' + size))) {
+                    // No artwork: the name's first letter, so a blank square doesn't read as still loading.
+                    paint.setColor(onVariant);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    paint.setTextSize(Math.min(w, h) * .42f);
+                    paint.setFakeBoldText(true);
+                    c.drawText(letter, w / 2, h / 2 - (paint.descent() + paint.ascent()) / 2, paint);
+                    paint.setFakeBoldText(false);
                 }
                 if (bitmap != null) {
                     setBitmap(bitmap, w, h);
@@ -2909,6 +2988,14 @@ public final class SpatchUi extends FrameLayout {
             }
             return super.performAccessibilityAction(action, arguments);
         }
+    }
+
+    private static String initial(String name) {
+        for (int i = 0; i < name.length(); i++) {
+            int cp = name.codePointAt(i);
+            if (Character.isLetterOrDigit(cp)) return new String(Character.toChars(Character.toUpperCase(cp)));
+        }
+        return "";
     }
 
     private static String time(long ms) {
