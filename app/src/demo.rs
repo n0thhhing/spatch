@@ -83,6 +83,22 @@ pub fn library() -> Vec<Item> {
         .collect()
 }
 
+/// An album or artist page for the demo: its tracks, and for an artist a few releases.
+pub fn page(uri: &str) -> crate::spotify::metadata::Page {
+    let artist = uri.contains("artist") || uri.contains("preview");
+    crate::spotify::metadata::Page {
+        name: if artist { "Northbound".into() } else { "Between Stations".into() },
+        subtitle: if artist { "Artist".into() } else { "Northbound • 2025".into() },
+        image: "demo:0".into(),
+        tracks: playlist().into_iter().take(8).collect(),
+        releases: if artist {
+            (0..5).map(|i| (TRACKS[i].2.to_string(), "Northbound • 2025".to_string(), format!("spotify:album:{i}"), format!("demo:{}", i + 5))).collect()
+        } else {
+            Vec::new()
+        },
+    }
+}
+
 /// Spotify's recently played, as the demo imagines it: the library's playlists and albums, newest first.
 pub fn recent() -> Vec<Item> {
     library().into_iter().filter(|i| matches!(i.kind, Kind::Playlist | Kind::Album)).rev().take(6).collect()

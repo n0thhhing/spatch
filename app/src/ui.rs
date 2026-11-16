@@ -215,6 +215,27 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
     strings(&mut env, fields)
 }
 
+/// An album or artist page: [error], or "", name, subtitle, image, track count, release count, then four
+/// strings per track (title, artist, uri, image) and four per release (name, subtitle, uri, image).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClass, uri: JString) -> jobjectArray {
+    let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    #[cfg(feature = "preview")]
+    let page: Result<crate::spotify::metadata::Page, String> = Ok(crate::demo::page(&uri));
+    #[cfg(not(feature = "preview"))]
+    let page = crate::spotify::metadata::page(&uri);
+    let fields = match page {
+        Ok(p) => {
+            let mut f = vec!["".to_string(), p.name, p.subtitle, p.image, p.tracks.len().to_string(), p.releases.len().to_string()];
+            f.extend(p.tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]));
+            f.extend(p.releases.into_iter().flat_map(|(name, sub, uri, image)| [name, sub, uri, image]));
+            f
+        }
+        Err(error) => vec![if error.is_empty() { "Couldn’t load this page".into() } else { error }],
+    };
+    strings(&mut env, fields)
+}
+
 /// Sends a player command; true if Spotify accepted it.
 /// 0 pause, 1 resume, 2 previous, 3 next, 4 seek to `value` ms, 5 shuffle on/off, 6 repeat mode,
 /// 7 play the context `uri`, 8 skip to queue entry `value` (which must still hold `uri`), 9 add `uri` to the queue.

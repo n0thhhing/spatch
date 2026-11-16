@@ -3,6 +3,7 @@
 
 pub mod collection;
 pub mod library;
+pub mod metadata;
 pub mod player;
 pub mod playlist;
 pub mod recent;

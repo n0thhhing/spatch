@@ -56,6 +56,7 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativeRecent();
     private static native String nativeLiked();
     private static native String[] nativePlaylist(String uri, int offset);
+    private static native String[] nativePage(String uri);
     private static native boolean nativeCommand(int action, long value, String uri);
     private static native int nativeSaved(String uri);
     private static native boolean nativeSave(String uri, boolean save);
@@ -98,6 +99,11 @@ public final class SpatchUi extends FrameLayout {
     private List<Entry> playlistTracks = new ArrayList<>();
     private boolean playlistLoading, playlistFailed, playerOpen;
     private String playlistError = "";
+    /** For an album or artist page: Spotify's own heading, and the releases shelf. */
+    private String detailTitle = "", detailSubtitle = "", detailImage = "";
+    private List<Entry> releases = new ArrayList<>();
+
+    private static boolean isDetail(Entry e) { return e.uri.startsWith("spotify:album:") || e.uri.startsWith("spotify:artist:"); }
     private int playlistRequest;
     private String query = "";
 
@@ -877,6 +883,7 @@ public final class SpatchUi extends FrameLayout {
     // ---------- Playlist ----------
 
     private void open(Entry e) {
+        if (isDetail(e)) { openPlaylist(e); return; }
         boolean isList = e.category == 0 || e.uri.startsWith("spotify:playlist:") || (e.uri.startsWith("spotify:user:") && e.uri.contains(":playlist:")) || liked(e.uri);
         if (isList) openPlaylist(e);
         else command(PLAY, 0, e.uri);
@@ -885,6 +892,8 @@ public final class SpatchUi extends FrameLayout {
     private void openPlaylist(Entry e) {
         playlist = e;
         playlistTracks = new ArrayList<>();
+        releases = new ArrayList<>();
+        detailTitle = detailSubtitle = detailImage = "";
         playlistLoading = true;
         playlistFailed = false;
         showPage();
@@ -905,9 +914,10 @@ public final class SpatchUi extends FrameLayout {
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
-            String[] r = nativePlaylist(e.uri, 0);
+            String[] r = isDetail(e) ? nativePage(e.uri) : nativePlaylist(e.uri, 0);
             post(() -> {
                 if (request != playlistRequest || playlist != e) return;
+                if (isDetail(e)) { applyDetail(r); return; }
                 if (r != null && r.length == 1 && "loading".equals(r[0]) && attempt < 10) {
                     postDelayed(() -> { if (playlist == e) loadPlaylist(e, attempt + 1); }, 700);
                     return;
@@ -920,6 +930,22 @@ public final class SpatchUi extends FrameLayout {
                 showPage();
             });
         });
+    }
+
+    /** Reads nativePage's reply into the page state and redraws. */
+    private void applyDetail(String[] r) {
+        playlistLoading = false;
+        playlistFailed = r == null || r.length < 6 || !r[0].isEmpty();
+        playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
+        if (playlistFailed) android.util.Log.w("SpatchUi", "Page request failed: " + playlistError);
+        else {
+            detailTitle = r[1]; detailSubtitle = r[2]; detailImage = r[3];
+            int tracks = Integer.parseInt(r[4]), shelf = Integer.parseInt(r[5]);
+            int at = 6;
+            for (int i = 0; i < tracks && at + 3 < r.length; i++, at += 4) playlistTracks.add(new Entry(r[at], r[at + 1], r[at + 2], r[at + 3], -1));
+            for (int i = 0; i < shelf && at + 3 < r.length; i++, at += 4) releases.add(new Entry(r[at], r[at + 1], r[at + 2], r[at + 3], 1));
+        }
+        showPage();
     }
 
     private View playlistPage() {
@@ -935,7 +961,10 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout header = column();
         header.setGravity(Gravity.CENTER_HORIZONTAL);
         header.setPadding(dp(18), dp(4), dp(18), dp(16));
-        if (playlist.image.isEmpty()) {
+        boolean detail = isDetail(playlist);
+        String headImage = detail && !detailImage.isEmpty() ? detailImage : playlist.image;
+        String headTitle = detail && !detailTitle.isEmpty() ? detailTitle : playlist.title;
+        if (headImage.isEmpty() && !detail) {
             FrameLayout cover = new FrameLayout(activity);
             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)});
             g.setCornerRadius(dp(30));
@@ -943,17 +972,19 @@ public final class SpatchUi extends FrameLayout {
             cover.addView(new Icon("heart", ink), new LayoutParams(dp(70), dp(70), Gravity.CENTER));
             header.addView(cover, lp(dp(180), dp(180)));
         } else {
-            Art art = new Art(Art.ROUNDED, false);
-            art.bind(playlist.image);
+            Art art = new Art(playlist.uri.startsWith("spotify:artist:") ? Art.CIRCLE : Art.ROUNDED, false);
+            art.letter = initial(headTitle);
+            art.bind(headImage);
             header.addView(art, lp(dp(200), dp(200)));
         }
-        TextView name = text(playlist.title, 28, ink, true);
+        TextView name = text(headTitle, 28, ink, true);
         name.setGravity(Gravity.CENTER);
         name.setPadding(0, dp(14), 0, dp(4));
         name.setMaxLines(2);
         name.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(name, fill(-2));
-        TextView count = text(playlistLoading ? "Loading…" : playlistFailed ? "Couldn’t load" : playlistTracks.size() + (playlistTracks.size() == 1 ? " song" : " songs"), 14, inkDim, false);
+        String songs = playlistTracks.size() + (playlistTracks.size() == 1 ? " song" : " songs");
+        TextView count = text(playlistLoading ? "Loading…" : playlistFailed ? "Couldn’t load" : detail && !detailSubtitle.isEmpty() ? detailSubtitle + " • " + songs : songs, 14, inkDim, false);
         count.setGravity(Gravity.CENTER);
         header.addView(count, fill(-2));
         if (playlistFailed && !playlistError.isEmpty()) {
@@ -977,12 +1008,17 @@ public final class SpatchUi extends FrameLayout {
         header.addView(actions, ap);
         if (playlistFailed) header.addView(pill("Retry", () -> { playlistLoading = true; playlistFailed = false; showPage(); loadPlaylist(playlist, 0); }));
 
-        if (playlistTracks.isEmpty()) {
+        if (playlistTracks.isEmpty() && releases.isEmpty()) {
             ScrollView s = new ScrollView(activity);
             s.addView(header);
             page.addView(s, new LinearLayout.LayoutParams(-1, 0, 1));
         } else {
             ListView list = entryList(playlistTracks, header);
+            if (!releases.isEmpty()) {
+                LinearLayout footer = column();
+                shelf(footer, "Releases", releases, null);
+                list.addFooterView(footer, null, false);
+            }
             list.setPadding(dp(18), 0, dp(18), dp(170) + inset.bottom);
             list.setClipToPadding(false);
             page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
