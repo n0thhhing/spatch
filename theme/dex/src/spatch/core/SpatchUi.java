@@ -1076,6 +1076,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout titleRow = row();
         titleRow.setGravity(Gravity.TOP);
         titleRow.addView(trackTitle, weighted());
+        trackTitle.setOnLongClickListener(v -> shareSheet());
         explicitBadge = text("E", 12, surface, true);
         explicitBadge.setGravity(Gravity.CENTER);
         explicitBadge.setBackground(background(onVariant, 4));
@@ -1179,6 +1180,7 @@ public final class SpatchUi extends FrameLayout {
         immersiveChrome = chrome;
         trackTitle = text("", 30, onSurface, true);
         trackTitle.setGravity(Gravity.CENTER);
+        trackTitle.setOnLongClickListener(v -> shareSheet());
         trackTitle.setMaxLines(2);
         trackTitle.setEllipsize(TextUtils.TruncateAt.END);
         chrome.addView(trackTitle, match(-2));
@@ -2274,6 +2276,35 @@ public final class SpatchUi extends FrameLayout {
     }
 
     interface Choice { void picked(int index); }
+
+    /** open.spotify.com link for the playing track or episode, or "" for anything else. */
+    private String songLink() {
+        for (String kind : new String[]{"track", "episode"}) {
+            String prefix = "spotify:" + kind + ":";
+            if (uri.startsWith(prefix) && uri.length() > prefix.length()) return "https://open.spotify.com/" + kind + "/" + uri.substring(prefix.length());
+        }
+        return "";
+    }
+
+    /** Long press on the title: hand the song's link to the share sheet, or copy it. */
+    private boolean shareSheet() {
+        String link = songLink();
+        if (link.isEmpty()) return false;
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+        sheet(title, artist, new String[]{"Share song link", "Copy song link"}, -1, choice -> {
+            if (choice == 0) {
+                android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
+                send.setType("text/plain");
+                send.putExtra(android.content.Intent.EXTRA_TEXT, link);
+                activity.startActivity(android.content.Intent.createChooser(send, title));
+            } else {
+                android.content.ClipboardManager clip = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText(title, link));
+                if (android.os.Build.VERSION.SDK_INT < 33) Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show();
+            }
+        });
+        return true;
+    }
 
     private void longPress(View view, Entry entry) {
         view.setOnLongClickListener(v -> {
