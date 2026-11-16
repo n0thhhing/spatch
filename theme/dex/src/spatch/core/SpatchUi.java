@@ -50,6 +50,7 @@ public final class SpatchUi extends FrameLayout {
     private static final int PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7;
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
+    private static final ExecutorService LIBRARY_DATA = Executors.newSingleThreadExecutor();
     private static final ExecutorService COMMANDS = Executors.newSingleThreadExecutor();
     private static final ExecutorService ART = Executors.newFixedThreadPool(3);
     private static final LruCache<String, Bitmap> IMAGES = new LruCache<String, Bitmap>(24 * 1024 * 1024) {
@@ -172,18 +173,21 @@ public final class SpatchUi extends FrameLayout {
 
     private void loadLibrary() {
         fetching = true;
-        DATA.execute(() -> {
+        LIBRARY_DATA.execute(() -> {
             String status = nativeLibrary();
             post(() -> {
                 fetching = false;
                 libraryReady = status != null && status.isEmpty();
-                if (libraryReady) libraryStatus = "Nothing saved here yet";
-                else {
-                    libraryStatus = status != null && status.contains("isn't running yet")
-                        ? "Connecting to your library…" : "Library unavailable. Retrying…";
-                    libraryRetry = SystemClock.uptimeMillis() + 6000;
+                String previousStatus = libraryStatus;
+                if (libraryReady) {
+                    libraryStatus = "Nothing saved here yet";
+                } else {
+                    libraryStatus = "Couldn’t load your library";
+                    libraryRetry = SystemClock.uptimeMillis() + 12_000;
+                    android.util.Log.w("SpatchUi", "Library request failed: "
+                        + (status == null ? "No response" : status));
                 }
-                if (screen == HOME || screen == LIBRARY) redrawPage();
+                if ((screen == HOME || screen == LIBRARY) && !previousStatus.equals(libraryStatus)) redrawPage();
             });
         });
     }
@@ -229,6 +233,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void navigate(int action, int category) {
+        int previous = screen;
         int next = nativeNavigate(route, action, category);
         if (next == route) return;
         rememberScroll();
@@ -238,6 +243,23 @@ public final class SpatchUi extends FrameLayout {
         if (filter != selected) collectionRow = collectionOffset = 0;
         filter = selected;
         render();
+        if (previous != screen && motionEnabled()) {
+            boolean playerTransition = screen == PLAYER || screen == IMMERSIVE || previous == PLAYER || previous == IMMERSIVE;
+            content.setAlpha(0f);
+            if (playerTransition) {
+                content.setTranslationY(dp(action == 5 ? 10 : 26));
+                content.setScaleX(.975f);
+                content.setScaleY(.975f);
+            } else {
+                content.setTranslationX(dp(action == 5 || screen == HOME ? -18 : 18));
+            }
+            content.animate().alpha(1f).translationX(0).translationY(0).scaleX(1).scaleY(1)
+                .setDuration(310).setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
+            if (atmosphere != null) {
+                atmosphere.setAlpha(0f);
+                atmosphere.animate().alpha(1f).setDuration(400).start();
+            }
+        }
     }
 
     private void rememberScroll() {
@@ -313,7 +335,7 @@ public final class SpatchUi extends FrameLayout {
             TextView liked = chip("Liked songs", tertiaryContainer, onTertiaryContainer, () -> {
                 String likedUri = nativeLiked();
                 if (likedUri != null && !likedUri.isEmpty()) { command(PLAY, 0, likedUri); return; }
-                Toast.makeText(activity, "Liked Songs is unavailable", Toast.LENGTH_SHORT).show();
+                command(PLAY, 0, "spotify:collection:tracks");
             });
             shortcuts.addView(liked, weighted());
             LinearLayout.LayoutParams second = weighted();
@@ -322,7 +344,7 @@ public final class SpatchUi extends FrameLayout {
             feed.addView(shortcuts, match(-2));
             boolean any = false;
             for (int category = 0; category < SECTIONS.length; category++) any |= addShelf(feed, category);
-            if (!any) message(feed, libraryStatus);
+            if (!any) libraryMessage(feed);
         } else {
             HorizontalScrollView choices = new HorizontalScrollView(activity);
             choices.setHorizontalScrollBarEnabled(false);
@@ -344,7 +366,7 @@ public final class SpatchUi extends FrameLayout {
             choices.addView(chips);
             content.addView(choices, match(-2));
             List<Entry> entries = entries(filter, 300);
-            if (entries.isEmpty()) message(feed(), libraryStatus);
+            if (entries.isEmpty()) libraryMessage(feed());
             else {
                 libraryList = entryList(entries);
                 libraryList.setSelectionFromTop(collectionRow, collectionOffset);
@@ -454,6 +476,7 @@ public final class SpatchUi extends FrameLayout {
         TextView label = text(screen == IMMERSIVE ? "Immersive" : "Now playing", 22, onSurface, true);
         label.setGravity(Gravity.CENTER);
         top.addView(label, weighted());
+        if (screen == PLAYER) top.addView(glyph("immersive", "Open immersive mode", false, () -> navigate(3, 0)), control(48));
         top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
         content.addView(top, match(-2));
 
@@ -472,23 +495,27 @@ public final class SpatchUi extends FrameLayout {
                 taps.onTouchEvent(e);
                 return true;
             });
-            TextView hint = text("Double-tap artwork for immersive", 12, onVariant, false);
-            hint.setGravity(Gravity.CENTER);
-            body.addView(hint, match(-2));
+
         }
-        gap(body, 16);
-        trackTitle = text("", 36, onSurface, true);
+        gap(body, screen == IMMERSIVE ? 18 : 12);
+        LinearLayout details = column();
+        if (screen == IMMERSIVE) {
+            details.setPadding(dp(16), dp(16), dp(16), dp(12));
+            details.setBackground(background(container, 30));
+        }
+        body.addView(details, match(-2));
+        trackTitle = text("", screen == IMMERSIVE ? 40 : 36, onSurface, true);
         trackTitle.setMaxLines(2);
         trackTitle.setEllipsize(TextUtils.TruncateAt.END);
         trackArtist = text("", 17, onVariant, false);
         albumTitle = text("", 13, onVariant, false);
         for (TextView labelView : new TextView[]{trackTitle, trackArtist, albumTitle}) {
-            labelView.setGravity(Gravity.CENTER);
-            body.addView(labelView, match(-2));
+            labelView.setGravity(screen == IMMERSIVE ? Gravity.START : Gravity.CENTER);
+            details.addView(labelView, match(-2));
         }
-        gap(body, 10);
+        gap(details, 8);
         wave = new Wave();
-        body.addView(wave, match(dp(65)));
+        details.addView(wave, match(dp(65)));
         LinearLayout controls = row();
         controls.setGravity(Gravity.CENTER);
         shuffleButton = glyph("shuffle", "Shuffle", false, () -> command(SHUFFLE, shuffle ? 0 : 1, ""));
@@ -499,7 +526,7 @@ public final class SpatchUi extends FrameLayout {
         addTransport(controls, playButton, 74, false, false);
         addTransport(controls, glyph("next", "Next track", false, () -> command(NEXT, 0, "")), 50, false, false);
         addTransport(controls, repeatButton, 48, false, true);
-        body.addView(controls, match(-2));
+        details.addView(controls, match(-2));
     }
 
     private void addTransport(LinearLayout row, Glyph glyph, int size, boolean first, boolean last) {
@@ -697,6 +724,15 @@ public final class SpatchUi extends FrameLayout {
         return v;
     }
 
+    private void libraryMessage(LinearLayout parent) {
+        message(parent, libraryStatus);
+        if (!libraryReady && !libraryStatus.startsWith("Connecting")) {
+            parent.addView(chip("Retry", secondaryContainer, onSecondaryContainer, () -> {
+                if (!fetching) loadLibrary();
+            }));
+        }
+    }
+
     private void message(LinearLayout parent, String value) {
         TextView v = text(value, 14, onVariant, false);
         v.setPadding(dp(4), dp(16), dp(4), dp(10));
@@ -706,6 +742,7 @@ public final class SpatchUi extends FrameLayout {
     private Glyph glyph(String symbol, String name, boolean filled, Runnable action) {
         Glyph glyph = new Glyph(symbol, filled);
         makeClickable(glyph, name, action);
+        if (filled) glyph.setForeground(null);
         return glyph;
     }
 
@@ -732,6 +769,8 @@ public final class SpatchUi extends FrameLayout {
         private final android.graphics.Rect visible = new android.graphics.Rect();
         private String url = "";
         private BitmapShader bitmapShader;
+        private LinearGradient wash;
+        private float washHeight;
         private Bitmap previousBitmap;
         private int previousWidth, previousHeight;
 
@@ -766,13 +805,21 @@ public final class SpatchUi extends FrameLayout {
             if (shape == BACKDROP) {
                 Bitmap blur = IMAGES.get(key + "/blur");
                 if (blur != null) {
-                    paint.setAlpha(220);
+                    paint.setAlpha(255);
                     setBitmap(blur, w, h);
                     c.drawRect(0, 0, w, h, paint);
                     paint.setShader(null);
                 }
-                paint.setColor((dark ? 0xe0000000 : 0xe8000000) | (surface & 0x00ffffff));
+                if (wash == null || washHeight != h) {
+                    washHeight = h;
+                    int tint = (dark ? 0xa0000000 : 0x98000000) | (surface & 0x00ffffff);
+                    wash = new LinearGradient(0, 0, 0, h,
+                        new int[]{surface, tint, surface}, new float[]{0f, .34f, 1f}, Shader.TileMode.CLAMP);
+                }
+                paint.setAlpha(255);
+                paint.setShader(wash);
                 c.drawRect(0, 0, w, h, paint);
+                paint.setShader(null);
                 return;
             }
 
@@ -782,12 +829,6 @@ public final class SpatchUi extends FrameLayout {
                 c.translate((w - side) * .5f, (h - side) * .5f);
                 w = h = side;
                 paint.setShader(null);
-                paint.setColor(0x66000000 | (primary & 0x00ffffff));
-                paint.setStrokeWidth(dp(2));
-                for (int i = 0; i < RADIAL.length; i += 4) {
-                    c.drawLine(RADIAL[i] * side, RADIAL[i + 1] * side,
-                               RADIAL[i + 2] * side, RADIAL[i + 3] * side, paint);
-                }
                 outline.rewind();
                 for (int i = 0; i < COVER.length; i += 2) {
                     float x = COVER[i] * side, y = COVER[i + 1] * side;
@@ -798,10 +839,6 @@ public final class SpatchUi extends FrameLayout {
                 else { paint.setAlpha(255); setBitmap(bitmap, w, h); }
                 c.drawPath(outline, paint);
                 paint.setShader(null);
-                paint.setColor(primary);
-                paint.setStyle(Paint.Style.STROKE);
-                c.drawPath(outline, paint);
-                paint.setStyle(Paint.Style.FILL);
             } else {
                 if (bitmap != null) {
                     paint.setAlpha(255);
@@ -874,7 +911,12 @@ public final class SpatchUi extends FrameLayout {
 
         @Override protected void drawableStateChanged() {
             super.drawableStateChanged();
-            if (!isClickable() || !motionEnabled()) return;
+            if (!isClickable()) return;
+            if (primary) {
+                morphTo(isPressed() ? 1f - restingShape : restingShape);
+                return;
+            }
+            if (!motionEnabled()) return;
             float scale = isPressed() ? .92f : 1f;
             animate().scaleX(scale).scaleY(scale).setDuration(isPressed() ? 90 : 260)
                 .setInterpolator(isPressed() ? new android.view.animation.DecelerateInterpolator()
@@ -884,6 +926,31 @@ public final class SpatchUi extends FrameLayout {
         private final Path path = new Path();
 
         private final android.graphics.Rect visible = new android.graphics.Rect();
+        private float shape, restingShape;
+        private android.animation.ValueAnimator morph;
+
+        private void morphTo(float target) {
+            if (morph != null) morph.cancel();
+            if (!motionEnabled() || Math.abs(shape - target) < .001f) {
+                shape = target;
+                invalidate();
+                return;
+            }
+            morph = android.animation.ValueAnimator.ofFloat(shape, target);
+            morph.setDuration(isPressed() ? 125 : 270);
+            morph.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
+            morph.addUpdateListener(animation -> {
+                shape = (float) animation.getAnimatedValue();
+                invalidate();
+            });
+            morph.start();
+        }
+
+        @Override protected void onDetachedFromWindow() {
+            if (morph != null) morph.cancel();
+            super.onDetachedFromWindow();
+        }
+
         private long spinStarted;
         private float stoppedAngle;
 
@@ -897,6 +964,11 @@ public final class SpatchUi extends FrameLayout {
             if (!playing && spinStarted != 0) {
                 stoppedAngle = angle(now);
                 spinStarted = 0;
+            }
+            float nextShape = playing ? 1f : 0f;
+            if (restingShape != nextShape) {
+                restingShape = nextShape;
+                morphTo(isPressed() ? 1f - restingShape : restingShape);
             }
             symbol = playing ? "pause" : "play";
             setEnabled(enabled);
@@ -919,10 +991,10 @@ public final class SpatchUi extends FrameLayout {
             canvas.translate(getWidth() / 2f, getHeight() / 2f);
             if (primary) {
                 float r = size * .5f;
-                float[] shape = BUTTON;
                 path.rewind();
-                for (int i = 0; i < shape.length; i += 2) {
-                    float x = shape[i] * r, y = shape[i + 1] * r;
+                for (int i = 0; i < BUTTON_FIVE.length; i += 2) {
+                    float x = (BUTTON_FIVE[i] + (BUTTON_NINE[i] - BUTTON_FIVE[i]) * shape) * r;
+                    float y = (BUTTON_FIVE[i + 1] + (BUTTON_NINE[i + 1] - BUTTON_FIVE[i + 1]) * shape) * r;
                     if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
                 }
                 path.close();
@@ -1071,12 +1143,12 @@ public final class SpatchUi extends FrameLayout {
 
     private static native float[] nativeGeometry(String kind);
     private static final float[] COVER = nativeGeometry("cover");
-    private static final float[] RADIAL = nativeGeometry("radial");
-    private static final float[] BUTTON = nativeGeometry("button");
+    private static final float[] BUTTON_FIVE = nativeGeometry("button5");
+    private static final float[] BUTTON_NINE = nativeGeometry("button9");
     private static final float[] WAVE = nativeGeometry("wave");
     private static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
     static {
-        for (String key : new String[]{"back", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "queue", "home", "library"}) {
+        for (String key : new String[]{"back", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "queue", "immersive", "home", "library"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
     }

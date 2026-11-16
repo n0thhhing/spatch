@@ -6,6 +6,7 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -32,7 +33,7 @@ public final class CoreBridge implements Transport {
         if (!(transport instanceof Transport) || transport instanceof CoreBridge) return (Transport) transport;
         Transport t = (Transport) transport;
         String name = t.getClass().getName();
-        if (fallback == null && (name.endsWith(".NativeTransport") || name.endsWith(".SchedulingTransport"))) fallback = t;
+        if (name.endsWith(".NativeTransport") || (fallback == null && name.endsWith(".SchedulingTransport"))) fallback = t;
         return new CoreBridge(t);
     }
 
@@ -64,7 +65,7 @@ public final class CoreBridge implements Transport {
 
     /** From Rust, on its own thread (never the main one): one request, its reply. Throws with Spotify's error. */
     public static byte[] call(String service, String method, byte[] request) {
-        return (byte[]) transport(service).callSingle(service, method, request).blockingGet();
+        return (byte[]) transport(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
     }
 
     /** From Rust: replies stream to nativeNext(token, bytes) until cancel(id) or an error (nativeError). */

@@ -10,24 +10,16 @@ fn polar(angle: f32, radius: f32, center: f32) -> [f32; 2] {
 
 fn geometry(kind: &str) -> Vec<f32> {
     match kind {
-        "cover" | "button" => (0..120)
+        "cover" | "button5" | "button9" => (0..120)
             .flat_map(|i| {
                 let angle = i as f32 / 120.0 * TAU;
                 let (radius, center) = if kind == "cover" {
-                    (0.397 + 0.013 * (angle * 10.0).cos(), 0.5)
+                    (0.461 + 0.021 * (angle * 8.0).cos(), 0.5)
                 } else {
-                    (0.90 + 0.08 * (angle * 7.0).cos(), 0.0)
+                    let points = if kind == "button5" { 5.0 } else { 9.0 };
+                    (0.88 + 0.10 * (angle * points).cos(), 0.0)
                 };
                 polar(angle, radius, center)
-            })
-            .collect(),
-        "radial" => (0..60)
-            .flat_map(|i| {
-                let angle = i as f32 / 60.0 * TAU;
-                let length = (0.25 + 0.75 * (angle * 3.0).cos().powi(2)) * 0.038;
-                polar(angle, 0.439, 0.5)
-                    .into_iter()
-                    .chain(polar(angle, 0.439 + length, 0.5))
             })
             .collect(),
         "wave" => (0..128).map(|i| (i as f32 / 128.0 * TAU).sin()).collect(),
@@ -76,6 +68,10 @@ fn glyph(kind: &str) -> &'static [f32] {
                 BOTH
             }
         }
+        "immersive" => &[
+            3., 4., 10., 4., 4., 10., 4., 3., 14., 4., 20., 4., 20., 10., 3., 20., 14., 20., 20.,
+            14., 20., 3., 10., 20., 4., 20., 4., 14.,
+        ],
         "home" => &[
             3., 3., 11., 12., 4., 21., 11., 8., 5., 10., 5., 20., 10., 20., 10., 14., 14., 14.,
             14., 20., 19., 20., 19., 10.,
@@ -114,6 +110,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn playback_shapes_have_five_and_nine_peaks() {
+        for (name, expected) in [("button5", 5), ("button9", 9)] {
+            let radii: Vec<_> = geometry(name)
+                .chunks_exact(2)
+                .map(|point| point[0].hypot(point[1]))
+                .collect();
+            let count = (0..radii.len())
+                .filter(|&i| {
+                    radii[i] > radii[(i + radii.len() - 1) % radii.len()]
+                        && radii[i] >= radii[(i + 1) % radii.len()]
+                })
+                .count();
+            assert_eq!(count, expected);
+        }
+    }
+
+    #[test]
     fn transport_glyphs_are_complete_paths_inside_the_icon_box() {
         for kind in [
             "back",
@@ -125,6 +138,7 @@ mod tests {
             "repeat",
             "repeat-one",
             "queue",
+            "immersive",
             "home",
             "library",
         ] {

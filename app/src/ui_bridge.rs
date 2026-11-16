@@ -161,8 +161,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(env: JNIEnv, _: JClass) 
     let uri = items
         .iter()
         .flatten()
-        .find(|item| item.uri.ends_with(":collection"))
-        .map_or("", |item| &item.uri);
+        .find(|item| item.uri == "spotify:collection:tracks" || item.uri.ends_with(":collection"))
+        .map_or("spotify:collection:tracks", |item| item.uri.as_str());
     env.new_string(uri)
         .map_or(std::ptr::null_mut(), JString::into_raw)
 }
