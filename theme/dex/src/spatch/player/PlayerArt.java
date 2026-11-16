@@ -108,11 +108,14 @@ public final class PlayerArt extends ImageView {
     /** Scrolled down to Spotify's cards, the artwork is off screen and stops drawing; this keeps a new song's colours coming. */
     private final android.view.ViewTreeObserver.OnPreDrawListener offscreen=new android.view.ViewTreeObserver.OnPreDrawListener(){
         public boolean onPreDraw(){
-            if(preview || SystemClock.uptimeMillis()-drawnAt<150 || !isCurrentPage()) return true;
-            Drawable art=getDrawable();
-            Tint.follow(art);
-            colourTitle();
-            if(atmosphere!=null && art!=null && art!=lastArt){ lastArt=art; atmosphere.capture(art); }
+            // ids are looked up on the first draw: until then there is nothing to colour.
+            if(preview || ids==null || SystemClock.uptimeMillis()-drawnAt<150 || !isCurrentPage()) return true;
+            try {
+                Drawable art=getDrawable();
+                Tint.follow(art);
+                colourTitle();
+                if(atmosphere!=null && art!=null && art!=lastArt){ lastArt=art; atmosphere.capture(art); }
+            } catch(RuntimeException e) {} // runs for the whole window every frame: never take Spotify down with it
             return true;
         }
     };
