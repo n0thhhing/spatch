@@ -562,6 +562,8 @@ public final class SpatchUi extends FrameLayout {
         scroll = null;
         libraryList = playlistList = null;
         libraryGrid = null;
+        miniShape = null;
+        miniColor = 0;
         trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = heroBadge = null;
         trackArt = heroArt = atmosphere = null;
         playbackSource = infoTrack = infoArtist = infoAlbum = null;
@@ -895,7 +897,8 @@ public final class SpatchUi extends FrameLayout {
     private void addMini(FrameLayout dock) {
         LinearLayout mini = row();
         mini.setPadding(dp(8), dp(4), dp(5), dp(4));
-        mini.setBackground(background(high, 28));
+        miniShape = background(miniTint(), 28);
+        mini.setBackground(miniShape);
         mini.setElevation(dp(4));
         trackArt = new Art(pref("round_mini", true) ? Art.ROUND : Art.SQUARE);
         trackArt.ring = true;
@@ -914,10 +917,13 @@ public final class SpatchUi extends FrameLayout {
         makeClickable(info, "Open player", this::openPlayer);
         artworkGestures(info, true);
         mini.addView(info, weighted());
-        addTransport(mini, glyph("previous", "Previous track", false, () -> command(PREVIOUS, 0, "")), 48, true, false);
+        Glyph previous = glyph("previous", "Previous track", false, () -> command(PREVIOUS, 0, ""));
+        Glyph next = glyph("next", "Next track", false, () -> command(NEXT, 0, ""));
+        previous.glass = next.glass = true;
+        addTransport(mini, previous, 48, true, false);
         playButton = glyph("play", "Play", true, this::toggle);
         addTransport(mini, playButton, 48, false, false);
-        addTransport(mini, glyph("next", "Next track", false, () -> command(NEXT, 0, "")), 48, false, true);
+        addTransport(mini, next, 48, false, true);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
         params.setMargins(dp(12), 0, dp(12), dp(12));
         dock.addView(mini, params);
@@ -998,6 +1004,31 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private View immersiveChrome;
+    private GradientDrawable miniShape;
+    private int miniColor;
+
+    /** The mini player's fill: the container colour, washed with the cover's hue when artwork colours are on. */
+    private int miniTint() {
+        Integer seed = pref("art_colors", true) ? SEEDS.get(image) : null;
+        if (seed == null) return high;
+        float[] hsv = new float[3];
+        Color.colorToHSV(seed, hsv);
+        return hsl(hsv[0], Math.min(hsv[1], .32f), dark ? .21f : .87f);
+    }
+
+    private void refreshMini() {
+        if (miniShape == null) return;
+        int target = miniTint();
+        if (target == miniColor) return;
+        int from = miniColor == 0 ? target : miniColor;
+        miniColor = target;
+        if (!motionEnabled() || from == target) { miniShape.setColor(target); return; }
+        android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofArgb(from, target);
+        fade.setDuration(600);
+        GradientDrawable shape = miniShape;
+        fade.addUpdateListener(f -> shape.setColor((int) f.getAnimatedValue()));
+        fade.start();
+    }
     private android.animation.ObjectAnimator immersiveDrift;
 
     /** Immersive: the artwork floats as a slowly turning disc over its own blurred light. */
@@ -2441,6 +2472,7 @@ public final class SpatchUi extends FrameLayout {
         if (heroArt != null) heroArt.bind(image);
         if (atmosphere != null) atmosphere.bind(image);
         refreshPlaybackButtons();
+        refreshMini();
         updateMotion();
         if (shuffleButton != null) {
             shuffleButton.setSelected(shuffle);
@@ -3013,6 +3045,7 @@ public final class SpatchUi extends FrameLayout {
                 loadingImages.remove(key);
                 if (bitmap == null) failedImages.add(key);
                 for (Art art : visibleArt) if (art.url.equals(url)) art.invalidate();
+                if (url.equals(image)) refreshMini();
                 if (url.equals(image) || (screen == PLAYLIST && playlist != null && url.equals(playlist.image))) updateMotion();
             });
         });
