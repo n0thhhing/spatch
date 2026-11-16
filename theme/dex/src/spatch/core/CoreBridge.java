@@ -38,12 +38,6 @@ public final class CoreBridge implements Transport {
         return new CoreBridge(t);
     }
 
-    /** Hook: the account's coroutine transport; nothing needs it now that playlists use the account's Rx transport. */
-    public static void coroutineTransport(Object transport) {}
-
-    /** Hook: Spotify's Cosmos router; kept so the hook stays valid, unused by the UI. */
-    public static void router(Object router) {}
-
     private void seen(String service) {
         if (service != null) SERVICES.putIfAbsent(service, inner);
     }
