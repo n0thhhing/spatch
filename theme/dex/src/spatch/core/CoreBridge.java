@@ -27,8 +27,19 @@ public final class CoreBridge implements Transport {
     private static volatile CoroutineTransport playlistTransport;
     private final Transport inner;
 
+    private static int coroutineTransports;
+
     public static void coroutineTransport(Object transport) {
         playlistTransport = (CoroutineTransport) transport;
+        android.util.Log.i("SpatchCore", "Coroutine transport #" + (++coroutineTransports) + ": " + System.identityHashCode(transport));
+    }
+
+    /** A transport Spotify itself has used, preferring the library's: it is known to be connected to the account. */
+    private static Transport liveTransport(String service) {
+        Transport t = SERVICES.get(service);
+        if (t == null) t = SERVICES.get("spotify.your_library_esperanto.proto.YourLibraryService");
+        if (t == null) t = SERVICES.get("spotify.player.esperanto.proto.ContextPlayer");
+        return t != null ? t : transport(service);
     }
 
     private CoreBridge(Transport inner) {
@@ -73,6 +84,18 @@ public final class CoreBridge implements Transport {
     /** From Rust, on its own thread (never the main one): one request, its reply. Throws with Spotify's error. */
     public static byte[] call(String service, String method, byte[] request) throws Exception {
         CoroutineTransport transport = playlistTransport;
+        if (service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
+            // First the transport the library already answers on (the Rx fallback before was the first native
+            // transport ever created, possibly not the account's).
+            Transport live = liveTransport(service);
+            try {
+                return (byte[]) live.callSingle(service, method, request).timeout(5, TimeUnit.SECONDS).blockingGet();
+            } catch (RuntimeException e) {
+                android.util.Log.w("SpatchCore", "Playlist via the library's transport failed (" + e + "); services seen: " + services()
+                    + "; coroutine transports: " + coroutineTransports);
+                if (transport == null) throw e;
+            }
+        }
         if (transport != null && service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
             // Spotify's playlist screen never calls Get: it subscribes and renders each emission. Do the same,
             // keep the first reply, and stop. (Get, by coroutine or Rx, never answered on the phone.)
@@ -106,13 +129,8 @@ public final class CoreBridge implements Transport {
             } catch (Exception e) {
                 why = String.valueOf(e.getCause() != null ? e.getCause() : e);
             }
-            android.util.Log.w("SpatchCore", "Playlist " + method2 + " gave no bytes (" + why + "); trying the Rx transport");
-            try {
-                return (byte[]) transport(service).callSingle(service, method, request).timeout(5, TimeUnit.SECONDS).blockingGet();
-            } catch (RuntimeException rx) {
-                android.util.Log.w("SpatchCore", "Playlist via Rx failed too: " + rx);
-                throw new IllegalStateException("Playlist service: " + why);
-            }
+            android.util.Log.w("SpatchCore", "Playlist " + method2 + " on the coroutine transport gave no bytes (" + why + ")");
+            throw new IllegalStateException("Playlist service: " + why);
         }
         return (byte[]) transport(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
     }
