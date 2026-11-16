@@ -69,6 +69,8 @@ public final class SpatchUi extends FrameLayout {
     private static native String nativeLiked();
     private static native String[] nativePlaylist(String uri, int offset);
     private static native boolean nativeCommand(int action, long value, String uri);
+    private static native int nativeSaved(String uri);
+    private static native boolean nativeSave(String uri, boolean save);
 
     private final Activity activity;
     private final float density;
@@ -297,6 +299,7 @@ public final class SpatchUi extends FrameLayout {
     private void applyPlayer(String[] state) {
         revision = Long.parseLong(state[0]);
         boolean trackChanged = !uri.equals(state[1]);
+        if (trackChanged) checkSaved(state[1]);
         uri = state[1]; title = state[2]; artist = state[3]; album = state[4]; image = state[5];
         playing = Boolean.parseBoolean(state[6]);
         if (pendingPlayback != null && (trackChanged || pendingPlayback == playing)) {
@@ -557,7 +560,7 @@ public final class SpatchUi extends FrameLayout {
         playbackSource = infoTrack = infoArtist = infoAlbum = null;
         infoAlbumArtist = infoRelease = infoPosition = infoRating = infoSource = null;
         infoNext = null;
-        playButton = heroPlay = shuffleButton = repeatButton = null;
+        playButton = heroPlay = shuffleButton = repeatButton = like = null;
         wave = null;
         if (screen == PLAYER || screen == IMMERSIVE) {
             atmosphere = new Art(Art.BACKDROP);
@@ -939,10 +942,12 @@ public final class SpatchUi extends FrameLayout {
         trackTitle.setEllipsize(TextUtils.TruncateAt.END);
         trackArtist = text("", 17, onVariant, false);
         albumTitle = text("", 13, onVariant, false);
-        for (TextView labelView : new TextView[]{trackTitle, trackArtist, albumTitle}) {
-            labelView.setGravity(full ? Gravity.CENTER : Gravity.START);
-            details.addView(labelView, match(-2));
-        }
+        LinearLayout titleRow = row();
+        titleRow.setGravity(Gravity.TOP);
+        titleRow.addView(trackTitle, weighted());
+        titleRow.addView(likeButton(), control(48));
+        details.addView(titleRow, match(-2));
+        for (TextView labelView : new TextView[]{trackArtist, albumTitle}) details.addView(labelView, match(-2));
         gap(details, full ? 2 : 8);
         wave = new Wave();
         details.addView(wave, match(dp(full ? 54 : 65)));
@@ -984,6 +989,7 @@ public final class SpatchUi extends FrameLayout {
         playbackSource.setGravity(Gravity.CENTER);
         from.addView(playbackSource, match(-2));
         top.addView(from, weighted());
+        top.addView(likeButton(), control(48));
         top.addView(timerButton(), control(48));
         top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
         content.addView(top, match(-2));
@@ -1768,6 +1774,127 @@ public final class SpatchUi extends FrameLayout {
         single(next);
         box.addView(next, match(-2));
         return box;
+    }
+
+    // Liked Songs state of the current track: null until Spotify answers.
+    private Boolean saved;
+    private String savedUri = "";
+    private Glyph like;
+    private boolean saving;
+
+    private void checkSaved(String track) {
+        savedUri = track;
+        saved = null;
+        refreshLike();
+        if (!track.startsWith("spotify:track:") && !track.startsWith("spotify:episode:") && !track.startsWith("spotify:preview:")) return;
+        DATA.execute(() -> {
+            int answer = nativeSaved(track);
+            post(() -> {
+                if (!track.equals(savedUri)) return;
+                saved = answer < 0 ? null : answer == 1;
+                refreshLike();
+            });
+        });
+    }
+
+    private Glyph likeButton() {
+        like = glyph("heart-outline", "Save to Liked Songs", false, this::toggleSaved);
+        refreshLike();
+        return like;
+    }
+
+    private void refreshLike() {
+        if (like == null) return;
+        boolean on = Boolean.TRUE.equals(saved);
+        like.symbol = on ? "heart" : "heart-outline";
+        like.ink = on ? primary : null;
+        like.setAlpha(saved == null ? .45f : 1f);
+        like.setContentDescription(on ? "Remove from Liked Songs" : "Save to Liked Songs");
+        like.invalidate();
+    }
+
+    private void toggleSaved() {
+        if (saved == null || saving || uri.isEmpty()) return;
+        boolean want = !saved;
+        String track = uri;
+        saving = true;
+        saved = want;
+        refreshLike();
+        if (pref("haptics", true)) performHapticFeedback(want ? android.view.HapticFeedbackConstants.CONFIRM : android.view.HapticFeedbackConstants.CLOCK_TICK);
+        if (want && like != null && motionEnabled()) burst(like);
+        COMMANDS.execute(() -> {
+            boolean ok = nativeSave(track, want);
+            post(() -> {
+                saving = false;
+                if (!track.equals(savedUri)) return;
+                if (!ok) {
+                    saved = !want;
+                    refreshLike();
+                    if (isAttachedToWindow()) Toast.makeText(activity, "Couldn’t update Liked Songs", Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+
+    /** A ring of small hearts and sparks flies out of the button, and the heart itself pops. */
+    private void burst(View from) {
+        int[] origin = new int[2], at = new int[2];
+        getLocationInWindow(origin);
+        from.getLocationInWindow(at);
+        float cx = at[0] - origin[0] + from.getWidth() / 2f, cy = at[1] - origin[1] + from.getHeight() / 2f;
+        Burst spray = new Burst(cx, cy);
+        spray.setBounds(0, 0, getWidth(), getHeight());
+        getOverlay().add(spray);
+        android.animation.ValueAnimator run = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        run.setDuration(620);
+        run.addUpdateListener(f -> {
+            spray.t = (float) f.getAnimatedValue();
+            spray.invalidateSelf();
+        });
+        run.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) { getOverlay().remove(spray); }
+        });
+        run.start();
+        from.setScaleX(.6f);
+        from.setScaleY(.6f);
+        from.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+    }
+
+    private final class Burst extends android.graphics.drawable.Drawable {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final float[] heart = GLYPHS.get("heart");
+        private final float cx, cy;
+        float t;
+
+        Burst(float cx, float cy) { this.cx = cx; this.cy = cy; }
+
+        @Override public void draw(Canvas c) {
+            float ease = 1f - (1f - t) * (1f - t) * (1f - t);
+            for (int i = 0; i < 10; i++) {
+                double a = i / 10.0 * Math.PI * 2 + .3;
+                float d = dp(14) + dp(46) * ease * (i % 2 == 0 ? 1f : .7f);
+                float x = cx + (float) Math.cos(a) * d, y = cy + (float) Math.sin(a) * d;
+                paint.setColor(i % 3 == 0 ? tertiaryContainer : primary);
+                paint.setAlpha(Math.round(255 * (1 - t)));
+                if (i % 2 == 0) {
+                    float size = dp(9) * (1 - t * .5f);
+                    c.save();
+                    c.translate(x - size / 2, y - size / 2);
+                    c.scale(size / 24f, size / 24f);
+                    path.rewind();
+                    path.moveTo(heart[1], heart[2]);
+                    for (int k = 3; k + 1 < heart.length; k += 2) path.lineTo(heart[k], heart[k + 1]);
+                    path.close();
+                    c.drawPath(path, paint);
+                    c.restore();
+                } else c.drawCircle(x, y, dp(2.5f) * (1 - t), paint);
+            }
+        }
+
+        @Override public void setAlpha(int alpha) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
     }
 
     // Sleep timer: lives on the main looper, not a view, so it survives page changes.
@@ -3014,7 +3141,7 @@ public final class SpatchUi extends FrameLayout {
     private static final float[] WAVE = nativeGeometry("wave");
     private static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
     static {
-        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume", "queue", "immersive", "home", "library", "settings", "heart", "close", "sparkle", "chevron", "timer", "search", "check"}) {
+        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume", "queue", "immersive", "home", "library", "settings", "heart", "close", "sparkle", "chevron", "timer", "search", "check", "heart-outline"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
     }

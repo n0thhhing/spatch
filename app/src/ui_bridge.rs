@@ -350,6 +350,55 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
     strings(&mut env, fields).unwrap_or(std::ptr::null_mut())
 }
 
+#[cfg(feature = "preview")]
+static PREVIEW_SAVED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// 1 saved, 0 not saved, -1 unknown (call failed). Blocks: Java calls it off the UI thread.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSaved(mut env: JNIEnv, _: JClass, uri: JString) -> jint {
+    let Ok(uri) = env.get_string(&uri).map(String::from) else { return -1 };
+    if !uri.starts_with("spotify:") {
+        return -1;
+    }
+    #[cfg(feature = "preview")]
+    return PREVIEW_SAVED.lock().unwrap().contains(&uri) as jint;
+    #[cfg(not(feature = "preview"))]
+    match core::call(crate::collection::SERVICE, "Contains", &crate::collection::contains_request(&uri))
+        .and_then(|bytes| crate::collection::decode_contains(&bytes))
+    {
+        Ok(saved) => saved as jint,
+        Err(_) => -1,
+    }
+}
+
+/// Saves (or unsaves) a track to Liked Songs; true when Spotify accepted it. Blocks.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSave(mut env: JNIEnv, _: JClass, uri: JString, save: jboolean) -> jboolean {
+    let Ok(uri) = env.get_string(&uri).map(String::from) else { return JNI_FALSE };
+    if !uri.starts_with("spotify:") {
+        return JNI_FALSE;
+    }
+    #[cfg(feature = "preview")]
+    {
+        let mut saved = PREVIEW_SAVED.lock().unwrap();
+        saved.retain(|u| u != &uri);
+        if save != JNI_FALSE {
+            saved.push(uri);
+        }
+        return JNI_TRUE;
+    }
+    #[cfg(not(feature = "preview"))]
+    {
+        let method = if save != JNI_FALSE { "Add" } else { "Remove" };
+        match core::call(crate::collection::SERVICE, method, &crate::collection::change_request(&uri))
+            .and_then(|bytes| crate::collection::decode_change(&bytes))
+        {
+            Ok(()) => JNI_TRUE,
+            Err(_) => JNI_FALSE,
+        }
+    }
+}
+
 // Packed UI route: page, browse origin, queue origin, then the active collection filter.
 const HOME: i32 = 0;
 const LIBRARY: i32 = 1;

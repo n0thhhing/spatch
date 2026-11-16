@@ -67,10 +67,10 @@ fn geometry(kind: &str) -> Vec<f32> {
             vec![2.0, 15.5, 15.5, 20.5, 20.5],
         ]
         .concat(),
-        // Filled heart from the classic parametric curve, fitted to the 24 box.
-        "heart" => [vec![-48.0], (0..48)
+        // Filled heart from the classic parametric curve, fitted to the 24 box; the outline repeats its start.
+        "heart" | "heart-outline" => [vec![if kind == "heart" { -48.0 } else { 49.0 }], (0..if kind == "heart" { 48 } else { 49 })
             .flat_map(|i| {
-                let t = i as f32 / 48.0 * TAU;
+                let t = (i % 48) as f32 / 48.0 * TAU;
                 let x = 16.0 * t.sin().powi(3);
                 let y = 13.0 * t.cos() - 5.0 * (2.0 * t).cos() - 2.0 * (3.0 * t).cos() - (4.0 * t).cos();
                 [12.0 + x * 0.56, 11.2 - y * 0.56]
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn computed_glyphs_stay_in_the_icon_box() {
-        for kind in ["settings", "heart", "timer", "search"] {
+        for kind in ["settings", "heart", "heart-outline", "timer", "search"] {
             let data = geometry(kind);
             let mut points = data.as_slice();
             while let [count, rest @ ..] = points {

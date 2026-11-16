@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py, trimmed to what Spatch calls
+// (CollectionService Contains, Add and Remove). Status is spotify.collection_cosmos.proto.Status.
+package spotify.collection.esperanto.proto;
+
+message Status {
+  int32 code = 1;
+  string reason = 2;
+}
+
+message CollectionAddRemoveItemsRequest {
+  repeated string uri = 1;
+}
+
+message CollectionAddRemoveItemsResponse {
+  Status status = 1;
+}
+
+message CollectionContainsRequest {
+  uint32 update_throttling = 1;
+  repeated string uri = 2;
+  string context_uri = 3;
+}
+
+message CollectionContainsResponse {
+  Status status = 1;
+  repeated bool found = 2;
+  repeated bool ban_found = 3;
+}

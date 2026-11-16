@@ -1,5 +1,6 @@
 //! Spotify data and commands for the Spatch UI.
 
+pub mod collection;
 pub mod core;
 mod ui_bridge;
 mod ui_geometry;
