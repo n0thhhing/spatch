@@ -80,11 +80,13 @@ pub fn geometry(kind: &str) -> Vec<f32> {
         "chevron" => stroke(&[(9., 5.), (16., 12.), (9., 19.)]),
         "check" => stroke(&[(5., 12.5), (10., 17.5), (19., 7.)]),
         "close" => [stroke(&[(6., 6.), (18., 18.)]), stroke(&[(18., 6.), (6., 18.)])].concat(),
+        // Two arrows crossing: one rises left to right, the other falls, with a gap where they pass.
         "shuffle" => [
-            stroke(&[(4., 6.), (8., 9.), (2., 15.), (15., 20.), (19., 3.)]),
-            stroke(&[(15., 19.), (20., 19.), (20., 14.)]),
-            stroke(&[(4., 18.), (20., 5.)]),
-            stroke(&[(15., 3.), (20., 5.), (20., 10.)]),
+            stroke(&[(3., 17.), (8., 17.), (16., 7.), (21., 7.)]),
+            stroke(&[(18., 4.), (21., 7.), (18., 10.)]),
+            stroke(&[(3., 7.), (8., 7.), (10.5, 10.5)]),
+            stroke(&[(13.5, 13.5), (16., 17.), (21., 17.)]),
+            stroke(&[(18., 14.), (21., 17.), (18., 20.)]),
         ]
         .concat(),
         "repeat" | "repeat-one" => {
