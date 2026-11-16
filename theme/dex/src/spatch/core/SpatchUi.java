@@ -67,7 +67,7 @@ public final class SpatchUi extends FrameLayout {
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
     private static final ExecutorService COMMANDS = Executors.newSingleThreadExecutor();
     private static final ExecutorService PLAYLISTS = Executors.newCachedThreadPool();
-    private static final ExecutorService ART = Executors.newFixedThreadPool(3);
+    private static final ExecutorService ART = Executors.newFixedThreadPool(6);
     private static final LruCache<String, Bitmap> IMAGES = new LruCache<String, Bitmap>(24 * 1024 * 1024) {
         @Override protected int sizeOf(String key, Bitmap b) { return b.getAllocationByteCount(); }
     };
@@ -130,6 +130,10 @@ public final class SpatchUi extends FrameLayout {
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
         Audio.context = activity.getApplicationContext();
+        java.io.File covers = new java.io.File(activity.getCacheDir(), "covers");
+        covers.mkdirs();
+        CoreBridge.cacheDir = covers;
+        ART.execute(CoreBridge::pruneCache);
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
                 "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer"}) {
             GLYPHS.put(key, nativeGeometry(key));
@@ -368,7 +372,7 @@ public final class SpatchUi extends FrameLayout {
     void back() {
         if (sheetClose != null) sheetClose.run();
         else if (playerOpen) closePlayer();
-        else if (playlist != null) { playlist = null; showPage(); buildDock(); }
+        else if (playlist != null) { playlist = null; showPage(); buildDock(); enter(-dp(44), 0); }
         else if (tab != HOME) go(HOME);
         else activity.moveTaskToBack(true);
     }
@@ -471,18 +475,26 @@ public final class SpatchUi extends FrameLayout {
         if (s != null && y > 0) s.post(() -> s.scrollTo(0, y));
     }
 
+    private static final android.view.animation.Interpolator EMPHASIZED = new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f);
+
+    /** The page just shown slides in from (dx, dy) while it fades up. */
+    private void enter(float dx, float dy) {
+        if (!motion() || pageHost.getChildCount() == 0) return;
+        View page = pageHost.getChildAt(0);
+        page.setAlpha(0f);
+        page.setTranslationX(dx);
+        page.setTranslationY(dy);
+        page.animate().alpha(1f).translationX(0).translationY(0).setDuration(300).setInterpolator(EMPHASIZED).start();
+    }
+
     private void go(int next) {
         if (next == tab && playlist == null) return;
+        boolean forward = next > tab;
         playlist = null;
         tab = next;
         showPage();
         buildDock();
-        if (motion() && pageHost.getChildCount() > 0) {
-            View page = pageHost.getChildAt(0);
-            page.setAlpha(0f);
-            page.setTranslationY(dp(14));
-            page.animate().alpha(1f).translationY(0).setDuration(260).setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
-        }
+        enter((forward ? 1 : -1) * dp(36), 0);
     }
 
     private void buildDock() {
@@ -845,6 +857,7 @@ public final class SpatchUi extends FrameLayout {
         playlistFailed = false;
         showPage();
         buildDock();
+        enter(dp(44), 0);
         loadPlaylist(e, 0);
     }
 
@@ -1102,7 +1115,17 @@ public final class SpatchUi extends FrameLayout {
         refresh();
         if (animate && motion()) {
             player.setTranslationY(getHeight() > 0 ? getHeight() : dp(800));
-            player.animate().translationY(0).setDuration(420).setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
+            player.animate().translationY(0).setDuration(440).setInterpolator(EMPHASIZED).start();
+            // Backdrop first, then each row of the player rises into place a beat after the one above it.
+            backdrop.setAlpha(0f);
+            backdrop.animate().alpha(1f).setStartDelay(120).setDuration(500).start();
+            ViewGroup col = (ViewGroup) player.getChildAt(player.getChildCount() - 1);
+            for (int i = 0; i < col.getChildCount(); i++) {
+                View row = col.getChildAt(i);
+                row.setAlpha(0f);
+                row.setTranslationY(dp(28));
+                row.animate().alpha(1f).translationY(0).setStartDelay(140 + i * 55L).setDuration(420).setInterpolator(EMPHASIZED).start();
+            }
         }
     }
 
@@ -1480,21 +1503,31 @@ public final class SpatchUi extends FrameLayout {
         Bitmap b = IMAGES.get(key);
         if (b == null && !url.isEmpty() && !failed.contains(key) && loading.add(key)) {
             ART.execute(() -> {
-                Bitmap got = CoreBridge.artwork(url, size);
+                // Small tiles ask Spotify's CDN for its 300 px (album) or 160 px (artist) copy instead of the 640 px one.
+                String small = size <= 180 ? smaller(url) : null;
+                Bitmap got = small == null ? null : CoreBridge.artwork(small, size);
+                if (got == null) got = CoreBridge.artwork(url, size);
                 if (got != null) {
                     IMAGES.put(key, got);
                     if (size == 440) IMAGES.put(key + "/blur", Bitmap.createScaledBitmap(got, 10, 10, true));
                     if (!SEEDS.containsKey(url)) SEEDS.put(url, seedOf(got));
                 }
+                final Bitmap result = got;
                 post(() -> {
                     loading.remove(key);
-                    if (got == null) failed.add(key);
+                    if (result == null) failed.add(key);
                     if (url.equals(image) && refreshPalette()) { recolor(); return; }
                     for (View v : artViews) v.invalidate();
                 });
             });
         }
         return b;
+    }
+
+    private static String smaller(String url) {
+        String[][] swaps = {{"ab67616d0000b273", "ab67616d00001e02"}, {"ab6761610000e5eb", "ab6761610000f178"}};
+        for (String[] s : swaps) if (url.contains("/image/" + s[0])) return url.replace(s[0], s[1]);
+        return null;
     }
 
     private final class Art extends View {
@@ -1506,10 +1539,12 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final Matrix crop = new Matrix();
         private final RectF box = new RectF();
+        private boolean waiting;
+        private long shownAt;
 
         Art(int shape, boolean ring) { super(activity); this.shapeKind = shape; this.ring = ring; artViews.add(this); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
 
-        void bind(String u) { if (!url.equals(u)) { url = u; invalidate(); } }
+        void bind(String u) { if (!url.equals(u)) { url = u; waiting = false; shownAt = 0; invalidate(); } }
 
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
@@ -1519,10 +1554,13 @@ public final class SpatchUi extends FrameLayout {
             float r = shapeKind == CIRCLE ? Math.min(box.width(), box.height()) / 2 : shapeKind == WIDE ? 0 : dp(16);
             Bitmap b = art(url, w > dp(200) || h > dp(190) ? 440 : 180);
             if (b == null) b = art(url, 180);
-            if (b == null) {
+            if (b == null || (shownAt != 0 && SystemClock.uptimeMillis() - shownAt < 320)) {
                 paint.setShader(new LinearGradient(0, 0, w, h, surfHi, surf, Shader.TileMode.CLAMP));
                 c.drawRoundRect(box, r, r, paint);
                 paint.setShader(null);
+            }
+            if (b == null) {
+                waiting = true;
                 if (!letter.isEmpty() && (url.isEmpty() || failed.contains(url + ":180"))) {
                     paint.setColor(inkDim);
                     paint.setTextAlign(Paint.Align.CENTER);
@@ -1532,14 +1570,19 @@ public final class SpatchUi extends FrameLayout {
                     paint.setFakeBoldText(false);
                 }
             } else {
+                if (waiting && motion()) { waiting = false; shownAt = SystemClock.uptimeMillis(); }
+                float f = shownAt == 0 ? 1f : Math.min(1f, (SystemClock.uptimeMillis() - shownAt) / 320f);
                 BitmapShader shader = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
                 float k = Math.max(box.width() / b.getWidth(), box.height() / b.getHeight());
                 crop.setScale(k, k);
                 crop.postTranslate(box.left + (box.width() - b.getWidth() * k) / 2, box.top + (box.height() - b.getHeight() * k) / 2);
                 shader.setLocalMatrix(crop);
                 paint.setShader(shader);
+                paint.setAlpha(Math.round(255 * f * (2f - f)));
                 c.drawRoundRect(box, r, r, paint);
+                paint.setAlpha(255);
                 paint.setShader(null);
+                if (f < 1f) postInvalidateOnAnimation(); else shownAt = 0;
             }
             if (ring) {
                 float f = duration <= 0 ? 0 : Math.min(1f, playhead() / (float) duration);
@@ -1640,8 +1683,20 @@ public final class SpatchUi extends FrameLayout {
         private float angle;
         private SweepGradient sweep;
         private int sweepA, sweepB;
+        private Bitmap shown, previous;
+        private long fadeAt;
 
         Disc() { super(activity); artViews.add(this); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
+
+        private void cover(Canvas c, Bitmap b, float cx, float cy, float radius, int alpha) {
+            float k = Math.max(radius * 2 / b.getWidth(), radius * 2 / b.getHeight());
+            m.setScale(k, k);
+            m.postTranslate(cx - b.getWidth() * k / 2, cy - b.getHeight() * k / 2);
+            m.postRotate(angle, cx, cy);
+            paint.setAlpha(alpha);
+            c.drawBitmap(b, m, paint);
+            paint.setAlpha(255);
+        }
 
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight(), cx = w / 2f, cy = h / 2f;
@@ -1652,23 +1707,29 @@ public final class SpatchUi extends FrameLayout {
             long now = SystemClock.uptimeMillis();
             Bitmap b = art(url, 440);
             if (b == null) b = art(url, 180);
+            // A new cover fades in over the old one instead of cutting.
+            if (b != null && b != shown) {
+                previous = motion() ? shown : null;
+                shown = b;
+                fadeAt = now;
+            }
+            float fade = previous == null ? 1f : Math.min(1f, (now - fadeAt) / 450f);
+            if (fade >= 1f) previous = null;
             c.save();
             clip.rewind();
             clip.addCircle(cx, cy, artR, Path.Direction.CW);
             c.clipPath(clip);
-            if (b != null) {
+            if (shown != null) {
                 if (run) angle = (angle + .12f) % 360f;
-                float k = Math.max(artR * 2 / b.getWidth(), artR * 2 / b.getHeight());
-                m.setScale(k, k);
-                m.postTranslate(cx - b.getWidth() * k / 2, cy - b.getHeight() * k / 2);
-                m.postRotate(angle, cx, cy);
                 paint.setShader(null);
-                c.drawBitmap(b, m, paint);
+                if (previous != null) cover(c, previous, cx, cy, artR, 255);
+                cover(c, shown, cx, cy, artR, Math.round(255 * fade));
             } else {
                 paint.setColor(surfHi);
                 c.drawCircle(cx, cy, artR, paint);
             }
             c.restore();
+            if (fade < 1f) postInvalidateOnAnimation();
             if (sweep == null || sweepA != accent || sweepB != accent2) {
                 sweepA = accent;
                 sweepB = accent2;

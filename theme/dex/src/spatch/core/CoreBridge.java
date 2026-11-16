@@ -103,25 +103,71 @@ public final class CoreBridge implements Transport {
         if (d != null) d.dispose();
     }
 
-    /** Downloads artwork off the UI thread and scales it to fit `size`; null if it can't be had. */
+    /** Where downloaded covers are kept between launches (set by the UI). */
+    static volatile java.io.File cacheDir;
+
+    private static java.io.File cacheFile(String url) throws java.security.NoSuchAlgorithmException {
+        java.io.File dir = cacheDir;
+        if (dir == null) return null;
+        byte[] hash = java.security.MessageDigest.getInstance("SHA-1").digest(url.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder name = new StringBuilder();
+        for (int i = 0; i < 10; i++) name.append(String.format("%02x", hash[i]));
+        return new java.io.File(dir, name.toString());
+    }
+
+    /** Keeps the cover cache under about 60 MB, dropping the least recently written files first. */
+    static void pruneCache() {
+        java.io.File dir = cacheDir;
+        java.io.File[] files = dir == null ? null : dir.listFiles();
+        if (files == null) return;
+        long total = 0;
+        for (java.io.File f : files) total += f.length();
+        if (total < 80L * 1024 * 1024) return;
+        java.util.Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+        for (java.io.File f : files) {
+            if (total < 60L * 1024 * 1024) break;
+            total -= f.length();
+            f.delete();
+        }
+    }
+
+    /** Covers from the disk cache or the network, scaled to fit `size`; null if they can't be had. */
     static android.graphics.Bitmap artwork(String url, int size) {
         if (!url.startsWith("https://")) return null;
         try {
-            java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-            c.setConnectTimeout(15000);
-            c.setReadTimeout(20000);
-            c.setInstanceFollowRedirects(false);
-            byte[] data;
-            try (java.io.InputStream in = c.getInputStream()) {
-                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-                byte[] buf = new byte[1 << 14];
-                for (int n; (n = in.read(buf)) > 0;) {
-                    if (out.size() + n > 8 * 1024 * 1024) return null;
-                    out.write(buf, 0, n);
+            java.io.File file = cacheFile(url);
+            byte[] data = null;
+            if (file != null && file.isFile()) {
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    data = new byte[(int) file.length()];
+                    int got = 0;
+                    for (int n; got < data.length && (n = in.read(data, got, data.length - got)) > 0;) got += n;
+                    if (got != data.length) data = null;
                 }
-                data = out.toByteArray();
-            } finally {
-                c.disconnect();
+            }
+            if (data == null) {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                c.setConnectTimeout(15000);
+                c.setReadTimeout(20000);
+                c.setInstanceFollowRedirects(false);
+                try (java.io.InputStream in = c.getInputStream()) {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[1 << 14];
+                    for (int n; (n = in.read(buf)) > 0;) {
+                        if (out.size() + n > 8 * 1024 * 1024) return null;
+                        out.write(buf, 0, n);
+                    }
+                    data = out.toByteArray();
+                } finally {
+                    c.disconnect();
+                }
+                if (file != null) {
+                    java.io.File part = new java.io.File(file.getPath() + ".part");
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+                        out.write(data);
+                    }
+                    if (!part.renameTo(file)) part.delete();
+                }
             }
             android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;

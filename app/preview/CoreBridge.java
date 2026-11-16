@@ -9,6 +9,10 @@ import android.graphics.Shader;
 
 /** Offline art for the separately packaged preview. */
 final class CoreBridge {
+    static volatile java.io.File cacheDir;
+
+    static void pruneCache() {}
+
     static Bitmap artwork(String url, int size) {
         if (!url.startsWith("demo:")) return null;
         int index = Integer.parseInt(url.substring(5));
