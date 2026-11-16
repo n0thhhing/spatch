@@ -97,7 +97,7 @@ public final class SpatchUi extends FrameLayout {
     private List<Entry> playlistTracks = new ArrayList<>();
     private int playlistOffset;
     private boolean playlistLoading, playlistFailed;
-    private TextView trackTitle, trackArtist, albumTitle, heroTitle, heroArtist;
+    private TextView trackTitle, trackArtist, albumTitle, heroTitle, heroArtist, heroBadge;
     private Art trackArt, heroArt, atmosphere;
     private Glyph playButton, heroPlay, shuffleButton, repeatButton;
     private Wave wave;
@@ -507,7 +507,7 @@ public final class SpatchUi extends FrameLayout {
         visibleArt.clear();
         scroll = null;
         libraryList = playlistList = null;
-        trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = null;
+        trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = heroBadge = null;
         trackArt = heroArt = atmosphere = null;
         playbackSource = infoTrack = infoArtist = infoAlbum = null;
         infoAlbumArtist = infoRelease = infoPosition = infoRating = infoSource = null;
@@ -551,13 +551,29 @@ public final class SpatchUi extends FrameLayout {
         addTopBar();
         if (screen == HOME) {
             LinearLayout feed = feed();
-            LinearLayout hero = column();
+            FrameLayout hero = new FrameLayout(activity);
             hero.setBackground(background(secondaryContainer, 28));
             hero.setClipToOutline(true);
             heroArt = new Art(Art.WIDE);
-            hero.addView(heroArt, match(dp(154)));
+            hero.addView(heroArt, new FrameLayout.LayoutParams(-1, dp(212)));
+            View scrim = new View(activity);
+            scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
+                secondaryContainer & 0x00ffffff, (secondaryContainer & 0x00ffffff) | 0xb0000000, secondaryContainer}));
+            hero.addView(scrim, new FrameLayout.LayoutParams(-1, dp(132), Gravity.BOTTOM));
+            LinearLayout badge = row();
+            badge.setPadding(dp(10), dp(5), dp(12), dp(5));
+            badge.setBackground(background((surface & 0x00ffffff) | 0xb8000000, 14));
+            badge.addView(new Bars(primary), new LinearLayout.LayoutParams(dp(12), dp(11)));
+            TextView now = text("NOW PLAYING", 11, onSurface, true);
+            heroBadge = now;
+            now.setLetterSpacing(.1f);
+            now.setPadding(dp(7), 0, 0, 0);
+            badge.addView(now);
+            FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(-2, -2);
+            badgeParams.setMargins(dp(12), dp(12), 0, 0);
+            hero.addView(badge, badgeParams);
             LinearLayout heroFooter = row();
-            heroFooter.setPadding(dp(16), dp(8), dp(10), dp(8));
+            heroFooter.setPadding(dp(16), dp(8), dp(10), dp(10));
             LinearLayout details = column();
             heroTitle = text("", 27, onSecondaryContainer, true);
             heroArtist = text("", 14, onSecondaryContainer, false);
@@ -566,8 +582,8 @@ public final class SpatchUi extends FrameLayout {
             details.addView(heroArtist);
             heroFooter.addView(details, weighted());
             heroPlay = glyph("play", "Play", true, this::toggle);
-            heroFooter.addView(heroPlay, control(56));
-            hero.addView(heroFooter, match(-2));
+            heroFooter.addView(heroPlay, control(60));
+            hero.addView(heroFooter, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
             makeClickable(hero, "Open player", this::openPlayer);
             springPress(hero);
             feed.addView(hero, match(-2));
@@ -836,10 +852,16 @@ public final class SpatchUi extends FrameLayout {
             top.setPadding(dp(10), dp(6), dp(10), 0);
             top.addView(glyph("down", "Close player", false, this::back), control(48));
             top.addView(new View(activity), control(48));
-            playbackSource = text("", 16, onSurface, true);
+            LinearLayout from = column();
+            TextView caption = text("PLAYING FROM", 11, onVariant, true);
+            caption.setLetterSpacing(.12f);
+            caption.setGravity(Gravity.CENTER);
+            from.addView(caption, match(-2));
+            playbackSource = text("", 15, onSurface, true);
             single(playbackSource);
             playbackSource.setGravity(Gravity.CENTER);
-            top.addView(playbackSource, weighted());
+            from.addView(playbackSource, match(-2));
+            top.addView(from, weighted());
             top.addView(glyph("immersive", "Open immersive mode", false, () -> navigate(3, 0)), control(48));
             top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
             content.addView(top, match(-2));
@@ -1701,6 +1723,7 @@ public final class SpatchUi extends FrameLayout {
         }
         if (heroTitle != null) heroTitle.setText(shown);
         if (heroArtist != null) heroArtist.setText(artist);
+        if (heroBadge != null) heroBadge.setText(uri.isEmpty() ? "READY" : playing ? "NOW PLAYING" : "PAUSED");
         if (trackArt != null) trackArt.bind(image);
         if (heroArt != null) heroArt.bind(image);
         if (atmosphere != null) atmosphere.bind(image);
