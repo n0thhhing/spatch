@@ -60,6 +60,7 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativePage(String uri);
     private static native String[] nativeDevices();
     private static native void nativeCacheDir(String dir);
+    private static native long nativeLibraryRevision();
     private static native String[] nativeCached(String key);
     private static native void nativeRemember(String key, String[] fields);
     private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
@@ -398,6 +399,12 @@ public final class SpatchUi extends FrameLayout {
                 });
             }
             if (!libraryReady && !fetching && now >= libraryRetry) loadLibrary();
+            // The library changed (Spotify pushed it to the core, which streamed it to Rust): redraw.
+            long libRevision = nativeLibraryRevision();
+            if (libRevision != libraryRevision) {
+                libraryRevision = libRevision;
+                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS) showPage();
+            }
             postDelayed(this, 350);
         }
     };
@@ -424,6 +431,8 @@ public final class SpatchUi extends FrameLayout {
             });
         });
     }
+
+    private long libraryRevision;
 
     private void refreshLibraryIfStale() {
         long now = SystemClock.uptimeMillis();

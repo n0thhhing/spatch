@@ -143,10 +143,62 @@ fn fetch_library() -> Result<Vec<library::Item>, String> {
     Ok(items)
 }
 
+static LIBRARY_REVISION: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+/// Subscribed to the core's StreamAll; `LIBRARY_LIVE` once it has delivered, so plain refreshes can stop.
+#[cfg(not(feature = "preview"))]
+static LIBRARY_WATCHED: AtomicBool = AtomicBool::new(false);
+static LIBRARY_LIVE: AtomicBool = AtomicBool::new(false);
+
+/// Replaces the library if it changed; true if it did.
+fn set_library(items: Vec<library::Item>) -> bool {
+    let mut current = LIBRARY.lock().unwrap();
+    if current.as_ref() == Some(&items) {
+        return false;
+    }
+    *current = Some(items);
+    LIBRARY_REVISION.fetch_add(1, Ordering::Relaxed);
+    true
+}
+
+/// Keeps the library current the way the core's own screens do: YourLibraryService.StreamAll sends the whole
+/// library now and again whenever it changes (Spotify pushes the change to the core), so nothing has to ask.
+#[cfg(not(feature = "preview"))]
+fn watch_library() {
+    if LIBRARY_WATCHED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let opened = bridge::subscribe(library::SERVICE, "StreamAll", &library::request(300), |reply| match reply {
+        Ok(bytes) => {
+            if let Ok(items) = library::decode(bytes) {
+                crate::cache::put("library", bytes);
+                LIBRARY_LIVE.store(true, Ordering::Relaxed);
+                set_library(items);
+            }
+        }
+        Err(error) => {
+            log::warn!("Library stream ended: {error}");
+            LIBRARY_LIVE.store(false, Ordering::Relaxed);
+            LIBRARY_WATCHED.store(false, Ordering::Relaxed);
+        }
+    });
+    if let Err(error) = opened {
+        log::warn!("Library stream: {error}");
+        LIBRARY_WATCHED.store(false, Ordering::Relaxed);
+    }
+}
+
+/// Bumps whenever the library changes; the UI redraws when it moves.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeLibraryRevision(_: JNIEnv, _: JClass) -> jlong {
+    LIBRARY_REVISION.load(Ordering::Relaxed)
+}
+
 /// Loads the library once; "" on success, "cached" if it came from the last launch's copy (refresh it soon),
 /// else Spotify's error.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JClass) -> jstring {
+    #[cfg(not(feature = "preview"))]
+    watch_library();
     if LIBRARY.lock().unwrap().is_some() {
         return string(&mut env, "");
     }
@@ -172,13 +224,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRefreshLibrary(_: JNIEnv, _: J
     if cfg!(feature = "preview") {
         return JNI_FALSE;
     }
-    let Ok(items) = fetch_library() else { return JNI_FALSE };
-    let mut current = LIBRARY.lock().unwrap();
-    if current.as_ref() == Some(&items) {
+    #[cfg(not(feature = "preview"))]
+    watch_library();
+    // The stream keeps it current; only ask when it isn't delivering.
+    if LIBRARY_LIVE.load(Ordering::Relaxed) {
         return JNI_FALSE;
     }
-    *current = Some(items);
-    JNI_TRUE
+    let Ok(items) = fetch_library() else { return JNI_FALSE };
+    set_library(items) as jboolean
 }
 
 fn item_fields<'a>(items: impl IntoIterator<Item = &'a library::Item>) -> Vec<String> {
