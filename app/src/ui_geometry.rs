@@ -10,11 +10,13 @@ fn polar(angle: f32, radius: f32, center: f32) -> [f32; 2] {
 
 fn geometry(kind: &str) -> Vec<f32> {
     match kind {
-        "cover" | "button5" | "button9" => (0..120)
+        "cover" | "button5" | "button9" | "wordmark" => (0..120)
             .flat_map(|i| {
                 let angle = i as f32 / 120.0 * TAU;
                 let (radius, center) = if kind == "cover" {
                     (0.461 + 0.021 * (angle * 8.0).cos(), 0.5)
+                } else if kind == "wordmark" {
+                    (0.80 + 0.19 * (angle * 5.0).cos(), 0.0)
                 } else {
                     let points = if kind == "button5" { 5.0 } else { 9.0 };
                     (0.91 + 0.055 * (angle * points).cos(), 0.0)
