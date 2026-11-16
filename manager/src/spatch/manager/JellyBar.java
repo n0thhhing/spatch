@@ -3,28 +3,34 @@ package spatch.manager;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
+import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.animation.OvershootInterpolator;
 import android.widget.LinearLayout;
 
 /**
- * The navigation bar's indicator as a jelly pill: its two edges run on separate springs, the leading
- * one quicker, so it stretches towards the chosen page, then overshoots and wobbles. Its area stays
- * about the same: stretched it thins, squeezed it bulges. Dragging
- * across the bar pulls the pill along; letting go picks the page under it. Without motion it jumps.
+ * The navigation bar's indicator, moving like the one in patched Spotify's bottom bar: a 340ms slide
+ * whose leading edge runs ahead and trailing edge follows, so it stretches toward the chosen page,
+ * pinches at the waist mid-flight and settles with a small overshoot. Dragging across the bar pulls
+ * the pill along (stretched toward the finger); letting go picks the page under it. Without motion it jumps.
  */
 final class JellyBar extends LinearLayout {
-    private static final float LEAD = 900f, TRAIL = 170f, ZETA = 0.36f; // spring stiffness (1/s²) and damping ratio
+    private static final long MILLIS = 340;
+    private static final float FOLLOW_MS = 45, STRETCH = 40, SQUASH = 4; // ms, dp, dp: Spotify's NavIndicator
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF pill = new RectF();
+    private final Path path = new Path();
+    private final OvershootInterpolator settle = new OvershootInterpolator(1.4f);
     private final int slop;
     private final Look.Pick pick;
-    private float left, right, leftV, rightV, leftTo, rightTo, top, bottom;
+    private float fromL, fromR, toL, toR, left, right, top, bottom, finger, shown;
     private boolean placed, dragging;
-    private long last;
+    private long started, drawn;
     private float downX;
     int selected = -1;
 
@@ -47,17 +53,19 @@ final class JellyBar extends LinearLayout {
         selected = index;
         if (getWidth() == 0) return; // placed in onLayout
         float[] s = slot(index);
-        leftTo = s[0];
-        rightTo = s[1];
+        fromL = left;
+        fromR = right;
+        toL = s[0];
+        toR = s[1];
         top = s[2];
         bottom = s[3];
+        started = SystemClock.uptimeMillis();
         if (!animate || !placed || !Look.motion(getContext())) {
-            left = leftTo;
-            right = rightTo;
-            leftV = rightV = 0;
+            fromL = left = toL;
+            fromR = right = toR;
+            started = 0;
             placed = true;
         }
-        last = 0;
         postInvalidateOnAnimation();
     }
 
@@ -70,37 +78,55 @@ final class JellyBar extends LinearLayout {
         }
     }
 
+    private static float settleCurve(float t) {
+        return 1 - (1 - t) * (1 - t) * (1 - t);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (!placed) return;
-        long now = System.nanoTime();
-        float dt = last == 0 ? 0.016f : Math.min(0.032f, (now - last) / 1e9f);
-        last = now;
-        boolean right = rightTo + leftTo > this.right + this.left; // heading right: the right edge leads
-        float[] l = step(left, leftV, leftTo, right ? TRAIL : LEAD, dt), r = step(this.right, rightV, rightTo, right ? LEAD : TRAIL, dt);
-        left = l[0];
-        leftV = l[1];
-        this.right = r[0];
-        rightV = r[1];
-        float rest = rightTo - leftTo, width = Math.max(this.right - left, 1f);
-        float squash = Math.max(0.6f, Math.min(1.25f, (float) Math.sqrt(rest / width))); // thin when stretched, fat when squeezed
-        float mid = (top + bottom) / 2f, half = (bottom - top) / 2f * squash;
-        pill.set(left, mid - half, this.right, mid + half);
-        canvas.drawRoundRect(pill, half, half, paint);
-        boolean moving = Math.abs(leftV) + Math.abs(rightV) > 1f || Math.abs(left - leftTo) + Math.abs(this.right - rightTo) > 0.5f;
-        if (moving) postInvalidateOnAnimation();
-        else {
-            left = leftTo;
-            this.right = rightTo;
-            last = 0;
+        float d = getResources().getDisplayMetrics().density, width = toR - toL, stretch = 0;
+        long now = SystemClock.uptimeMillis();
+        float dt = Math.min(48, now - drawn);
+        drawn = now;
+        if (dragging) {
+            shown += (finger - shown) * (1 - (float) Math.exp(-dt / FOLLOW_MS));
+            float lag = finger - shown;
+            stretch = Math.min(1, Math.abs(lag) / (STRETCH * d));
+            left = shown - width / 2 - (lag < 0 ? stretch * STRETCH * d : 0);
+            right = shown + width / 2 + (lag > 0 ? stretch * STRETCH * d : 0);
+            if (Math.abs(lag) > 0.5f) postInvalidateOnAnimation();
+        } else if (started != 0) {
+            float t = Math.min(1, (now - started) / (float) MILLIS), eased = settle.getInterpolation(t);
+            float lead = settleCurve(Math.min(1, eased * 1.7f)), trail = settleCurve(Math.max(0, eased * 1.7f - 0.7f));
+            boolean rightward = toL + toR >= fromL + fromR;
+            left = fromL + (toL - fromL) * (rightward ? trail : lead);
+            right = fromR + (toR - fromR) * (rightward ? lead : trail);
+            if (t < 1) postInvalidateOnAnimation();
+            else { left = toL; right = toR; started = 0; }
         }
+        float height = (bottom - top) - stretch * SQUASH * d, mid = (top + bottom) / 2f;
+        pill.set(left, mid - height / 2, right, mid + height / 2);
+        float span = right - left, pinch = span <= width ? 0 : Math.min(1, (span - width) / Math.max(1, width * 0.85f));
+        if (pinch > 0.01f) {
+            gooey(pill.left, pill.top, pill.right, pill.bottom, pinch);
+            canvas.drawPath(path, paint);
+        } else canvas.drawRoundRect(pill, height / 2, height / 2, paint);
     }
 
-    /** One step of a damped spring, in semi-implicit Euler. */
-    private static float[] step(float x, float v, float to, float k, float dt) {
-        float c = 2f * ZETA * (float) Math.sqrt(k);
-        v += (k * (to - x) - c * v) * dt;
-        return new float[] {x + v * dt, v};
+    /** Two rounded ends joined by a waist that pinches while stretched, as in Spotify's bar. */
+    private void gooey(float left, float top, float right, float bottom, float pinch) {
+        float r = (bottom - top) / 2f, yM = (top + bottom) / 2f;
+        float xL = left + r, xR = Math.max(xL, right - r), xM = (xL + xR) / 2f, dip = r * 0.62f * pinch;
+        path.reset();
+        path.moveTo(xL, top);
+        path.quadTo(xM, top + dip, xR, top);
+        path.quadTo(right, top, right, yM);
+        path.quadTo(right, bottom, xR, bottom);
+        path.quadTo(xM, bottom - dip, xL, bottom);
+        path.quadTo(left, bottom, left, yM);
+        path.quadTo(left, top, xL, top);
+        path.close();
     }
 
     @Override
@@ -108,14 +134,11 @@ final class JellyBar extends LinearLayout {
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
             downX = e.getX();
             dragging = false;
-            if (placed && Look.motion(getContext())) { // a press wobbles the pill: the feedback a ripple used to give
-                float kick = 260f * getResources().getDisplayMetrics().density;
-                leftV -= kick;
-                rightV += kick;
-                postInvalidateOnAnimation();
-            }
         } else if (e.getActionMasked() == MotionEvent.ACTION_MOVE && Math.abs(e.getX() - downX) > slop && Look.motion(getContext())) {
             dragging = true;
+            started = 0;
+            shown = (left + right) / 2f;
+            drawn = SystemClock.uptimeMillis();
             getParent().requestDisallowInterceptTouchEvent(true);
         }
         return dragging;
@@ -124,14 +147,13 @@ final class JellyBar extends LinearLayout {
     @Override
     public boolean onTouchEvent(MotionEvent e) {
         if (!dragging) return super.onTouchEvent(e);
-        float[] s = slot(selected);
-        float half = (s[1] - s[0]) / 2f, x = Math.max(half, Math.min(getWidth() - half, e.getX()));
-        leftTo = x - half;
-        rightTo = x + half;
+        float half = (toR - toL) / 2f;
+        finger = Math.max(half, Math.min(getWidth() - half, e.getX()));
         postInvalidateOnAnimation();
         if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) {
             dragging = false;
             int index = Math.max(0, Math.min(getChildCount() - 1, (int) (e.getX() / getWidth() * getChildCount())));
+            if (index == selected) moveTo(index, true); // slides back home from wherever the drag left it
             getChildAt(index).performClick();
         }
         return true;
