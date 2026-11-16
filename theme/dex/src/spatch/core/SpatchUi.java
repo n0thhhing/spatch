@@ -101,6 +101,9 @@ public final class SpatchUi extends FrameLayout {
     private List<Entry> playlistTracks = new ArrayList<>();
     private boolean playlistLoading, playlistFailed, playerOpen;
     private String playlistError = "";
+    /** The link actually used for the open page: Liked Songs' real link is learned from Spotify when it opens. */
+    private String liveUri = "";
+    private String playUri() { return liveUri.isEmpty() ? playlist.uri : liveUri; }
     /** For an album or artist page: Spotify's own heading, and the releases shelf. */
     private String detailTitle = "", detailSubtitle = "", detailImage = "";
     private List<Entry> releases = new ArrayList<>();
@@ -656,10 +659,7 @@ public final class SpatchUi extends FrameLayout {
         lw.addView(text("Liked Songs", 17, ink, true));
         lw.addView(text("Everything you’ve hearted", 13, inkDim, false));
         liked.addView(lw, weight());
-        tappable(liked, "Open Liked Songs", () -> {
-            String u = nativeLiked();
-            openPlaylist(new Entry("Liked Songs", "", u == null || u.isEmpty() ? "spotify:collection:tracks" : u, "", 0));
-        });
+        tappable(liked, "Open Liked Songs", () -> openPlaylist(new Entry("Liked Songs", "", "spotify:collection:tracks", "", 0)));
         LinearLayout.LayoutParams likedParams = fill(-2);
         likedParams.topMargin = dp(12);
         page.addView(liked, likedParams);
@@ -927,6 +927,7 @@ public final class SpatchUi extends FrameLayout {
         playlist = e;
         playlistTracks = new ArrayList<>();
         releases = new ArrayList<>();
+        liveUri = "";
         detailTitle = detailSubtitle = detailImage = "";
         playlistLoading = true;
         playlistFailed = false;
@@ -948,8 +949,13 @@ public final class SpatchUi extends FrameLayout {
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
-            String[] r = isDetail(e) ? nativePage(e.uri) : nativePlaylist(e.uri, 0);
+            // Liked Songs' link includes your username, which Spotify has to be asked for first.
+            String target = liked(e.uri) ? nativeLiked() : e.uri;
+            if (target == null || target.isEmpty()) target = e.uri;
+            final String resolved = target;
+            String[] r = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
             post(() -> {
+                if (playlist == e) liveUri = resolved;
                 if (request != playlistRequest || playlist != e) return;
                 if (isDetail(e)) { applyDetail(r); return; }
                 if (r != null && r.length == 1 && "loading".equals(r[0]) && attempt < 10) {
@@ -1023,17 +1029,17 @@ public final class SpatchUi extends FrameLayout {
         header.addView(count, fill(-2));
         if (playlistFailed && !playlistError.isEmpty()) {
             // Spotify's own reason, so a failure says what happened.
-            TextView why = text(playlistError + "\n" + playlist.uri, 12, inkDim, false);
+            TextView why = text(playlistError + "\n" + playUri(), 12, inkDim, false);
             why.setGravity(Gravity.CENTER);
             why.setPadding(dp(8), dp(6), dp(8), dp(4));
             header.addView(why, fill(-2));
         }
         LinearLayout actions = row();
         actions.setGravity(Gravity.CENTER);
-        TextView shuf = pill("Shuffle", () -> { command(SHUFFLE, 1, ""); command(PLAY, 0, playlist.uri); });
+        TextView shuf = pill("Shuffle", () -> { command(SHUFFLE, 1, ""); command(PLAY, 0, playUri()); });
         shuf.setTextColor(ink);
         shuf.setBackground(round(surfHi, 22));
-        TextView play = pill("Play", () -> { if (shuffle) command(SHUFFLE, 0, ""); command(PLAY, 0, playlist.uri); });
+        TextView play = pill("Play", () -> { if (shuffle) command(SHUFFLE, 0, ""); command(PLAY, 0, playUri()); });
         actions.addView(shuf, lp(dp(130), dp(50)));
         actions.addView(space(dp(8), 1));
         actions.addView(play, lp(dp(130), dp(50)));

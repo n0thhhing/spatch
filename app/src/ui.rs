@@ -15,6 +15,8 @@ static CONNECTED: AtomicBool = AtomicBool::new(false);
 /// A counter that moves with every state change, and the latest state.
 static PLAYER: Mutex<(i64, Option<player::NowPlaying>)> = Mutex::new((0, None));
 static LIBRARY: Mutex<Option<Vec<library::Item>>> = Mutex::new(None);
+/// Your Spotify username, learned from a playlist you own; Liked Songs' link needs it.
+static USERNAME: Mutex<Option<String>> = Mutex::new(None);
 #[cfg(feature = "preview")]
 static SAVED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
@@ -186,11 +188,44 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRecent(mut env: JNIEnv, _: JCl
     strings(&mut env, fields)
 }
 
-/// The library's own URI for Liked Songs.
+/// Learns your username from the first of your own playlists that Spotify says you own.
+#[cfg(not(feature = "preview"))]
+fn find_username() -> Option<String> {
+    let candidates: Vec<String> = LIBRARY
+        .lock()
+        .unwrap()
+        .iter()
+        .flatten()
+        .filter(|i| i.kind == library::Kind::Playlist && !library::is_liked(&i.uri) && i.uri.starts_with("spotify:playlist:"))
+        .take(8)
+        .map(|i| i.uri.clone())
+        .collect();
+    candidates.iter().find_map(|uri| {
+        let bytes = bridge::call(playlist::SERVICE, "Get", &playlist::request_range(uri, 0, 1)).ok()?;
+        match playlist::decode(&bytes, 0) {
+            Ok(playlist::Reply::Page { owner, .. }) => owner,
+            _ => None,
+        }
+    })
+}
+
+/// The link the playlist service accepts for Liked Songs: the library's own if it lists one, else
+/// `spotify:user:<username>:collection`. Blocks (it may need a playlist request): never on the UI thread.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JClass) -> jstring {
-    let uri = LIBRARY.lock().unwrap().iter().flatten().find(|i| library::is_liked(&i.uri)).map(|i| i.uri.clone());
-    string(&mut env, uri.as_deref().unwrap_or("spotify:collection:tracks"))
+    let listed = LIBRARY.lock().unwrap().iter().flatten().find(|i| library::is_liked(&i.uri)).map(|i| i.uri.clone());
+    #[cfg(not(feature = "preview"))]
+    let user = {
+        if USERNAME.lock().unwrap().is_none() && listed.is_none() {
+            let found = find_username();
+            *USERNAME.lock().unwrap() = found;
+        }
+        USERNAME.lock().unwrap().clone()
+    };
+    #[cfg(feature = "preview")]
+    let user: Option<String> = None;
+    let uri = listed.or_else(|| user.map(|u| format!("spotify:user:{u}:collection"))).unwrap_or_else(|| "spotify:collection:tracks".into());
+    string(&mut env, &uri)
 }
 
 /// A page of a playlist: ["loading"], [error], or ["", next offset or "0", then title, artist, uri, image per track].
@@ -201,15 +236,20 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
         return std::ptr::null_mut();
     }
     #[cfg(feature = "preview")]
-    let reply: Result<playlist::Reply, String> = Ok(playlist::Reply::Page { tracks: crate::demo::playlist(), next: None });
+    let reply: Result<playlist::Reply, String> = Ok(playlist::Reply::Page { tracks: crate::demo::playlist(), next: None, owner: None });
     #[cfg(not(feature = "preview"))]
     let reply = bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset)).and_then(|bytes| playlist::decode(&bytes, offset));
     let fields = match reply {
         Ok(playlist::Reply::Loading) => vec!["loading".into()],
-        Ok(playlist::Reply::Page { tracks, next }) => ["".to_string(), next.unwrap_or(0).to_string()]
+        Ok(playlist::Reply::Page { tracks, next, owner }) => {
+            if let Some(name) = owner {
+                *USERNAME.lock().unwrap() = Some(name);
+            }
+            ["".to_string(), next.unwrap_or(0).to_string()]
             .into_iter()
-            .chain(tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]))
-            .collect(),
+                .chain(tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]))
+                .collect()
+        }
         Err(error) => vec![if error.is_empty() { "Couldn’t load playlist".into() } else { error }],
     };
     strings(&mut env, fields)
@@ -256,6 +296,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeDevices(mut env: JNIEnv, _: JC
 
 /// Moves playback to a device; "" on success, else why not.
 #[unsafe(no_mangle)]
+#[allow(unused_variables)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeTransfer(mut env: JNIEnv, _: JClass, id: JString) -> jstring {
     let Some(id) = read(&mut env, &id).filter(|id| !id.is_empty()) else { return string(&mut env, "No device chosen") };
     #[cfg(feature = "preview")]
