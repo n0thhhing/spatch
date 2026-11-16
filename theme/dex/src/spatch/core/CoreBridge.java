@@ -75,11 +75,21 @@ public final class CoreBridge implements Transport {
         CoroutineTransport transport = playlistTransport;
         if (transport != null && service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
             CompletableFuture<Object> reply = new CompletableFuture<>();
-            Object result = transport.callSingle(service, method, request, new p.lnm() {
-                public p.o8n getContext() { return p.o6x.a; }
-                public void resumeWith(Object value) { reply.complete(value); }
-            });
-            if (result == p.d9n.a) result = reply.get(8, TimeUnit.SECONDS);
+            // The call itself may block before suspending, so it runs on its own thread and the wait is bounded.
+            Thread caller = new Thread(() -> {
+                try {
+                    Object direct = transport.callSingle(service, method, request, new p.lnm() {
+                        public p.o8n getContext() { return p.o6x.a; }
+                        public void resumeWith(Object value) { reply.complete(value); }
+                    });
+                    if (direct != p.d9n.a) reply.complete(direct);
+                } catch (Throwable e) {
+                    reply.completeExceptionally(e);
+                }
+            }, "SpatchPlaylist");
+            caller.setDaemon(true);
+            caller.start();
+            Object result = reply.get(10, TimeUnit.SECONDS);
             if (result instanceof byte[]) return (byte[]) result;
             throw new IllegalStateException("Playlist service returned no data");
         }

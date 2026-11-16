@@ -54,6 +54,8 @@ public final class SpatchUi extends FrameLayout {
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
     private static final ExecutorService LIBRARY_DATA = Executors.newSingleThreadExecutor();
+    /** Playlists get their own threads: a stuck reply can't hold up the library or the next try. */
+    private static final ExecutorService PLAYLIST_DATA = Executors.newCachedThreadPool();
     private static final ExecutorService COMMANDS = Executors.newSingleThreadExecutor();
     private static final ExecutorService ART = Executors.newFixedThreadPool(3);
     private static final LruCache<String, Bitmap> IMAGES = new LruCache<String, Bitmap>(24 * 1024 * 1024) {
@@ -438,6 +440,7 @@ public final class SpatchUi extends FrameLayout {
             || (previous == IMMERSIVE && destination == PLAYER));
         RectF from = coverTransition ? coverBounds(original) : null;
         Bitmap cover = coverTransition ? original.cachedArtwork() : null;
+        float fromAngle = coverTransition ? original.outlineAngle() : 0;
         rememberScroll();
         route = next;
         screen = route & 7;
@@ -445,7 +448,7 @@ public final class SpatchUi extends FrameLayout {
         if (filter != selected) collectionRow = collectionOffset = 0;
         filter = selected;
         render();
-        if (coverTransition && trackArt != null) moveArtwork(from, cover, original.shape, trackArt);
+        if (coverTransition && trackArt != null) moveArtwork(from, cover, original.shape, trackArt, fromAngle);
         if (!coverTransition && motionEnabled() && content != null) {
             boolean sideways = previous <= LIBRARY && destination <= LIBRARY && previous != destination;
             View moving = sideways ? content.getChildAt(content.getChildCount() - 1) : content;
@@ -475,7 +478,7 @@ public final class SpatchUi extends FrameLayout {
         return new RectF(x, y, x + side, y + side);
     }
 
-    private void moveArtwork(RectF from, Bitmap bitmap, int fromShape, Art target) {
+    private void moveArtwork(RectF from, Bitmap bitmap, int fromShape, Art target, float fromAngle) {
         target.setAlpha(0f);
         getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
             @Override public boolean onPreDraw() {
@@ -484,10 +487,12 @@ public final class SpatchUi extends FrameLayout {
                 RectF to = coverBounds(target);
                 CoverTransition moving = new CoverTransition(from, to, bitmap,
                     fromShape, target.shape);
+                moving.fromAngle = fromAngle;
                 getOverlay().add(moving);
                 android.animation.ValueAnimator animation = android.animation.ValueAnimator.ofFloat(0f, 1f);
-                animation.setDuration(420);
-                animation.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
+                // Long enough to read as one shape becoming the other, eased like Material's emphasized motion.
+                animation.setDuration(shapeChanges(fromShape, target.shape) ? 580 : 420);
+                animation.setInterpolator(new android.view.animation.PathInterpolator(.3f, 0f, 0f, 1f));
                 animation.addUpdateListener(step -> {
                     moving.progress = (float) step.getAnimatedValue();
                     moving.invalidateSelf();
@@ -517,7 +522,8 @@ public final class SpatchUi extends FrameLayout {
         private final Matrix matrix = new Matrix();
         private final Bitmap bitmap;
         private final BitmapShader shader;
-        float progress;
+        private final Matrix spin = new Matrix();
+        float progress, fromAngle;
 
         CoverTransition(RectF from, RectF to, Bitmap bitmap, int firstShape, int lastShape) {
             this.from = from;
@@ -533,6 +539,11 @@ public final class SpatchUi extends FrameLayout {
             float x = mix(from.left, to.left, progress), y = mix(from.top, to.top, progress);
             float side = mix(from.width(), to.width(), progress);
             outline(path, first, last, progress, x, y, side);
+            if (fromAngle != 0) {
+                // The player's scallop is mid-turn: unwind it while it morphs so nothing jumps.
+                spin.setRotate(fromAngle * (1 - progress), x + side / 2, y + side / 2);
+                path.transform(spin);
+            }
             paint.setColor(secondaryContainer);
             if (shader != null) {
                 float scale = Math.max(side / bitmap.getWidth(), side / bitmap.getHeight());
@@ -548,6 +559,8 @@ public final class SpatchUi extends FrameLayout {
         @Override public void setColorFilter(android.graphics.ColorFilter filter) { paint.setColorFilter(filter); }
         @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
     }
+
+    private static boolean shapeChanges(int a, int b) { return coverPath(a) != coverPath(b); }
 
     private static float[] coverPath(int shape) {
         return shape == Art.ROUND || shape == Art.DISC || shape == Art.PLAYER_ROUND ? CIRCLE_COVER : shape == Art.IMMERSIVE ? COVER : PLAYER_COVER;
@@ -787,6 +800,10 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout bar = column();
         bar.setPadding(dp(16), dp(6), dp(12), dp(10));
         LinearLayout heading = row();
+        if (screen == LIBRARY) {
+            heading.addView(glyph("back", "Back to Home", false, this::back), control(44));
+            heading.addView(new View(activity), new LinearLayout.LayoutParams(dp(4), 1));
+        }
         TextView mark = text(screen == HOME ? "Spatch" : "Library", 34, onSurface, true);
         if (android.os.Build.VERSION.SDK_INT >= 28) mark.setAccessibilityHeading(true);
         heading.addView(mark);
@@ -797,6 +814,13 @@ public final class SpatchUi extends FrameLayout {
             flourish.spin();
         });
         heading.addView(new View(activity), weighted());
+        if (screen == HOME) {
+            // Library lives one tap away in the header; no tab bar top or bottom.
+            Glyph library = glyph("library", "Your library", false, () -> openLibrary(filter));
+            library.setBackground(background(high, 24));
+            heading.addView(library, control(48));
+            heading.addView(new View(activity), new LinearLayout.LayoutParams(dp(8), 1));
+        }
         Glyph settings = glyph("settings", "Settings", false, () -> navigate(7, 0));
         settings.setBackground(background(high, 24));
         heading.addView(settings, control(48));
@@ -824,40 +848,7 @@ public final class SpatchUi extends FrameLayout {
                 bar.addView(line, match(-2));
             }
         }
-        gap(bar, 8);
-        LinearLayout group = row();
-        group.addView(segment("Home", "home", screen == HOME, true, () -> navigate(0, 0)), new LinearLayout.LayoutParams(0, dp(48), 1));
-        View space = new View(activity);
-        group.addView(space, new LinearLayout.LayoutParams(dp(4), 1));
-        group.addView(segment("Library", "library", screen == LIBRARY, false, () -> openLibrary(filter)), new LinearLayout.LayoutParams(0, dp(48), 1));
-        bar.addView(group, match(-2));
         content.addView(bar, match(-2));
-    }
-
-    private View segment(String title, String symbol, boolean selected, boolean first, Runnable action) {
-        LinearLayout button = row();
-        button.setGravity(Gravity.CENTER);
-        button.setSelected(selected);
-        int outer = 24, inner = selected ? 24 : 8;
-        button.setBackground(segment(selected ? primary : high,
-            first ? outer : inner, first ? inner : outer, first ? inner : outer, first ? outer : inner));
-        Glyph icon = new Glyph(symbol, false);
-        icon.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        icon.ink = selected ? onPrimary : onVariant;
-        button.addView(icon, control(28));
-        TextView label = text(title, 15, selected ? onPrimary : onSurface, true);
-        label.setPadding(dp(6), 0, 0, 0);
-        button.addView(label);
-        makeClickable(button, title, selected ? () -> {
-            if (pref("haptics", true)) button.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
-            if (scroll != null) scroll.smoothScrollTo(0, 0);
-            if (libraryList != null) libraryList.smoothScrollToPosition(0);
-        } : () -> {
-            if (pref("haptics", true)) button.performHapticFeedback(android.view.HapticFeedbackConstants.SEGMENT_TICK);
-            action.run();
-        });
-        springPress(button);
-        return button;
     }
 
     /** Six recent library items as compact tiles, two per row: the fastest way back into something. */
@@ -1751,16 +1742,31 @@ public final class SpatchUi extends FrameLayout {
         loadPlaylist(entry, offset, 0);
     }
 
+    private int playlistRequest;
+
     private void loadPlaylist(Entry entry, int offset, int attempt) {
-        LIBRARY_DATA.execute(() -> {
+        int request = ++playlistRequest;
+        // Never wait forever: if Spotify hasn't answered in 15 s, offer Retry instead of "Loading…".
+        postDelayed(() -> {
+            if (request != playlistRequest || playlist != entry || !playlistLoading) return;
+            android.util.Log.w("SpatchUi", "Playlist request timed out: " + entry.uri);
+            playlistRequest++;
+            playlistLoading = false;
+            playlistFailed = true;
+            if (screen == PLAYLIST) render();
+        }, 15_000);
+        PLAYLIST_DATA.execute(() -> {
             String[] result = nativePlaylist(entry.uri, offset);
             post(() -> {
-                if (playlist != entry || screen != PLAYLIST) return;
-                if (result != null && result.length == 1 && "loading".equals(result[0]) && attempt < 3) {
+                if (request != playlistRequest || playlist != entry || screen != PLAYLIST) return;
+                if (result != null && result.length == 1 && "loading".equals(result[0]) && attempt < 10) {
                     postDelayed(() -> {
                         if (playlist == entry && screen == PLAYLIST) loadPlaylist(entry, offset, attempt + 1);
-                    }, 650);
+                    }, 700);
                     return;
+                }
+                if (result == null || result.length < 2 || !result[0].isEmpty()) {
+                    android.util.Log.w("SpatchUi", "Playlist request failed: " + (result == null || result.length == 0 ? "no reply" : result[0]));
                 }
                 playlistLoading = false;
                 playlistFailed = result == null || result.length < 2 || !result[0].isEmpty();
@@ -3190,6 +3196,11 @@ public final class SpatchUi extends FrameLayout {
         private final Matrix turn = new Matrix();
         private long contourStarted;
         private float contourAngle;
+
+        /** The outline's current turn, so a transition can start where the eye sees it. */
+        float outlineAngle() {
+            return shape == IMMERSIVE && motionEnabled() && pref("spin_art", true) ? contourAngle(SystemClock.uptimeMillis()) : 0;
+        }
 
         private float contourAngle(long now) {
             return contourStarted == 0 ? contourAngle : (contourAngle + (now - contourStarted) * .006f) % 360f;
