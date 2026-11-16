@@ -18,7 +18,7 @@ import java.util.Map;
  */
 final class Clone {
     private static final int STRING_POOL = 0x0001, XML_START_ELEMENT = 0x0102, RESOURCE_MAP = 0x0180;
-    private static final int AUTHORITIES = 0x01010018, LABEL = 0x01010001, TYPE_STRING = 0x03;
+    private static final int AUTHORITIES = 0x01010018, LABEL = 0x01010001, TYPE_STRING = 0x03, TYPE_REFERENCE = 0x01;
     private static final int UTF8 = 0x100, SORTED = 0x1;
     static final String ORIGINAL = "com.spotify.music", ICON_PATH = "res/spatch/clone_icon.png";
 
@@ -55,7 +55,8 @@ final class Clone {
 
     /**
      * A compiled AndroidManifest.xml with the package renamed. For base.apk (base is true) its
-     * providers' literal authorities are renamed and the application gets the clone's label.
+     * providers' literal authorities are renamed, and the application and every activity labelled with
+     * the app's name (the launcher alias inherits SpotifyMainActivity's) get the clone's label.
      */
     byte[] manifest(byte[] axml, boolean base) throws IOException {
         ByteBuffer in = ByteBuffer.wrap(axml).order(ByteOrder.LITTLE_ENDIAN);
@@ -79,6 +80,7 @@ final class Clone {
         byte[] out = axml.clone();
         ByteBuffer o = ByteBuffer.wrap(out).order(ByteOrder.LITTLE_ENDIAN);
         boolean renamed = false;
+        int appLabel = 0; // the application's label resource: activities naming the app point at it too
         for (int[] c : chunks) {
             if (c[1] != XML_START_ELEMENT) continue;
             int ext = c[0] + (in.getShort(c[0] + 2) & 0xffff);
@@ -96,6 +98,10 @@ final class Clone {
                 } else if (base && "provider".equals(element) && id == AUTHORITIES && type == TYPE_STRING) {
                     value = authority(pool.get(data));
                 } else if (base && "application".equals(element) && id == LABEL && label != null && !label.isEmpty()) {
+                    if (type == TYPE_REFERENCE) appLabel = data;
+                    value = label;
+                } else if (base && appLabel != 0 && id == LABEL && type == TYPE_REFERENCE && data == appLabel
+                    && ("activity".equals(element) || "activity-alias".equals(element))) {
                     value = label;
                 }
                 if (value == null) continue;
