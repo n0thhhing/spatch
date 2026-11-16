@@ -174,7 +174,16 @@ public final class SpatchUi extends FrameLayout {
 
     private boolean pref(String key, boolean fallback) { return prefs.getBoolean(key, fallback); }
 
+    private boolean dark = true;
+    private static final int[] ACCENTS = {0, 0xff8b6fd6, 0xffd6567a, 0xff3d8fd6, 0xff2fa37a, 0xffd99a2b, 0xffe0663f};
+    private static final String[] ACCENT_NAMES = {"Default", "Lavender", "Rose", "Sky", "Mint", "Amber", "Coral"};
+
+    /** Colours from the cover when there is one, else from the chosen accent; dark or light by the Theme setting. */
     private void applyPalette(Integer seed) {
+        int theme = prefs.getInt("theme", 0);
+        dark = theme == 1 || (theme == 0 && (getResources().getConfiguration().uiMode & 0x30) == 0x20);
+        int accentChoice = Math.max(0, Math.min(ACCENTS.length - 1, prefs.getInt("accent", 0)));
+        if (seed == null && accentChoice > 0) seed = ACCENTS[accentChoice];
         float h = 262, c = .5f;
         if (seed != null) {
             float[] hsv = new float[3];
@@ -182,15 +191,29 @@ public final class SpatchUi extends FrameLayout {
             h = hsv[0];
             c = Math.max(.35f, Math.min(.85f, hsv[1]));
         }
-        bg = hsl(h, .28f * c, .06f);
-        surf = hsl(h, .22f * c, .115f);
-        surfHi = hsl(h, .22f * c, .17f);
-        ink = hsl(h, .2f * c, .94f);
-        inkDim = hsl(h, .18f * c, .72f);
-        accent = hsl(h, Math.min(.9f, c + .1f), .74f);
-        accent2 = hsl((h + 42) % 360, Math.min(.9f, c + .1f), .70f);
-        onAccent = hsl(h, .5f, .13f);
+        if (dark) {
+            bg = hsl(h, .28f * c, .06f);
+            surf = hsl(h, .22f * c, .115f);
+            surfHi = hsl(h, .22f * c, .17f);
+            ink = hsl(h, .2f * c, .94f);
+            inkDim = hsl(h, .18f * c, .72f);
+            accent = hsl(h, Math.min(.9f, c + .1f), .74f);
+            accent2 = hsl((h + 42) % 360, Math.min(.9f, c + .1f), .70f);
+            onAccent = hsl(h, .5f, .13f);
+        } else {
+            bg = hsl(h, .3f * c, .965f);
+            surf = hsl(h, .3f * c, .925f);
+            surfHi = hsl(h, .3f * c, .875f);
+            ink = hsl(h, .25f * c, .10f);
+            inkDim = hsl(h, .2f * c, .36f);
+            accent = hsl(h, Math.min(.85f, c + .05f), .40f);
+            accent2 = hsl((h + 42) % 360, Math.min(.85f, c + .05f), .46f);
+            onAccent = hsl(h, .2f, .98f);
+        }
         setBackgroundColor(bg);
+        View decor = activity.getWindow().getDecorView();
+        int bars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        decor.setSystemUiVisibility(dark ? decor.getSystemUiVisibility() & ~bars : decor.getSystemUiVisibility() | bars);
     }
 
     private static int hsl(float h, float s, float l) {
@@ -287,6 +310,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private boolean motion() {
+        if (pref("reduce_motion", false)) return false;
         return android.os.Build.VERSION.SDK_INT < 26 || android.animation.ValueAnimator.areAnimatorsEnabled();
     }
 
@@ -352,7 +376,8 @@ public final class SpatchUi extends FrameLayout {
             w.setNavigationBarDividerColor(Color.TRANSPARENT);
         }
         View decor = w.getDecorView();
-        decor.setSystemUiVisibility(decor.getSystemUiVisibility() & ~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR));
+        int lightBars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        decor.setSystemUiVisibility(dark ? decor.getSystemUiVisibility() & ~lightBars : decor.getSystemUiVisibility() | lightBars);
         requestFocus();
         removeCallbacks(poll);
         post(poll);
@@ -652,7 +677,7 @@ public final class SpatchUi extends FrameLayout {
         lg.setCornerRadius(dp(26));
         liked.setBackground(lg);
         FrameLayout badge = new FrameLayout(activity);
-        badge.setBackground(round(0x26ffffff, 18));
+        badge.setBackground(round((ink & 0x00ffffff) | 0x26000000, 18));
         badge.addView(new Icon("heart", ink), new LayoutParams(dp(22), dp(22), Gravity.CENTER));
         liked.addView(badge, lp(dp(44), dp(44)));
         LinearLayout lw = column();
@@ -665,13 +690,15 @@ public final class SpatchUi extends FrameLayout {
         likedParams.topMargin = dp(12);
         page.addView(liked, likedParams);
 
-        boolean any = false;
-        if (!recent.isEmpty()) any |= shelf(page, "Recently played", recent, null);
+        boolean any = false, hidden = false;
+        if (!pref("home_recent", true)) hidden = true;
+        else if (!recent.isEmpty()) any |= shelf(page, "Recently played", recent, null);
         for (int c = 0; c < SECTIONS.length; c++) {
             final int category = c;
+            if (!pref("home_shelf_" + c, true)) { hidden = true; continue; }
             any |= shelf(page, SECTIONS[c], entries(c, 14), () -> { filter = category; go(LIBRARY); });
         }
-        if (!any) {
+        if (!any && !hidden) {
             TextView note = text(libraryStatus, 14, inkDim, false);
             note.setPadding(dp(4), dp(24), 0, 0);
             page.addView(note);
@@ -1088,21 +1115,154 @@ public final class SpatchUi extends FrameLayout {
         TextView h = text("Settings", 34, ink, true);
         h.setPadding(0, dp(18), 0, dp(14));
         page.addView(h);
+
         LinearLayout look = card(page, "Look");
+        choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 0, true);
         toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, true);
+        accentRow(look);
         toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
+
         LinearLayout player = card(page, "Player");
-        toggle(player, "Floating motes", "Soft particles drift behind the player", "motes", true, false);
-        toggle(player, "Follow the music", "The ring’s bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
+        choice(player, "Visualizer", new String[]{"Ring and bars", "Ring only", "Off"}, "viz", 0, false);
+        toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
         TextView audioStatus = text("Status: " + Audio.status, 12, inkDim, false);
         audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
         player.addView(audioStatus);
+        toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
+        toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
+        toggle(player, "Floating motes", "Soft particles drift behind the player", "motes", true, false);
         toggle(player, "Keep screen on", "While the player is open", "keep_on", true, false);
-        toggle(player, "Haptics", "Little taps on buttons", "haptics", true, false);
+
+        LinearLayout gestures = card(page, "Gestures and controls");
+        toggle(gestures, "Double-tap to play or pause", "On the artwork in the player", "double_tap", true, false);
+        toggle(gestures, "Swipe artwork to skip", "Flick the artwork left for next, right for previous", "swipe_skip", true, false);
+        choice(gestures, "Hold-to-seek step", new String[]{"5 s", "10 s", "30 s"}, "seek_step", 1, false);
+        toggle(gestures, "Haptics", "Little taps on buttons", "haptics", true, false);
+        toggle(gestures, "Reduce motion", "Skips fades, slides and the spinning; for a calmer, lighter app", "reduce_motion", false, true);
+
+        LinearLayout home = card(page, "Home");
+        toggle(home, "Recently played", "Spotify’s own listening history", "home_recent", true, false);
+        for (int i = 0; i < SECTIONS.length; i++) toggle(home, SECTIONS[i], "Show the " + SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true, false);
+
+        LinearLayout library = card(page, "Library");
+        toggle(library, "Sort A to Z", "Alphabetical, with Liked Songs first; off shows Spotify’s recent order", "library_az", false, false);
+
+        LinearLayout storage = card(page, "Storage");
+        cacheRow(storage);
+
         TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.", 13, inkDim, false);
         note.setPadding(dp(4), dp(22), dp(4), 0);
         page.addView(note);
         return scrolling(page);
+    }
+
+    /** Redraws Settings in place after a change, keeping the scroll position. */
+    private void settingsChanged(boolean palette) {
+        if (palette) { paletteKey = "?"; refreshPalette(); recolor(); return; }
+        int y = pageScroll != null ? pageScroll.getScrollY() : 0;
+        showPage();
+        ScrollView again = pageScroll;
+        if (again != null && y > 0) again.post(() -> again.scrollTo(0, y));
+    }
+
+    /** A title over a connected button group; the pick is stored as an index under `key`. */
+    private void choice(LinearLayout box, String name, String[] names, String key, int fallback, boolean palette) {
+        TextView label = text(name, 16, ink, true);
+        label.setPadding(dp(18), dp(12), dp(18), dp(8));
+        box.addView(label);
+        LinearLayout group = row();
+        group.setPadding(dp(14), 0, dp(14), dp(12));
+        int current = prefs.getInt(key, fallback), last = names.length - 1;
+        for (int i = 0; i < names.length; i++) {
+            final int pick = i;
+            boolean on = i == current;
+            TextView option = text(names[i], 13, on ? onAccent : ink, true);
+            option.setGravity(Gravity.CENTER);
+            option.setSingleLine(true);
+            float outer = 20, inner = on ? 20 : 6;
+            GradientDrawable shape = new GradientDrawable();
+            shape.setColor(on ? accent : surfHi);
+            shape.setCornerRadii(new float[]{dp(i == 0 ? outer : inner), dp(i == 0 ? outer : inner), dp(i == last ? outer : inner), dp(i == last ? outer : inner),
+                dp(i == last ? outer : inner), dp(i == last ? outer : inner), dp(i == 0 ? outer : inner), dp(i == 0 ? outer : inner)});
+            option.setBackground(shape);
+            tappable(option, name + ": " + names[i], () -> { prefs.edit().putInt(key, pick).apply(); settingsChanged(palette); });
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(42), 1);
+            if (i > 0) p.leftMargin = dp(3);
+            group.addView(option, p);
+        }
+        box.addView(group, fill(-2));
+    }
+
+    /** Accent swatches: used when the cover can’t colour the app (or Artwork colours is off). */
+    private void accentRow(LinearLayout box) {
+        TextView label = text("Accent colour", 16, ink, true);
+        label.setPadding(dp(18), dp(10), dp(18), dp(2));
+        box.addView(label);
+        TextView hint = text("Used when Artwork colours is off or the cover has none", 13, inkDim, false);
+        hint.setPadding(dp(18), 0, dp(18), dp(8));
+        box.addView(hint);
+        LinearLayout swatches = row();
+        swatches.setPadding(dp(12), 0, dp(12), dp(12));
+        int chosen = prefs.getInt("accent", 0);
+        for (int i = 0; i < ACCENTS.length; i++) {
+            final int pick = i;
+            int colour = i == 0 ? blend(surfHi, accent, .6f) : ACCENTS[i];
+            View dot = new View(activity) {
+                private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                @Override protected void onDraw(Canvas c) {
+                    float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy) - dp(5);
+                    if (pick == chosen) {
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setStrokeWidth(dp(2.5f));
+                        paint.setColor(ink);
+                        c.drawCircle(cx, cy, r + dp(2), paint);
+                        r -= dp(2);
+                    }
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(colour);
+                    c.drawCircle(cx, cy, r, paint);
+                }
+            };
+            tappable(dot, ACCENT_NAMES[i] + " accent", () -> { prefs.edit().putInt("accent", pick).apply(); settingsChanged(true); });
+            swatches.addView(dot, new LinearLayout.LayoutParams(0, dp(44), 1));
+        }
+        box.addView(swatches, fill(-2));
+    }
+
+    /** Shows how much artwork is stored on the phone and clears it when tapped. */
+    private void cacheRow(LinearLayout box) {
+        LinearLayout line = row();
+        line.setPadding(dp(18), dp(12), dp(16), dp(12));
+        LinearLayout words = column();
+        words.addView(text("Artwork cache", 16, ink, true));
+        TextView size = text("Counting…", 13, inkDim, false);
+        size.setPadding(0, dp(2), 0, 0);
+        words.addView(size);
+        line.addView(words, weight());
+        TextView clear = text("Clear", 14, onAccent, true);
+        clear.setGravity(Gravity.CENTER);
+        clear.setPadding(dp(18), 0, dp(18), 0);
+        clear.setBackground(round(accent, 20));
+        line.addView(clear, lp(-2, dp(40)));
+        box.addView(line, fill(-2));
+        PLAYLISTS.execute(() -> {
+            long bytes = 0;
+            java.io.File[] files = CoreBridge.cacheDir == null ? null : CoreBridge.cacheDir.listFiles();
+            if (files != null) for (java.io.File f : files) bytes += f.length();
+            final String text = bytes < 1024 * 1024 ? (bytes / 1024) + " KB" : String.format(java.util.Locale.ROOT, "%.1f MB", bytes / 1048576.0);
+            post(() -> size.setText(text + " of saved covers; they download again when needed"));
+        });
+        tappable(clear, "Clear the artwork cache", () -> PLAYLISTS.execute(() -> {
+            java.io.File[] files = CoreBridge.cacheDir == null ? null : CoreBridge.cacheDir.listFiles();
+            if (files != null) for (java.io.File f : files) f.delete();
+            post(() -> {
+                IMAGES.evictAll();
+                failed.clear();
+                size.setText("0 KB of saved covers; they download again when needed");
+                Toast.makeText(activity, "Artwork cache cleared", Toast.LENGTH_SHORT).show();
+                for (View v : artViews) v.invalidate();
+            });
+        }));
     }
 
     private LinearLayout card(LinearLayout page, String title) {
@@ -1329,7 +1489,7 @@ public final class SpatchUi extends FrameLayout {
 
         nextPill = row();
         nextPill.setPadding(dp(6), dp(6), dp(16), dp(6));
-        nextPill.setBackground(round(0x1affffff, 24));
+        nextPill.setBackground(round((ink & 0x00ffffff) | 0x1a000000, 24));
         LinearLayout.LayoutParams np = fill(-2);
         np.topMargin = dp(12);
         col.addView(nextPill, np);
@@ -1342,7 +1502,8 @@ public final class SpatchUi extends FrameLayout {
         Runnable[] step = new Runnable[1];
         step[0] = () -> {
             if (!held[0] || duration <= 0 || !button.isAttachedToWindow()) return;
-            long target = Math.max(0, Math.min(duration - 1500, playhead() + (forward ? 10_000 : -10_000)));
+            long jump = new long[]{5_000, 10_000, 30_000}[Math.max(0, Math.min(2, prefs.getInt("seek_step", 1)))];
+            long target = Math.max(0, Math.min(duration - 1500, playhead() + (forward ? jump : -jump)));
             position = target;
             stamp = SystemClock.uptimeMillis();
             if (wave != null) wave.invalidate();
@@ -1379,9 +1540,9 @@ public final class SpatchUi extends FrameLayout {
         boolean[] drag = new boolean[1];
         android.view.GestureDetector taps = new android.view.GestureDetector(activity, new android.view.GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { return true; }
-            @Override public boolean onDoubleTap(MotionEvent e) { togglePlay(); return true; }
+            @Override public boolean onDoubleTap(MotionEvent e) { if (pref("double_tap", true)) togglePlay(); return true; }
             @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
-                if (a == null || Math.abs(b.getX() - a.getX()) < dp(60) || Math.abs(b.getX() - a.getX()) < Math.abs(b.getY() - a.getY())) return false;
+                if (a == null || !pref("swipe_skip", true) || Math.abs(b.getX() - a.getX()) < dp(60) || Math.abs(b.getX() - a.getX()) < Math.abs(b.getY() - a.getY())) return false;
                 command(b.getX() < a.getX() ? NEXT : PREVIOUS, 0, "");
                 tick(v);
                 return true;
@@ -1852,6 +2013,7 @@ public final class SpatchUi extends FrameLayout {
 
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
+            if (!pref("backdrop", true)) { c.drawColor(bg); return; }
             art(image, 440);
             Bitmap blur = IMAGES.get(image + ":440/blur");
             c.drawColor(bg);
@@ -1953,7 +2115,7 @@ public final class SpatchUi extends FrameLayout {
             clip.addCircle(cx, cy, artR, Path.Direction.CW);
             c.clipPath(clip);
             if (shown != null) {
-                if (run) angle = (angle + .12f) % 360f;
+                if (run && pref("spin", true)) angle = (angle + .12f) % 360f;
                 paint.setShader(null);
                 if (previous != null) cover(c, previous, cx, cy, artR, 255);
                 cover(c, shown, cx, cy, artR, Math.round(255 * fade));
@@ -1968,10 +2130,12 @@ public final class SpatchUi extends FrameLayout {
                 sweepB = accent2;
                 sweep = new SweepGradient(cx, cy, new int[]{accent, accent2, accent, accent2, accent}, null);
             }
+            // Visualizer style: 0 ring and bars, 1 ring only, 2 neither.
+            int style = prefs.getInt("viz", 0);
             paint.setShader(sweep);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(5));
-            c.drawCircle(cx, cy, ring, paint);
+            if (style != 2) c.drawCircle(cx, cy, ring, paint);
             int bars = 72;
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeWidth(Math.min(dp(7), (float) (Math.PI * 2 * ring / bars) * .55f));
@@ -2006,7 +2170,7 @@ public final class SpatchUi extends FrameLayout {
                 float tau = v > level[i] ? .045f : .22f;
                 level[i] += (v - level[i]) * (1f - (float) Math.exp(-dt / tau));
             }
-            for (int k = 0; k < bars; k++) {
+            for (int k = 0; k < bars && style == 0; k++) {
                 int bi = k < half ? k : bars - 1 - k;
                 double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
                 float len = dp(3) + (bar - dp(6)) * Math.min(1f, level[bi]), start = ring + dp(10);
@@ -2015,7 +2179,7 @@ public final class SpatchUi extends FrameLayout {
             }
             paint.setShader(null);
             paint.setStyle(Paint.Style.FILL);
-            if (audio) Audio.want();
+            if (audio && style == 0) Audio.want();
             if (run && isShown()) postInvalidateOnAnimation();
         }
     }
