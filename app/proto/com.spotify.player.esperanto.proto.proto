@@ -1,0 +1,429 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.player.esperanto.proto;
+import "com.spotify.stream_reporting_attribution.proto.proto";
+import "com.google.protobuf.proto";
+
+message AdBreakContext {
+  uint64 max_seconds_remaining = 1;
+  uint64 position_in_current_ad_break = 2;
+  uint64 total_ads_in_break_estimate = 3;
+}
+
+message AddToQueueRequest {
+  ContextTrack track = 1;
+  CommandOptions options = 2;
+  LoggingParams logging_params = 3;
+}
+
+message CommandOptions {
+  bool override_restrictions = 1;
+  bool only_for_local_device = 2;
+  bool system_initiated = 3;
+  bytes only_for_playback_id = 4;
+  string logical_playback_identifier = 5;
+}
+
+message Context {
+  repeated ContextPage pages = 1;
+  map<string, string> metadata = 2;
+  string uri = 3;
+  string url = 4;
+  bool is_loading = 5;
+  Restrictions restrictions = 6;
+}
+
+message ContextIndex {
+  uint64 page = 1;
+  uint64 track = 2;
+}
+
+message ContextPage {
+  repeated ContextTrack tracks = 1;
+  map<string, string> metadata = 2;
+  string page_url = 3;
+  string next_page_url = 4;
+  bool is_loading = 5;
+}
+
+message ContextPlayerError {
+  int32 code = 1;
+  string message = 2;
+  map<string, string> data = 3;
+}
+
+message ContextPlayerOptionOverrides {
+  OptionalBoolean shuffling_context = 1;
+  OptionalBoolean repeating_context = 2;
+  OptionalBoolean repeating_track = 3;
+  float playback_speed = 4;
+  map<string, string> modes = 5;
+}
+
+message ContextPlayerOptions {
+  bool shuffling_context = 1;
+  bool repeating_context = 2;
+  bool repeating_track = 3;
+  float playback_speed = 4;
+  map<string, string> modes = 5;
+}
+
+message ContextPlayerState {
+  uint64 timestamp = 1;
+  string context_uri = 2;
+  string context_url = 3;
+  Restrictions context_restrictions = 4;
+  PlayOrigin play_origin = 5;
+  ContextIndex index = 6;
+  ProvidedTrack track = 7;
+  bytes playback_id = 8;
+  PlaybackQuality playback_quality = 9;
+  OptionalDouble playback_speed = 10;
+  OptionalInt64 position_as_of_timestamp = 11;
+  OptionalInt64 duration = 12;
+  bool is_playing = 13;
+  bool is_paused = 14;
+  bool is_buffering = 15;
+  bool is_system_initiated = 16;
+  ContextPlayerOptions options = 17;
+  Restrictions restrictions = 18;
+  repeated string suppressions = 19;
+  repeated ProvidedTrack prev_tracks = 20;
+  repeated ProvidedTrack next_tracks = 21;
+  map<string, string> context_metadata = 22;
+  map<string, string> page_metadata = 23;
+  string session_id = 24;
+  uint64 queue_revision = 25;
+  int32 audio_stream = 26;
+  repeated string signals = 27;
+  string session_command_id = 28;
+  int32 format = 29;
+  AdBreakContext ad_break_context = 30;
+  SleepTimer sleep_timer = 31;
+  string logical_playback_identifier = 32;
+  int32 observation_status = 33;
+}
+
+message ContextTrack {
+  string uri = 1;
+  string uid = 2;
+  map<string, string> metadata = 3;
+}
+
+message DeleteSessionRequest {
+  string session_id = 1;
+  string logical_playback_identifier = 2;
+}
+
+message DeleteSessionResponse {
+}
+
+message GetErrorRequest {
+  string logical_playback_identifier = 1;
+}
+
+message GetQueueRequest {
+  string logical_playback_identifier = 1;
+}
+
+message GetStateRequest {
+  OptionalInt64 prev_tracks_cap = 1;
+  OptionalInt64 next_tracks_cap = 2;
+  string logical_playback_identifier = 3;
+}
+
+message LoggingParams {
+  OptionalInt64 command_initiated_time = 1;
+  OptionalInt64 command_received_time = 2;
+  repeated string page_instance_ids = 3;
+  repeated string interaction_ids = 4;
+  string device_identifier = 5;
+  string command_id = 6;
+  .com.spotify.stream_reporting_attribution.proto.StreamReportingAttribution stream_reporting_attribution = 7;
+}
+
+message ModeRestrictions {
+  map<string, RestrictionReasons> values = 1;
+}
+
+message OptionalBoolean {
+  bool value = 1;
+}
+
+message OptionalDouble {
+  double value = 1;
+}
+
+message OptionalInt64 {
+  int64 value = 1;
+}
+
+message PauseRequest {
+  CommandOptions options = 1;
+  LoggingParams logging_params = 2;
+  PauseResumeOrigin pause_origin = 3;
+}
+
+message PauseResumeOrigin {
+  string feature_identifier = 1;
+}
+
+message PlayAsNextInQueueRequest {
+  repeated ContextTrack tracks = 1;
+  CommandOptions options = 2;
+  LoggingParams logging_params = 3;
+}
+
+message PlayOptions {
+  int32 reason = 1;
+  int32 operation = 2;
+  int32 trigger = 3;
+  float playback_speed = 4;
+}
+
+message PlayOrigin {
+  string feature_identifier = 1;
+  string feature_version = 2;
+  string view_uri = 3;
+  string external_referrer = 4;
+  string referrer_identifier = 5;
+  string device_identifier = 6;
+  repeated string feature_classes = 7;
+  string restriction_identifier = 8;
+}
+
+message PlayPreparedRequest {
+  string session_id = 1;
+  PlayOptions play_options = 2;
+  CommandOptions options = 3;
+  LoggingParams logging_params = 4;
+}
+
+message PlayRequest {
+  PreparePlayRequest prepare_play_request = 1;
+  PlayOptions play_options = 2;
+  CommandOptions options = 3;
+  LoggingParams logging_params = 4;
+  int32 stream_policy = 5;
+  string replaced_logical_playback_identifier = 7;
+}
+
+message PlaybackQuality {
+  int32 bitrate_level = 1;
+  int32 strategy = 2;
+  int32 target_bitrate_level = 3;
+  bool target_bitrate_available = 4;
+  int32 hifi_status = 5;
+  int32 highest_available_quality = 6;
+  int32 file_origin = 7;
+  int32 playing_sample_rate_hz = 8;
+  int32 hardware_sample_rate_hz = 9;
+  int32 restriction_reason = 10;
+  bool is_resampled = 11;
+  bool source_is_lossless = 12;
+  int32 playing_bit_depth = 13;
+}
+
+message PreparePlayOptions {
+  bytes playback_id = 1;
+  bool always_play_something = 2;
+  SkipToTrack skip_to = 3;
+  OptionalInt64 seek_to = 4;
+  bool initially_paused = 5;
+  bool system_initiated = 6;
+  ContextPlayerOptionOverrides player_options_override = 7;
+  repeated string suppressions = 8;
+  int32 prefetch_level = 9;
+  int32 audio_stream = 10;
+  string session_id = 11;
+  string license = 12;
+  map<string, string> configuration_override = 13;
+  string seek_to_creator_timestamp = 14;
+}
+
+message PreparePlayRequest {
+  Context context = 1;
+  PreparePlayOptions options = 2;
+  PlayOrigin play_origin = 3;
+  string logical_playback_identifier = 4;
+}
+
+message ProvidedTrack {
+  ContextTrack context_track = 1;
+  repeated string removed = 2;
+  repeated string blocked = 3;
+  string provider = 4;
+}
+
+message Queue {
+  uint64 queue_revision = 1;
+  ProvidedTrack track = 2;
+  repeated ProvidedTrack next_tracks = 3;
+  repeated ProvidedTrack prev_tracks = 4;
+}
+
+message ResponseWithReasons {
+  int32 error = 1;
+  string reasons = 2;
+}
+
+message RestrictionReasons {
+  repeated string reasons = 1;
+}
+
+message Restrictions {
+  repeated string disallow_pausing_reasons = 1;
+  repeated string disallow_resuming_reasons = 2;
+  repeated string disallow_seeking_reasons = 3;
+  repeated string disallow_peeking_prev_reasons = 4;
+  repeated string disallow_peeking_next_reasons = 5;
+  repeated string disallow_skipping_prev_reasons = 6;
+  repeated string disallow_skipping_next_reasons = 7;
+  repeated string disallow_toggling_repeat_context_reasons = 8;
+  repeated string disallow_toggling_repeat_track_reasons = 9;
+  repeated string disallow_toggling_shuffle_reasons = 10;
+  repeated string disallow_set_queue_reasons = 11;
+  repeated string disallow_interrupting_playback_reasons = 12;
+  repeated string disallow_transferring_playback_reasons = 13;
+  repeated string disallow_remote_control_reasons = 14;
+  repeated string disallow_inserting_into_next_tracks_reasons = 15;
+  repeated string disallow_inserting_into_context_tracks_reasons = 16;
+  repeated string disallow_reordering_in_next_tracks_reasons = 17;
+  repeated string disallow_reordering_in_context_tracks_reasons = 18;
+  repeated string disallow_removing_from_next_tracks_reasons = 19;
+  repeated string disallow_removing_from_context_tracks_reasons = 20;
+  repeated string disallow_updating_context_reasons = 21;
+  repeated string disallow_add_to_queue_reasons = 22;
+  repeated string disallow_setting_playback_speed_reasons = 23;
+  map<string, ModeRestrictions> disallow_setting_modes = 25;
+  map<string, RestrictionReasons> disallow_signals = 26;
+  repeated string disallow_play_as_next_in_queue_reasons = 27;
+  repeated string disallow_sleep_timer_clear_reasons = 28;
+  repeated string disallow_sleep_timer_duration_reasons = 29;
+  repeated string disallow_sleep_timer_end_of_track_reasons = 30;
+  repeated string disallow_add_to_queue_track_reasons = 31;
+  repeated string disallow_tap_to_play_track_in_next_tracks_reasons = 32;
+  repeated string disallow_reordering_track_in_next_tracks_reasons = 33;
+  repeated string disallow_reordering_episode_in_next_tracks_reasons = 34;
+  repeated string disallow_reordering_enqueued_track_in_next_tracks_reasons = 35;
+  repeated string disallow_reordering_enqueued_episode_in_next_tracks_reasons = 36;
+  repeated string disallow_viewing_queue_reasons = 37;
+  repeated string disallow_viewing_ordered_tracks_in_next_tracks_reasons = 38;
+  repeated string disallow_swipe_next_reasons = 39;
+  repeated string disallow_swipe_prev_reasons = 40;
+}
+
+message ResumeRequest {
+  CommandOptions options = 1;
+  LoggingParams logging_params = 2;
+  PauseResumeOrigin resume_origin = 3;
+}
+
+message SeekToRequest {
+  CommandOptions options = 1;
+  LoggingParams logging_params = 2;
+  int64 position = 3;
+  int32 relative = 4;
+  OptionalInt64 creator_timestamp_position_ms = 5;
+}
+
+message SessionResponse {
+  string session_id = 1;
+}
+
+message SetOptionsRequest {
+  OptionalBoolean repeating_track = 1;
+  OptionalBoolean repeating_context = 2;
+  OptionalBoolean shuffling_context = 3;
+  CommandOptions options = 4;
+  LoggingParams logging_params = 5;
+  float playback_speed = 6;
+  map<string, string> modes = 7;
+}
+
+message SetQueueRequest {
+  repeated ProvidedTrack next_tracks = 1;
+  repeated ProvidedTrack prev_tracks = 2;
+  uint64 queue_revision = 3;
+  CommandOptions options = 4;
+  LoggingParams logging_params = 5;
+}
+
+message SetShufflingContextRequest {
+  bool shuffling_context = 1;
+  CommandOptions options = 2;
+  LoggingParams logging_params = 3;
+}
+
+message SetSleepTimerRequest {
+  CommandOptions options = 1;
+  LoggingParams logging_params = 2;
+  oneof timerType {
+    SetSleepTimerRequest_Clear clear = 3;
+    SetSleepTimerRequest_Duration duration = 4;
+    SetSleepTimerRequest_EndOfTrack end_of_track = 5;
+  }
+}
+
+message SetSleepTimerRequest_Clear {
+}
+
+message SetSleepTimerRequest_Duration {
+  .com.google.protobuf.Duration duration = 1;
+}
+
+message SetSleepTimerRequest_EndOfTrack {
+}
+
+message SignalRequest {
+  string signal_id = 1;
+  string parameters = 2;
+  CommandOptions options = 3;
+  LoggingParams logging_params = 4;
+}
+
+message SkipNextRequest {
+  CommandOptions options = 1;
+  LoggingParams logging_params = 2;
+  ContextTrack track = 3;
+}
+
+message SkipPrevRequest {
+  CommandOptions options = 1;
+  bool allow_seeking = 2;
+  LoggingParams logging_params = 3;
+  ContextTrack track = 4;
+}
+
+message SkipToTrack {
+  string page_url = 1;
+  OptionalInt64 page_index = 2;
+  string track_uid = 3;
+  string track_uri = 4;
+  OptionalInt64 track_index = 5;
+}
+
+message SleepTimer {
+  oneof timerType {
+    SleepTimer_None none = 1;
+    SleepTimer_Timestamp timestamp = 2;
+    SleepTimer_EndOfTrack end_of_track = 3;
+  }
+}
+
+message SleepTimer_EndOfTrack {
+}
+
+message SleepTimer_None {
+}
+
+message SleepTimer_Timestamp {
+  int64 timestamp = 1;
+}
+
+message StopRequest {
+  CommandOptions options = 1;
+  int32 reason = 2;
+  LoggingParams logging_params = 3;
+}

@@ -500,6 +500,9 @@ pub fn run(
             .iter()
             .map(|(name, bytes)| (*name, bytes.to_vec())),
     );
+    if let Some(app) = rust_app()? {
+        added.push((RUST_APP_ASSET, app));
+    }
     let signing = match output {
         Output::DryRun => {
             println!(
@@ -605,6 +608,19 @@ pub fn run(
     fs::rename(&result, out)?;
     println!("wrote {}", out.display());
     Ok(())
+}
+
+/// Where SpatchApp finds the Rust app library (copied out and loaded at run time, so the manifest and splits stay untouched).
+pub const RUST_APP_ASSET: &str = "assets/spatch/libspatch_app.so";
+
+/// The arm64 Rust app library to ship: $SPATCH_APP_SO, else app/'s release build if one exists.
+/// Without either the patch still builds; Developer options then reports the app as missing.
+fn rust_app() -> Result<Option<Vec<u8>>> {
+    if let Some(path) = std::env::var_os("SPATCH_APP_SO") {
+        return Ok(Some(fs::read(&path).map_err(|e| format!("SPATCH_APP_SO {}: {e}", Path::new(&path).display()))?));
+    }
+    let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("app/target/aarch64-linux-android/release/libspatch_app.so");
+    Ok(if built.is_file() { Some(fs::read(built)?) } else { None })
 }
 
 /// Decodes base in staging, applies the theme sources and returns the compiled replacement entries.

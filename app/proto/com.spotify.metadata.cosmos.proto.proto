@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.metadata.cosmos.proto;
+import "com.spotify.metadata.proto.proto";
+
+message MetadataItem {
+  oneof item {
+    sint32 error = 1;
+    .com.spotify.metadata.proto.Artist artist = 2;
+    .com.spotify.metadata.proto.Album album = 3;
+    .com.spotify.metadata.proto.Track track = 4;
+    .com.spotify.metadata.proto.Show show = 5;
+    .com.spotify.metadata.proto.Episode episode = 6;
+  }
+}
+
+message MultiRequest {
+  repeated string uris = 1;
+}
+
+message MultiResponse {
+  repeated MetadataItem items = 1;
+}

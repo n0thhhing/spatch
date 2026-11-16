@@ -1,0 +1,423 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.playlist.proto;
+import "com.spotify.list_collection.save_source.proto.proto";
+import "com.spotify.cosmos.util.proto.proto";
+import "com.google.protobuf.proto";
+
+message AdministratePermissionCapabilities {
+  bool can_set = 1;
+  bool can_remove = 2;
+  bool can_remove_own = 3;
+}
+
+message AdministratePermissionKindCapabilities {
+  AdministratePermissionCapabilities base = 1;
+  AdministratePermissionCapabilities member = 2;
+  AdministratePermissionCapabilities grant = 6;
+}
+
+message Allows {
+  bool can_insert = 1;
+  bool can_remove = 2;
+  bool can_delete = 3;
+}
+
+message AttributeCapabilities {
+  bool can_edit = 1;
+}
+
+message AttributeKindCapabilities {
+  int32 attribute_kind = 1;
+  AttributeCapabilities capabilities = 2;
+}
+
+message Attributes {
+  bool published = 1;
+  bool collaborative = 2;
+  string name = 3;
+  string description = 4;
+  string imageuri = 5;
+  string picture = 6;
+  string ai_curation_reference_id = 7;
+  int32 published_state = 8;
+}
+
+message Audit {
+  AuditMetadata created = 1;
+  AuditMetadata modified = 2;
+  AuditMetadata deleted = 3;
+}
+
+message AuditMetadata {
+  .com.google.protobuf.Timestamp timestamp = 1;
+  string username = 3;
+}
+
+message AvailableConcepts {
+  string concept_uri = 1;
+  string localized_term = 2;
+}
+
+message AvailableLanguage {
+  string language_code = 1;
+}
+
+message AvailableSignal {
+  string name = 1;
+  int32 state = 2;
+  bytes data = 3;
+}
+
+message Capabilities {
+  bool can_view = 1;
+  bool can_administrate_permissions = 2;
+  repeated int32 grantable_level = 3;
+  bool can_edit_metadata = 4;
+  bool can_edit_items = 5;
+  bool can_cancel_membership = 6;
+  GrantableLevels grantable_levels = 7;
+  ListAttributeCapabilities list_attribute_capabilities = 8;
+  repeated AttributeKindCapabilities attribute_kind_capabilities = 9;
+  bool can_mix_playlist = 10;
+  bool can_send_messages = 11;
+  AdministratePermissionKindCapabilities administrate_permission_kind_capabilities = 12;
+  bool can_delete = 13;
+  bool can_abuse_report = 14;
+  bool can_publish_to_profile = 15;
+  bool can_modify_speed_playlist = 17;
+  bool can_edit_prompt = 19;
+  bool can_add_prompt = 20;
+  bool can_browse_history = 21;
+  bool can_revert_history = 22;
+  bool can_view_prompt = 23;
+}
+
+message ClaimPermissionGrantResponse {
+  Permission user_permission = 1;
+  Capabilities capabilities = 2;
+  repeated PermissionGrantDetails details = 3;
+}
+
+message Collaborator {
+  User user = 1;
+  uint32 number_of_items = 2;
+  uint32 number_of_tracks = 3;
+  uint32 number_of_episodes = 4;
+  bool is_owner = 5;
+}
+
+message Collaborators {
+  uint32 count = 1;
+  repeated Collaborator collaborator = 2;
+}
+
+message ContainsRequest {
+  repeated string items = 1;
+}
+
+message ContainsResponse {
+  repeated bool found = 1;
+}
+
+message CreationInfo {
+  int32 origin_type = 1;
+  string origin_uri = 2;
+}
+
+message FormatListAttribute {
+  string key = 1;
+  string value = 2;
+}
+
+message GrantableLevels {
+  repeated int32 base = 1;
+  repeated int32 member = 2;
+}
+
+message Item {
+  string header_field = 1;
+  uint32 add_time = 2;
+  User added_by = 3;
+  .com.spotify.cosmos.util.proto.TrackMetadata track_metadata = 4;
+  TrackCollectionState track_collection_state = 5;
+  TrackOfflineState track_offline_state = 6;
+  string row_id = 7;
+  .com.spotify.cosmos.util.proto.TrackPlayState track_play_state = 8;
+  repeated FormatListAttribute format_list_attributes = 9;
+  .com.spotify.cosmos.util.proto.EpisodeMetadata episode_metadata = 10;
+  .com.spotify.cosmos.util.proto.EpisodeSyncState episode_offline_state = 11;
+  .com.spotify.cosmos.util.proto.EpisodeCollectionState episode_collection_state = 12;
+  .com.spotify.cosmos.util.proto.EpisodePlayState episode_play_state = 13;
+  .com.spotify.cosmos.util.proto.ImageGroup display_covers = 14;
+  repeated AvailableSignal available_signals = 15;
+  bool is_recommendation = 16;
+  repeated .com.spotify.cosmos.util.proto.Extension extension = 17;
+  string uri = 18;
+  ItemOfflineState offline_state = 19;
+  ItemCollectionState collection_state = 20;
+  ItemMetadata metadata = 21;
+  ItemCurationState curation_state = 22;
+  bool should_be_obfuscated = 23;
+  .com.spotify.list_collection.save_source.proto.SaveSource save_source = 24;
+  ItemOfflineState video_offline_state = 25;
+}
+
+message ItemCollectionState {
+  bool is_in_collection = 1;
+  bool is_banned = 2;
+}
+
+message ItemCurationState {
+  bool is_curated = 1;
+}
+
+message ItemMetadata {
+  string name = 1;
+  string image = 2;
+  bool is_explicit = 3;
+}
+
+message ItemOfflineState {
+  string offline = 1;
+  uint32 sync_progress = 2;
+  bool locally_playable = 3;
+}
+
+message Lens {
+  string name = 1;
+}
+
+message LensState {
+  repeated Lens requested_lenses = 1;
+  repeated Lens applied_lenses = 2;
+}
+
+message ListAttributeCapabilities {
+  AttributeCapabilities name = 1;
+  AttributeCapabilities description = 2;
+  AttributeCapabilities picture = 3;
+  AttributeCapabilities collaborative = 4;
+  AttributeCapabilities deleted_by_owner = 6;
+  AttributeCapabilities ai_curation_reference_id = 15;
+}
+
+message Member {
+  User user = 1;
+  bool is_owner = 2;
+  uint32 num_tracks = 3;
+  uint32 num_episodes = 4;
+  int32 follow_state = 5;
+  int32 permission_level = 6;
+}
+
+message ModificationRequest {
+  string operation = 1;
+  string before = 2;
+  string after = 3;
+  string name = 4;
+  bool playlist = 5;
+  Attributes attributes = 6;
+  repeated string uris = 7;
+  repeated string rows = 8;
+  bool contents = 9;
+  string item_id = 10;
+  repeated int32 attributes_to_clear = 11;
+  int32 create_item_kind = 12;
+  .com.spotify.list_collection.save_source.proto.SaveSource save_source = 13;
+  CreationInfo creation_info = 14;
+}
+
+message ModificationResponse {
+  bool success = 1;
+  string uri = 2;
+}
+
+message NumberOfItemsForLinkType {
+  int32 link_type = 1;
+  int32 num_items = 2;
+}
+
+message OptionalLimit {
+  uint32 value = 1;
+}
+
+message Permission {
+  bytes revision = 1;
+  int32 permission_level = 2;
+  int32 permission_level_state = 3;
+  Audit audit = 6;
+}
+
+message PermissionGrant {
+  string token = 1;
+  PermissionGrantOptions permission_grant_options = 2;
+  .com.google.protobuf.Timestamp created_at = 3;
+  string created_by_username = 4;
+  string created_by_user_id = 5;
+}
+
+message PermissionGrantDescription {
+  PermissionGrantOptions permission_grant_options = 1;
+  int32 claim_fail_reason = 2;
+  bool is_effective = 3;
+  Capabilities capabilities = 4;
+  repeated PermissionGrantDetails details = 5;
+}
+
+message PermissionGrantDetails {
+  bool permission_level_downgraded = 1;
+  Audit audit = 2;
+}
+
+message PermissionGrantOptions {
+  Permission permission = 1;
+  int64 ttl_ms = 2;
+  int64 max_usages = 3;
+}
+
+message Playlist {
+  PlaylistMetadata playlist_metadata = 1;
+  PlaylistOfflineState playlist_offline_state = 2;
+  LensState lenses = 3;
+}
+
+message PlaylistMembersRequest {
+  string uri = 1;
+  OptionalLimit limit = 2;
+}
+
+message PlaylistMembersResponse {
+  string title = 1;
+  uint32 num_total_members = 2;
+  Capabilities capabilities = 3;
+  int32 base_permission_level = 4;
+  repeated Member members = 5;
+}
+
+message PlaylistMetadata {
+  string link = 1;
+  string name = 2;
+  User owner = 3;
+  bool owned_by_self = 4;
+  bool collaborative = 5;
+  uint32 total_length = 6;
+  string description = 7;
+  .com.spotify.cosmos.util.proto.ImageGroup pictures = 8;
+  bool followed = 9;
+  bool published = 10;
+  bool browsable_offline = 11;
+  bool description_from_annotate = 12;
+  bool picture_from_annotate = 13;
+  string format_list_type = 14;
+  repeated FormatListAttribute format_list_attributes = 15;
+  bool can_report_annotation_abuse = 16;
+  bool is_loaded = 17;
+  Allows allows = 18;
+  string load_state = 19;
+  User made_for = 20;
+  repeated .com.spotify.cosmos.util.proto.Extension extension = 21;
+  uint32 length_ignoring_text_filter = 22;
+  string ai_curation_reference_id = 23;
+  bool deleted_by_owner = 24;
+  bool user_created = 25;
+  repeated ProvidedSortOrder sort_orders = 26;
+  repeated ProvidedTagDefinition tag_definitions = 27;
+}
+
+message PlaylistOfflineState {
+  string offline = 1;
+  uint32 sync_progress = 2;
+}
+
+message ProvidedSortOrder {
+  string internal_id = 1;
+  string name = 2;
+  bool reversible = 3;
+}
+
+message ProvidedTagDefinition {
+  string id = 1;
+  string name = 2;
+  int32 tag_id = 3;
+  int32 count = 4;
+}
+
+message RecommendationItem {
+  .com.spotify.cosmos.util.proto.TrackMetadata track_metadata = 1;
+  TrackCollectionState track_collection_state = 2;
+  TrackOfflineState track_offline_state = 3;
+  .com.spotify.cosmos.util.proto.TrackPlayState track_play_state = 4;
+  bool should_be_obfuscated = 5;
+}
+
+message Response {
+  repeated Item item = 1;
+  Playlist playlist = 2;
+  uint32 unfiltered_length = 3;
+  uint32 unranged_length = 4;
+  uint64 duration = 5;
+  bool loading_contents = 6;
+  uint64 last_modification = 7;
+  uint32 num_followers = 8;
+  bool playable = 9;
+  repeated RecommendationItem recommendations = 10;
+  bool has_explicit_content = 11;
+  bool contains_spotify_tracks = 12;
+  bool contains_episodes = 13;
+  bool only_contains_explicit = 14;
+  bool contains_audio_episodes = 15;
+  bool contains_tracks = 16;
+  bool is_on_demand_in_free = 17;
+  uint32 number_of_tracks = 18;
+  uint32 number_of_episodes = 19;
+  bool prefer_linear_playback = 20;
+  int32 on_demand_in_free_reason = 21;
+  Collaborators collaborators = 22;
+  Permission base_permission = 23;
+  Capabilities user_capabilities = 24;
+  repeated NumberOfItemsForLinkType number_of_items_per_link_type = 25;
+  repeated AvailableSignal available_signals = 26;
+  .com.google.protobuf.Timestamp created_at = 27;
+  repeated AvailableConcepts available_concepts = 28;
+  string content_signature = 29;
+  repeated AvailableLanguage available_languages = 30;
+  bool contains_music_videos = 31;
+}
+
+message SetBasePermissionRequest {
+  int32 permission_level = 1;
+  uint32 timeout_ms = 2;
+}
+
+message SetMemberPermissionRequest {
+  string playlist_uri = 1;
+  string username = 2;
+  int32 permission_level = 3;
+  uint32 timeout_ms = 4;
+}
+
+message SyncRequest {
+  repeated string playlist_uris = 1;
+}
+
+message TrackCollectionState {
+  bool is_in_collection = 1;
+  bool can_add_to_collection = 2;
+  bool is_banned = 3;
+  bool can_ban = 4;
+}
+
+message TrackOfflineState {
+  string offline = 1;
+}
+
+message User {
+  string link = 1;
+  string username = 2;
+  string display_name = 3;
+  string image_uri = 4;
+  string thumbnail_uri = 5;
+  int32 color = 6;
+}

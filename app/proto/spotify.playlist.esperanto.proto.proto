@@ -1,0 +1,265 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package spotify.playlist.esperanto.proto;
+import "com.spotify.playlist.proto.proto";
+import "com.spotify.playlist.policy.proto.proto";
+import "com.spotify.player.esperanto.proto.proto";
+import "com.google.protobuf.proto";
+
+message AttributeFilter {
+  repeated string contains_one_of = 1;
+}
+
+message CopyRequest {
+  string uri = 1;
+  PlaylistQuery query = 2;
+  .com.spotify.playlist.proto.CreationInfo creation_info = 5;
+  string name = 6;
+  string description = 7;
+  oneof items {
+    .com.google.protobuf.Empty all = 3;
+    ItemIdSet item_ids = 4;
+  }
+}
+
+message CopyResponse {
+  ResponseStatus status = 1;
+  string uri = 2;
+  repeated string item_uris = 3;
+}
+
+message ItemIdSet {
+  repeated string item_ids = 1;
+}
+
+message ItemUriToRowIds {
+  string uri = 1;
+  repeated string row_ids = 2;
+  repeated uint32 positions = 3;
+}
+
+message LensDefinition {
+  string identifier = 1;
+  bool active = 2;
+  bool remove_by_prefix = 3;
+}
+
+message PlaylistClearTokenRequest {
+  string uri = 1;
+}
+
+message PlaylistClearTokenResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistContainsRequest {
+  string uri = 1;
+  .com.spotify.playlist.proto.ContainsRequest request = 2;
+}
+
+message PlaylistContainsResponse {
+  ResponseStatus status = 1;
+  .com.spotify.playlist.proto.ContainsResponse response = 2;
+}
+
+message PlaylistFindRequest {
+  string playlist_uri = 1;
+  repeated string item_uris = 2;
+}
+
+message PlaylistFindResponse {
+  ResponseStatus status = 1;
+  repeated ItemUriToRowIds items = 2;
+}
+
+message PlaylistGetRequest {
+  string uri = 1;
+  PlaylistQuery query = 2;
+  .com.spotify.playlist.policy.proto.PlaylistRequestDecorationPolicy policy = 3;
+}
+
+message PlaylistGetResponse {
+  ResponseStatus status = 1;
+  .com.spotify.playlist.proto.Response data = 2;
+  PlaylistQuery query = 3;
+}
+
+message PlaylistInvalidateRevisionsResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistItemSignalResponse {
+  ResponseStatus status = 1;
+  map<string, SignalStatusResult> signal_results = 2;
+}
+
+message PlaylistLensRequest {
+  string uri = 1;
+  repeated LensDefinition lenses = 2;
+}
+
+message PlaylistLensResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistMembersResponse {
+  ResponseStatus status = 1;
+  .com.spotify.playlist.proto.PlaylistMembersResponse response = 2;
+}
+
+message PlaylistModificationRequest {
+  string uri = 1;
+  .com.spotify.playlist.proto.ModificationRequest request = 2;
+}
+
+message PlaylistModificationResponse {
+  ResponseStatus status = 1;
+  repeated string added_row_ids = 2;
+}
+
+message PlaylistMultiGetRequest {
+  repeated PlaylistMultiGetSingleRequest requests = 1;
+  .com.google.protobuf.Duration timeout = 2;
+}
+
+message PlaylistMultiGetResponse {
+  ResponseStatus status = 1;
+  repeated PlaylistMultiGetSingleResponse responses = 2;
+}
+
+message PlaylistMultiGetSingleRequest {
+  string id = 1;
+  PlaylistGetRequest request = 2;
+}
+
+message PlaylistMultiGetSingleResponse {
+  string id = 1;
+  string uri = 2;
+  PlaylistGetResponse response = 3;
+}
+
+message PlaylistMultiItemSignalRequest {
+  string item_id = 1;
+  string list_uri = 2;
+  repeated Signal signals = 3;
+}
+
+message PlaylistMultiSignalRequest {
+  string list_uri = 1;
+  repeated Signal signals = 2;
+  repeated string lenses = 3;
+}
+
+message PlaylistOfflineRequest {
+  string uri = 1;
+  PlaylistQuery query = 2;
+  int32 action = 3;
+}
+
+message PlaylistOfflineResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistPlayRequest {
+  PlaylistQuery playlist_query = 1;
+  .com.spotify.player.esperanto.proto.Context context = 2;
+  .com.spotify.player.esperanto.proto.PlayOptions play_options = 3;
+  .com.spotify.player.esperanto.proto.LoggingParams logging_params = 4;
+  .com.spotify.player.esperanto.proto.PreparePlayOptions prepare_play_options = 5;
+  .com.spotify.player.esperanto.proto.PlayOrigin play_origin = 6;
+  Signal raw_signal = 7;
+}
+
+message PlaylistPlayResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistQuery {
+  repeated int32 bool_predicates = 1;
+  string text_filter = 2;
+  int32 sort_by = 3;
+  PlaylistRange range = 4;
+  int32 update_throttling_ms = 5;
+  bool group = 6;
+  int32 source_restriction = 7;
+  bool show_unavailable = 8;
+  bool include_premium_content = 9;
+  bool load_recommendations = 10;
+  repeated int32 supported_placeholder_types = 11;
+  repeated string descriptor_filter = 12;
+  string item_id_filter = 13;
+  repeated AttributeFilter attribute_filter = 14;
+  bool include_all_placeholders = 15;
+  repeated string lenses = 16;
+  bool dont_load_item_metadata = 17;
+  repeated string language_filter = 18;
+  string provided_sort_internal_id = 19;
+  repeated int32 tag_id_filter = 20;
+}
+
+message PlaylistRange {
+  int32 start = 1;
+  int32 length = 2;
+}
+
+message PlaylistResyncResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistSetBasePermissionRequest {
+  repeated string uris = 1;
+  .com.spotify.playlist.proto.SetBasePermissionRequest request = 2;
+}
+
+message PlaylistSetBasePermissionResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistSetMemberPermissionResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistSetTokenRequest {
+  string uri = 1;
+  string token = 2;
+}
+
+message PlaylistSetTokenResponse {
+  ResponseStatus status = 1;
+}
+
+message PlaylistSignalResponse {
+  ResponseStatus status = 1;
+  map<string, SignalStatusResult> signal_results = 2;
+}
+
+message ResponseStatus {
+  int32 status_code = 1;
+  string reason = 2;
+  repeated string reasons = 3;
+}
+
+message RootlistModificationRequest {
+  string folder_uri = 1;
+  .com.spotify.playlist.proto.ModificationRequest request = 2;
+}
+
+message RootlistModificationResponse {
+  ResponseStatus status = 1;
+  .com.spotify.playlist.proto.ModificationResponse response = 2;
+}
+
+message Signal {
+  string identifier = 1;
+  bytes signal_data = 2;
+  bytes client_payload = 3;
+  bool force = 4;
+  string instance_id = 5;
+}
+
+message SignalStatusResult {
+  int32 status_code = 1;
+  string status_details = 2;
+  bytes status_payload = 3;
+}

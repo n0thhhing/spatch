@@ -20,7 +20,7 @@ final class Hero extends View {
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), ink = new Paint(Paint.ANTI_ALIAS_FLAG), small = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private final RectF box = new RectF();
-    private String title = "Spatch", line = "";
+    private String title = "Spatch Manager", line = "";
     private float angle, spin, press = 1f, pressV, phase, titleShift;
     private long last;
 
@@ -33,7 +33,7 @@ final class Hero extends View {
         small.setColor(Look.blend(look.onPrimaryContainer, look.primaryContainer, 0.25f));
         small.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         small.setTextSize(look.dp(14));
-        setContentDescription("Spatch");
+        setContentDescription("Spatch Manager");
         setClickable(true);
     }
 

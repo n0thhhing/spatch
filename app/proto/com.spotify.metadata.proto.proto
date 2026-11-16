@@ -1,0 +1,264 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.metadata.proto;
+import "com.spotify.metadata.contentratings.v1.proto";
+
+message ActivityPeriod {
+  sint32 start_year = 1;
+  sint32 end_year = 2;
+  sint32 decade = 3;
+}
+
+message Album {
+  bytes gid = 1;
+  string name = 2;
+  repeated Artist artist = 3;
+  int32 type = 4;
+  string label = 5;
+  Date date = 6;
+  sint32 popularity = 7;
+  repeated Image cover = 9;
+  repeated ExternalId external_id = 10;
+  repeated Disc disc = 11;
+  repeated string review = 12;
+  repeated Copyright copyright = 13;
+  repeated Restriction restriction = 14;
+  repeated Album related = 15;
+  repeated SalePeriod sale_period = 16;
+  ImageGroup cover_group = 17;
+  string original_title = 18;
+  string version_title = 19;
+  string type_str = 20;
+  repeated Availability availability = 23;
+  int64 prerelease_end_date = 42;
+  ContentAccessStatus content_access_status = 44;
+}
+
+message AlbumGroup {
+  repeated Album album = 1;
+}
+
+message Artist {
+  bytes gid = 1;
+  string name = 2;
+  sint32 popularity = 3;
+  repeated TopTracks top_track = 4;
+  repeated AlbumGroup album_group = 5;
+  repeated AlbumGroup single_group = 6;
+  repeated AlbumGroup compilation_group = 7;
+  repeated AlbumGroup appears_on_group = 8;
+  repeated ExternalId external_id = 10;
+  repeated Image portrait = 11;
+  repeated Biography biography = 12;
+  repeated ActivityPeriod activity_period = 13;
+  repeated Restriction restriction = 14;
+  repeated Artist related = 15;
+  bool is_portrait_album_cover = 16;
+  ImageGroup portrait_group = 17;
+  repeated SalePeriod sale_period = 18;
+  repeated Availability availability = 20;
+}
+
+message ArtistWithRole {
+  bytes artist_gid = 1;
+  string artist_name = 2;
+  int32 role = 3;
+}
+
+message Audio {
+  bytes uuid = 1;
+  int32 format = 2;
+}
+
+message AudioFile {
+  bytes file_id = 1;
+  int32 format = 2;
+}
+
+message Availability {
+  repeated string catalogue_str = 1;
+  Date start = 2;
+}
+
+message Biography {
+  string text = 1;
+  repeated Image portrait = 2;
+  repeated ImageGroup portrait_group = 3;
+}
+
+message ContentAccessStatus {
+  oneof status {
+    ContentWindowing windowing = 1;
+    ContentGated gated = 2;
+  }
+}
+
+message ContentGated {
+}
+
+message ContentRating {
+  string country = 1;
+  repeated string tag = 2;
+}
+
+message ContentWindowing {
+}
+
+message Copyright {
+  int32 type = 1;
+  string text = 2;
+}
+
+message Date {
+  sint32 year = 1;
+  sint32 month = 2;
+  sint32 day = 3;
+  sint32 hour = 4;
+  sint32 minute = 5;
+}
+
+message Disc {
+  sint32 number = 1;
+  string name = 2;
+  repeated Track track = 3;
+}
+
+message Episode {
+  bytes gid = 1;
+  string name = 2;
+  sint32 duration = 7;
+  repeated AudioFile audio = 12;
+  string description = 64;
+  sint32 number = 65;
+  Date publish_time = 66;
+  sint32 deprecated_popularity = 67;
+  ImageGroup cover_image = 68;
+  string language = 69;
+  bool explicit = 70;
+  Show show = 71;
+  repeated VideoFile video = 72;
+  repeated VideoFile video_preview = 73;
+  repeated AudioFile audio_preview = 74;
+  repeated Restriction restriction = 75;
+  ImageGroup freeze_frame = 76;
+  repeated string keyword = 77;
+  bool allow_background_playback = 81;
+  repeated Availability availability = 82;
+  string external_url = 83;
+  Audio original_audio = 84;
+  int32 type = 87;
+  bool music_and_talk = 91;
+  repeated ContentRating content_rating = 95;
+  bool is_audiobook_chapter = 96;
+  bool is_podcast_short = 97;
+  repeated .com.spotify.metadata.contentratings.v1.ContentRatingTagWithMarkets episode_content_rating = 102;
+}
+
+message ExternalId {
+  string type = 1;
+  string id = 2;
+}
+
+message Image {
+  bytes file_id = 1;
+  int32 size = 2;
+  sint32 width = 3;
+  sint32 height = 4;
+}
+
+message ImageGroup {
+  repeated Image image = 1;
+}
+
+message Licensor {
+  bytes uuid = 1;
+}
+
+message Restriction {
+  repeated int32 catalogue = 1;
+  int32 type = 4;
+  repeated string catalogue_str = 5;
+  oneof countryRestriction {
+    string countries_allowed = 2;
+    string countries_forbidden = 3;
+  }
+}
+
+message SalePeriod {
+  repeated Restriction restriction = 1;
+  Date start = 2;
+  Date end = 3;
+}
+
+message Show {
+  bytes gid = 1;
+  string name = 2;
+  string description = 64;
+  sint32 deprecated_popularity = 65;
+  string publisher = 66;
+  string language = 67;
+  bool explicit = 68;
+  ImageGroup cover_image = 69;
+  repeated Episode episode = 70;
+  repeated Copyright copyright = 71;
+  repeated Restriction restriction = 72;
+  repeated string keyword = 73;
+  int32 media_type = 74;
+  int32 consumption_order = 75;
+  repeated Availability availability = 78;
+  string trailer_uri = 83;
+  bool music_and_talk = 85;
+  bool is_audiobook = 89;
+  bool is_creator_channel = 90;
+}
+
+message TopTracks {
+  string country = 1;
+  repeated Track track = 2;
+}
+
+message Track {
+  bytes gid = 1;
+  string name = 2;
+  Album album = 3;
+  repeated Artist artist = 4;
+  sint32 number = 5;
+  sint32 disc_number = 6;
+  sint32 duration = 7;
+  sint32 popularity = 8;
+  bool explicit = 9;
+  repeated ExternalId external_id = 10;
+  repeated Restriction restriction = 11;
+  repeated AudioFile file = 12;
+  repeated Track alternative = 13;
+  repeated SalePeriod sale_period = 14;
+  repeated AudioFile preview = 15;
+  repeated string tags = 16;
+  int64 earliest_live_timestamp = 17;
+  bool has_lyrics = 18;
+  repeated Availability availability = 19;
+  Licensor licensor = 21;
+  repeated string language_of_performance = 22;
+  Audio original_audio = 24;
+  repeated ContentRating content_rating = 25;
+  string original_title = 27;
+  string version_title = 28;
+  repeated ArtistWithRole artist_with_role = 32;
+  string canonical_uri = 36;
+  repeated Video original_video = 38;
+  repeated TrackAudioFormat audio_formats = 41;
+  ContentAccessStatus content_access_status = 51;
+}
+
+message TrackAudioFormat {
+  Audio original_audio = 1;
+}
+
+message Video {
+  bytes gid = 1;
+}
+
+message VideoFile {
+  bytes file_id = 1;
+}

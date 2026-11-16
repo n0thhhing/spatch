@@ -1,0 +1,313 @@
+service	method	kind	request	response	clients
+spotify.ad_detection.impl.ad_detection_proto.AdDetection	Detect	stream	com.spotify.ad.detection.esperanto.proto.DetectRequest	com.spotify.ad.detection.esperanto.proto.DetectResponse	p/rn0
+spotify.ad_detection.impl.ad_detection_proto.AdDetection	MapTimestamp	single	?	com.spotify.collection_esperanto.proto.Status	p/gn0
+spotify.ad_detection.impl.ad_detection_proto.AdDetection	SubscribeCanonicalToUserTimestamp	stream	com.spotify.ad.detection.esperanto.proto.SubscribeCanonicalToUserTimestampRequest	com.spotify.ad.detection.esperanto.proto.SubscribeCanonicalToUserTimestampResponse	p/kdk
+spotify.ad_detection.impl.ad_detection_proto.AdDetection	SubscribeUserToCanonicalTimestamp	stream	com.spotify.ad.detection.esperanto.proto.SubscribeUserToCanonicalTimestampRequest	com.spotify.ad.detection.esperanto.proto.SubscribeUserToCanonicalTimestampResponse	p/ggv0
+spotify.ads.esperanto.proto.Ads	GetAds	single	com.spotify.ads.esperanto.proto.GetAdsRequest (by name)	com.spotify.ads.esperanto.proto.GetAdsResponse	p/z32
+spotify.ads.esperanto.proto.DeviceState	SetDeviceVolume	single	com.spotify.ads.esperanto.proto.SetDeviceVolumeRequest (by name)	com.spotify.ads.esperanto.proto.SetDeviceVolumeResponse	p/jwt
+spotify.ads.esperanto.proto.InStream	SubBreakChanged	stream	com.google.protobuf.Empty	?	p/ip31
+spotify.ads.esperanto.proto.InStream	SubInStream	stream	com.spotify.ads.esperanto.proto.SubInStreamRequest	?	p/dh30
+spotify.ads.esperanto.proto.Preview	Preview	single	com.spotify.ads.esperanto.proto.PreviewRequest (by name)	com.spotify.ads.esperanto.proto.PreviewResponse	p/jn7
+spotify.ads.esperanto.proto.Slots	ClearAllAds	single	?	com.google.protobuf.Empty	p/pf91
+spotify.ads.esperanto.proto.Slots	ClearAvailableAds	single	?	com.google.protobuf.Empty	p/pf91
+spotify.ads.esperanto.proto.Slots	CreateSlot	single	com.spotify.ads.esperanto.proto.CreateSlotRequest (by name)	com.spotify.ads.esperanto.proto.CreateSlotResponse	p/pf91
+spotify.ads.esperanto.proto.Slots	FetchSlot	single	com.spotify.ads.esperanto.proto.PrepareSlotRequest (by name)	com.spotify.ads.esperanto.proto.PrepareSlotResponse	p/pf91
+spotify.ads.esperanto.proto.Slots	SubSlot	stream	com.spotify.ads.esperanto.proto.SubSlotRequest	?	p/be91
+spotify.ads.esperanto.proto.Slots	TriggerSlot	single	com.spotify.ads.esperanto.proto.TriggerSlotRequest (by name)	com.spotify.ads.esperanto.proto.TriggerSlotResponse	p/pf91
+spotify.ads.esperanto.proto.State	GetState	single	com.spotify.ads.esperanto.proto.StateRequest (by name)	com.spotify.ads.esperanto.proto.StateResponse	p/wob1
+spotify.ads.esperanto.proto.State	PutState	single	?	com.google.protobuf.Empty	p/wob1
+spotify.ads.esperanto.proto.Targeting	PutTargeting	single	com.spotify.ads.esperanto.proto.PutTargetingRequest (by name)	com.spotify.ads.esperanto.proto.TargetingResponse	p/srd1
+spotify.analyzer_esperanto.proto.AnalyzerService	SubLoudness	stream	com.google.protobuf.Empty	com.google.protobuf.Empty	p/tdf0
+spotify.atv_remote.esperanto.proto.AtvRemoteService	StartPairing	single	?	com.spotify.atv_remote.esperanto.proto.AtvPairingResponse	p/jn7
+spotify.atv_remote.esperanto.proto.AtvRemoteService	State	stream	com.spotify.atv_remote.esperanto.proto.StateRequest	?	p/qt
+spotify.atv_remote.esperanto.proto.AtvRemoteService	SubmitPin	single	?	com.spotify.atv_remote.esperanto.proto.AtvPairingResponse	p/jn7
+spotify.audio_sink_chain_wrapper_esperanto.proto.AudioSinkChainWrapperService	Create	single	?	com.google.protobuf.Empty	p/y48
+spotify.audio_sink_chain_wrapper_esperanto.proto.AudioSinkChainWrapperService	Destroy	single	com.spotify.audio_sink_chain_wrapper_esperanto.proto.DestroyRequest	com.google.protobuf.Empty	p/n48
+spotify.audio_sink_chain_wrapper_esperanto.proto.AudioSinkChainWrapperService	Eof	single	com.spotify.audio_sink_chain_wrapper_esperanto.proto.EofRequest	com.spotify.audio_sink_chain_wrapper_esperanto.proto.EofResponse	p/n48
+spotify.audio_sink_chain_wrapper_esperanto.proto.AudioSinkChainWrapperService	Flush	single	com.spotify.audio_sink_chain_wrapper_esperanto.proto.FlushRequest	com.google.protobuf.Empty	p/n48
+spotify.audio_sink_chain_wrapper_esperanto.proto.AudioSinkChainWrapperService	Read	single	com.spotify.audio_sink_chain_wrapper_esperanto.proto.ReadRequest (by name)	com.spotify.audio_sink_chain_wrapper_esperanto.proto.ReadResponse	p/y48
+spotify.audio_sink_chain_wrapper_esperanto.proto.AudioSinkChainWrapperService	Write	single	com.spotify.stream_reporting_debug_tracer_esperanto.proto.DebugTracerRequest (by name)	com.spotify.stream_reporting_debug_tracer_esperanto.proto.DebugTracerResponse	p/y48
+spotify.autodownload_esperanto.proto.AutoDownloadService	DisableAllEnabledShows	single	spotify.autodownload.esperanto.proto.DisableAllEnabledShowsRequest	spotify.autodownload.esperanto.proto.DisableAllEnabledShowsResponse	p/ps7,p/zgz0
+spotify.autodownload_esperanto.proto.AutoDownloadService	SetEpisodeLimit	single	spotify.autodownload.esperanto.proto.SetEpisodeLimitRequest	spotify.autodownload.esperanto.proto.SetEpisodeLimitResponse	p/h0y
+spotify.autodownload_esperanto.proto.AutoDownloadService	SetShowState	single	spotify.autodownload.esperanto.proto.SetShowStateRequest	spotify.autodownload.esperanto.proto.SetShowStateResponse	p/nt21,p/wcr
+spotify.autodownload_esperanto.proto.AutoDownloadService	StreamDecoratedFollowedShows	stream	spotify.autodownload.esperanto.proto.DecoratedFollowedShowsRequest	spotify.autodownload.esperanto.proto.DecoratedFollowedShowsResponse	p/nt8
+spotify.autodownload_esperanto.proto.AutoDownloadService	StreamEnabledShowsCount	stream	spotify.autodownload.esperanto.proto.EnabledShowsCountRequest (by name)	spotify.autodownload.esperanto.proto.EnabledShowsCountResponse	p/mt8
+spotify.autodownload_esperanto.proto.AutoDownloadService	StreamEpisodeLimit	stream	spotify.autodownload.esperanto.proto.EpisodeLimitRequest	spotify.autodownload.esperanto.proto.EpisodeLimitResponse	p/nt8
+spotify.autodownload_esperanto.proto.AutoDownloadService	StreamShowState	stream	spotify.autodownload.esperanto.proto.ShowStateRequest	spotify.autodownload.esperanto.proto.ShowStateResponse	p/dc31,p/eu8,p/zfr
+spotify.automix.esperanto.proto.Automix	AdjustTransitionRecipeForItemSpeeds	single	?	?	p/jn7
+spotify.automix.esperanto.proto.Automix	GetBeatmatchOptOutTransitionDuration	single	?	?	p/jn7
+spotify.automix.esperanto.proto.Automix	GetComputedTransitions	single	com.spotify.automix.esperanto.proto.GetComputedTransitionsRequest (by name)	com.spotify.automix.esperanto.proto.GetComputedTransitionsResponse	p/jn7
+spotify.automix.esperanto.proto.Automix	GetEqStylesForEqStyleId	single	com.spotify.automix.esperanto.proto.GetEqStylesForEqStyleIdRequest (by name)	com.spotify.automix.esperanto.proto.GetEqStylesForEqStyleIdResponse	p/jn7
+spotify.automix.esperanto.proto.Automix	GetFilterFxStylesForFilterFxStyleId	single	?	?	p/jn7
+spotify.automix.esperanto.proto.Automix	GetFxStylesForFxStyleId	single	com.spotify.automix.esperanto.proto.GetFxStylesForFxStyleIdRequest (by name)	com.spotify.automix.esperanto.proto.GetFxStylesForFxStyleIdResponse	p/jn7
+spotify.automix.esperanto.proto.Automix	GetJogwheelBlocks	single	com.spotify.automix.esperanto.proto.GetJogwheelBlocksRequest (by name)	com.spotify.automix.esperanto.proto.GetJogwheelBlocksResponse	p/jn7
+spotify.automix.esperanto.proto.Automix	GetLoopingBlocks	single	com.spotify.automix.esperanto.proto.GetLoopingBlocksRequest (by name)	com.spotify.automix.esperanto.proto.GetLoopingBlocksResponse	p/jn7
+spotify.automix.esperanto.proto.Automix	GetMaxTransitionLength	single	?	com.spotify.automix.esperanto.proto.GetMaxTransitionLengthResponse	p/jn7
+spotify.automix.esperanto.proto.Automix	GetStylesForPresetId	single	com.spotify.automix.esperanto.proto.GetStylesForPresetIdRequest (by name)	com.spotify.automix.esperanto.proto.GetStylesForPresetIdResponse	p/jn7
+spotify.automix.esperanto.proto.Automix	GetVolumeStylesForVolumeStyleId	single	com.spotify.automix.esperanto.proto.GetVolumeStylesForVolumeStyleIdRequest (by name)	com.spotify.automix.esperanto.proto.GetVolumeStylesForVolumeStyleIdResponse	p/jn7
+spotify.collection_esperanto.proto.CollectionService	Add	single	spotify.collection.esperanto.proto.CollectionAddRemoveItemsRequest (by name)	spotify.collection.esperanto.proto.CollectionAddRemoveItemsResponse	p/r5h
+spotify.collection_esperanto.proto.CollectionService	AddUnplayed	single	com.spotify.collection_esperanto.proto.CollectionUnplayedRequest	com.spotify.collection_esperanto.proto.CollectionUnplayedResponse	p/z0c0
+spotify.collection_esperanto.proto.CollectionService	BanGlobal	single	com.spotify.collection_esperanto.proto.BanGlobalRequest	com.spotify.collection_esperanto.proto.Status	p/jjr
+spotify.collection_esperanto.proto.CollectionService	BanInPlayContext	single	com.spotify.collection_esperanto.proto.BanInPlayContextRequest	com.spotify.collection_esperanto.proto.Status	p/el0
+spotify.collection_esperanto.proto.CollectionService	Contains	single	spotify.collection.esperanto.proto.CollectionContainsRequest	spotify.collection.esperanto.proto.CollectionContainsResponse	p/jn7,p/u9c
+spotify.collection_esperanto.proto.CollectionService	Decorate	single	spotify.collection.esperanto.proto.CollectionDecorateRequest (by name)	spotify.collection.esperanto.proto.CollectionDecorateResponse	p/jn7,p/r5h
+spotify.collection_esperanto.proto.CollectionService	GetUnplayedEpisodes	single	spotify.collection.esperanto.proto.CollectionGetUnplayedEpisodesRequest (by name)	spotify.collection.esperanto.proto.CollectionGetUnplayedEpisodesResponse	p/l9o0
+spotify.collection_esperanto.proto.CollectionService	IsSnoozed	single	com.spotify.collection_esperanto.proto.IsSnoozedRequest	com.spotify.collection_esperanto.proto.IsSnoozedResponse	p/jjr
+spotify.collection_esperanto.proto.CollectionService	Remove	single	spotify.collection.esperanto.proto.CollectionAddRemoveItemsRequest (by name)	spotify.collection.esperanto.proto.CollectionAddRemoveItemsResponse	p/jn7,p/r5h
+spotify.collection_esperanto.proto.CollectionService	RemoveUnplayed	single	com.spotify.collection_esperanto.proto.CollectionUnplayedRequest	com.spotify.collection_esperanto.proto.CollectionUnplayedResponse	p/z0c0
+spotify.collection_esperanto.proto.CollectionService	Snooze	single	com.spotify.collection_esperanto.proto.SnoozeRequest	com.spotify.collection_esperanto.proto.Status	p/swn
+spotify.collection_esperanto.proto.CollectionService	StreamArtistView	stream	spotify.collection.esperanto.proto.CollectionGetArtistViewRequest (by name)	spotify.collection.esperanto.proto.CollectionGetArtistViewResponse	p/r5h
+spotify.collection_esperanto.proto.CollectionService	StreamContains	stream	spotify.collection.esperanto.proto.CollectionContainsRequest	spotify.collection.esperanto.proto.CollectionContainsResponse	p/u9c
+spotify.collection_esperanto.proto.CollectionService	StreamDecorate	stream	spotify.collection.esperanto.proto.CollectionDecorateRequest (by name)	spotify.collection.esperanto.proto.CollectionDecorateResponse	p/r5h
+spotify.collection_esperanto.proto.CollectionService	StreamUnplayedEpisodes	stream	com.spotify.show_esperanto.proto.GetUnfinishedEpisodesRequest	spotify.collection.esperanto.proto.CollectionGetUnplayedEpisodesResponse	p/zdz
+spotify.collection_esperanto.proto.CollectionService	UnbanGlobal	single	com.spotify.collection_esperanto.proto.UnbanGlobalRequest	com.spotify.collection_esperanto.proto.Status	p/jjr
+spotify.collection_esperanto.proto.CollectionService	UnbanInPlayContext	single	com.spotify.collection_esperanto.proto.UnbanInPlayContextRequest	com.spotify.collection_esperanto.proto.Status	p/swn
+spotify.collection_esperanto.proto.CollectionService	Unsnooze	single	com.spotify.collection_esperanto.proto.UnsnoozeRequest	com.spotify.collection_esperanto.proto.Status	p/jjr,p/zlo
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	Add	single	?	spotify.mdata.proto.LocalBatchedExtensionResponse	p/w4h
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	AddContextItems	single	com.spotify.collection_platform.esperanto.proto.CollectionPlatformAddContextItemsRequest	com.spotify.collection_platform.esperanto.proto.CollectionPlatformContextItemsResponse	p/q860
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	Contains	single	spotify.autodownload.esperanto.proto.DecoratedFollowedShowsRequest (by name)	spotify.autodownload.esperanto.proto.DecoratedFollowedShowsResponse	p/sun
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	Remove	single	spotify.autodownload.esperanto.proto.EnabledShowsCountRequest (by name)	spotify.autodownload.esperanto.proto.EnabledShowsCountResponse	p/w4h
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	RemoveContextItems	single	com.spotify.collection_platform.esperanto.proto.CollectionPlatformRemoveContextItemsRequest	com.spotify.collection_platform.esperanto.proto.CollectionPlatformContextItemsResponse	p/q860
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	StreamContains	stream	spotify.autodownload.esperanto.proto.ShowStateRequest (by name)	spotify.autodownload.esperanto.proto.ShowStateResponse	p/w4h
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	StreamGet	stream	com.spotify.collection_platform.esperanto.proto.CollectionPlatformItemsRequest	com.spotify.collection_platform.esperanto.proto.CollectionPlatformEsperantoItemsResponse	p/aod0,p/glu0,p/ng90,p/rbk
+spotify.collection_platform_esperanto.proto.CollectionPlatformService	StreamGetContextItems	stream	com.spotify.collection_platform.esperanto.proto.CollectionPlatformGetContextItemsRequest	com.spotify.collection_platform.esperanto.proto.CollectionPlatformContextItemsResponse	p/r860
+spotify.common_capping.impl.common_capping_proto.CommonCapping	GetQuotaStateAt	single	?	?	p/jn7
+spotify.common_capping.impl.common_capping_proto.CommonCapping	IsCapped	single	com.spotify.common_capping.esperanto.proto.IsCappedRequest (by name)	com.spotify.common_capping.esperanto.proto.IsCappedResponse	p/jn7
+spotify.common_capping.impl.common_capping_proto.CommonCapping	ObserveCapStateChanged	stream	?	?	p/jn7
+spotify.common_capping.impl.common_capping_proto.CommonCapping	Refresh	single	?	com.google.protobuf.Empty	p/jn7
+spotify.common_capping.impl.common_capping_proto.CommonCapping	ReportConsumption	single	?	com.google.protobuf.Empty	p/jn7
+spotify.connect.discovery.cast.esperanto.proto.ArtisanalCastGroupControlService	AddMember	single	?	?	p/ua6
+spotify.connect.discovery.cast.esperanto.proto.ArtisanalCastGroupControlService	RemoveMember	single	?	?	p/ua6
+spotify.connect.discovery.cast.esperanto.proto.ArtisanalCastGroupControlService	SetMemberVolume	single	?	?	p/ua6
+spotify.connect.discovery.cast.esperanto.proto.ArtisanalCastGroupControlService	Subscribe	stream	com.spotify.offline_esperanto.proto.EstimateMusicVideoDownloadSizeRequest	?	p/ymu
+spotify.connect.discovery.cast.esperanto.proto.CastService	Connect	single	com.spotify.connect.discovery.cast.esperanto.proto.ConnectRequest (by name)	com.spotify.connect.discovery.cast.esperanto.proto.Response	p/a4e
+spotify.connect.discovery.cast.esperanto.proto.CastService	ConnectionError	single	?	com.google.protobuf.Empty	p/a4e
+spotify.connect.discovery.cast.esperanto.proto.CastService	DeleteDevice	single	?	com.spotify.connect.discovery.cast.esperanto.proto.Response	p/a4e
+spotify.connect.discovery.cast.esperanto.proto.CastService	Logout	stream	com.google.protobuf.Empty	?	p/qxs
+spotify.connect.discovery.cast.esperanto.proto.CastService	PutDevice	single	com.spotify.connect.discovery.cast.esperanto.proto.PutDeviceRequest (by name)	com.spotify.connect.discovery.cast.esperanto.proto.Response	p/a4e
+spotify.connect.discovery.cast.esperanto.proto.CastService	PutMessage	single	?	com.spotify.connect.discovery.cast.esperanto.proto.Response	p/a4e
+spotify.connect.discovery.cast.esperanto.proto.CastService	SubConnect	stream	com.google.protobuf.Empty	?	p/qxs
+spotify.connect.discovery.cast.esperanto.proto.CastService	SubMessage	stream	com.spotify.device_location_service.proto.DeviceLocationResponse	?	p/n1o
+spotify.connect.esperanto.proto.ConnectService	AddDeviceToGroup	single	com.spotify.connect.esperanto.proto.AddDeviceToGroupRequest (by name)	com.spotify.connect.esperanto.proto.AddDeviceToGroupResponse	p/jn7
+spotify.connect.esperanto.proto.ConnectService	ClusterUpdateAfterBackendConnection	single	?	?	p/jn7
+spotify.connect.esperanto.proto.ConnectService	InstallSpotify	stream	com.spotify.connect.esperanto.proto.InstallSpotifyRequest	?	p/j2l
+spotify.connect.esperanto.proto.ConnectService	Logout	single	com.spotify.connect.esperanto.proto.LogoutRequest (by name)	com.spotify.connect.esperanto.proto.StatusResponse	p/jn7
+spotify.connect.esperanto.proto.ConnectService	NotifyAudioRouteChanged	single	?	com.google.protobuf.Empty	p/jn7
+spotify.connect.esperanto.proto.ConnectService	PerformDiscovery	single	?	com.spotify.download.esperanto.proto.MediaManifestResponse	p/be
+spotify.connect.esperanto.proto.ConnectService	Pull	single	com.spotify.connect.esperanto.proto.PullRequest (by name)	com.spotify.connect.esperanto.proto.StatusResponse	p/jn7
+spotify.connect.esperanto.proto.ConnectService	RefreshCluster	single	?	com.spotify.prefs.esperanto.proto.PrefValues	p/be
+spotify.connect.esperanto.proto.ConnectService	RemoveDeviceFromGroup	single	com.spotify.connect.esperanto.proto.RemoveDeviceFromGroupRequest (by name)	com.spotify.connect.esperanto.proto.RemoveDeviceFromGroupResponse	p/jn7
+spotify.connect.esperanto.proto.ConnectService	SetPreferredIncarnation	single	com.spotify.connect.esperanto.proto.SetPreferredIncarnationRequest (by name)	com.spotify.connect.esperanto.proto.StatusResponse	p/jn7
+spotify.connect.esperanto.proto.ConnectService	State	stream	?	?	p/jn7
+spotify.connect.esperanto.proto.ConnectService	Transfer	single	com.spotify.connect.esperanto.proto.TransferRequest (by name)	com.spotify.connect.esperanto.proto.StatusResponse	p/jn7
+spotify.connect.esperanto.proto.ConnectService	WakeSleepingClusterDevices	single	?	com.google.protobuf.BoolValue	p/be
+spotify.connect.esperanto.proto.ConnectVolumeService	Volume	stream	?	com.spotify.player.esperanto.proto.ResponseWithReasons	p/be
+spotify.connect.esperanto.proto.ConnectVolumeService	VolumeDown	single	com.spotify.connect.esperanto.proto.VolumeDownRequest	com.spotify.connect.esperanto.proto.StatusResponse	p/dmj1
+spotify.connect.esperanto.proto.ConnectVolumeService	VolumeSet	single	com.spotify.connect.esperanto.proto.VolumeSetRequest	com.spotify.connect.esperanto.proto.StatusResponse	p/bih1
+spotify.connect.esperanto.proto.ConnectVolumeService	VolumeUp	single	com.spotify.connect.esperanto.proto.VolumeUpRequest	com.spotify.connect.esperanto.proto.StatusResponse	p/dmj1
+spotify.connectivity.auth.esperanto.proto.Session	SAVE_ENTITY	single	com.spotify.connectivity.auth.esperanto.proto.ProductStateMap	com.google.protobuf.Empty	p/z0u0
+spotify.connectivity.reachability.esperanto.proto.ReachabilityProvider	SharedReachabilityMonitor	stream	com.google.protobuf.Empty	com.spotify.connectivity.reachability.esperanto.proto.ReachabilityState	p/ev71
+spotify.decipher.esperanto.proto.DecipherService	SendAction	single	?	com.google.protobuf.Empty	p/jn7
+spotify.decipher.esperanto.proto.DecipherService	SendEvent	single	?	com.google.protobuf.Empty	p/jn7
+spotify.download.esperanto.proto.Download	CreateProgressiveFileStreamer	single	com.spotify.download.esperanto.proto.ProgressiveFileStreamerParams	com.spotify.download.esperanto.proto.FileStreamerId	p/c4z
+spotify.download.esperanto.proto.Download	CreateSegmentFileStreamer	single	com.spotify.download.esperanto.proto.SegmentFileStreamerParams	com.spotify.download.esperanto.proto.SegmentFileStreamerId	p/gq51
+spotify.download.esperanto.proto.Download	DestroyFileStreamer	single	com.spotify.download.esperanto.proto.FileStreamerId	com.google.protobuf.Empty	p/f520
+spotify.download.esperanto.proto.Download	DestroySegmentFileStreamer	single	com.spotify.download.esperanto.proto.SegmentFileStreamerId	com.google.protobuf.Empty	p/gq51
+spotify.download.esperanto.proto.Download	FinishSegmentDataRequest	single	com.spotify.download.esperanto.proto.FinishSegmentDataRequestParams	com.google.protobuf.Empty	p/gr51
+spotify.download.esperanto.proto.Download	GetFirstCachedSegmentIndex	sync	com.spotify.download.esperanto.proto.GetFirstCachedSegmentIndexParams	com.spotify.download.esperanto.proto.GetFirstCachedSegmentIndexResponse	p/fxu
+spotify.download.esperanto.proto.Download	GetMediaHandleId	stream	com.spotify.download.esperanto.proto.GetMediaHandleParams	com.spotify.download.esperanto.proto.GetMediaHandleIdResponse	p/fxu
+spotify.download.esperanto.proto.Download	GetMediaManifest	single	com.spotify.download.esperanto.proto.MediaManifestParams	com.spotify.download.esperanto.proto.MediaManifestResponse	p/fxu
+spotify.download.esperanto.proto.Download	IsFileFullyCached	single	com.spotify.download.esperanto.proto.IsFileFullyCachedParams	com.google.protobuf.BoolValue	p/fxu
+spotify.download.esperanto.proto.Download	RequestData	stream	com.spotify.download.esperanto.proto.RequestDataParams	com.spotify.download.esperanto.proto.RequestDataResponse	p/m1d
+spotify.download.esperanto.proto.Download	RequestSegmentData	stream	com.spotify.download.esperanto.proto.RequestSegmentDataParams	com.spotify.download.esperanto.proto.RequestDataResponse	p/m3t0
+spotify.download.esperanto.proto.Download	SubscribeVideoBandwidth	stream	com.google.protobuf.Empty	com.spotify.download.esperanto.proto.VideoBandwidthResponse	p/tdj1
+spotify.image.esperanto.proto.Image	GetImage	single	com.spotify.image.esperanto.proto.GetImageParams	com.spotify.image.esperanto.proto.ImageData	p/d5t
+spotify.karaoke_esperanto.proto.KaraokeService	PostStatus	single	?	com.spotify.offline_esperanto.proto.Error	p/be
+spotify.karaoke_esperanto.proto.KaraokeService	PostVocalVolume	single	?	com.spotify.on_demand_set.proto.ResponseStatus	p/be
+spotify.karaoke_esperanto.proto.KaraokeService	SubscribeToEvents	stream	com.spotify.karaoke.esperanto.proto.KaraokeSubEventsRequest	com.spotify.karaoke.esperanto.proto.KaraokeSubEventsResponse	p/z8c0
+spotify.local_files_esperanto.proto.LocalFiles	GetSources	single	?	com.spotify.local_files_esperanto.proto.GetSourcesResponse	p/eee0
+spotify.local_files_esperanto.proto.LocalFiles	MutateDefaultSource	single	?	com.spotify.local_files_esperanto.proto.MutateSourceResponse	p/eee0
+spotify.local_files_esperanto.proto.LocalFiles	NotifyDefaultSources	single	?	com.google.protobuf.Empty	p/eee0
+spotify.local_files_esperanto.proto.LocalFiles	RemoveFolder	single	?	com.spotify.local_files_esperanto.proto.MutateSourceResponse	p/eee0
+spotify.local_files_esperanto.proto.LocalFiles	SubscribeSources	stream	com.google.protobuf.Empty	?	com/spotify/localfiles/localfilescore/LocalFilesFeatureImpl
+spotify.local_files_esperanto.proto.LocalFiles	SubscribeTracks	stream	com.spotify.local_files_esperanto.proto.GetTracksRequest	?	p/q4d0,p/wao0
+spotify.mdata_esperanto.proto.MetadataService	Expire	single	com.spotify.mdata.cosmos.proto.InvalidateCacheRequest	com.spotify.mdata.cosmos.proto.InvalidateCacheResponse	p/bm00,p/kv00,p/laz
+spotify.mdata_esperanto.proto.MetadataService	Fetch	single	?	spotify.mdata.proto.LocalBatchedExtensionResponse	p/zmj0
+spotify.mdata_esperanto.proto.MetadataService	Observe	stream	com.spotify.mdata.esperanto.proto.ObserveRequest (by name)	com.spotify.mdata.esperanto.proto.ObserveResponse	p/xf0
+spotify.metadata_esperanto.proto.ClassicMetadataService	GetEntity	single	?	com.spotify.collection_esperanto.proto.Status	p/ueg
+spotify.metadata_esperanto.proto.ClassicMetadataService	MultigetEntity	single	com.spotify.metadata.cosmos.proto.MultiRequest	com.spotify.metadata.cosmos.proto.MultiResponse	p/j23,p/yr6
+spotify.offline_esperanto.proto.Offline	AddDownload	single	com.spotify.connectivity.product_state.esperanto.proto.PutValuesSyncRequest (by name)	com.spotify.connectivity.product_state.esperanto.proto.PutValuesSyncResponse	p/vpp0,p/oqp0
+spotify.offline_esperanto.proto.Offline	BulkRedownloadCancel	single	com.google.protobuf.Empty	com.spotify.connectivity.product_state.esperanto.proto.GetValuesResponse	com/spotify/collection/offlinesyncnotification/BulkRedownloadCancelReceiver,p/alg1
+spotify.offline_esperanto.proto.Offline	BulkRedownloadPreflight	single	com.google.protobuf.Empty	com.spotify.offline_esperanto.proto.BulkRedownloadPreflightResponse	p/dlg1,p/k6g1
+spotify.offline_esperanto.proto.Offline	BulkRedownloadStart	single	com.google.protobuf.Empty	com.spotify.playability.esperanto.proto.GetLocallyPlayableResponse	p/alg1
+spotify.offline_esperanto.proto.Offline	EstimateMusicVideoDownloadSize	single	com.spotify.offline_esperanto.proto.EstimateMusicVideoDownloadSizeRequest	com.spotify.offline_esperanto.proto.EstimateMusicVideoDownloadSizeResponse	p/ymu
+spotify.offline_esperanto.proto.Offline	GetContexts	single	com.spotify.offline_esperanto.proto.GetContextsRequest (by name)	com.spotify.offline_esperanto.proto.GetContextsResponse	p/vpp0
+spotify.offline_esperanto.proto.Offline	GetContextsProgress	single	com.spotify.offline_esperanto.proto.GetContextsProgressRequest (by name)	com.spotify.offline_esperanto.proto.ContextsProgressResponse	p/oqp0
+spotify.offline_esperanto.proto.Offline	GetDevices	single	com.google.protobuf.Empty	com.spotify.offline_esperanto.proto.GetDevicesResponse	p/nt21
+spotify.offline_esperanto.proto.Offline	GetListsContainingItem	single	com.spotify.offline_esperanto.proto.GetListsContainingItemRequest	com.spotify.offline_esperanto.proto.GetListsContainingItemResponse	p/byp0
+spotify.offline_esperanto.proto.Offline	GetOfflineLicenseInfo	single	com.spotify.offline_esperanto.proto.GetContextsResponse	com.spotify.offline_esperanto.proto.OfflineLicenseInfo	p/ygi0
+spotify.offline_esperanto.proto.Offline	HasResource	single	com.spotify.offline_esperanto.proto.HasResourceRequest	com.spotify.offline_esperanto.proto.HasResourceResponse	p/fna
+spotify.offline_esperanto.proto.Offline	LicenseStatus	single	com.google.protobuf.Empty	com.spotify.offline_esperanto.proto.LicenseStatusResponse	p/p021,p/awe
+spotify.offline_esperanto.proto.Offline	PrepareResource	single	com.spotify.offline_esperanto.proto.PrepareResourceRequest	com.spotify.offline_esperanto.proto.PrepareResourceResponse	p/npt0
+spotify.offline_esperanto.proto.Offline	RemoveAllDownloads	single	com.google.protobuf.Empty	com.google.protobuf.Empty	p/vm0
+spotify.offline_esperanto.proto.Offline	RemoveDownload	single	com.spotify.offline_esperanto.proto.DownloadRequest	com.spotify.offline_esperanto.proto.DownloadResponse	p/oqp0,com/spotify/collection/downloaded/service/OffliningService,p/byp0
+spotify.offline_esperanto.proto.Offline	SetOfflinePlaybackAllowed	single	com.spotify.offline_esperanto.proto.SetOfflinePlaybackAllowedRequest	com.spotify.offline_esperanto.proto.SetOfflinePlaybackAllowedResponse	p/bup0
+spotify.offline_esperanto.proto.Offline	SubscribeBulkRedownloadProgress	stream	com.google.protobuf.Empty	com.spotify.offline_esperanto.proto.Progress	p/g9r,p/mxp0,p/yzu
+spotify.offline_esperanto.proto.Offline	SubscribeContexts	stream	com.spotify.offline_esperanto.proto.GetContextsRequest	com.spotify.offline_esperanto.proto.GetContextsResponse	p/vpp0,p/jsu
+spotify.offline_esperanto.proto.Offline	SubscribeContextsProgress	stream	com.spotify.offline_esperanto.proto.GetContextsProgressRequest	com.spotify.offline_esperanto.proto.ContextsProgressResponse	p/uls,p/cnp0,p/wao0
+spotify.offline_esperanto.proto.Offline	SubscribeDevicesWithContext	stream	com.spotify.offline_esperanto.proto.DevicesWithContextRequest	com.spotify.offline_esperanto.proto.DevicesWithContextResponse	p/byp0
+spotify.offline_esperanto.proto.Offline	SubscribeError	stream	com.google.protobuf.Empty	com.spotify.offline_esperanto.proto.Error	p/f2u0,p/gxp0
+spotify.offline_esperanto.proto.Offline	SubscribeItems	stream	com.spotify.offline_esperanto.proto.GetItemsRequest	com.spotify.offline_esperanto.proto.GetItemsResponse	p/oql,p/xpp0
+spotify.offline_esperanto.proto.Offline	SubscribeOfflinePlaybackStatus	stream	com.google.protobuf.Empty	com.spotify.offline_esperanto.proto.GetOfflinePlaybackStatusResponse	p/bup0,p/vop0
+spotify.offline_esperanto.proto.Offline	SubscribeTotalProgress	stream	com.google.protobuf.Empty	com.spotify.playback_esperanto.proto.DuckResponse	p/clo,p/g9r,p/mxp0,p/vf2
+spotify.offline_playable_cache_esperanto.proto.OfflinePlayableCache	RemoveTrack	single	com.spotify.offline_playable_cache_esperanto.proto.RemoveTrackRequest	com.spotify.offline_playable_cache_esperanto.proto.RemoveTrackResponse	p/m311
+spotify.on_demand_set_esperanto.proto.OnDemandSetService	Set	single	?	com.spotify.on_demand_set.proto.ResponseStatus	p/be
+spotify.on_demand_set_esperanto.proto.OnDemandSetService	Temporary	single	com.spotify.on_demand_set.proto.Temporary	com.spotify.on_demand_set.proto.ResponseStatus	p/jut
+spotify.pending_events.esperanto.proto.PendingEvents	AddPendingEvent	single	com.spotify.pending_events.esperanto.proto.AddPendingEventRequest	com.spotify.pending_events.esperanto.proto.AddPendingEventResponse	p/lbc0,p/n6h1,p/t4d1
+spotify.pending_events.esperanto.proto.PendingEvents	CommitPendingEvent	single	com.spotify.pending_events.esperanto.proto.CommitPendingEventRequest	com.spotify.pending_events.esperanto.proto.CommitPendingEventResponse	p/owf1,p/t4d1,p/w090
+spotify.pending_events.esperanto.proto.PendingEvents	ReplacePendingEvent	single	?	com.spotify.playback_settings.esperanto.proto.ShuffleState	p/vfs0
+spotify.playability.esperanto.proto.Playability	SubscribeLocallyPlayable	stream	com.spotify.playability.esperanto.proto.GetLocallyPlayableRequest	com.spotify.playability.esperanto.proto.GetLocallyPlayableResponse	p/fgs0
+spotify.playback_esperanto.proto.PlaybackService	Duck	single	com.spotify.playback_esperanto.proto.DuckRequest	com.spotify.playback_esperanto.proto.DuckResponse	p/cto0,p/n5s
+spotify.playback_settings.esperanto.proto.PlaybackSettings	GetDeviceSettings	single	com.spotify.playback_settings.esperanto.proto.GetDeviceSettingsRequest	com.spotify.playback_settings.esperanto.proto.GetDeviceSettingsResponse	p/bah1,p/q721
+spotify.playback_settings.esperanto.proto.PlaybackSettings	GetSettings	single	com.spotify.playback_settings.esperanto.proto.GetSettingsRequest	com.spotify.playback_settings.esperanto.proto.GetSettingsResponse	p/z3u0,p/p4u0,p/wt,p/xe2
+spotify.playback_settings.esperanto.proto.PlaybackSettings	GetShuffleState	single	?	com.spotify.playback_settings.esperanto.proto.ShuffleState	p/mgc
+spotify.playback_settings.esperanto.proto.PlaybackSettings	SetDeviceStreamQuality	single	com.spotify.playback_settings.esperanto.proto.SetDeviceStreamQualityRequest	com.spotify.playback_settings.esperanto.proto.StatusResponse	p/bah1
+spotify.playback_settings.esperanto.proto.PlaybackSettings	SetSettings	single	com.spotify.playback_settings.esperanto.proto.SetSettingsRequest	com.google.protobuf.Empty	p/z3u0,p/dao,p/j440,p/oy3
+spotify.playback_settings.esperanto.proto.PlaybackSettings	SetShuffleState	single	com.spotify.playback_settings.esperanto.proto.SetShuffleStateRequest	com.google.protobuf.Empty	p/pf81
+spotify.playback_settings.esperanto.proto.PlaybackSettings	StreamSettingChanges	stream	com.spotify.playback_settings.esperanto.proto.StreamSettingChangesRequest	com.spotify.playback_settings.esperanto.proto.StreamSettingChange	p/r4u0,p/af01,p/wt,p/xe2
+spotify.player.esperanto.proto.ContextPlayer	AddToQueue	single	com.spotify.player.esperanto.proto.AddToQueueRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/tuz
+spotify.player.esperanto.proto.ContextPlayer	DeleteSession	single	com.spotify.player.esperanto.proto.DeleteSessionRequest	com.spotify.player.esperanto.proto.DeleteSessionResponse	p/pxv0
+spotify.player.esperanto.proto.ContextPlayer	GetError	stream	com.spotify.player.esperanto.proto.GetErrorRequest	com.spotify.player.esperanto.proto.ContextPlayerError	p/ppw0,p/vuz,p/wh91
+spotify.player.esperanto.proto.ContextPlayer	GetQueue	stream	com.spotify.player.esperanto.proto.GetQueueRequest	com.spotify.player.esperanto.proto.Queue	p/tuz
+spotify.player.esperanto.proto.ContextPlayer	GetState	stream	com.spotify.player.esperanto.proto.GetStateRequest	com.spotify.player.esperanto.proto.ContextPlayerState	p/jn7,p/aj91,p/duj0,p/vuz
+spotify.player.esperanto.proto.ContextPlayer	Pause	single	com.spotify.player.esperanto.proto.PauseRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/jn7,p/ruz
+spotify.player.esperanto.proto.ContextPlayer	Play	single	com.spotify.player.esperanto.proto.PlayRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/jn7,p/s880,p/yfu
+spotify.player.esperanto.proto.ContextPlayer	PlayAsNextInQueue	single	com.spotify.player.esperanto.proto.PlayAsNextInQueueRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/fey
+spotify.player.esperanto.proto.ContextPlayer	PlayPrepared	single	com.spotify.player.esperanto.proto.PlayPreparedRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/qbo1
+spotify.player.esperanto.proto.ContextPlayer	PreparePlay	single	com.spotify.player.esperanto.proto.DeleteSessionRequest	com.spotify.player.esperanto.proto.SessionResponse	p/qu7,p/pxv0
+spotify.player.esperanto.proto.ContextPlayer	Resume	single	com.spotify.player.esperanto.proto.ResumeRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/jn7,p/ruz
+spotify.player.esperanto.proto.ContextPlayer	SeekTo	single	com.spotify.player.esperanto.proto.SeekToRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/jn7,p/ruz
+spotify.player.esperanto.proto.ContextPlayer	SetOptions	single	spotify.collection.esperanto.proto.CollectionDecorateRequest (by name)	spotify.collection.esperanto.proto.CollectionDecorateResponse	p/ujm
+spotify.player.esperanto.proto.ContextPlayer	SetQueue	single	com.spotify.player.esperanto.proto.SetQueueRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/tuz
+spotify.player.esperanto.proto.ContextPlayer	SetShufflingContext	single	com.spotify.player.esperanto.proto.SetShufflingContextRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/suz
+spotify.player.esperanto.proto.ContextPlayer	SetSleepTimer	single	com.spotify.player.esperanto.proto.SetSleepTimerRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/ncu0
+spotify.player.esperanto.proto.ContextPlayer	Signal	single	com.spotify.player.esperanto.proto.SignalRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/jn7,p/efr,p/ehl,p/k9r,p/xq81
+spotify.player.esperanto.proto.ContextPlayer	SkipNext	single	com.spotify.player.esperanto.proto.SkipNextRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/jn7,p/ruz
+spotify.player.esperanto.proto.ContextPlayer	SkipPrev	single	com.spotify.player.esperanto.proto.SkipPrevRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/ruz
+spotify.player.esperanto.proto.ContextPlayer	Stop	single	com.spotify.player.esperanto.proto.StopRequest	com.spotify.player.esperanto.proto.ResponseWithReasons	p/jn7,p/tzo
+spotify.playlist.local_list_config_esperanto.proto.LocalListConfigService	Save	single	spotify.playlist.local_list_config_esperanto.proto.LocalListConfigSaveRequest (by name)	spotify.playlist.local_list_config_esperanto.proto.LocalListConfigSaveResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistDataService	Find	single	spotify.playlist.esperanto.proto.PlaylistFindRequest (by name)	spotify.playlist.esperanto.proto.PlaylistFindResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistDataService	Get	single	spotify.playlist.esperanto.proto.PlaylistGetRequest (by name)	spotify.playlist.esperanto.proto.PlaylistGetResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistDataService	MultiGet	single	spotify.playlist.esperanto.proto.PlaylistMultiGetRequest (by name)	spotify.playlist.esperanto.proto.PlaylistMultiGetResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistDataService	Subscribe	stream	?	?	p/jn7
+spotify.playlist_esperanto.proto.PlaylistPlayService	Play	single	spotify.playlist.esperanto.proto.PlaylistPlayRequest (by name)	spotify.playlist.esperanto.proto.PlaylistPlayResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	ClearToken	single	spotify.playlist.esperanto.proto.PlaylistClearTokenRequest (by name)	spotify.playlist.esperanto.proto.PlaylistClearTokenResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	Contains	single	spotify.playlist.esperanto.proto.PlaylistContainsRequest (by name)	spotify.playlist.esperanto.proto.PlaylistContainsResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	Copy	single	spotify.playlist.esperanto.proto.CopyRequest (by name)	spotify.playlist.esperanto.proto.CopyResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	EmitItemSignals	single	?	spotify.playlist.esperanto.proto.PlaylistItemSignalResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	EmitSignals	single	?	spotify.playlist.esperanto.proto.PlaylistSignalResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	GetMembers	single	?	spotify.playlist.esperanto.proto.PlaylistMembersResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	InvalidateRevisions	single	?	spotify.playlist.esperanto.proto.PlaylistInvalidateRevisionsResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	Modify	single	spotify.playlist.esperanto.proto.PlaylistModificationRequest (by name)	spotify.playlist.esperanto.proto.PlaylistModificationResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	RequestLenses	single	spotify.playlist.esperanto.proto.PlaylistLensRequest (by name)	spotify.playlist.esperanto.proto.PlaylistLensResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	Resync	single	?	spotify.playlist.esperanto.proto.PlaylistResyncResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	SetBasePermission	single	spotify.playlist.esperanto.proto.PlaylistSetBasePermissionRequest (by name)	spotify.playlist.esperanto.proto.PlaylistSetBasePermissionResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	SetMemberPermission	single	?	spotify.playlist.esperanto.proto.PlaylistSetMemberPermissionResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	SetOfflineState	single	spotify.playlist.esperanto.proto.PlaylistOfflineRequest (by name)	spotify.playlist.esperanto.proto.PlaylistOfflineResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	SetToken	single	spotify.playlist.esperanto.proto.PlaylistSetTokenRequest (by name)	spotify.playlist.esperanto.proto.PlaylistSetTokenResponse	p/jn7
+spotify.playlist_esperanto.proto.PlaylistService	SubscribeToMembers	stream	?	?	p/jn7
+spotify.playlist_esperanto.proto.RootlistModificationService	Modify	single	spotify.playlist.esperanto.proto.RootlistModificationRequest (by name)	spotify.playlist.esperanto.proto.RootlistModificationResponse	p/jn7
+spotify.prefetch_esperanto.proto.MediaPrefetch	UpdateFuture	single	com.spotify.playback_settings.esperanto.proto.GetSettingsRequest (by name)	com.spotify.playback_settings.esperanto.proto.GetSettingsResponse	p/be
+spotify.prefetch_esperanto.proto.MediaPrefetch	UpdateSegmentProfileSelectionConfig	single	?	com.google.protobuf.Empty	p/be
+spotify.prefs.esperanto.proto.Prefs	Get	single	com.spotify.prefs.esperanto.proto.GetParams	com.spotify.prefs.esperanto.proto.PrefValues	p/bqz
+spotify.prefs.esperanto.proto.Prefs	Set	single	com.spotify.prefs.esperanto.proto.SetParams	com.spotify.prefs.esperanto.proto.PrefValues	p/a680,p/bqz,p/nqc1
+spotify.prefs.esperanto.proto.Prefs	Sub	stream	com.spotify.prefs.esperanto.proto.SubParams	com.spotify.prefs.esperanto.proto.PrefValues	p/bqz
+spotify.product_state.esperanto.proto.ProductState	PutValues	single	com.spotify.connectivity.product_state.esperanto.proto.PutValuesRequest (by name)	com.spotify.connectivity.product_state.esperanto.proto.PutValuesResponse	p/be
+spotify.product_state.esperanto.proto.ProductState	PutValuesSync	single	com.spotify.connectivity.product_state.esperanto.proto.PutValuesSyncRequest (by name)	com.spotify.connectivity.product_state.esperanto.proto.PutValuesSyncResponse	p/be
+spotify.product_state.esperanto.proto.ProductState	SubValues	stream	com.spotify.connectivity.product_state.esperanto.proto.SubValuesRequest (by name)	com.spotify.connectivity.product_state.esperanto.proto.GetValuesResponse	p/be
+spotify.profile_esperanto.proto.v1.ProfileService	ChangeDisplayName	single	spotify.profile_esperanto.proto.ChangeDisplayNameRequest	spotify.profile_esperanto.proto.ChangeDisplayNameResponse	p/uqv0
+spotify.profile_esperanto.proto.v1.ProfileService	SubscribeToProfiles	stream	spotify.profile_esperanto.proto.GetProfilesRequest (by name)	spotify.profile_esperanto.proto.GetProfilesResponse	p/be
+spotify.progress_playback_esperanto.proto.ResumptionProgressPlayback	OnUpdate	single	spotify.progress_playback_esperanto.proto.OnUpdateRequest (by name)	spotify.progress_playback_esperanto.proto.OnUpdateResponse	p/a931
+spotify.puffin_esperanto.proto.PuffinService	DisableProcessing	single	com.spotify.puffin_esperanto.proto.PuffinDisableProcessingRequest	com.google.protobuf.Empty	p/jkp0
+spotify.puffin_esperanto.proto.PuffinService	EnterProcessingEnvironment	single	com.google.protobuf.Empty	com.google.protobuf.Empty	p/p5
+spotify.puffin_esperanto.proto.PuffinService	Filter	single	com.spotify.puffin_esperanto.proto.PuffinFilterRequest	com.spotify.recently_played_esperanto.proto.GetRecentlyPlayedTracksResponse	p/gk61
+spotify.puffin_esperanto.proto.PuffinService	LeaveProcessingEnvironment	single	com.google.protobuf.Empty	com.google.protobuf.Empty	p/d6u,p/e6u
+spotify.puffin_esperanto.proto.PuffinService	LibraryVersion	single	com.google.protobuf.Empty	com.spotify.stream_reporting_esperanto.proto.StatusResponse	p/e6u,p/icd1
+spotify.puffin_esperanto.proto.PuffinService	SubscribeToErrors	stream	com.google.protobuf.Empty	com.spotify.stream_reporting_esperanto.proto.StatusResponse	p/e6u
+spotify.puffin_esperanto.proto.PuffinService	SubscribeToProcessingCompatibility	stream	com.google.protobuf.Empty	com.spotify.stream_reporting_esperanto.proto.StreamStartResponse	p/anc1
+spotify.read_reporting_esperanto.proto.ReadReportingService	ReadEnd	single	com.spotify.read_reporting_esperanto.proto.ReadEndRequest (by name)	com.spotify.read_reporting_esperanto.proto.StatusResponse	p/jn7
+spotify.read_reporting_esperanto.proto.ReadReportingService	ReadStart	single	com.spotify.read_reporting_esperanto.proto.ReadStartRequest (by name)	com.spotify.read_reporting_esperanto.proto.ReadStartResponse	p/jn7
+spotify.read_reporting_esperanto.proto.ReadReportingService	ReadUpdate	single	com.spotify.read_reporting_esperanto.proto.ReadUpdateRequest (by name)	com.spotify.read_reporting_esperanto.proto.StatusResponse	p/jn7
+spotify.recently_played_esperanto.proto.RecentlyPlayedService	Stream	stream	com.spotify.your_library_esperanto.proto.AlsoAvailableOfflineRequest (by name)	com.spotify.your_library_esperanto.proto.AlsoAvailableOfflineResponse	p/zuz
+spotify.recently_played_esperanto.proto.RecentlyPlayedService	Tracks	single	com.spotify.recently_played_esperanto.proto.GetRecentlyPlayedTracksRequest (by name)	com.spotify.recently_played_esperanto.proto.GetRecentlyPlayedTracksResponse	p/pp01,p/gmm0
+spotify.remote_config.esperanto.proto.RemoteConfigDummyResolve	ResolveDummyProperty	single	com.google.protobuf.Empty	com.spotify.remoteconfig.esperanto.proto.ResolveDummyResponse	p/u3x0
+spotify.restrictions.permissions.permissions_proto.Permissions	CanAddToQueue	single	?	?	p/jn7
+spotify.restrictions.permissions.permissions_proto.Permissions	CanPlayContent	single	?	?	p/jn7
+spotify.restrictions.permissions.permissions_proto.Permissions	CanSeeQueue	single	?	?	p/jn7
+spotify.restrictions.permissions.permissions_proto.Permissions	CanSetQueue	single	?	?	p/jn7
+spotify.restrictions.permissions.permissions_proto.Permissions	ObserveBYOMRestriction	stream	com.google.protobuf.Empty	?	p/km9
+spotify.restrictions.permissions.permissions_proto.Permissions	ObserveInvalidation	stream	?	?	p/jn7
+spotify.restrictions.permissions.permissions_proto.Permissions	SetBYOMRestriction	single	?	?	p/jn7
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	GetResumePoint	single	spotify.resumption_progress_esperanto.proto.GetResumePointRequest	spotify.resumption_progress_esperanto.proto.GetResumePointResponse	p/jn7,p/yb31
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	MarkAsFinished	single	?	?	p/jn7
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	MarkAsNotStarted	single	?	?	p/jn7
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	SubContentResumed	stream	spotify.resumption_progress_esperanto.proto.SubContentResumedRequest	spotify.resumption_progress_esperanto.proto.ContentResumedEvent	p/cuk
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	SubDetails	stream	spotify.resumption_progress_esperanto.proto.GetDetailsRequest	spotify.resumption_progress_esperanto.proto.GetDetailsResponse	p/nt21
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	SubListProgress	stream	spotify.resumption_progress_esperanto.proto.GetListProgressRequest	?	p/qd0
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	SubProgress	stream	spotify.resumption_progress_esperanto.proto.GetProgressRequest	?	p/qd0,p/xtz
+spotify.resumption_progress_esperanto.proto.ResumptionProgress	SubResumePoint	stream	spotify.resumption_progress_esperanto.proto.GetResumePointRequest	?	p/m311,p/v1k
+spotify.runtime_consumption.esperanto.proto.RuntimeConsumptionService	GetConsumptionRecords	single	com.spotify.runtime_consumption.esperanto.proto.GetConsumptionRecordsRequest (by name)	com.spotify.runtime_consumption.esperanto.proto.GetConsumptionRecordsResponse	p/jn7
+spotify.runtime_consumption.esperanto.proto.RuntimeConsumptionService	QueryRuntimeConsumption	single	com.spotify.runtime_consumption.esperanto.proto.QueryRuntimeConsumptionRequest (by name)	com.spotify.runtime_consumption.esperanto.proto.QueryRuntimeConsumptionResponse	p/jn7
+spotify.search_esperanto.proto.OfflineSearchService	Query	single	com.spotify.search.esperanto.proto.OfflineSearchRequest (by name)	com.spotify.search.esperanto.proto.OfflineSearchResponse	p/fwp0
+spotify.settings.esperanto.proto.Settings	GetState	stream	com.google.protobuf.Empty	?	p/b7n
+spotify.settings.esperanto.proto.Settings	SetAllowAudioQualityDowngrade	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetAutomix	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetCrossfade	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetCrossfadeTimeSeconds	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetCrossfeed	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetCrossfeedIntensity	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetDownloadOver3G	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetDownloadPreferredResourceType	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetDownloadQuality	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetDownmix	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetGapless	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetLoudnessEnvironment	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetNormalize	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetOfflineMode	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetOtfn	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetPlayExplicitContext	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetPrivateSession	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetShowUnavailableTracks	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetStreamNonMeteredQuality	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetStreamQuality	single	?	com.google.protobuf.Empty	p/no61
+spotify.settings.esperanto.proto.Settings	SetWebgateUrl	single	?	com.google.protobuf.Empty	p/no61
+spotify.show_esperanto.proto.ShowService	GetShow	single	com.spotify.show_esperanto.proto.GetShowRequest (by name)	com.spotify.show_esperanto.proto.GetShowResponse	p/n481
+spotify.show_esperanto.proto.ShowService	MarkShowAsPlayed	single	com.spotify.show_esperanto.proto.MarkShowAsPlayedRequest	com.spotify.show_esperanto.proto.MarkShowAsPlayedResponse	p/a1c0
+spotify.show_esperanto.proto.ShowService	SubShow	stream	com.spotify.show_esperanto.proto.GetShowRequest	spotify.profile_esperanto.proto.GetProfilesResponse	p/n481,p/ejx0
+spotify.show_esperanto.proto.ShowService	SubUnfinishedEpisodes	stream	com.spotify.show_esperanto.proto.GetUnfinishedEpisodesRequest	com.spotify.show_esperanto.proto.GetUnfinishedEpisodesResponse	p/zdz
+spotify.socialgraph_esperanto.proto.SocialGraphService	FollowUser	single	spotify.socialgraph.esperanto.proto.FollowRequestV4	spotify.socialgraph.esperanto.proto.FollowResponse	p/w430
+spotify.socialgraph_esperanto.proto.SocialGraphService	GetFollowedUsers	single	spotify.socialgraph.esperanto.proto.FollowedUsersRequest	spotify.socialgraph.esperanto.proto.FollowedUsersResponse	p/o721
+spotify.socialgraph_esperanto.proto.SocialGraphService	SubscribeToFollowedUsers	stream	spotify.socialgraph.esperanto.proto.FollowedUsersRequest	spotify.socialgraph.esperanto.proto.FollowedUsersResponse	p/w430
+spotify.storage.esperanto.proto.Storage	DeleteUnlockedItems	single	?	com.google.protobuf.Empty	p/jn7
+spotify.storage.esperanto.proto.Storage	GetCacheSizeLimit	single	?	com.spotify.storage.esperanto.proto.CacheSizeLimit	p/jn7
+spotify.storage.esperanto.proto.Storage	GetStats	single	?	com.spotify.storage.esperanto.proto.Stats	p/jn7
+spotify.storage.esperanto.proto.Storage	SetCacheSizeLimit	single	?	com.google.protobuf.Empty	p/jn7
+spotify.stream_reporting_esperanto.proto.StreamReportingService	StreamEnd	single	com.spotify.stream_reporting_esperanto.proto.StreamEndRequest	com.spotify.stream_reporting_esperanto.proto.StatusResponse	p/jn7,p/h5a1
+spotify.stream_reporting_esperanto.proto.StreamReportingService	StreamProgress	single	com.spotify.stream_reporting_esperanto.proto.StreamProgressRequest	com.spotify.stream_reporting_esperanto.proto.StatusResponse	p/jn7,p/h5a1
+spotify.stream_reporting_esperanto.proto.StreamReportingService	StreamSeek	single	com.spotify.stream_reporting_esperanto.proto.StreamSeekRequest	com.spotify.stream_reporting_esperanto.proto.StatusResponse	p/jn7,p/h5a1
+spotify.stream_reporting_esperanto.proto.StreamReportingService	StreamStart	single	com.spotify.karaoke.esperanto.proto.KaraokePostVocalVolumeRequest	com.spotify.stream_reporting_esperanto.proto.StreamStartResponse	p/jn7,p/h5a1
+spotify.timeline_conductor.audio_focus.proto.ConductorAudioFocus	GainAudioFocus	single	com.spotify.timeline_conductor.audiofocus.proto.GainAudioFocusRequest	com.spotify.collection_esperanto.proto.Status	p/pu7
+spotify.timeline_conductor.audio_focus.proto.ConductorAudioFocus	LoseAudioFocus	single	com.spotify.timeline_conductor.audiofocus.proto.LoseAudioFocusRequest	com.spotify.connectivity.auth.clienttoken.esperanto.proto.EncryptedClientToken	p/pu7
+spotify.your_library_esperanto.proto.YourLibraryService	All	single	spotify.your_library.esperanto.proto.YourLibraryRequest (by name)	spotify.your_library.esperanto.proto.YourLibraryResponse	p/vwm1
+spotify.your_library_esperanto.proto.YourLibraryService	Contains	single	spotify.your_library.esperanto.proto.YourLibraryContainsRequest (by name)	spotify.your_library.esperanto.proto.YourLibraryContainsResponse	p/mwm1,p/vwm1
+spotify.your_library_esperanto.proto.YourLibraryService	IsCurated	single	spotify.your_library.esperanto.proto.IsCuratedRequest	spotify.your_library.esperanto.proto.IsCuratedResponse	p/u9c,p/xid
+spotify.your_library_esperanto.proto.YourLibraryService	Pin	single	spotify.your_library.esperanto.proto.PinRequest	spotify.your_library.esperanto.proto.PinResponse	p/zxl1
+spotify.your_library_esperanto.proto.YourLibraryService	SetFilterOrder	single	spotify.your_library.proto.SetFilterOrderRequest (by name)	spotify.your_library.proto.SetFilterOrderResponse	p/vwm1
+spotify.your_library_esperanto.proto.YourLibraryService	StreamAll	stream	spotify.your_library.esperanto.proto.YourLibraryRequest (by name)	spotify.your_library.esperanto.proto.YourLibraryResponse	p/vwm1,p/mwm1
+spotify.your_library_esperanto.proto.YourLibraryService	StreamAlsoAvailableOffline	stream	com.spotify.your_library_esperanto.proto.AlsoAvailableOfflineRequest	com.spotify.your_library_esperanto.proto.AlsoAvailableOfflineResponse	p/gfr
+spotify.your_library_esperanto.proto.YourLibraryService	StreamContains	stream	spotify.your_library.esperanto.proto.YourLibraryContainsRequest	spotify.your_library.esperanto.proto.YourLibraryContainsResponse	p/jec,p/gk0,p/oql,p/u9c
+spotify.your_library_esperanto.proto.YourLibraryService	StreamDecorate	stream	spotify.your_library.esperanto.proto.YourLibraryDecorateRequest (by name)	spotify.your_library.esperanto.proto.YourLibraryDecorateResponse	p/vwm1,p/mwm1
+spotify.your_library_esperanto.proto.YourLibraryService	StreamIsCurated	stream	spotify.your_library.esperanto.proto.IsCuratedRequest (by name)	spotify.your_library.esperanto.proto.IsCuratedResponse	p/mwm1
+spotify.your_library_esperanto.proto.YourLibraryService	StreamTransferProgress	stream	com.spotify.playlist.policy.proto.PlaylistRequestDecorationPolicy	?	p/no70,p/bu
+spotify.your_library_esperanto.proto.YourLibraryService	UnPin	single	spotify.your_library.esperanto.proto.PinRequest	spotify.your_library.esperanto.proto.PinResponse	p/zxm1
+spotify.your_library_tags_esperanto.proto.YourLibraryTagsService	StreamYourLibraryTags	stream	spotify.your_library_tags_esperanto.proto.YourLibraryTagsRequest (by name)	spotify.your_library_tags_esperanto.proto.YourLibraryTagsResponse	p/ots

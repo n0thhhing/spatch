@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.connectivity.product_state.esperanto.proto;
+
+message GetValuesResponse {
+  map<string, string> pairs = 1;
+}
+
+message PutValuesRequest {
+  map<string, string> pairs = 1;
+}
+
+message PutValuesResponse {
+}
+
+message PutValuesSyncRequest {
+  map<string, string> pairs = 1;
+}
+
+message PutValuesSyncResponse {
+  uint32 error_code = 1;
+}
+
+message SubValuesRequest {
+}
