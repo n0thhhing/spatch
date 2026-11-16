@@ -101,7 +101,7 @@ public final class SpatchUi extends FrameLayout {
     private List<Entry> playlistTracks = new ArrayList<>();
     private int playlistOffset;
     private boolean playlistLoading, playlistFailed;
-    private TextView trackTitle, trackArtist, albumTitle, heroTitle, heroArtist, heroBadge;
+    private TextView trackTitle, trackArtist, albumTitle, heroTitle, heroArtist, heroBadge, explicitBadge;
     private Art trackArt, heroArt, atmosphere;
     private Glyph playButton, heroPlay, shuffleButton, repeatButton;
     private Wave wave;
@@ -600,7 +600,7 @@ public final class SpatchUi extends FrameLayout {
         libraryGrid = null;
         miniShape = null;
         miniColor = 0;
-        trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = heroBadge = null;
+        trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = heroBadge = explicitBadge = null;
         trackArt = heroArt = atmosphere = null;
         playbackSource = infoTrack = infoArtist = infoAlbum = null;
         infoAlbumArtist = infoRelease = infoPosition = infoRating = infoSource = null;
@@ -685,9 +685,12 @@ public final class SpatchUi extends FrameLayout {
             feed.addView(hero, match(-2));
             gap(feed, 12);
             feed.addView(likedCard(), match(-2));
-            addQuickGrid(feed);
+            if (pref("home_quick", true)) addQuickGrid(feed);
             boolean any = false;
-            for (int category = 0; category < SECTIONS.length; category++) any |= addShelf(feed, category);
+            for (int category = 0; category < SECTIONS.length; category++) {
+                if (pref("home_shelf_" + category, true)) any |= addShelf(feed, category);
+                else any |= !entries(category, 1).isEmpty();
+            }
             if (!any) libraryMessage(feed);
         } else {
             HorizontalScrollView choices = new HorizontalScrollView(activity);
@@ -1046,6 +1049,13 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout titleRow = row();
         titleRow.setGravity(Gravity.TOP);
         titleRow.addView(trackTitle, weighted());
+        explicitBadge = text("E", 12, surface, true);
+        explicitBadge.setGravity(Gravity.CENTER);
+        explicitBadge.setBackground(background(onVariant, 4));
+        explicitBadge.setContentDescription("Explicit");
+        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(dp(18), dp(18));
+        ep.setMargins(dp(6), dp(14), dp(4), 0);
+        titleRow.addView(explicitBadge, ep);
         titleRow.addView(likeButton(), control(48));
         details.addView(titleRow, match(-2));
         for (TextView labelView : new TextView[]{trackArtist, albumTitle}) details.addView(labelView, match(-2));
@@ -1801,6 +1811,12 @@ public final class SpatchUi extends FrameLayout {
         toggle(motion, "Wavy progress", "The progress line ripples while playing", "wavy", true);
         toggle(motion, "Follow the music", "Glow, shockwaves and motes move with the beat. Reads only Spotify’s own playback; "
             + "Android lists this as microphone access", "audio", false);
+
+        LinearLayout home = settingsGroup(page, "Home");
+        toggle(home, "Jump back in", "Six quick tiles under Liked Songs", "home_quick", true);
+        for (int i = 0; i < SECTIONS.length; i++) {
+            toggle(home, SECTIONS[i], "Show the " + SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true);
+        }
 
         LinearLayout playback = settingsGroup(page, "Player");
         toggle(playback, "Keep screen on", "While the immersive player is open", "keep_on", true);
@@ -2602,6 +2618,7 @@ public final class SpatchUi extends FrameLayout {
         }
         if (heroTitle != null) heroTitle.setText(shown);
         if (heroArtist != null) heroArtist.setText(artist);
+        if (explicitBadge != null) explicitBadge.setVisibility(rating.isEmpty() ? GONE : VISIBLE);
         if (heroBadge != null) heroBadge.setText(uri.isEmpty() ? "READY" : playing ? "NOW PLAYING" : "PAUSED");
         if (trackArt != null) trackArt.bind(image);
         if (heroArt != null) heroArt.bind(image);
