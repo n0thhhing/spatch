@@ -1503,6 +1503,58 @@ public final class SpatchUi extends FrameLayout {
             | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t);
     }
 
+    private View nowPlayingCard() {
+        LinearLayout box = column();
+        box.setPadding(0, dp(6), 0, dp(6));
+        TextView label = text("Now playing", 14, primary, true);
+        label.setPadding(dp(4), 0, 0, dp(8));
+        box.addView(label, match(-2));
+        LinearLayout card = row();
+        card.setPadding(dp(10), dp(10), dp(16), dp(10));
+        card.setBackground(background(secondaryContainer, 24));
+        Art art = new Art(Art.SQUARE);
+        art.small = true;
+        art.bind(image);
+        card.addView(art, control(56));
+        LinearLayout words = column();
+        words.setPadding(dp(14), 0, dp(8), 0);
+        TextView name = text(title.isEmpty() ? "Nothing playing" : title, 17, onSecondaryContainer, true);
+        TextView by = text(artist, 13, onSecondaryContainer, false);
+        by.setAlpha(.8f);
+        single(name); single(by);
+        words.addView(name); words.addView(by);
+        card.addView(words, weighted());
+        card.addView(new Bars(onSecondaryContainer), new LinearLayout.LayoutParams(dp(22), dp(20)));
+        makeClickable(card, "Back to the player", this::back);
+        box.addView(card, match(-2));
+        TextView next = text(source.isEmpty() ? "Next up" : "Next from " + source, 14, primary, true);
+        next.setPadding(dp(4), dp(18), 0, dp(8));
+        single(next);
+        box.addView(next, match(-2));
+        return box;
+    }
+
+    /** Three bouncing bars: the universal "this one is playing" mark. Still when paused. */
+    private final class Bars extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Bars(int ink) {
+            super(activity);
+            paint.setColor(ink);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+        @Override protected void onDraw(Canvas c) {
+            boolean running = playing && motionEnabled() && getWindowVisibility() == VISIBLE;
+            float t = running ? SystemClock.uptimeMillis() / 1000f : 0f;
+            float w = getWidth(), h = getHeight(), bar = w / 5f;
+            for (int i = 0; i < 3; i++) {
+                float k = running ? .35f + .65f * Math.abs((float) Math.sin(t * (3.1f + i * 1.7f) + i * 1.3f)) : .3f + .2f * i % 3;
+                float x = bar * (i * 2);
+                c.drawRoundRect(x, h * (1 - k), x + bar, h, bar / 2, bar / 2, paint);
+            }
+            if (running) postInvalidateOnAnimation();
+        }
+    }
+
     /** Cover, name and the two ways to start it: in order or shuffled. */
     private View playlistHeader() {
         LinearLayout header = column();
@@ -1571,8 +1623,12 @@ public final class SpatchUi extends FrameLayout {
         header.addView(glyph("back", "Back", false, this::back), control(48));
         header.addView(text("Up next", 30, onSurface, true), weighted());
         content.addView(header, match(-2));
-        if (upcoming.isEmpty()) message(feed(), "The queue is empty");
-        else entryList(upcoming);
+        View now = nowPlayingCard();
+        if (upcoming.isEmpty()) {
+            LinearLayout page = feed();
+            page.addView(now, match(-2));
+            message(page, "Nothing queued after this");
+        } else entryList(upcoming, now);
     }
 
     private ListView entryList(List<Entry> entries) { return entryList(entries, null); }
