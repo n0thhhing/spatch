@@ -977,14 +977,15 @@ public final class MainActivity extends Activity {
         if (!releases.commits.isEmpty() || releases.nightly != null) {
             LinearLayout card = look.card(changesBox, "Nightly commits");
             if (releases.commits.isEmpty()) {
-                card.addView(look.text(releases.nightly.tag, 13, look.primary, true));
+                card.addView(look.text(Releases.version(releases.nightly), 13, look.primary, true));
                 if (!releases.nightly.notes.isEmpty()) card.addView(look.text(releases.nightly.notes, 14, look.onSurfaceVariant, false), look.spaced(4));
             } else {
                 for (int i = 0; i < releases.commits.size(); i++) {
                     Releases.Note c = releases.commits.get(i);
-                    boolean onPhone = (installed != null && installed.startsWith(c.tag))
+                    // The nightly's tag fingerprints the patch sources; commits are matched by the release's commit.
+                    boolean newest = releases.nightly != null && releases.nightly.commit != null ? ("nightly-" + releases.nightly.commit).equals(c.tag) : i == 0;
+                    boolean onPhone = (installed != null && (installed.startsWith(c.tag) || newest && releases.nightly != null && installed.startsWith(releases.nightly.tag)))
                         || ownName().endsWith("-" + c.tag.replaceFirst("^nightly-", ""));
-                    boolean newest = releases.nightly != null ? releases.nightly.tag.equals(c.tag) : i == 0;
                     String meta = c.tag.replaceFirst("^nightly-", "")
                         + (c.date.isEmpty() ? "" : "  •  " + c.date)
                         + (onPhone ? "  •  Installed" : newest ? "  •  Newest nightly" : "");
@@ -1070,7 +1071,7 @@ public final class MainActivity extends Activity {
         String installed = prefs.getString(INSTALLED, null);
         boolean debug = developer.isChecked();
         spotifyStatus.setText(info == null ? "Spotify isn't installed."
-            : ours ? "Spatch is installed" + (installed != null ? ": patches " + installed.replaceFirst("^(patches-v|bundle-)", "") : "") + ". Spotify " + info.versionName + "."
+            : ours ? "Spatch is installed" + (installed != null ? ": patches " + shownPatches(installed) : "") + ". Spotify " + info.versionName + "."
             : "Spotify " + info.versionName + " is installed with another key. To install over it, import the key it was signed with (Signing key, Import key); otherwise it has to be uninstalled first.");
         File apkm = apkm();
         Sources.Invite source = invite();
@@ -1553,6 +1554,13 @@ public final class MainActivity extends Activity {
     }
 
     /** What is installed: the bundle's tag, marked when it is the developer build. */
+    /** An installed tag as read: the newest nightly's commit instead of its patch fingerprint. */
+    private String shownPatches(String installed) {
+        Releases.Release n = releases == null ? null : releases.nightly;
+        if (n != null && n.commit != null && installed.startsWith(n.tag)) return "nightly " + n.commit + installed.substring(n.tag.length());
+        return installed.replaceFirst("^(patches-v|bundle-)", "");
+    }
+
     static String variant(String tag, boolean debug) {
         return debug ? tag + " (developer)" : tag;
     }

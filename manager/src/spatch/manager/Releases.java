@@ -25,6 +25,8 @@ final class Releases {
     /** A release's tag, the download URL of its asset, and its release notes. */
     static final class Release {
         final String tag, url, debugUrl, notes; // debugUrl: the developer bundle, or null
+        /** A nightly's commit (seven digits); its tag is a fingerprint of the patch sources, which users read as a commit. */
+        String commit;
 
         Release(String tag, String url, String debugUrl) {
             this(tag, url, debugUrl, "");
@@ -111,7 +113,10 @@ final class Releases {
                 if (tag.equals(nightlyTag) && release.optBoolean("prerelease") && !release.optBoolean("draft")) {
                     String commit = release.optString("target_commitish", "");
                     String url = asset(release, "spatch-bundle.zip");
-                    if (commit.length() >= 7 && url != null) r.nightly = new Release(nightlyIdentity(release, "spatch-bundle.zip", commit), url, asset(release, "spatch-bundle-debug.zip"), body);
+                    if (commit.length() >= 7 && url != null) {
+                        r.nightly = new Release(nightlyIdentity(release, "spatch-bundle.zip", commit), url, asset(release, "spatch-bundle-debug.zip"), body);
+                        r.nightly.commit = commit.substring(0, 7);
+                    }
                     String mgr = asset(release, "spatch-manager.apk");
                     if (commit.length() >= 7 && mgr != null) r.nightlyManager = new Release(nightlyIdentity(release, "spatch-manager.apk", commit), mgr, null, body);
                     continue;
@@ -205,7 +210,7 @@ final class Releases {
 
     /** What a release is called on screen: its version, without the tag's prefix. */
     static String version(Release r) {
-        if (r.tag.startsWith("nightly-")) return "nightly " + r.tag.substring("nightly-".length());
+        if (r.tag.startsWith("nightly-")) return "nightly " + (r.commit != null ? r.commit : r.tag.substring("nightly-".length()));
         int dash = r.tag.lastIndexOf("-v");
         return dash >= 0 ? r.tag.substring(dash + 2) : r.tag;
     }
