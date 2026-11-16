@@ -1752,6 +1752,9 @@ public final class SpatchUi extends FrameLayout {
         look.addView(choiceRow(new String[]{"Scallop", "Circle", "Rounded"}, "art_shape", " artwork"), match(-2));
         toggle(look, "Artwork colours", "Tint the player with the song’s cover", "art_colors", true);
         toggle(look, "Round artwork in the mini player", "Off shows a rounded square", "round_mini", true);
+        if (typeRole(true, 30) != null) {
+            toggle(look, "Expressive type", "Google Sans Flex in Material 3 Expressive weights; off uses Roboto", "expressive_type", true);
+        }
 
         LinearLayout motion = settingsGroup(page, "Eye candy");
         toggle(motion, "Floating motes", "Soft particles drift behind the immersive player", "motes", true);
@@ -2685,9 +2688,34 @@ public final class SpatchUi extends FrameLayout {
         v.setTextSize(size);
         v.setTextColor(color);
         v.setIncludeFontPadding(false);
-        v.setTypeface(Typeface.create(bold && size >= 26 ? "sans-serif" : bold ? "sans-serif-medium" : "sans-serif",
-            bold && size >= 26 ? Typeface.BOLD : Typeface.NORMAL));
+        Typeface expressive = pref("expressive_type", true) ? typeRole(bold, size) : null;
+        v.setTypeface(expressive != null ? expressive
+            : Typeface.create(bold && size >= 26 ? "sans-serif" : bold ? "sans-serif-medium" : "sans-serif",
+                bold && size >= 26 ? Typeface.BOLD : Typeface.NORMAL));
+        if (expressive != null && bold) {
+            // Google Sans Flex is variable: heavier, rounder headings are the Expressive look.
+            int weight = size >= 30 ? 720 : size >= 22 ? 650 : size >= 15 ? 580 : 540;
+            v.setFontVariationSettings("'wght' " + weight + ", 'ROND' " + (size >= 22 ? 100 : 50));
+        }
         return v;
+    }
+
+    private static final java.util.Map<String, Typeface> FACES = new java.util.HashMap<>();
+
+    /**
+     * Pixel ships Material 3 Expressive type roles as named system families (Google Sans Flex). Elsewhere the
+     * name resolves to the default face, so null keeps the plain fallback.
+     */
+    private static Typeface typeRole(boolean bold, int size) {
+        String role = bold
+            ? size >= 30 ? "variable-display-small-emphasized" : size >= 22 ? "variable-headline-small-emphasized"
+                : size >= 15 ? "variable-title-medium-emphasized" : "variable-label-large-emphasized"
+            : size >= 16 ? "variable-body-large" : size >= 13 ? "variable-body-medium" : "variable-body-small";
+        if (!FACES.containsKey(role)) {
+            Typeface face = Typeface.create(role, Typeface.NORMAL);
+            FACES.put(role, face == null || face.equals(Typeface.DEFAULT) ? null : face);
+        }
+        return FACES.get(role);
     }
 
     private GradientDrawable background(int color, int radius) {
