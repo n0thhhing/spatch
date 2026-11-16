@@ -75,16 +75,20 @@ public final class CoreBridge implements Transport {
      * used yet go over the account's transport (the library's) rather than whichever native one came first.
      */
     public static byte[] call(String service, String method, byte[] request) {
+        return (byte[]) pick(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
+    }
+
+    /** The transport Spotify used for this service, else the account's (the library's), else the first one seen. */
+    private static Transport pick(String service) {
         Transport t = SERVICES.get(service);
         if (t == null) t = SERVICES.get(ACCOUNT_SERVICE);
-        if (t == null) t = transport(service);
-        return (byte[]) t.callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
+        return t != null ? t : transport(service);
     }
 
     /** From Rust: replies stream to nativeNext(token, bytes) until cancel(id) or an error (nativeError). */
     public static long subscribe(String service, String method, byte[] request, final long token) {
         final long id = NEXT.getAndIncrement();
-        Disposable d = transport(service).callStream(service, method, request).subscribe(new Consumer() {
+        Disposable d = pick(service).callStream(service, method, request).subscribe(new Consumer() {
             public void accept(Object value) {
                 nativeNext(token, (byte[]) value);
             }

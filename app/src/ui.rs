@@ -374,7 +374,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSpotifySettings(mut env: JNIEn
         Ok(stored.clone())
     };
     #[cfg(not(feature = "preview"))]
-    let read = settings::read(std::time::Duration::from_secs(4));
+    let read = settings::read(std::time::Duration::from_secs(6));
     let fields = match read {
         Ok(values) => settings::SETTINGS.iter().zip(values).flat_map(|(s, v)| [s.key.to_string(), v.to_string()]).collect(),
         Err(error) => vec!["!".to_string(), error],
