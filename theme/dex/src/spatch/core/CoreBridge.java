@@ -74,33 +74,41 @@ public final class CoreBridge implements Transport {
     public static byte[] call(String service, String method, byte[] request) throws Exception {
         CoroutineTransport transport = playlistTransport;
         if (transport != null && service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
-            // Spotify's own client calls the dispatching transport's callSingle with a continuation; do the same,
-            // on a thread of our own with a bounded wait, and say exactly what came back if it isn't bytes.
-            CompletableFuture<Object> reply = new CompletableFuture<>();
-            Thread caller = new Thread(() -> {
+            // Spotify's playlist screen never calls Get: it subscribes and renders each emission. Do the same,
+            // keep the first reply, and stop. (Get, by coroutine or Rx, never answered on the phone.)
+            String method2 = method.equals("Get") ? "Subscribe" : method;
+            CompletableFuture<Object> first = new CompletableFuture<>();
+            Thread collector = new Thread(() -> {
                 try {
-                    Object direct = transport.callSingle(service, method, request, new p.lnm() {
+                    p.S_KotlinFlow flow = transport.callStream(service, method2, request);
+                    flow.collect(new p.vr20() {
+                        public Object emit(Object value, p.lnm continuation) {
+                            first.complete(value);
+                            throw new java.util.concurrent.CancellationException("Spatch took the first reply");
+                        }
+                    }, new p.lnm() {
                         public p.o8n getContext() { return p.o6x.a; }
-                        public void resumeWith(Object value) { reply.complete(value); }
+                        public void resumeWith(Object value) { if (!first.isDone()) first.complete(value); }
                     });
-                    if (direct != p.d9n.a) reply.complete(direct);
+                } catch (java.util.concurrent.CancellationException done) {
+                    // our own stop after the first reply
                 } catch (Throwable e) {
-                    reply.completeExceptionally(e);
+                    first.completeExceptionally(e);
                 }
             }, "SpatchPlaylist");
-            caller.setDaemon(true);
-            caller.start();
+            collector.setDaemon(true);
+            collector.start();
             String why;
             try {
-                Object result = reply.get(10, TimeUnit.SECONDS);
+                Object result = first.get(9, TimeUnit.SECONDS);
                 if (result instanceof byte[]) return (byte[]) result;
                 why = result == null ? "null" : result.getClass().getName() + ": " + result;
             } catch (Exception e) {
                 why = String.valueOf(e.getCause() != null ? e.getCause() : e);
             }
-            android.util.Log.w("SpatchCore", "Playlist callSingle gave no bytes (" + why + "); trying the Rx transport");
+            android.util.Log.w("SpatchCore", "Playlist " + method2 + " gave no bytes (" + why + "); trying the Rx transport");
             try {
-                return (byte[]) transport(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
+                return (byte[]) transport(service).callSingle(service, method, request).timeout(5, TimeUnit.SECONDS).blockingGet();
             } catch (RuntimeException rx) {
                 android.util.Log.w("SpatchCore", "Playlist via Rx failed too: " + rx);
                 throw new IllegalStateException("Playlist service: " + why);

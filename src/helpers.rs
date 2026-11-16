@@ -33,6 +33,7 @@ pub const STUBS: &[(&str, &str)] = &[
     ("o6x.java", include_str!("../theme/dex/stubs/p/o6x.java")),
     ("o8n.java", include_str!("../theme/dex/stubs/p/o8n.java")),
     ("lnm.java", include_str!("../theme/dex/stubs/p/lnm.java")),
+    ("vr20.java", include_str!("../theme/dex/stubs/p/vr20.java")),
     ("CoroutineTransport.java", include_str!("../theme/dex/stubs/com/spotify/esperanto/esperanto/CoroutineTransport.java")),
     (
         "Request.java",

@@ -1777,7 +1777,7 @@ public final class SpatchUi extends FrameLayout {
             playlistLoading = false;
             playlistFailed = true;
             if (screen == PLAYLIST) render();
-        }, 15_000);
+        }, 20_000);
         PLAYLIST_DATA.execute(() -> {
             String[] result = nativePlaylist(entry.uri, offset);
             post(() -> {
