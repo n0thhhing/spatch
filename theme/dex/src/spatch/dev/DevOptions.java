@@ -29,8 +29,8 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
     private final SpatchSettings page;
     private final Context context;
     private final TextView status, results, crash, log;
-    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, restart, frames, inspect, sampler, openApp;
-    private final M3Switch framesSwitch, inspectSwitch, samplerSwitch;
+    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, restart, frames, inspect, sampler, openApp, appStart;
+    private final M3Switch framesSwitch, inspectSwitch, samplerSwitch, appStartSwitch;
     private String report = "Not run yet";
 
     /** Called from Settings.load. Records an uncaught crash, then lets Android handle it as usual. */
@@ -106,6 +106,9 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         LinearLayout app = page.addGroup();
         restart = row(app, "repeat", "Restart Spotify", null);
         openApp = row(app, "fullscreen", "Open Spatch app (preview)", "The Rust app on Spotify's core. Core services seen: " + CoreBridge.services());
+        appStartSwitch = new M3Switch(context);
+        appStartSwitch.setChecked(SpatchApp.opensOnStart(context));
+        appStart = toggle(app, appStartSwitch, "fullscreen", "Open it on start", "The Spatch app instead of Spotify's UI when Spotify opens; Close goes back to Spotify's");
         page.finish(app);
         page.finishCategory(root);
         refresh();
@@ -266,6 +269,9 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
                 .setPositiveButton("Crash", this).setNegativeButton("Cancel", this).show();
         } else if (v == restart) {
             Palette.restart(context);
+        } else if (v == appStart) {
+            appStartSwitch.toggle();
+            SpatchApp.setOpensOnStart(context, appStartSwitch.isChecked());
         } else if (v == openApp) {
             android.app.Activity activity = activity(v);
             if (activity == null || !SpatchApp.open(activity))

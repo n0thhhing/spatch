@@ -98,6 +98,7 @@ public final class RowCards extends Drawable implements ViewGroup.OnHierarchyCha
             public void onActivityResumed(android.app.Activity activity) {
                 join(activity.getWindow().getDecorView());
                 Palette.resumed(activity);
+                SpatchApp.resumed(activity);
             }
 
             public void onActivityCreated(android.app.Activity a, android.os.Bundle b) {

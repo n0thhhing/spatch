@@ -187,7 +187,31 @@ pub fn open(density: f32) {
     ui.set_status("Connecting to Spotify's player…".into());
     APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), shown_second: -1 }));
     std::thread::spawn(|| {
-        let id = core::subscribe(player::SERVICE, "GetState", &player::state_request(), |reply| match reply {
+        // Opened at launch, Spotify may not have called its player yet: retry briefly until the bridge has it.
+        let mut tries = 0;
+        let id = loop {
+            let id = subscribe_player();
+            match &id {
+                Err(e) if e.contains("isn't running yet") && tries < 40 => {
+                    tries += 1;
+                    std::thread::sleep(Duration::from_millis(250));
+                }
+                _ => break id,
+            }
+        };
+        match id {
+            Ok(id) => STREAM.lock().unwrap().replace(id),
+            Err(e) => {
+                status(format!("Couldn't reach Spotify's player: {e}"));
+                None
+            }
+        };
+    });
+}
+
+fn subscribe_player() -> Result<i64, String> {
+    {
+        core::subscribe(player::SERVICE, "GetState", &player::state_request(), |reply| match reply {
             Ok(bytes) => match NowPlaying::decode(bytes) {
                 Ok(now) => {
                     *LATEST.lock().unwrap() = Some(now);
@@ -198,15 +222,8 @@ pub fn open(density: f32) {
                 Err(e) => status(format!("Couldn't read the player state: {e}")),
             },
             Err(e) => status(format!("The player stream ended: {e}")),
-        });
-        match id {
-            Ok(id) => STREAM.lock().unwrap().replace(id),
-            Err(e) => {
-                status(format!("Couldn't reach Spotify's player: {e}"));
-                None
-            }
-        };
-    });
+        })
+    }
 }
 
 static STREAM: Mutex<Option<i64>> = Mutex::new(None);
