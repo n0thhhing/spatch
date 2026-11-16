@@ -82,7 +82,7 @@ public final class SpatchUi extends FrameLayout {
     private ListView libraryList;
     private TextView trackTitle, trackArtist, albumTitle, heroTitle, heroArtist;
     private Art trackArt, heroArt, atmosphere;
-    private Glyph playButton, shuffleButton, repeatButton;
+    private Glyph playButton, heroPlay, shuffleButton, repeatButton;
     private Wave wave;
 
     SpatchUi(Activity activity) {
@@ -238,7 +238,7 @@ public final class SpatchUi extends FrameLayout {
         libraryList = null;
         trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = null;
         trackArt = heroArt = atmosphere = null;
-        playButton = shuffleButton = repeatButton = null;
+        playButton = heroPlay = shuffleButton = repeatButton = null;
         wave = null;
         if (screen == IMMERSIVE) {
             atmosphere = new Art(Art.BACKDROP);
@@ -269,11 +269,17 @@ public final class SpatchUi extends FrameLayout {
             heroArt = new Art(Art.WIDE);
             hero.addView(heroArt, match(dp(156)));
             gap(hero, 10);
+            LinearLayout heroFooter = row();
+            LinearLayout details = column();
             heroTitle = text("", 25, PAPER, true);
             heroArtist = text("", 14, MUTED, false);
             single(heroTitle); single(heroArtist);
-            hero.addView(heroTitle);
-            hero.addView(heroArtist);
+            details.addView(heroTitle);
+            details.addView(heroArtist);
+            heroFooter.addView(details, weighted());
+            heroPlay = glyph("play", "Play", true, this::toggle);
+            heroFooter.addView(heroPlay, control(56));
+            hero.addView(heroFooter, match(-2));
             makeClickable(hero, "Open player", this::openPlayer);
             feed.addView(hero, match(-2));
             gap(feed, 12);
@@ -525,12 +531,8 @@ public final class SpatchUi extends FrameLayout {
         if (trackArt != null) trackArt.bind(image);
         if (heroArt != null) heroArt.bind(image);
         if (atmosphere != null) atmosphere.bind(image);
-        if (playButton != null) {
-            playButton.symbol = playing ? "pause" : "play";
-            playButton.setContentDescription(playing ? "Pause" : "Play");
-            playButton.setEnabled(!uri.isEmpty());
-            playButton.invalidate();
-        }
+        if (playButton != null) playButton.setPlayback(playing, !uri.isEmpty());
+        if (heroPlay != null) heroPlay.setPlayback(playing, !uri.isEmpty());
         if (shuffleButton != null) {
             shuffleButton.setSelected(shuffle);
             shuffleButton.setContentDescription(shuffle ? "Shuffle on" : "Shuffle off");
@@ -731,11 +733,18 @@ public final class SpatchUi extends FrameLayout {
                     paint.setAlpha(255);
                     setBitmap(bitmap, w, h);
                 } else {
-                    paint.setShader(new LinearGradient(0, 0, w, h, RAISED, PANEL, Shader.TileMode.CLAMP));
+                    paint.setColor(PANEL);
+                    if (shape != WIDE) {
+                        paint.setShader(new LinearGradient(0, 0, w, h, RAISED, PANEL, Shader.TileMode.CLAMP));
+                    }
                 }
                 float r = shape == ROUND ? Math.min(w, h) / 2 : dp(shape == WIDE ? 15 : 12);
                 c.drawRoundRect(0, 0, w, h, r, r, paint);
                 paint.setShader(null);
+                if (bitmap != null && shape == WIDE) {
+                    paint.setColor(0x4d111715);
+                    c.drawRoundRect(0, 0, w, h, r, r, paint);
+                }
             }
             c.restoreToCount(save);
         }
@@ -782,6 +791,27 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
 
+        private final android.graphics.Rect visible = new android.graphics.Rect();
+        private long spinStarted;
+        private float stoppedAngle;
+
+        private float angle(long now) {
+            return spinStarted == 0 ? stoppedAngle : (stoppedAngle + (now - spinStarted) * .028f) % 360f;
+        }
+
+        void setPlayback(boolean playing, boolean enabled) {
+            long now = SystemClock.uptimeMillis();
+            if (playing && spinStarted == 0) spinStarted = now;
+            if (!playing && spinStarted != 0) {
+                stoppedAngle = angle(now);
+                spinStarted = 0;
+            }
+            symbol = playing ? "pause" : "play";
+            setEnabled(enabled);
+            setContentDescription(playing ? "Pause" : "Play");
+            invalidate();
+        }
+
         Glyph(String symbol, boolean primary) {
             super(activity);
             this.symbol = symbol;
@@ -806,7 +836,11 @@ public final class SpatchUi extends FrameLayout {
                 path.close();
                 paint.setColor(isEnabled() ? MINT : RAISED);
                 paint.setStyle(Paint.Style.FILL);
+                int shapeSave = canvas.save();
+                canvas.rotate(angle(SystemClock.uptimeMillis()));
                 canvas.drawPath(path, paint);
+                canvas.restoreToCount(shapeSave);
+                if (spinStarted != 0 && getLocalVisibleRect(visible)) postInvalidateOnAnimation();
                 size *= .51f;
             }
             float unit = size / 24f;

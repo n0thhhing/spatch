@@ -21,3 +21,5 @@ On Android, tap the mini-player artwork or track information to open the player.
 ## Preview without Spotify
 
 Run `app/preview/build.sh` to build `dist/spatch-preview.apk`. Install it on an ARM64 Android 10+ phone or emulator with `adb install -r dist/spatch-preview.apk` and open **Spatch Preview**. It uses the same Android views, Rust navigation, and renderer as the patched UI. Sample playback, seeking, and the library work offline.
+
+On an Apple silicon Mac, run `app/preview/mac.sh` to open Spatch Preview in its own Android emulator. The script shows the SDK install command if the emulator or its system image is missing.
