@@ -682,6 +682,11 @@ public final class SpatchUi extends FrameLayout {
             hero.addView(heroFooter, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
             makeClickable(hero, "Open player", this::openPlayer);
             springPress(hero);
+            if (motionEnabled() && scroll != null) {
+                // Parallax: the cover drifts slower than the page, inside the card's clip.
+                Art drifting = heroArt;
+                scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) -> drifting.setTranslationY(Math.min(y, dp(220)) * .35f));
+            }
             feed.addView(hero, match(-2));
             gap(feed, 12);
             feed.addView(likedCard(), match(-2));
@@ -2468,6 +2473,16 @@ public final class SpatchUi extends FrameLayout {
         list.setDividerHeight(dp(3));
         list.setPadding(dp(16), 0, dp(16), 0);
         list.setClipToPadding(false);
+        if (motionEnabled()) {
+            // Rows arrive in a quick cascade when a page opens.
+            android.view.animation.AnimationSet arrive = new android.view.animation.AnimationSet(true);
+            arrive.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
+            arrive.addAnimation(new android.view.animation.TranslateAnimation(0, 0, dp(18), 0));
+            arrive.setDuration(260);
+            arrive.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
+            android.view.animation.LayoutAnimationController cascade = new android.view.animation.LayoutAnimationController(arrive, .06f);
+            list.setLayoutAnimation(cascade);
+        }
         list.setAdapter(new BaseAdapter() {
             @Override public int getCount() { return entries.size(); }
             @Override public Entry getItem(int position) { return entries.get(position); }
