@@ -59,6 +59,8 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativePlaylist(String uri, int offset);
     private static native String[] nativePage(String uri);
     private static native String[] nativeDevices();
+    private static native String[] nativeSpotifySettings();
+    private static native String nativeSetSpotifySetting(String key, int value);
     private static native String nativeTransfer(String id);
     private static native boolean nativeCommand(int action, long value, String uri);
     private static native int nativeSaved(String uri);
@@ -1133,6 +1135,9 @@ public final class SpatchUi extends FrameLayout {
         accentRow(look);
         toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
 
+        LinearLayout spotify = card(page, "Spotify");
+        spotifyCard(spotify);
+
         LinearLayout player = card(page, "Player");
         choice(player, "Visualizer", new String[]{"Ring and bars", "Ring only", "Off"}, "viz", 0, false);
         toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
@@ -1167,6 +1172,100 @@ public final class SpatchUi extends FrameLayout {
         return scrolling(page);
     }
 
+    // ---- Spotify's own settings (Settings service in its core), read and written live ----
+    private java.util.Map<String, Integer> spotifySettings;
+    private String spotifyError = "";
+    private boolean spotifyLoading;
+
+    private int spotifyValue(String key) { Integer v = spotifySettings == null ? null : spotifySettings.get(key); return v == null ? 0 : v; }
+
+    private void spotifyCard(LinearLayout box) {
+        if (spotifySettings == null) {
+            TextView note = text(spotifyError.isEmpty() ? "Loading Spotify’s settings…" : "Couldn’t read Spotify’s settings: " + spotifyError, 14, inkDim, false);
+            note.setPadding(dp(18), dp(12), dp(18), dp(12));
+            box.addView(note);
+            if (!spotifyError.isEmpty()) {
+                TextView retry = pill("Retry", () -> { spotifyError = ""; settingsChanged(false); });
+                retry.setPadding(dp(18), dp(10), dp(18), dp(10));
+                LinearLayout.LayoutParams rp = lp(-2, -2);
+                rp.setMargins(dp(18), 0, 0, dp(12));
+                box.addView(retry, rp);
+            } else if (!spotifyLoading) {
+                spotifyLoading = true;
+                PLAYLISTS.execute(() -> {
+                    String[] f = nativeSpotifySettings();
+                    post(() -> {
+                        spotifyLoading = false;
+                        if (f == null || f.length < 2 || f[0].equals("!")) spotifyError = f == null || f.length < 2 ? "no reply" : f[1];
+                        else {
+                            java.util.Map<String, Integer> read = new java.util.HashMap<>();
+                            for (int i = 0; i + 1 < f.length; i += 2) read.put(f[i], Integer.parseInt(f[i + 1]));
+                            spotifySettings = read;
+                        }
+                        if (tab == SETTINGS && playlist == null) settingsChanged(false);
+                    });
+                });
+            }
+            return;
+        }
+        String[] qualities = {"Low", "Normal", "High", "Very high"};
+        int quality = spotifyValue("stream_quality");
+        segmented(box, "Streaming quality", qualities, quality >= 1 && quality <= 4 ? quality - 1 : -1, i -> setSpotify("stream_quality", i + 1));
+        spotifySwitch(box, "Allow quality downgrade", "Lower the quality when your connection is slow", "allow_audio_quality_downgrade");
+        spotifySwitch(box, "Download over cellular", "Let downloads use mobile data", "download_over_3g");
+        spotifySwitch(box, "Normalise volume", "Play songs at the same level", "normalize");
+        spotifySwitch(box, "Gapless playback", "No pause between songs", "gapless");
+        spotifySwitch(box, "Automix", "Blend songs together in playlists", "automix");
+        int fade = spotifyValue("crossfade") == 0 ? 0 : spotifyValue("crossfade_time_seconds");
+        int[] seconds = {0, 3, 6, 12};
+        int selected = -1;
+        for (int i = 0; i < seconds.length; i++) if (seconds[i] == fade) selected = i;
+        segmented(box, "Crossfade", new String[]{"Off", "3 s", "6 s", "12 s"}, selected, i -> {
+            if (seconds[i] == 0) setSpotify("crossfade", 0, false);
+            else { setSpotify("crossfade_time_seconds", seconds[i], false); setSpotify("crossfade", 1, false); }
+            settingsChanged(false);
+        });
+        spotifySwitch(box, "Play explicit content", "Off hides songs marked explicit", "play_explicit_content");
+        spotifySwitch(box, "Private session", "Listen without it showing in your activity", "private_session");
+        spotifySwitch(box, "Show unavailable songs", "Keep songs that can’t be played in lists", "show_unavailable_tracks");
+        TextView note = text("These are Spotify’s own settings: changing them here changes them in Spotify too.", 12, inkDim, false);
+        note.setPadding(dp(18), dp(4), dp(18), dp(10));
+        box.addView(note);
+    }
+
+    private void spotifySwitch(LinearLayout box, String name, String detail, String key) {
+        LinearLayout line = row();
+        line.setPadding(dp(18), dp(12), dp(16), dp(12));
+        LinearLayout words = column();
+        words.addView(text(name, 16, ink, true));
+        TextView d = text(detail, 13, inkDim, false);
+        d.setPadding(0, dp(2), dp(8), 0);
+        words.addView(d);
+        line.addView(words, weight());
+        Switch sw = new Switch(spotifyValue(key) != 0);
+        line.addView(sw, lp(dp(52), dp(32)));
+        tappable(line, name, () -> { sw.set(!sw.on); setSpotify(key, sw.on ? 1 : 0, false); });
+        box.addView(line, fill(-2));
+    }
+
+    /** Shows the new value at once, asks Spotify to change it, and puts the old one back if it refuses. */
+    private void setSpotify(String key, int value) { setSpotify(key, value, true); }
+
+    private void setSpotify(String key, int value, boolean redraw) {
+        if (spotifySettings == null) return;
+        int before = spotifyValue(key);
+        spotifySettings.put(key, value);
+        if (redraw) settingsChanged(false);
+        PLAYLISTS.execute(() -> {
+            String error = nativeSetSpotifySetting(key, value);
+            if (error != null && !error.isEmpty()) post(() -> {
+                spotifySettings.put(key, before);
+                Toast.makeText(activity, "Spotify didn’t change that: " + error, Toast.LENGTH_LONG).show();
+                if (tab == SETTINGS && playlist == null) settingsChanged(false);
+            });
+        });
+    }
+
     /** Redraws Settings in place after a change, keeping the scroll position. */
     private void settingsChanged(boolean palette) {
         if (palette) { paletteKey = "?"; refreshPalette(); recolor(); return; }
@@ -1178,12 +1277,19 @@ public final class SpatchUi extends FrameLayout {
 
     /** A title over a connected button group; the pick is stored as an index under `key`. */
     private void choice(LinearLayout box, String name, String[] names, String key, int fallback, boolean palette) {
+        segmented(box, name, names, prefs.getInt(key, fallback), pick -> { prefs.edit().putInt(key, pick).apply(); settingsChanged(palette); });
+    }
+
+    interface Pick { void picked(int index); }
+
+    /** A title over a connected button group with `selected` highlighted (-1 for none). */
+    private void segmented(LinearLayout box, String name, String[] names, int selected, Pick onPick) {
         TextView label = text(name, 16, ink, true);
         label.setPadding(dp(18), dp(12), dp(18), dp(8));
         box.addView(label);
         LinearLayout group = row();
         group.setPadding(dp(14), 0, dp(14), dp(12));
-        int current = prefs.getInt(key, fallback), last = names.length - 1;
+        int current = selected, last = names.length - 1;
         for (int i = 0; i < names.length; i++) {
             final int pick = i;
             boolean on = i == current;
@@ -1196,7 +1302,7 @@ public final class SpatchUi extends FrameLayout {
             shape.setCornerRadii(new float[]{dp(i == 0 ? outer : inner), dp(i == 0 ? outer : inner), dp(i == last ? outer : inner), dp(i == last ? outer : inner),
                 dp(i == last ? outer : inner), dp(i == last ? outer : inner), dp(i == 0 ? outer : inner), dp(i == 0 ? outer : inner)});
             option.setBackground(shape);
-            tappable(option, name + ": " + names[i], () -> { prefs.edit().putInt(key, pick).apply(); settingsChanged(palette); });
+            tappable(option, name + ": " + names[i], () -> onPick.picked(pick));
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(42), 1);
             if (i > 0) p.leftMargin = dp(3);
             group.addView(option, p);

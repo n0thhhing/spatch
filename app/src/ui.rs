@@ -357,6 +357,51 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClas
     strings(&mut env, fields)
 }
 
+#[cfg(feature = "preview")]
+static PREVIEW_SETTINGS: Mutex<Vec<i32>> = Mutex::new(Vec::new());
+
+/// Spotify's own settings as key, value pairs of strings (bools are "0" or "1"), or ["!", reason] if they
+/// couldn't be read. Blocks for up to a few seconds.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSpotifySettings(mut env: JNIEnv, _: JClass) -> jobjectArray {
+    use crate::spotify::settings;
+    #[cfg(feature = "preview")]
+    let read: Result<Vec<i32>, String> = {
+        let mut stored = PREVIEW_SETTINGS.lock().unwrap();
+        if stored.is_empty() {
+            *stored = vec![1, 0, 3, 1, 0, 1, 1, 1, 1, 5, 0];
+        }
+        Ok(stored.clone())
+    };
+    #[cfg(not(feature = "preview"))]
+    let read = settings::read(std::time::Duration::from_secs(4));
+    let fields = match read {
+        Ok(values) => settings::SETTINGS.iter().zip(values).flat_map(|(s, v)| [s.key.to_string(), v.to_string()]).collect(),
+        Err(error) => vec!["!".to_string(), error],
+    };
+    strings(&mut env, fields)
+}
+
+/// Changes one of Spotify's settings; "" on success, else why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSetSpotifySetting(mut env: JNIEnv, _: JClass, key: JString, value: jint) -> jstring {
+    use crate::spotify::settings;
+    let Some(key) = read(&mut env, &key) else { return string(&mut env, "No setting") };
+    #[cfg(feature = "preview")]
+    let result: Result<(), String> = match settings::SETTINGS.iter().position(|s| s.key == key) {
+        Some(i) => {
+            if let Some(slot) = PREVIEW_SETTINGS.lock().unwrap().get_mut(i) {
+                *slot = value;
+            }
+            Ok(())
+        }
+        None => Err("Unknown setting".into()),
+    };
+    #[cfg(not(feature = "preview"))]
+    let result = settings::write(&key, value);
+    string(&mut env, &result.err().unwrap_or_default())
+}
+
 /// Devices that can play your music, as six strings each: name, kind, id, "true" if it is playing,
 /// "true" if it is this phone. Blocks for up to a few seconds; empty if Spotify has none or didn't answer.
 #[unsafe(no_mangle)]

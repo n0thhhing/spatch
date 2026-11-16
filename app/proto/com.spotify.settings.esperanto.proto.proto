@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.settings.esperanto.proto;
+
+message SettingsState {
+  bool offline_mode = 1;
+  bool play_explicit_content = 2;
+  bool private_session = 3;
+  bool download_over_3g = 4;
+  int32 download_quality = 5;
+  int32 stream_quality = 6;
+  int32 stream_non_metered_quality = 7;
+  bool allow_audio_quality_downgrade = 8;
+  bool gapless = 11;
+  bool automix = 12;
+  bool normalize = 13;
+  int32 loudness_environment = 14;
+  bool crossfade = 15;
+  int32 crossfade_time_seconds = 16;
+  bool show_unavailable_tracks = 17;
+  bool local_devices_only = 18;
+  string webgate_url = 19;
+  int32 download_preferred_resource_type = 20;
+  bool trim_silence = 21;
+  bool downmix = 22;
+  bool otfn = 25;
+  int32 playback_speed = 26;
+  bool parrot = 27;
+  string shuffle_mode = 28;
+  bool crossfeed = 29;
+  int32 crossfeed_intensity = 30;
+}
