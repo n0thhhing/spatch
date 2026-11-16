@@ -11,7 +11,7 @@ import org.json.JSONObject;
  * done across its jobs; a job that hasn't started counts as none, a finished or skipped one as all.
  */
 final class Builds {
-    private static final String RUNS = "https://api.github.com/repos/" + Releases.REPO + "/actions/workflows/nightly.yml/runs?per_page=1";
+    private static final String RUNS = "https://api.github.com/repos/" + Releases.REPO + "/actions/workflows/nightly.yml/runs?per_page=1&branch=";
 
     static final class Run {
         final String title, commit, url, step;
@@ -35,9 +35,10 @@ final class Builds {
     private static long typical = -1; // read once per process: one more request
 
     /** The newest run when it is building or failed, else null. Two requests while building, one otherwise. */
-    static Run newest() throws IOException {
+    static Run newest(String branch) throws IOException {
         try {
-            JSONArray runs = new JSONObject(Releases.get(RUNS)).getJSONArray("workflow_runs");
+            String which = RUNS + java.net.URLEncoder.encode(branch.isEmpty() ? "main" : branch, "UTF-8");
+            JSONArray runs = new JSONObject(Releases.get(which)).getJSONArray("workflow_runs");
             if (runs.length() == 0) return null;
             JSONObject run = runs.getJSONObject(0);
             boolean active = !"completed".equals(run.optString("status"));
@@ -70,7 +71,7 @@ final class Builds {
             if (active && typical < 0) {
                 typical = 0;
                 // the longest of the last five: runs that changed nothing skip the bundles and finish in a minute
-                JSONArray ok = new JSONObject(Releases.get(RUNS.replace("per_page=1", "per_page=5") + "&status=success")).getJSONArray("workflow_runs");
+                JSONArray ok = new JSONObject(Releases.get(which.replace("per_page=1", "per_page=5") + "&status=success")).getJSONArray("workflow_runs");
                 for (int i = 0; i < ok.length(); i++) {
                     JSONObject last = ok.getJSONObject(i);
                     long from = time(last.optString("run_started_at", "")), to = time(last.optString("updated_at", ""));
