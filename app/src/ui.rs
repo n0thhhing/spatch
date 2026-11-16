@@ -462,8 +462,19 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayFrom(mut env: JNIEnv, _: J
     }
     #[cfg(not(feature = "preview"))]
     {
-        let (method, request) = player::command(command);
-        if bridge::call(player::SERVICE, method, &request).is_ok() { JNI_TRUE } else { JNI_FALSE }
+        send_player_command(command)
+    }
+}
+
+#[cfg(not(feature = "preview"))]
+fn send_player_command(command: player::Command) -> jboolean {
+    let (method, request) = player::command(command);
+    match bridge::call(player::SERVICE, method, &request).and_then(|b| player::check_response(&b)) {
+        Ok(()) => JNI_TRUE,
+        Err(e) => {
+            log::warn!("ContextPlayer {method} failed: {e}");
+            JNI_FALSE
+        }
     }
 }
 
@@ -639,7 +650,10 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
         4 if value >= 0 => Command::SeekTo(value),
         5 => Command::Shuffle(value != 0),
         6 if (0..=2).contains(&value) => Command::Repeat(value as u8),
-        7 if spotify_uri => Command::Play(target),
+        7 if spotify_uri => Command::Play {
+            uri: target,
+            shuffle: match value { 1 => Some(true), 2 => Some(false), _ => None },
+        },
         8 if spotify_uri => {
             let state = PLAYER.lock().unwrap();
             let Some(next) = state.1.as_ref().and_then(|n| n.up_next.get(value.max(0) as usize)).filter(|t| t.uri == target) else {
@@ -659,8 +673,10 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
             return JNI_TRUE;
         }
     }
-    let (method, request) = player::command(command);
-    if bridge::call(player::SERVICE, method, &request).is_ok() { JNI_TRUE } else { JNI_FALSE }
+    #[cfg(not(feature = "preview"))]
+    return send_player_command(command);
+    #[cfg(feature = "preview")]
+    JNI_FALSE
 }
 
 /// 1 saved, 0 not saved, -1 unknown.

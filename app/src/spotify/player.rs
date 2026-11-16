@@ -143,8 +143,8 @@ pub fn state_request() -> Vec<u8> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
-    /// A playlist, album, artist or show by URI, from its start.
-    Play(String),
+    /// A playlist, album, artist or show by URI, from its start, optionally overriding shuffle.
+    Play { uri: String, shuffle: Option<bool> },
     /// A playlist from one of its songs: the song's uri and its position in the playlist.
     PlayFrom { context: String, track: String, index: i64 },
     Pause,
@@ -160,15 +160,48 @@ pub enum Command {
     AddToQueue(String),
 }
 
+fn logging_params() -> Option<es::LoggingParams> {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64);
+    Some(es::LoggingParams {
+        command_initiated_time: Some(es::OptionalInt64 { value: now_ms }),
+        ..Default::default()
+    })
+}
+
+/// Checks an Esperanto `ContextPlayer` `ResponseWithReasons` payload; `error != 0` means Spotify rejected the command.
+pub fn check_response(bytes: &[u8]) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    let response = es::ResponseWithReasons::decode(bytes).map_err(|e| format!("decode ResponseWithReasons: {e}"))?;
+    if response.error == 0 {
+        Ok(())
+    } else if response.reasons.is_empty() {
+        Err(format!("error {}", response.error))
+    } else {
+        Err(format!("error {} ({})", response.error, response.reasons))
+    }
+}
+
 /// The RPC method and request bytes for a command.
 pub fn command(c: Command) -> (&'static str, Vec<u8>) {
     let track = |uri, uid| Some(es::ContextTrack { uri, uid, ..Default::default() });
+    let log = logging_params();
     match c {
-        Command::Play(uri) => (
+        Command::Play { uri, shuffle } => (
             "Play",
             es::PlayRequest {
                 prepare_play_request: Some(es::PreparePlayRequest {
                     context: Some(es::Context { url: format!("context://{uri}"), uri, ..Default::default() }),
+                    options: shuffle.map(|on| es::PreparePlayOptions {
+                        player_options_override: Some(es::ContextPlayerOptionOverrides {
+                            shuffling_context: Some(es::OptionalBoolean { value: on }),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
                     play_origin: Some(es::PlayOrigin { feature_identifier: "spatch".into(), ..Default::default() }),
                     ..Default::default()
                 }),
@@ -192,23 +225,24 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
             }
             .encode_to_vec(),
         ),
-        Command::Pause => ("Pause", es::PauseRequest::default().encode_to_vec()),
-        Command::Resume => ("Resume", es::ResumeRequest::default().encode_to_vec()),
-        Command::Next => ("SkipNext", es::SkipNextRequest::default().encode_to_vec()),
-        Command::Previous => ("SkipPrev", es::SkipPrevRequest { allow_seeking: true, ..Default::default() }.encode_to_vec()),
-        Command::SeekTo(ms) => ("SeekTo", es::SeekToRequest { position: ms, ..Default::default() }.encode_to_vec()),
-        Command::Shuffle(on) => ("SetShufflingContext", es::SetShufflingContextRequest { shuffling_context: on, ..Default::default() }.encode_to_vec()),
+        Command::Pause => ("Pause", es::PauseRequest { logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::Resume => ("Resume", es::ResumeRequest { logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::Next => ("SkipNext", es::SkipNextRequest { logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::Previous => ("SkipPrev", es::SkipPrevRequest { allow_seeking: true, logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::SeekTo(ms) => ("SeekTo", es::SeekToRequest { position: ms, logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::Shuffle(on) => ("SetShufflingContext", es::SetShufflingContextRequest { shuffling_context: on, logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::Repeat(mode) => (
             "SetOptions",
             es::SetOptionsRequest {
                 repeating_context: Some(es::OptionalBoolean { value: mode >= 1 }),
                 repeating_track: Some(es::OptionalBoolean { value: mode == 2 }),
+                logging_params: log,
                 ..Default::default()
             }
             .encode_to_vec(),
         ),
-        Command::SkipTo { uri, uid } => ("SkipNext", es::SkipNextRequest { track: track(uri, uid), ..Default::default() }.encode_to_vec()),
-        Command::AddToQueue(uri) => ("AddToQueue", es::AddToQueueRequest { track: track(uri, String::new()), ..Default::default() }.encode_to_vec()),
+        Command::SkipTo { uri, uid } => ("SkipNext", es::SkipNextRequest { track: track(uri, uid), logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::AddToQueue(uri) => ("AddToQueue", es::AddToQueueRequest { track: track(uri, String::new()), logging_params: log, ..Default::default() }.encode_to_vec()),
     }
 }
 
@@ -285,9 +319,10 @@ mod tests {
         let skip = sent.options.unwrap().skip_to.unwrap();
         assert_eq!((method, sent.context.unwrap().uri.as_str()), ("Play", "spotify:playlist:1"));
         assert_eq!((skip.track_uri.as_str(), skip.track_index.unwrap().value), ("spotify:track:7", 6));
-        let (method, bytes) = command(Command::Play("spotify:playlist:1".into()));
-        let context = es::PlayRequest::decode(bytes.as_slice()).unwrap().prepare_play_request.unwrap().context.unwrap();
-        assert_eq!((method, context.url.as_str()), ("Play", "context://spotify:playlist:1"));
+        let (method, bytes) = command(Command::Play { uri: "spotify:playlist:1".into(), shuffle: Some(true) });
+        let prep = es::PlayRequest::decode(bytes.as_slice()).unwrap().prepare_play_request.unwrap();
+        assert_eq!((method, prep.context.unwrap().url.as_str()), ("Play", "context://spotify:playlist:1"));
+        assert!(prep.options.unwrap().player_options_override.unwrap().shuffling_context.unwrap().value);
         let (method, bytes) = command(Command::SkipTo { uri: "spotify:track:2".into(), uid: "u2".into() });
         let skip = es::SkipNextRequest::decode(bytes.as_slice()).unwrap().track.unwrap();
         assert_eq!((method, skip.uri.as_str(), skip.uid.as_str()), ("SkipNext", "spotify:track:2", "u2"));
@@ -296,7 +331,19 @@ mod tests {
         let (method, bytes) = command(Command::Repeat(1));
         let options = es::SetOptionsRequest::decode(bytes.as_slice()).unwrap();
         assert_eq!((method, options.repeating_context.unwrap().value, options.repeating_track.unwrap().value), ("SetOptions", true, false));
-        assert_eq!(command(Command::Shuffle(true)).0, "SetShufflingContext");
+        assert!(options.logging_params.and_then(|l| l.command_initiated_time).is_some());
+        let (method, bytes) = command(Command::Shuffle(true));
+        let shuf = es::SetShufflingContextRequest::decode(bytes.as_slice()).unwrap();
+        assert_eq!((method, shuf.shuffling_context), ("SetShufflingContext", true));
+        assert!(shuf.logging_params.and_then(|l| l.command_initiated_time).is_some());
         assert_eq!(es::SeekToRequest::decode(command(Command::SeekTo(1234)).1.as_slice()).unwrap().position, 1234);
+    }
+
+    #[test]
+    fn response_with_reasons_surfaces_rejections() {
+        assert!(check_response(&[]).is_ok());
+        assert!(check_response(&es::ResponseWithReasons { error: 0, reasons: String::new() }.encode_to_vec()).is_ok());
+        let err = check_response(&es::ResponseWithReasons { error: 1, reasons: "mft_disallow".into() }.encode_to_vec()).unwrap_err();
+        assert!(err.contains("error 1") && err.contains("mft_disallow"));
     }
 }

@@ -127,7 +127,12 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
             now.timestamp = now_ms();
             now.playing = matches!(command, Command::Resume);
         }
-        Command::Play(uri) => *now = track(index_of(&uri), true),
+        Command::Play { uri, shuffle } => {
+            *now = track(index_of(&uri), true);
+            if let Some(on) = shuffle {
+                now.shuffle = on;
+            }
+        }
         Command::PlayFrom { track: uri, .. } => *now = track(index_of(&uri), true),
         Command::Next => *now = track((here + 1) % TRACKS.len(), now.playing),
         Command::Previous => *now = track((here + TRACKS.len() - 1) % TRACKS.len(), now.playing),

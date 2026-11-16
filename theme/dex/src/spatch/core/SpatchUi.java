@@ -1264,11 +1264,11 @@ public final class SpatchUi extends FrameLayout {
         }
         LinearLayout actions = row();
         actions.setGravity(Gravity.CENTER);
-        TextView shuf = pill("Shuffle", () -> { command(SHUFFLE, 1, ""); command(PLAY, 0, playUri()); });
+        TextView shuf = pill("Shuffle", () -> command(PLAY, 1, playUri()));
         GradientDrawable shufBg = round(surfHi, 22);
         shuf.setBackground(shufBg);
         colored(shuf, () -> { shuf.setTextColor(ink); shufBg.setColor(surfHi); });
-        TextView play = pill("Play", () -> { if (shuffle) command(SHUFFLE, 0, ""); command(PLAY, 0, playUri()); });
+        TextView play = pill("Play", () -> command(PLAY, 2, playUri()));
         actions.addView(shuf, lp(dp(130), dp(50)));
         actions.addView(space(dp(8), 1));
         actions.addView(play, lp(dp(130), dp(50)));
@@ -1873,12 +1873,12 @@ public final class SpatchUi extends FrameLayout {
         controls.setGravity(Gravity.CENTER);
         pShuffle = colored(new Icon("shuffle", inkDim), () -> { pShuffle.color = shuffle ? accent : inkDim; pShuffle.invalidate(); });
         pRepeat = colored(new Icon("repeat", inkDim), () -> { pRepeat.symbol = repeat == 2 ? "repeat-one" : "repeat"; pRepeat.color = repeat != 0 ? accent : inkDim; pRepeat.invalidate(); });
-        controls.addView(iconButton(pShuffle, "Shuffle", () -> command(SHUFFLE, shuffle ? 0 : 1, "")), lp(dp(52), dp(52)));
+        controls.addView(iconButton(pShuffle, "Shuffle", this::toggleShuffle), lp(dp(52), dp(52)));
         controls.addView(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", () -> command(PREVIOUS, 0, "")), false), lp(dp(60), dp(60)));
         pPlay = new PlayButton();
         controls.addView(pPlay, lp(dp(86), dp(86)));
         controls.addView(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), lp(dp(60), dp(60)));
-        controls.addView(iconButton(pRepeat, "Repeat", () -> command(REPEAT, (repeat + 1) % 3, "")), lp(dp(52), dp(52)));
+        controls.addView(iconButton(pRepeat, "Repeat", this::cycleRepeat), lp(dp(52), dp(52)));
         col.addView(controls, fill(-2));
 
         nextPill = row();
@@ -1978,6 +1978,30 @@ public final class SpatchUi extends FrameLayout {
             post(() -> {
                 if (!ok) { pending = null; refresh(); }
                 else postDelayed(() -> { if (pending != null && pending == want) { pending = null; refresh(); } }, 2500);
+            });
+        });
+    }
+
+    private void toggleShuffle() {
+        boolean before = shuffle, want = !before;
+        shuffle = want;
+        refresh();
+        COMMANDS.execute(() -> {
+            if (!nativeCommand(SHUFFLE, want ? 1 : 0, "")) post(() -> {
+                if (shuffle == want) { shuffle = before; refresh(); }
+                if (isAttachedToWindow()) Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+
+    private void cycleRepeat() {
+        int before = repeat, want = (before + 1) % 3;
+        repeat = want;
+        refresh();
+        COMMANDS.execute(() -> {
+            if (!nativeCommand(REPEAT, want, "")) post(() -> {
+                if (repeat == want) { repeat = before; refresh(); }
+                if (isAttachedToWindow()) Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show();
             });
         });
     }
