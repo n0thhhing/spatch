@@ -69,8 +69,16 @@ fn main() {
     g.set_primary(c(theme.primary)); g.set_on_primary(c(theme.on_primary)); g.set_primary_container(c(theme.primary_container)); g.set_on_primary_container(c(theme.on_primary_container));
     g.set_secondary_container(c(theme.secondary_container)); g.set_on_secondary_container(c(theme.on_secondary_container)); g.set_outline_variant(c(theme.outline_variant));
     let _ = ui.show();
-    for (tab, name) in [(0, "home"), (1, "player")] {
+    ui.set_library(ModelRc::new(VecModel::from(vec![
+        row("Liked Songs", "Playlist", false, [90, 60, 220], [180, 160, 255]),
+        row("moron", "Playlist • levi", false, [230, 230, 230], [120, 20, 30]),
+        row("we went no contact", "Album • pooterdabooter", false, [40, 60, 160], [230, 230, 250]),
+        row("anxiously", "Artist", true, [220, 80, 140], [40, 10, 40]),
+    ])));
+    for (tab, name) in [(0, "home"), (1, "player"), (2, "library")] {
         ui.set_tab(tab);
+        // Let the page slide finish before drawing.
+        std::thread::sleep(std::time::Duration::from_millis(500));
         slint::platform::update_timers_and_animations();
         let mut buf = vec![Rgb8Pixel::default(); (w * h) as usize];
         window.request_redraw();

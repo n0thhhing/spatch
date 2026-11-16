@@ -97,6 +97,9 @@ Pixel's own apps:
 - `components.slint`: icon buttons, list items, filter chips, the navigation bar, the wavy progress bar
   and the play button that morphs from circle to rounded square.
 
+Headings use Outfit (SIL Open Font License, `ui/fonts/OFL-Outfit.txt`), embedded in the library as
+static Bold and ExtraBold cuts of the variable font.
+
 `cargo run --example preview -- <dir>` renders both screens on the Mac as PPM files, a quick layout check
 without a phone.
 

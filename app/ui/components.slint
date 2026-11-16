@@ -134,7 +134,7 @@ export component SectionHeader inherits Rectangle {
             }
             Icon { y: 15px; icon: root.icon; size: 18px; fill: Theme.on-secondary-container; }
         }
-        Text { text: root.title; color: Theme.on-surface; font-size: Type.title-large; font-weight: 800; vertical-alignment: center; }
+        Text { text: root.title; color: Theme.on-surface; font-family: Type.display; font-size: Type.title-large + 2px; font-weight: 800; vertical-alignment: center; }
         Rectangle {
             horizontal-stretch: 1;
             Path {
@@ -184,7 +184,7 @@ export component QuickCard inherits Rectangle {
         }
         VerticalLayout {
             alignment: center;
-            Text { text: root.title; color: Theme.on-surface; font-size: 15px; font-weight: 700; overflow: elide; }
+            Text { text: root.title; color: Theme.on-surface; font-family: Type.display; font-size: 16px; font-weight: 700; overflow: elide; }
             Text { text: root.subtitle; color: Theme.on-surface-variant; font-size: Type.label-medium; overflow: elide; }
         }
     }
@@ -334,4 +334,27 @@ export component FloatingPlayer inherits Rectangle {
         playing: root.playing;
         seekable: false;
     }
+}
+
+// A filter chip: outlined, filled with a check when selected.
+export component FilterChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback clicked();
+    height: 36px;
+    border-radius: 18px;
+    border-width: root.selected ? 0px : 1px;
+    border-color: Theme.outline-variant;
+    background: root.selected ? Theme.secondary-container : transparent;
+    animate background { duration: 150ms; }
+    clip: true;
+    StateLayer { pressed: touch.pressed; tint: root.selected ? Theme.on-secondary-container : Theme.on-surface-variant; }
+    HorizontalLayout {
+        padding-left: root.selected ? 10px : 16px;
+        padding-right: 16px;
+        spacing: 6px;
+        if root.selected: Icon { icon: Icons.check; size: 18px; y: 9px; fill: Theme.on-secondary-container; }
+        Text { text: root.label; vertical-alignment: center; font-size: Type.label-large; font-weight: 600; color: root.selected ? Theme.on-secondary-container : Theme.on-surface-variant; }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
 }

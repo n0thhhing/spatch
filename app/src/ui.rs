@@ -51,6 +51,8 @@ struct App {
     scale: f32,
     now: NowPlaying,
     library: Vec<Item>,
+    /// The library page's chip (playlists, albums, artists, podcasts), or -1 for everything.
+    filter: i32,
     /// The wallpaper's (or built-in) colours, and the ones on screen now (the cover's when it has some).
     base_theme: [u32; 9],
     shown_theme: [u32; 9],
@@ -120,6 +122,9 @@ impl App {
         self.ui.set_albums(of(library::Kind::Album));
         self.ui.set_artists(of(library::Kind::Artist));
         self.ui.set_podcasts(of(library::Kind::Podcast));
+        let filter = self.filter;
+        let shown = self.library.iter().filter(|i| filter < 0 || i.kind.chip() == Some(filter));
+        self.ui.set_library(rows(shown.map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone(), i.kind == library::Kind::Artist))));
     }
 }
 
@@ -228,6 +233,14 @@ pub fn open(look: Look) {
             }
         })
     });
+    ui.on_filter_changed(|filter| {
+        APP.with(|a| {
+            if let Some(app) = a.borrow_mut().as_mut() {
+                app.filter = filter;
+                app.show_art();
+            }
+        })
+    });
     // Liked Songs is the library's collection entry.
     ui.on_liked(|| {
         let uri = APP.with(|a| a.borrow().as_ref().and_then(|app| app.library.iter().find(|i| i.uri.ends_with(":collection")).map(|i| i.uri.clone())));
@@ -246,7 +259,7 @@ pub fn open(look: Look) {
     let _ = ui.show();
     ui.set_status("Connecting to Spotify's player…".into());
     load_library();
-    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), base_theme: look.theme, shown_theme: look.theme, shown_second: -1 }));
+    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), filter: -1, base_theme: look.theme, shown_theme: look.theme, shown_second: -1 }));
     std::thread::spawn(|| {
         match when_ready(subscribe_player) {
             Ok(id) => STREAM.lock().unwrap().replace(id),
