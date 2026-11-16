@@ -108,6 +108,46 @@ public final class CoreBridge implements Transport {
         return out == null ? new byte[0] : out;
     }
 
+    /**
+     * From Rust, off the main thread: an image (Spotify's public CDN) decoded with Android's own decoder
+     * and scaled to fit `size` pixels. Returns width and height (4 bytes each, big-endian) then RGBA
+     * pixels, or null when it can't be had.
+     */
+    public static byte[] image(String url, int size) {
+        try {
+            java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(20000);
+            byte[] data;
+            try (java.io.InputStream in = c.getInputStream()) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[1 << 14];
+                for (int n; (n = in.read(buf)) > 0;) out.write(buf, 0, n);
+                data = out.toByteArray();
+            } finally {
+                c.disconnect();
+            }
+            android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            while (bounds.outWidth / (opts.inSampleSize == 0 ? 1 : opts.inSampleSize) >= size * 2) opts.inSampleSize = Math.max(2, opts.inSampleSize * 2);
+            android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, opts);
+            if (b == null) return null;
+            if (b.getWidth() > size || b.getHeight() > size) {
+                float k = Math.min(size / (float) b.getWidth(), size / (float) b.getHeight());
+                b = android.graphics.Bitmap.createScaledBitmap(b, Math.max(1, Math.round(b.getWidth() * k)), Math.max(1, Math.round(b.getHeight() * k)), true);
+            }
+            if (b.getConfig() != android.graphics.Bitmap.Config.ARGB_8888) return null; // JPEGs from the CDN decode as ARGB_8888
+            java.nio.ByteBuffer out = java.nio.ByteBuffer.allocate(8 + b.getWidth() * b.getHeight() * 4);
+            out.putInt(b.getWidth()).putInt(b.getHeight());
+            b.copyPixelsToBuffer(out); // RGBA byte order
+            return out.array();
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
     /** Services seen so far, for the developer log. */
     public static String services() {
         return new java.util.TreeSet<String>(SERVICES.keySet()).toString() + (fallback == null ? " (no native transport yet)" : "") + (router == null ? " (no router yet)" : "");
