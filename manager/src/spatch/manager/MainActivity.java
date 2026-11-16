@@ -59,7 +59,7 @@ public final class MainActivity extends Activity {
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
     private static final String[] PAGES = {"Spatch", "Clones", "Diagnostics", "Changes"};
     private static final String[] PAGE_ICONS = {"music_note", "content_copy", "stethoscope", "system_update"};
-    private static final String[] HEADINGS = {"Spatch", "Clones", "Diagnostics", "Changes"};
+    private static final String[] HEADINGS = {"Spatch Manager", "Clones", "Diagnostics", "Changes"};
     private static final String[] LINES = {"Patched here, signed with this phone's key", "Second Spotifys with their own names", "What the phone and Spatch report", "What's new in each release"};
 
     enum PresetProfile {
@@ -559,8 +559,8 @@ public final class MainActivity extends Activity {
         createCard.addView(cloneStatus, look.spaced(2));
 
         cloneName = new EditText(this);
-        cloneName.setText(prefs.getString(CLONE_NAME, "Spotify Two"));
-        cloneName.setHint("Spotify Two");
+        cloneName.setText(prefs.getString(CLONE_NAME, "spatch"));
+        cloneName.setHint("spatch");
         createCard.addView(look.field("App name", cloneName), look.spaced(12));
 
         clonePkg = new EditText(this);
