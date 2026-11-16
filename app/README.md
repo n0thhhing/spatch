@@ -53,6 +53,11 @@ The ones a client needs:
 | Connect | `spotify.connect.esperanto.proto.ConnectService`, `ConnectVolumeService` | `State` (stream), `Transfer`, … |
 | Offline | `spotify.offline_esperanto.proto.Offline`, `Download` | 24 + 12 methods |
 
+**Cosmos.** A second alias-free hook captures `com.spotify.cosmos.servicebasedrouter.RemoteNativeRxRouter`
+(the native Cosmos router). `core::request(action, uri, body)` sends a `com.spotify.cosmos.cosmos.Request`
+through it. That covers `sp://` local endpoints and `hm://` backend requests over the core's own
+authenticated connection. Untested: try it first for search and home before hooking HTTP.
+
 **Not Esperanto: search and home.** These go through Spotify's authenticated HTTP client: Retrofit
 interfaces such as `searchview/v3/search` against `spclient.wg.spotify.com`, over an obfuscated OkHttp.
 That needs its own hook (Spotify's Retrofit or OkHttp client, alias-mapped) before those screens can be

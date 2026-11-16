@@ -83,6 +83,24 @@ pub fn call(service: &str, method: &str, request: &[u8]) -> Result<Vec<u8>, Stri
     result.map_err(|e| exception(&mut env, e))
 }
 
+/// One Cosmos request (`sp://` or `hm://`, action GET/POST/...) through Spotify's native router;
+/// the reply body, or an error for a non-2xx status. Blocks: never on the UI thread.
+pub fn request(action: &str, uri: &str, body: &[u8]) -> Result<Vec<u8>, String> {
+    let j = java()?;
+    let mut env = j.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
+    let result = (|| -> jni::errors::Result<Vec<u8>> {
+        let a = env.new_string(action)?;
+        let u = env.new_string(uri)?;
+        let b = env.byte_array_from_slice(body)?;
+        let class: &JClass = j.bridge.as_obj().into();
+        let out = env
+            .call_static_method(class, "request", "(Ljava/lang/String;Ljava/lang/String;[B)[B", &[JValue::Object(&a), JValue::Object(&u), JValue::Object(&b)])?
+            .l()?;
+        env.convert_byte_array(JByteArray::from(out))
+    })();
+    result.map_err(|e| exception(&mut env, e))
+}
+
 /// Opens a stream; `handler` gets every reply (or the error that ended it) on Spotify's threads.
 /// Returns the id for `cancel`.
 pub fn subscribe(service: &str, method: &str, request: &[u8], handler: impl Fn(Result<&[u8], &str>) + Send + Sync + 'static) -> Result<i64, String> {

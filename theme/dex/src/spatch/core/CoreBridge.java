@@ -89,9 +89,28 @@ public final class CoreBridge implements Transport {
         if (d != null) d.dispose();
     }
 
+    /** Spotify's native Cosmos router (sp:// and hm:// requests through the core's own connection). */
+    private static volatile Object router;
+
+    /** Hook: RemoteNativeRxRouter's constructor. */
+    public static void router(Object r) {
+        if (router == null && r instanceof com.spotify.cosmos.rxrouter.RxRouter) router = r;
+    }
+
+    /** From Rust, off the main thread: one Cosmos request; the body of the first reply. Throws on a non-2xx status. */
+    public static byte[] request(String action, String uri, byte[] body) {
+        Object r = router;
+        if (r == null) throw new IllegalStateException("Spotify's router isn't running yet");
+        com.spotify.cosmos.cosmos.Response reply = (com.spotify.cosmos.cosmos.Response)
+            ((com.spotify.cosmos.rxrouter.RxRouter) r).resolve(new com.spotify.cosmos.cosmos.Request(action, uri, body)).blockingFirst();
+        if (reply.getStatus() / 100 != 2) throw new IllegalStateException(action + " " + uri + " answered " + reply.getStatus());
+        byte[] out = reply.getBody();
+        return out == null ? new byte[0] : out;
+    }
+
     /** Services seen so far, for the developer log. */
     public static String services() {
-        return new java.util.TreeSet<String>(SERVICES.keySet()).toString() + (fallback == null ? " (no native transport yet)" : "");
+        return new java.util.TreeSet<String>(SERVICES.keySet()).toString() + (fallback == null ? " (no native transport yet)" : "") + (router == null ? " (no router yet)" : "");
     }
 
     static native void nativeNext(long token, byte[] value);

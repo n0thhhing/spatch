@@ -307,6 +307,18 @@ pub fn helpers(debug: bool) -> Vec<(&'static str, &'static str)> {
 /// Compile-only stand-ins for platform and Spotify classes; never packaged.
 pub const STUBS: &[(&str, &str)] = &[
     (
+        "Request.java",
+        include_str!("../theme/dex/stubs/com/spotify/cosmos/cosmos/Request.java"),
+    ),
+    (
+        "Response.java",
+        include_str!("../theme/dex/stubs/com/spotify/cosmos/cosmos/Response.java"),
+    ),
+    (
+        "RxRouter.java",
+        include_str!("../theme/dex/stubs/com/spotify/cosmos/rxrouter/RxRouter.java"),
+    ),
+    (
         "Transport.java",
         include_str!("../theme/dex/stubs/com/spotify/esperanto/esperanto/Transport.java"),
     ),

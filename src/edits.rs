@@ -6,7 +6,9 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 113] = [
+pub const EDITS: [Edit; 114] = [
+    // And Spotify's native Cosmos router, for sp:// and hm:// requests through the core's own connection.
+    Edit { file: "smali/com/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter.smali", anchor: "    iput-boolean p3, p0, Lcom/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter;->dispatchOnComputationScheduler:Z\n", replacement: "    iput-boolean p3, p0, Lcom/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter;->dispatchOnComputationScheduler:Z\n\n    invoke-static {p0}, Lspatch/CoreBridge;->router(Ljava/lang/Object;)V\n" },
     // Spatch's Rust app reaches Spotify's core through the same Esperanto transports: every client's goes through CoreBridge.
     Edit { file: "smali/com/spotify/esperanto/esperanto/ClientBase.smali", anchor: "    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n", replacement: "    invoke-static {p1}, Lspatch/CoreBridge;->wrap(Ljava/lang/Object;)Lcom/spotify/esperanto/esperanto/Transport;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n" },
     // Claim horizontal cover-area gestures before native scrolling/dismissal can intercept them.
