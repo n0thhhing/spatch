@@ -1392,7 +1392,26 @@ public final class SpatchUi extends FrameLayout {
                 c.drawCircle(w / 2f, h / 2f, side / 2f * (1.02f + .5f * (1 - (1 - t) * (1 - t))), paint);
                 paint.setStyle(Paint.Style.FILL);
             }
-            if (audio) Audio.want();
+            if (audio) {
+                // Spectrum ring: each band is a short ray off the disc's rim, mirrored left and right.
+                int n = Audio.BANDS.length;
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeWidth(dp(3));
+                paint.setColor(primary);
+                float rim = side / 2f + dp(8);
+                for (int i = 0; i < n * 2; i++) {
+                    float v = Audio.BANDS[i < n ? i : n * 2 - 1 - i];
+                    if (v < .02f) continue;
+                    double a = -Math.PI / 2 + (i + .5) / (n * 2) * Math.PI * 2;
+                    float len = dp(4) + dp(26) * v;
+                    float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
+                    paint.setAlpha(Math.round(90 + 140 * v));
+                    c.drawLine(cx + cos * rim, cy + sin * rim, cx + cos * (rim + len), cy + sin * (rim + len), paint);
+                }
+                paint.setStyle(Paint.Style.FILL);
+                Audio.want();
+            }
             if (running) postInvalidateOnAnimation();
         }
     }

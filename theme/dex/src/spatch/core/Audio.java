@@ -30,6 +30,8 @@ public final class Audio {
     static volatile float bass, level, kick;
     /** When the last kick landed (uptime ms), 0 if never. */
     static volatile long kickAt;
+    /** 24 log-spaced bands from 50 Hz to 16 kHz, 0..1, eased; read by the spectrum ring. */
+    static final float[] BANDS = new float[24];
 
     private static android.os.Handler worker;
     private static volatile long wantedUntil;
@@ -66,6 +68,7 @@ public final class Audio {
             if (now > wantedUntil || !sample(now)) {
                 release();
                 bass = level = kick = 0;
+                java.util.Arrays.fill(BANDS, 0);
                 return;
             }
             worker.postDelayed(this, 16);
@@ -100,6 +103,11 @@ public final class Audio {
                 kick = Math.min(1f, (low - average) * 3f + .35f);
             }
             kick *= (float) Math.exp(-dt / 260f);
+            for (int i = 0; i < BANDS.length; i++) {
+                float from = 50f * (float) Math.pow(320, i / (float) BANDS.length), to = 50f * (float) Math.pow(320, (i + 1) / (float) BANDS.length);
+                float target = band(fft, rate, from, to);
+                BANDS[i] += (target - BANDS[i]) * (1 - (float) Math.exp(-dt / (target > BANDS[i] ? 22f : 140f)));
+            }
             return true;
         } catch (RuntimeException e) {
             release();
