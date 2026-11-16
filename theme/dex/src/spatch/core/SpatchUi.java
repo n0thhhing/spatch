@@ -3061,6 +3061,8 @@ public final class SpatchUi extends FrameLayout {
                     paint.setColor(onVariant);
                     paint.setTextAlign(Paint.Align.CENTER);
                     paint.setTextSize(Math.min(w, h) * .42f);
+                    Typeface face = pref("expressive_type", true) ? typeRole(true, 30) : null;
+                    if (face != null) paint.setTypeface(face);
                     paint.setFakeBoldText(true);
                     c.drawText(letter, w / 2, h / 2 - (paint.descent() + paint.ascent()) / 2, paint);
                     paint.setFakeBoldText(false);
@@ -3342,6 +3344,8 @@ public final class SpatchUi extends FrameLayout {
 
         Wave() {
             super(activity);
+            Typeface face = pref("expressive_type", true) ? typeRole(false, 12) : null;
+            if (face != null) paint.setTypeface(face);
             setFocusable(true);
             setContentDescription("Playback position");
         }
