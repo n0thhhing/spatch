@@ -1092,6 +1092,9 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout player = card(page, "Player");
         toggle(player, "Floating motes", "Soft particles drift behind the player", "motes", true, false);
         toggle(player, "Follow the music", "The ring’s bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
+        TextView audioStatus = text("Status: " + Audio.status, 12, inkDim, false);
+        audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
+        player.addView(audioStatus);
         toggle(player, "Keep screen on", "While the player is open", "keep_on", true, false);
         toggle(player, "Haptics", "Little taps on buttons", "haptics", true, false);
         TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.", 13, inkDim, false);

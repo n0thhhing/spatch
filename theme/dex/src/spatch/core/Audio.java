@@ -45,12 +45,25 @@ public final class Audio {
         return context.checkSelfPermission(PERMISSION) == 0;
     }
 
+    /** What the capture is doing, for Settings: it says why the bars aren't following the music. */
+    static volatile String status = "Not started";
+    private static boolean looping;
+
+    private static void say(String text) {
+        if (!text.equals(status)) {
+            status = text;
+            android.util.Log.i("SpatchAudio", text);
+        }
+    }
+
     /** A visible screen wants levels for the next second; call it from a frame callback. */
     static void want() {
-        long now = SystemClock.uptimeMillis();
-        boolean idle = wantedUntil < now;
-        wantedUntil = now + 1000;
-        if (idle) worker().post(TICK);
+        wantedUntil = SystemClock.uptimeMillis() + 1000;
+        synchronized (Audio.class) {
+            if (looping) return;
+            looping = true;
+        }
+        worker().post(TICK);
     }
 
     private static android.os.Handler worker() {
@@ -65,20 +78,30 @@ public final class Audio {
     private static final Runnable TICK = new Runnable() {
         public void run() {
             long now = SystemClock.uptimeMillis();
-            if (now > wantedUntil || !sample(now)) {
+            if (now > wantedUntil) {
+                // Nobody has asked for a second: stop capturing until they do.
                 release();
                 bass = level = kick = 0;
                 java.util.Arrays.fill(BANDS, 0);
+                say("Idle");
+                synchronized (Audio.class) { looping = false; }
                 return;
             }
-            worker.postDelayed(this, 16);
+            // While nothing can be captured yet (no session, no permission) keep looking, slowly, rather than giving up.
+            boolean ok = sample(now);
+            if (!ok) {
+                bass = level = kick = 0;
+                java.util.Arrays.fill(BANDS, 0);
+            }
+            worker.postDelayed(this, ok ? 16 : 400);
         }
     };
 
     /** One capture; false stops the loop (nothing playing, no permission, or the session refused). */
     private static boolean sample(long now) {
         int id = session;
-        if (id <= 0 || context == null || !permitted(context)) return false;
+        if (context == null || !permitted(context)) { say("Needs the microphone permission"); return false; }
+        if (id <= 0) { say("Waiting for Spotify to start playing"); return false; }
         if (capturing != id) { release(); capturing = id; retryAt = 0; }
         if (visualizer == null && now < retryAt) return true;
         try {
@@ -90,6 +113,7 @@ public final class Audio {
                 fft = new byte[size];
             }
             if (visualizer.getFft(fft) != 0) throw new IllegalStateException();
+            say("Listening to Spotify (audio session " + id + ")");
             float dt = sampled == 0 ? 16 : Math.min(100, now - sampled);
             sampled = now;
             int rate = visualizer.getSamplingRate() / 1000;
@@ -110,6 +134,7 @@ public final class Audio {
             }
             return true;
         } catch (RuntimeException e) {
+            say("Couldn’t read the audio: " + e);
             release();
             retryAt = now + 2000;
             return true;
