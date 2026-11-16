@@ -1,7 +1,11 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 3] = [
+pub const HELPERS: [(&str, &str); 4] = [
+    (
+        "Audio",
+        include_str!("../theme/dex/src/spatch/core/Audio.java"),
+    ),
     (
         "CoreBridge",
         include_str!("../theme/dex/src/spatch/core/CoreBridge.java"),

@@ -107,6 +107,7 @@ public final class SpatchUi extends FrameLayout {
         this.activity = activity;
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
+        Audio.context = activity.getApplicationContext();
         applyPalette();
         setClickable(true);
         setFocusableInTouchMode(true);
@@ -140,6 +141,8 @@ public final class SpatchUi extends FrameLayout {
         onSecondaryContainer = tone("accent2", dark ? 100 : 900, dark ? 0xffe8def8 : 0xff1d192b);
         tertiaryContainer = tone("accent3", dark ? 700 : 100, dark ? 0xff633b48 : 0xffffd8e4);
         onTertiaryContainer = tone("accent3", dark ? 100 : 900, dark ? 0xffffd8e4 : 0xff31111d);
+        int accent = prefs.getInt("accent", 0);
+        if (accent != 0) seedPalette(accent);
         String want = artworkSeedWanted();
         if (want != null) appliedSeed = want;
         if (!appliedSeed.isEmpty()) seedPalette(Integer.parseInt(appliedSeed));
@@ -1039,6 +1042,7 @@ public final class SpatchUi extends FrameLayout {
             long now = SystemClock.uptimeMillis();
             boolean running = playing && motionEnabled() && getWindowVisibility() == VISIBLE;
             float dt = last == 0 || !running ? 0 : Math.min(.05f, (now - last) / 1000f);
+            if (running && listening()) dt *= 1f + 3.5f * Audio.level + 4f * Audio.kick;
             last = now;
             float w = getWidth(), h = getHeight(), t = now / 1000f;
             for (int i = 0; i < x.length; i++) {
@@ -1054,6 +1058,11 @@ public final class SpatchUi extends FrameLayout {
             }
             if (running) postInvalidateOnAnimation();
         }
+    }
+
+    /** Whether visuals follow Spotify's audio: the setting is on and the permission granted. */
+    private boolean listening() {
+        return pref("audio", false) && Audio.permitted(activity);
     }
 
     /** A halo behind the artwork that breathes slowly while playing. */
@@ -1080,14 +1089,29 @@ public final class SpatchUi extends FrameLayout {
                     new float[]{.5f, .75f, 1f}, Shader.TileMode.CLAMP);
             }
             boolean running = playing && motionEnabled() && getWindowVisibility() == VISIBLE;
-            float breath = running ? (float) Math.sin(SystemClock.uptimeMillis() / 4200f * 6.283f) : 0f;
-            float scale = 1f + .06f * breath;
+            boolean audio = running && listening();
+            long now = SystemClock.uptimeMillis();
+            float breath = running ? (float) Math.sin(now / 4200f * 6.283f) : 0f;
+            float scale = 1f + .06f * breath + (audio ? .14f * Audio.bass + .1f * Audio.kick : 0f);
             c.save();
             c.translate(w / 2f, h / 2f);
             c.scale(scale, scale);
             paint.setShader(gradient);
             c.drawCircle(0, 0, radius, paint);
             c.restore();
+            paint.setShader(null);
+            // Bass shockwave: a ring leaves the disc's edge on each kick and fades as it grows.
+            long age = now - Audio.kickAt;
+            if (audio && Audio.kickAt != 0 && age < 900) {
+                float t = age / 900f;
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(3) * (1 - t) + dp(.5f));
+                paint.setColor(primary);
+                paint.setAlpha(Math.round(170 * (1 - t) * (1 - t)));
+                c.drawCircle(w / 2f, h / 2f, side / 2f * (1.02f + .5f * (1 - (1 - t) * (1 - t))), paint);
+                paint.setStyle(Paint.Style.FILL);
+            }
+            if (audio) Audio.want();
             if (running) postInvalidateOnAnimation();
         }
     }
@@ -1418,6 +1442,27 @@ public final class SpatchUi extends FrameLayout {
             themes.addView(option, p);
         }
         look.addView(themes, match(-2));
+        LinearLayout swatches = row();
+        swatches.setPadding(dp(12), 0, dp(12), dp(10));
+        int[] seeds = {0, 0xff8b6fd6, 0xffd6567a, 0xff3d8fd6, 0xff2fa37a, 0xffd99a2b, 0xffe0663f, 0xff7a8a99};
+        String[] seedNames = {"Wallpaper", "Lavender", "Rose", "Sky", "Mint", "Amber", "Coral", "Slate"};
+        int chosen = prefs.getInt("accent", 0);
+        for (int i = 0; i < seeds.length; i++) {
+            final int seed = seeds[i];
+            Swatch swatch = new Swatch(seed == 0 ? tone("accent1", 500, 0xff6750a4) : seed, seed == chosen, seed == 0);
+            makeClickable(swatch, seedNames[i] + " colours", () -> {
+                prefs.edit().putInt("accent", seed).apply();
+                if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+                int y = scroll == null ? 0 : scroll.getScrollY();
+                render();
+                ScrollView again = scroll;
+                if (again != null) again.post(() -> again.scrollTo(0, y));
+            });
+            swatch.setForeground(null);
+            springPress(swatch);
+            swatches.addView(swatch, new LinearLayout.LayoutParams(0, dp(44), 1));
+        }
+        look.addView(swatches, match(-2));
         toggle(look, "Artwork colours", "Tint the player with the song’s cover", "art_colors", true);
         toggle(look, "Round artwork in the mini player", "Off shows a rounded square", "round_mini", true);
 
@@ -1426,6 +1471,8 @@ public final class SpatchUi extends FrameLayout {
         toggle(motion, "Spinning artwork", "Immersive artwork turns slowly while music plays", "spin_art", true);
         toggle(motion, "Breathing glow", "A halo around the artwork pulses with the track", "glow", true);
         toggle(motion, "Wavy progress", "The progress line ripples while playing", "wavy", true);
+        toggle(motion, "Follow the music", "Glow, shockwaves and motes move with the beat. Reads only Spotify’s own playback; "
+            + "Android lists this as microphone access", "audio", false);
 
         LinearLayout playback = settingsGroup(page, "Player");
         toggle(playback, "Keep screen on", "While the immersive player is open", "keep_on", true);
@@ -1469,6 +1516,9 @@ public final class SpatchUi extends FrameLayout {
         line.setOnClickListener(v -> {
             toggle.set(!toggle.on);
             prefs.edit().putBoolean(key, toggle.on).apply();
+            if (key.equals("audio") && toggle.on && !Audio.permitted(activity)) {
+                activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
+            }
             if (pref("haptics", true)) v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
         });
         line.setForeground(new RippleDrawable(ColorStateList.valueOf((onSurface & 0x00ffffff) | 0x1f000000), null, null));
@@ -1481,6 +1531,34 @@ public final class SpatchUi extends FrameLayout {
             }
         });
         card.addView(line, match(-2));
+    }
+
+    /** A colour choice: a filled circle, a ring when chosen, and a split dot for the wallpaper option. */
+    private final class Swatch extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final int color;
+        private final boolean chosen, wallpaper;
+        Swatch(int color, boolean chosen, boolean wallpaper) {
+            super(activity);
+            this.color = color; this.chosen = chosen; this.wallpaper = wallpaper;
+        }
+        @Override protected void onDraw(Canvas c) {
+            float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy) - dp(4);
+            if (chosen) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(2.5f));
+                paint.setColor(onSurface);
+                c.drawCircle(cx, cy, r + dp(2), paint);
+                paint.setStyle(Paint.Style.FILL);
+                r -= dp(3);
+            }
+            paint.setColor(color);
+            c.drawCircle(cx, cy, r, paint);
+            if (wallpaper) {
+                paint.setColor(tone("accent3", 300, 0xffefb8c8));
+                c.drawArc(cx - r, cy - r, cx + r, cy + r, -45, 180, true, paint);
+            }
+        }
     }
 
     /** Material 3 switch: the thumb grows and slides when it turns on. */
