@@ -51,6 +51,22 @@ fn geometry(kind: &str) -> Vec<f32> {
             let hub: Vec<f32> = (0..=24).flat_map(|i| polar(i as f32 / 24.0 * TAU, 3.0, 12.0)).collect();
             [vec![65.0], teeth, vec![25.0], hub].concat()
         }
+        // Stopwatch: dial, hands and the crown on top.
+        "timer" => [
+            vec![33.0],
+            (0..=32).flat_map(|i| polar(i as f32 / 32.0 * TAU, 8.0, 0.0)).collect::<Vec<_>>()
+                .chunks(2).flat_map(|p| [p[0] + 12.0, p[1] + 13.5]).collect(),
+            vec![3.0, 12.0, 9.0, 12.0, 13.5, 15.0, 15.5],
+            vec![2.0, 10.0, 2.5, 14.0, 2.5],
+        ]
+        .concat(),
+        "search" => [
+            vec![25.0],
+            (0..=24).flat_map(|i| polar(i as f32 / 24.0 * TAU, 6.5, 0.0)).collect::<Vec<_>>()
+                .chunks(2).flat_map(|p| [p[0] + 10.5, p[1] + 10.5]).collect(),
+            vec![2.0, 15.5, 15.5, 20.5, 20.5],
+        ]
+        .concat(),
         // Filled heart from the classic parametric curve, fitted to the 24 box.
         "heart" => [vec![-48.0], (0..48)
             .flat_map(|i| {
@@ -125,6 +141,7 @@ fn glyph(kind: &str) -> &'static [f32] {
         "queue" => &[
             2., 4., 6., 20., 6., 2., 4., 11., 20., 11., 2., 4., 16., 14., 16.,
         ],
+        "check" => &[3., 5., 12.5, 10., 17.5, 19., 7.],
         "chevron" => &[3., 9., 5., 16., 12., 9., 19.],
         "close" => &[2., 6., 6., 18., 18., 2., 18., 6., 6., 18.],
         "sparkle" => &[-8., 12., 3., 14., 10., 21., 12., 14., 14., 12., 21., 10., 14., 3., 12., 10., 10.],
@@ -174,7 +191,7 @@ mod tests {
 
     #[test]
     fn computed_glyphs_stay_in_the_icon_box() {
-        for kind in ["settings", "heart"] {
+        for kind in ["settings", "heart", "timer", "search"] {
             let data = geometry(kind);
             let mut points = data.as_slice();
             while let [count, rest @ ..] = points {
@@ -205,6 +222,7 @@ mod tests {
             "close",
             "sparkle",
             "chevron",
+            "check",
         ] {
             let mut points = glyph(kind);
             assert!(!points.is_empty());

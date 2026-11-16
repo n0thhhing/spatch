@@ -333,6 +333,10 @@ public final class SpatchUi extends FrameLayout {
     }
 
     void back() {
+        if (sheetClose != null) {
+            sheetClose.run();
+            return;
+        }
         if (screen == HOME) activity.moveTaskToBack(true);
         else navigate(5, 0);
     }
@@ -496,6 +500,8 @@ public final class SpatchUi extends FrameLayout {
     private void openLibrary(int category) { navigate(1, category); }
 
     private void render() {
+        sheetClose = null;
+        if (screen != LIBRARY) hideKeyboard();
         if (immersiveDrift != null) immersiveDrift.cancel();
         immersiveDrift = null;
         immersiveChrome = null;
@@ -616,7 +622,9 @@ public final class SpatchUi extends FrameLayout {
             List<Entry> entries = entries(filter, 300);
             if (entries.isEmpty()) libraryMessage(feed());
             else {
-                libraryList = entryList(entries);
+                List<Entry> shown = matching(entries, libraryQuery);
+                content.addView(searchField(entries, shown), content.getChildCount() - 1);
+                libraryList = entryList(shown);
                 libraryList.setSelectionFromTop(collectionRow, collectionOffset);
             }
 
@@ -851,7 +859,7 @@ public final class SpatchUi extends FrameLayout {
             LinearLayout top = row();
             top.setPadding(dp(10), dp(6), dp(10), 0);
             top.addView(glyph("down", "Close player", false, this::back), control(48));
-            top.addView(new View(activity), control(48));
+            top.addView(timerButton(), control(48));
             LinearLayout from = column();
             TextView caption = text("PLAYING FROM", 11, onVariant, true);
             caption.setLetterSpacing(.12f);
@@ -933,6 +941,7 @@ public final class SpatchUi extends FrameLayout {
         playbackSource.setGravity(Gravity.CENTER);
         from.addView(playbackSource, match(-2));
         top.addView(from, weighted());
+        top.addView(timerButton(), control(48));
         top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
         content.addView(top, match(-2));
 
@@ -1556,6 +1565,107 @@ public final class SpatchUi extends FrameLayout {
         return box;
     }
 
+    // Sleep timer: lives on the main looper, not a view, so it survives page changes.
+    private static final android.os.Handler MAIN = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static long sleepAt;
+    private static int sleepChoice;
+    private static final Runnable SLEEP = () -> {
+        sleepAt = 0;
+        sleepChoice = 0;
+        COMMANDS.execute(() -> nativeCommand(0, 0, ""));
+    };
+
+    private Glyph timerButton() {
+        Glyph timer = glyph("timer", "Sleep timer", false, this::openSleepSheet);
+        if (sleepAt > SystemClock.uptimeMillis()) {
+            timer.ink = primary;
+            timer.setContentDescription("Sleep timer on");
+        }
+        return timer;
+    }
+
+    private void openSleepSheet() {
+        String[] names = {"Off", "15 minutes", "30 minutes", "45 minutes", "1 hour", "End of track"};
+        long left = sleepAt - SystemClock.uptimeMillis();
+        String note = left > 0 ? "Pausing in " + Math.max(1, (left + 59_999) / 60_000) + " min" : "Pause playback later";
+        sheet("Sleep timer", note, names, sleepChoice, choice -> {
+            MAIN.removeCallbacks(SLEEP);
+            sleepChoice = choice;
+            long delay = choice == 0 ? 0 : choice == 5 ? Math.max(1000, duration - playhead() - 600)
+                : new long[]{0, 15, 30, 45, 60}[choice] * 60_000L;
+            sleepAt = choice == 0 ? 0 : SystemClock.uptimeMillis() + delay;
+            if (choice != 0) MAIN.postDelayed(SLEEP, delay);
+            Toast.makeText(activity, choice == 0 ? "Sleep timer off" : "Pausing " + (choice == 5 ? "after this track"
+                : "in " + names[choice]), Toast.LENGTH_SHORT).show();
+            redrawPage();
+        });
+    }
+
+    interface Choice { void picked(int index); }
+
+    /** A bottom sheet that rises over a dimmed page: one tap picks, a tap outside dismisses. */
+    private void sheet(String heading, String note, String[] options, int selected, Choice choice) {
+        FrameLayout scrim = new FrameLayout(activity);
+        scrim.setBackgroundColor(0x66000000);
+        LinearLayout card = column();
+        card.setPadding(dp(20), dp(10), dp(20), dp(20) + inset.bottom);
+        card.setBackground(segment(container, 32, 32, 0, 0));
+        card.setClickable(true);
+        View handle = new View(activity);
+        handle.setBackground(background(onVariant, 3));
+        handle.setAlpha(.5f);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(dp(36), dp(4));
+        hp.gravity = Gravity.CENTER_HORIZONTAL;
+        hp.bottomMargin = dp(14);
+        card.addView(handle, hp);
+        card.addView(text(heading, 24, onSurface, true), match(-2));
+        TextView sub = text(note, 14, onVariant, false);
+        sub.setPadding(0, dp(4), 0, dp(14));
+        card.addView(sub, match(-2));
+        Runnable[] close = new Runnable[1];
+        for (int i = 0; i < options.length; i++) {
+            final int index = i;
+            boolean on = i == selected;
+            LinearLayout option = row();
+            option.setPadding(dp(16), 0, dp(16), 0);
+            option.setBackground(background(on ? secondaryContainer : high, on ? 24 : 12));
+            option.addView(text(options[i], 16, on ? onSecondaryContainer : onSurface, on), weighted());
+            if (on) {
+                Glyph tick = new Glyph("check", false);
+                tick.ink = onSecondaryContainer;
+                tick.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+                option.addView(tick, control(24));
+            }
+            makeClickable(option, options[i], () -> { close[0].run(); choice.picked(index); });
+            springPress(option);
+            LinearLayout.LayoutParams p = match(dp(54));
+            p.bottomMargin = dp(4);
+            card.addView(option, p);
+        }
+        scrim.addView(card, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        addView(scrim, new FrameLayout.LayoutParams(-1, -1));
+        close[0] = () -> {
+            sheetClose = null;
+            if (scrim.getParent() == null) return;
+            if (!motionEnabled()) { removeView(scrim); return; }
+            scrim.animate().alpha(0f).setDuration(180).start();
+            card.animate().translationY(card.getHeight()).setDuration(220)
+                .setInterpolator(new android.view.animation.AccelerateInterpolator())
+                .withEndAction(() -> removeView(scrim)).start();
+        };
+        scrim.setOnClickListener(v -> close[0].run());
+        sheetClose = close[0];
+        if (motionEnabled()) {
+            scrim.setAlpha(0f);
+            scrim.animate().alpha(1f).setDuration(200).start();
+            card.setTranslationY(dp(420));
+            card.animate().translationY(0).setDuration(380)
+                .setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
+        }
+    }
+
+    private Runnable sheetClose;
+
     /** Three bouncing bars: the universal "this one is playing" mark. Still when paused. */
     private final class Bars extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1575,6 +1685,71 @@ public final class SpatchUi extends FrameLayout {
             }
             if (running) postInvalidateOnAnimation();
         }
+    }
+
+    private String libraryQuery = "";
+
+    private static List<Entry> matching(List<Entry> all, String query) {
+        List<Entry> out = new ArrayList<>();
+        String q = query.trim().toLowerCase(java.util.Locale.ROOT);
+        for (Entry e : all) {
+            if (q.isEmpty() || e.title.toLowerCase(java.util.Locale.ROOT).contains(q)
+                || e.subtitle.toLowerCase(java.util.Locale.ROOT).contains(q)) out.add(e);
+        }
+        return out;
+    }
+
+    /** Filters the library list in place as you type; the query survives page changes. */
+    private View searchField(List<Entry> all, List<Entry> shown) {
+        LinearLayout box = row();
+        box.setPadding(dp(14), 0, dp(4), 0);
+        box.setBackground(background(high, 28));
+        Glyph icon = new Glyph("search", false);
+        icon.ink = onVariant;
+        icon.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        box.addView(icon, control(24));
+        android.widget.EditText field = new android.widget.EditText(activity);
+        field.setBackground(null);
+        field.setHint("Search your library");
+        field.setHintTextColor(onVariant);
+        field.setTextColor(onSurface);
+        field.setTextSize(16);
+        field.setSingleLine(true);
+        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        field.setPadding(dp(10), 0, dp(4), 0);
+        field.setText(libraryQuery);
+        box.addView(field, new LinearLayout.LayoutParams(0, dp(52), 1));
+        Glyph clear = glyph("close", "Clear search", false, () -> field.setText(""));
+        clear.setVisibility(libraryQuery.isEmpty() ? GONE : VISIBLE);
+        box.addView(clear, control(44));
+        field.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable text) {
+                libraryQuery = text.toString();
+                clear.setVisibility(libraryQuery.isEmpty() ? GONE : VISIBLE);
+                shown.clear();
+                shown.addAll(matching(all, libraryQuery));
+                if (libraryList != null) {
+                    ((BaseAdapter) libraryList.getAdapter()).notifyDataSetChanged();
+                    libraryList.setSelection(0);
+                }
+            }
+        });
+        field.setOnEditorActionListener((v, action, event) -> {
+            hideKeyboard();
+            return true;
+        });
+        FrameLayout wrap = new FrameLayout(activity);
+        wrap.setPadding(dp(16), dp(4), dp(16), 0);
+        wrap.addView(box, new FrameLayout.LayoutParams(-1, dp(52)));
+        return wrap;
+    }
+
+    private void hideKeyboard() {
+        android.view.inputmethod.InputMethodManager keys =
+            (android.view.inputmethod.InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (keys != null) keys.hideSoftInputFromWindow(getWindowToken(), 0);
     }
 
     /** Cover, name and the two ways to start it: in order or shuffled. */
@@ -1715,6 +1890,15 @@ public final class SpatchUi extends FrameLayout {
         refreshPlayerDetails();
         String shown = title.isEmpty() ? "Nothing playing" : title;
         if (playbackSource != null) playbackSource.setText(source.isEmpty() ? album : source);
+        if (trackTitle != null && trackTitle.getText().length() > 0 && !shown.contentEquals(trackTitle.getText())
+                && motionEnabled() && screen != HOME && screen != LIBRARY) {
+            for (View v : new View[]{trackTitle, trackArtist}) {
+                v.setAlpha(0f);
+                v.setTranslationY(dp(14));
+                v.animate().alpha(1f).translationY(0).setDuration(360)
+                    .setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
+            }
+        }
         if (trackTitle != null) trackTitle.setText(shown);
         if (trackArtist != null) trackArtist.setText(artist);
         if (albumTitle != null) {
@@ -2504,7 +2688,7 @@ public final class SpatchUi extends FrameLayout {
     private static final float[] WAVE = nativeGeometry("wave");
     private static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
     static {
-        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume", "queue", "immersive", "home", "library", "settings", "heart", "close", "sparkle", "chevron"}) {
+        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume", "queue", "immersive", "home", "library", "settings", "heart", "close", "sparkle", "chevron", "timer", "search", "check"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
     }
