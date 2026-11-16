@@ -91,6 +91,7 @@ public final class SpatchUi extends FrameLayout {
     private LinearLayout content;
     private ScrollView scroll;
     private ListView libraryList, playlistList;
+    private android.widget.GridView libraryGrid;
     private int playlistRow, playlistTop;
     private TextView playbackSource, infoTrack, infoArtist, infoAlbum, infoAlbumArtist, infoRelease,
         infoPosition, infoRating, infoSource;
@@ -530,6 +531,7 @@ public final class SpatchUi extends FrameLayout {
 
     private void rememberScroll() {
         if (screen == HOME && scroll != null) homeScroll = scroll.getScrollY();
+        if (screen == LIBRARY && libraryGrid != null) { collectionRow = libraryGrid.getFirstVisiblePosition(); collectionOffset = 0; }
         if (screen == LIBRARY && libraryList != null) {
             collectionRow = libraryList.getFirstVisiblePosition();
             View first = libraryList.getChildAt(0);
@@ -559,6 +561,7 @@ public final class SpatchUi extends FrameLayout {
         visibleArt.clear();
         scroll = null;
         libraryList = playlistList = null;
+        libraryGrid = null;
         trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = heroBadge = null;
         trackArt = heroArt = atmosphere = null;
         playbackSource = infoTrack = infoArtist = infoAlbum = null;
@@ -663,6 +666,17 @@ public final class SpatchUi extends FrameLayout {
                 chips.addView(chip, params);
             }
             choices.setPadding(dp(16), dp(8), dp(16), dp(4));
+            choices.setClipToPadding(false);
+            boolean grid = pref("library_grid", false);
+            Glyph layout = glyph(grid ? "queue" : "grid", grid ? "Show as list" : "Show as grid", false, () -> {
+                prefs.edit().putBoolean("library_grid", !pref("library_grid", false)).apply();
+                collectionRow = collectionOffset = 0;
+                render();
+            });
+            layout.setBackground(background(high, 20));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
+            lp.rightMargin = dp(6);
+            chips.addView(layout, 0, lp);
             choices.addView(chips);
             content.addView(choices, match(-2));
             List<Entry> entries = entries(filter, 300);
@@ -670,8 +684,11 @@ public final class SpatchUi extends FrameLayout {
             else {
                 List<Entry> shown = matching(entries, libraryQuery);
                 content.addView(searchField(entries, shown), content.getChildCount() - 1);
-                libraryList = entryList(shown);
-                libraryList.setSelectionFromTop(collectionRow, collectionOffset);
+                if (pref("library_grid", false)) libraryGrid = entryGrid(shown);
+                else {
+                    libraryList = entryList(shown);
+                    libraryList.setSelectionFromTop(collectionRow, collectionOffset);
+                }
             }
 
         }
@@ -1620,8 +1637,19 @@ public final class SpatchUi extends FrameLayout {
         TextView info = text("Spatch draws its own interface on top of Spotify’s core. Playback, your library and "
             + "your account stay Spotify’s; Spatch never asks for a separate sign-in.", 14, onVariant, false);
         info.setLineSpacing(0, 1.2f);
-        info.setPadding(dp(16), dp(2), dp(16), dp(16));
+        info.setPadding(dp(16), dp(2), dp(16), dp(12));
         about.addView(info, match(-2));
+        TextView reset = chip("Reset Spatch settings", high, onSurface, () ->
+            sheet("Reset settings?", "Theme, colours, motion and player choices go back to their defaults.",
+                new String[]{"Reset", "Keep my settings"}, -1, choice -> {
+                    if (choice != 0) return;
+                    prefs.edit().clear().apply();
+                    render();
+                    Toast.makeText(activity, "Settings reset", Toast.LENGTH_SHORT).show();
+                }));
+        LinearLayout.LayoutParams rp = match(-2);
+        rp.setMargins(dp(16), 0, dp(16), dp(16));
+        about.addView(reset, rp);
     }
 
     /** A connected button group storing its index under `key`; picking one rebuilds the page in place. */
@@ -2143,6 +2171,10 @@ public final class SpatchUi extends FrameLayout {
                     ((BaseAdapter) libraryList.getAdapter()).notifyDataSetChanged();
                     libraryList.setSelection(0);
                 }
+                if (libraryGrid != null) {
+                    ((BaseAdapter) libraryGrid.getAdapter()).notifyDataSetChanged();
+                    libraryGrid.setSelection(0);
+                }
             }
         });
         field.setOnEditorActionListener((v, action, event) -> {
@@ -2273,6 +2305,69 @@ public final class SpatchUi extends FrameLayout {
         });
         content.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         return list;
+    }
+
+    /** Two columns of covers with names under them; tap and long press work as in the list. */
+    private android.widget.GridView entryGrid(List<Entry> entries) {
+        android.widget.GridView grid = new android.widget.GridView(activity);
+        grid.setNumColumns(2);
+        grid.setHorizontalSpacing(dp(10));
+        grid.setVerticalSpacing(dp(10));
+        grid.setPadding(dp(16), dp(6), dp(16), 0);
+        grid.setClipToPadding(false);
+        grid.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        grid.setVerticalScrollBarEnabled(false);
+        grid.setAdapter(new BaseAdapter() {
+            @Override public int getCount() { return entries.size(); }
+            @Override public Entry getItem(int position) { return entries.get(position); }
+            @Override public long getItemId(int position) { return position; }
+            @Override public View getView(int position, View previous, ViewGroup parent) {
+                GridTile tile = previous instanceof GridTile ? (GridTile) previous : new GridTile();
+                tile.bind(getItem(position));
+                return tile;
+            }
+        });
+        grid.setOnItemClickListener((parent, view, index, id) -> {
+            Entry entry = entries.get(index);
+            if (!entry.uri.isEmpty()) selectEntry(entry);
+        });
+        grid.setOnItemLongClickListener((parent, view, index, id) -> {
+            Entry entry = entries.get(index);
+            if (entry.uri.isEmpty()) return false;
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            entryActions(entry);
+            return true;
+        });
+        grid.setSelection(collectionRow);
+        content.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1));
+        return grid;
+    }
+
+    private final class GridTile extends LinearLayout {
+        private final Art art = new Art(Art.SQUARE);
+        private final TextView name, subtitle;
+        GridTile() {
+            super(activity);
+            setOrientation(VERTICAL);
+            setPadding(dp(6), dp(6), dp(6), dp(8));
+            setBackground(background(container, 22));
+            addView(art, new LinearLayout.LayoutParams(-1, -2));
+            name = text("", 15, onSurface, true);
+            subtitle = text("", 12, onVariant, false);
+            single(name); single(subtitle);
+            name.setPadding(dp(4), dp(8), dp(4), dp(1));
+            subtitle.setPadding(dp(4), 0, dp(4), 0);
+            addView(name, match(-2));
+            addView(subtitle, match(-2));
+        }
+        void bind(Entry entry) {
+            art.shape = entry.category == 2 ? Art.ROUND : Art.SQUARE;
+            art.letter = initial(entry.title);
+            art.bind(entry.image);
+            art.invalidate();
+            name.setText(entry.title);
+            subtitle.setText(entry.subtitle);
+        }
     }
 
     private final class EntryRow extends LinearLayout {
@@ -3174,7 +3269,7 @@ public final class SpatchUi extends FrameLayout {
     private static final float[] WAVE = nativeGeometry("wave");
     private static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
     static {
-        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume", "queue", "immersive", "home", "library", "settings", "heart", "close", "sparkle", "chevron", "timer", "search", "check", "heart-outline"}) {
+        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume", "queue", "immersive", "home", "library", "settings", "heart", "close", "sparkle", "chevron", "timer", "search", "check", "heart-outline", "grid"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
     }
