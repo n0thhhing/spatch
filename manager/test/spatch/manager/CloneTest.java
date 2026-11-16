@@ -39,7 +39,9 @@ public final class CloneTest {
         swaps.put("res/drawable/ic_launcher_renaissance_foreground.xml", Clone.ICON_PATH);
         Map<String, byte[]> baseChanges = new LinkedHashMap<>();
         baseChanges.put("AndroidManifest.xml", c.manifest(manifest, true));
-        baseChanges.put("resources.arsc", c.table(arsc, swaps));
+        byte[] table = c.table(arsc, swaps);
+        check(new String(table, 0, table.length, java.nio.charset.StandardCharsets.UTF_16LE).contains("com.spotify.music.two\0"), "the resource table's package is the clone's");
+        baseChanges.put("resources.arsc", table);
         baseChanges.put(Clone.ICON_PATH, read(base, "res/mipmap-mdpi-v4/ic_launcher_renaissance.webp"));
         write(base, new File(out, "base.apk"), baseChanges);
         Map<String, byte[]> splitChanges = new LinkedHashMap<>();

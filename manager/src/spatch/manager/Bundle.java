@@ -140,7 +140,7 @@ final class Bundle implements AutoCloseable {
                 ZipEntry z = e.nextElement();
                 if (signature(z.getName())) continue;
                 String[] step = base ? replace.get(z.getName()) : null;
-                boolean cloned = clone != null && (z.getName().equals("AndroidManifest.xml") || base && z.getName().equals(BASIS));
+                boolean cloned = clone != null && (z.getName().equals("AndroidManifest.xml") || z.getName().equals(BASIS));
                 if (step != null || cloned) {
                     byte[] old = read(in, z);
                     if (base && z.getName().equals(BASIS)) basis = old;
@@ -149,7 +149,7 @@ final class Bundle implements AutoCloseable {
                         now = patched(old, step[2], step[3], step[4], z.getName());
                         replaced++;
                     }
-                    if (cloned) now = z.getName().equals(BASIS) ? clone.table(now, cloneSwaps(clone)) : clone.manifest(now, base);
+                    if (cloned) now = !z.getName().equals(BASIS) ? clone.manifest(now, base) : base ? clone.table(now, cloneSwaps(clone)) : clone.tablePackage(now);
                     put(out, z.getName(), z.getMethod(), now);
                 } else {
                     if (base && z.getName().equals(BASIS)) basis = read(in, z);

@@ -130,7 +130,31 @@ final class Clone {
             if (i < 0) throw new IOException("This Spotify has no " + s.getKey() + ".");
             pool.set(i, s.getValue());
         }
-        return replaceChunk(arsc, at, in.getInt(at + 4), pool.write());
+        return tablePackage(replaceChunk(arsc, at, in.getInt(at + 4), pool.write()));
+    }
+
+    /**
+     * A resource table with its package named after the clone, as aapt2 --rename-resources-package
+     * does: getIdentifier(name, type, getPackageName()) (Spatch's icons and strings, and Spotify's own)
+     * looks resources up by the app's package, which a clone changes. Every split's table gets it too.
+     */
+    byte[] tablePackage(byte[] arsc) throws IOException {
+        if (pkg.length() > 127) throw new IOException("The clone's package name is too long for the resource table.");
+        byte[] out = arsc.clone();
+        ByteBuffer o = ByteBuffer.wrap(out).order(ByteOrder.LITTLE_ENDIAN);
+        if (o.getShort(0) != 0x0002) throw new IOException("Not a resource table.");
+        int renamed = 0;
+        for (int at = o.getShort(2) & 0xffff; at + 8 <= out.length; ) {
+            int type = o.getShort(at) & 0xffff, size = o.getInt(at + 4);
+            if (size <= 0 || at + size > out.length) throw new IOException("Damaged resource table.");
+            if (type == 0x0200) { // package chunk: id, then the name as 128 UTF-16 units
+                for (int i = 0; i < 128; i++) o.putShort(at + 12 + 2 * i, (short) (i < pkg.length() ? pkg.charAt(i) : 0));
+                renamed++;
+            }
+            at += size;
+        }
+        if (renamed == 0) throw new IOException("The resource table has no package.");
+        return out;
     }
 
     /** The file with one chunk replaced and its total size updated. */
