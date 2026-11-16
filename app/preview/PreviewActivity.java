@@ -25,7 +25,7 @@ public final class PreviewActivity extends Activity {
     private static final class Back33 {
         static void register(Activity activity, SpatchUi ui) {
             activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, ui::back);
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, (android.window.OnBackInvokedCallback) ui.backCallback());
         }
     }
 }

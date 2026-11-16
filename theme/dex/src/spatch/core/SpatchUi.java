@@ -335,6 +335,41 @@ public final class SpatchUi extends FrameLayout {
         return super.dispatchKeyEvent(event);
     }
 
+    /** For OnBackInvokedDispatcher: on Android 14+ the page follows the back gesture before it leaves. */
+    Object backCallback() {
+        if (android.os.Build.VERSION.SDK_INT >= 34) return Back34.make(this);
+        return (android.window.OnBackInvokedCallback) this::back;
+    }
+
+    private static final class Back34 {
+        static Object make(SpatchUi ui) {
+            return new android.window.OnBackAnimationCallback() {
+                @Override public void onBackProgressed(android.window.BackEvent event) {
+                    ui.peek(event.getProgress(), event.getSwipeEdge() == android.window.BackEvent.EDGE_LEFT);
+                }
+                @Override public void onBackCancelled() { ui.peekCancelled(); }
+                @Override public void onBackInvoked() { ui.back(); }
+            };
+        }
+    }
+
+    /** Predictive back: the page shrinks toward the far edge as the gesture grows (not on Home, which leaves the app). */
+    void peek(float progress, boolean fromLeft) {
+        if (screen == HOME || content == null || sheetClose != null || !motionEnabled()) return;
+        float eased = 1f - (1f - progress) * (1f - progress);
+        content.setPivotX(fromLeft ? content.getWidth() : 0);
+        content.setPivotY(content.getHeight() / 2f);
+        content.setScaleX(1f - .1f * eased);
+        content.setScaleY(1f - .1f * eased);
+        content.setTranslationX((fromLeft ? 1 : -1) * dp(8) * eased);
+        content.setAlpha(1f - .25f * eased);
+    }
+
+    void peekCancelled() {
+        if (content == null) return;
+        content.animate().scaleX(1f).scaleY(1f).translationX(0).alpha(1f).setDuration(220).start();
+    }
+
     void back() {
         if (sheetClose != null) {
             sheetClose.run();
@@ -468,7 +503,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private static float[] coverPath(int shape) {
-        return shape == Art.ROUND || shape == Art.DISC ? CIRCLE_COVER : shape == Art.IMMERSIVE ? COVER : PLAYER_COVER;
+        return shape == Art.ROUND || shape == Art.DISC || shape == Art.PLAYER_ROUND ? CIRCLE_COVER : shape == Art.IMMERSIVE ? COVER : PLAYER_COVER;
     }
 
     private static float mix(float start, float end, float fraction) {
@@ -725,6 +760,7 @@ public final class SpatchUi extends FrameLayout {
                 tile.addView(name, weighted());
                 makeClickable(tile, (entry.category == 0 ? "Open " : "Play ") + entry.title, () -> selectEntry(entry));
                 springPress(tile);
+                longPress(tile, entry);
                 LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(56), 1);
                 if (j == 1) p.leftMargin = dp(8);
                 line.addView(tile, p);
@@ -811,6 +847,7 @@ public final class SpatchUi extends FrameLayout {
             if (!entry.uri.isEmpty()) {
                 makeClickable(tile, (entry.category == 0 ? "Open " : "Play ") + entry.title, () -> selectEntry(entry));
                 springPress(tile);
+                longPress(tile, entry);
             }
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(width), -2);
             p.rightMargin = dp(10);
@@ -882,7 +919,7 @@ public final class SpatchUi extends FrameLayout {
         body.setPadding(dp(16), 0, dp(16), dp(12));
         body.setGravity(Gravity.CENTER_HORIZONTAL);
         if (full) content.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
-        trackArt = new Art(screen == PLAYER ? Art.IMMERSIVE : Art.PLAYER_ART);
+        trackArt = new Art(new int[]{Art.IMMERSIVE, Art.PLAYER_ROUND, Art.PLAYER_ART}[Math.max(0, Math.min(2, prefs.getInt("art_shape", 0)))]);
         body.addView(trackArt, new LinearLayout.LayoutParams(-1, 0, 1));
         trackArt.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         makeClickable(trackArt, screen == IMMERSIVE ? "Return to player" : "Open immersive mode", () -> navigate(3, 0));
@@ -1418,30 +1455,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout page = feed();
 
         LinearLayout look = settingsGroup(page, "Look");
-        LinearLayout themes = row();
-        themes.setPadding(dp(16), dp(4), dp(16), dp(14));
-        String[] names = {"System", "Dark", "Light"};
-        int theme = prefs.getInt("theme", 0);
-        for (int i = 0; i < names.length; i++) {
-            final int choice = i;
-            boolean on = i == theme;
-            int outer = 22, inner = on ? 22 : 6;
-            TextView option = text(names[i], 14, on ? onPrimary : onSurface, true);
-            option.setGravity(Gravity.CENTER);
-            option.setBackground(segment(on ? primary : high, i == 0 ? outer : inner, i == 2 ? outer : inner,
-                i == 2 ? outer : inner, i == 0 ? outer : inner));
-            makeClickable(option, names[i] + " theme", () -> {
-                prefs.edit().putInt("theme", choice).apply();
-                applyPalette();
-                paintSystemBars();
-                render();
-            });
-            springPress(option);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(44), 1);
-            if (i > 0) p.leftMargin = dp(3);
-            themes.addView(option, p);
-        }
-        look.addView(themes, match(-2));
+        look.addView(choiceRow(new String[]{"System", "Dark", "Light"}, "theme", " theme"), match(-2));
         LinearLayout swatches = row();
         swatches.setPadding(dp(12), 0, dp(12), dp(10));
         int[] seeds = {0, 0xff8b6fd6, 0xffd6567a, 0xff3d8fd6, 0xff2fa37a, 0xffd99a2b, 0xffe0663f, 0xff7a8a99};
@@ -1463,6 +1477,10 @@ public final class SpatchUi extends FrameLayout {
             swatches.addView(swatch, new LinearLayout.LayoutParams(0, dp(44), 1));
         }
         look.addView(swatches, match(-2));
+        TextView shapeLabel = text("Player artwork", 16, onSurface, true);
+        shapeLabel.setPadding(dp(16), dp(6), dp(16), dp(8));
+        look.addView(shapeLabel, match(-2));
+        look.addView(choiceRow(new String[]{"Scallop", "Circle", "Rounded"}, "art_shape", " artwork"), match(-2));
         toggle(look, "Artwork colours", "Tint the player with the song’s cover", "art_colors", true);
         toggle(look, "Round artwork in the mini player", "Off shows a rounded square", "round_mini", true);
 
@@ -1485,6 +1503,35 @@ public final class SpatchUi extends FrameLayout {
         info.setLineSpacing(0, 1.2f);
         info.setPadding(dp(16), dp(2), dp(16), dp(16));
         about.addView(info, match(-2));
+    }
+
+    /** A connected button group storing its index under `key`; picking one rebuilds the page in place. */
+    private LinearLayout choiceRow(String[] names, String key, String spoken) {
+        LinearLayout options = row();
+        options.setPadding(dp(16), dp(4), dp(16), dp(14));
+        int current = prefs.getInt(key, 0), last = names.length - 1;
+        for (int i = 0; i < names.length; i++) {
+            final int choice = i;
+            boolean on = i == current;
+            int outer = 22, inner = on ? 22 : 6;
+            TextView option = text(names[i], 14, on ? onPrimary : onSurface, true);
+            option.setGravity(Gravity.CENTER);
+            option.setBackground(segment(on ? primary : high, i == 0 ? outer : inner, i == last ? outer : inner,
+                i == last ? outer : inner, i == 0 ? outer : inner));
+            makeClickable(option, names[i] + spoken, () -> {
+                prefs.edit().putInt(key, choice).apply();
+                if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+                int y = scroll == null ? 0 : scroll.getScrollY();
+                render();
+                ScrollView again = scroll;
+                if (again != null) again.post(() -> again.scrollTo(0, y));
+            });
+            springPress(option);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(44), 1);
+            if (i > 0) p.leftMargin = dp(3);
+            options.addView(option, p);
+        }
+        return options;
     }
 
     private LinearLayout settingsGroup(LinearLayout page, String title) {
@@ -1680,6 +1727,26 @@ public final class SpatchUi extends FrameLayout {
     }
 
     interface Choice { void picked(int index); }
+
+    private void longPress(View view, Entry entry) {
+        view.setOnLongClickListener(v -> {
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            entryActions(entry);
+            return true;
+        });
+    }
+
+    /** Long press: play it, shuffle it, or open it (playlists only), from a sheet. */
+    private void entryActions(Entry entry) {
+        boolean openable = entry.category == 0 || entry.uri.startsWith("spotify:playlist:")
+            || (entry.uri.startsWith("spotify:user:") && entry.uri.contains(":playlist:"));
+        String[] options = openable ? new String[]{"Play", "Shuffle play", "Open"} : new String[]{"Play", "Shuffle play"};
+        sheet(entry.title, entry.subtitle.isEmpty() ? "Choose what to do" : entry.subtitle, options, -1, choice -> {
+            if (choice == 2) { openPlaylist(entry); return; }
+            command(SHUFFLE, choice == 1 ? 1 : 0, "");
+            command(PLAY, 0, entry.uri);
+        });
+    }
 
     /** A bottom sheet that rises over a dimmed page: one tap picks, a tap outside dismisses. */
     private void sheet(String heading, String note, String[] options, int selected, Choice choice) {
@@ -1928,6 +1995,13 @@ public final class SpatchUi extends FrameLayout {
                     position == getCount() - 1 ? 20 : 5, position == getCount() - 1 ? 20 : 5));
                 return row;
             }
+        });
+        list.setOnItemLongClickListener((parent, row, index, id) -> {
+            Object item = parent.getItemAtPosition(index);
+            if (!(item instanceof Entry) || ((Entry) item).uri.isEmpty() || screen == QUEUE) return false;
+            row.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            entryActions((Entry) item);
+            return true;
         });
         list.setOnItemClickListener((parent, row, index, id) -> {
             Object item = parent.getItemAtPosition(index);
@@ -2245,7 +2319,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private final class Art extends View {
-        static final int SQUARE = 0, ROUND = 1, WIDE = 2, IMMERSIVE = 3, BACKDROP = 4, PLAYER_ART = 5, DISC = 6;
+        static final int SQUARE = 0, ROUND = 1, WIDE = 2, IMMERSIVE = 3, BACKDROP = 4, PLAYER_ART = 5, DISC = 6, PLAYER_ROUND = 7;
         private android.animation.ValueAnimator spin;
         private int shape;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -2283,6 +2357,9 @@ public final class SpatchUi extends FrameLayout {
             int size = Math.min(width, dp(330));
             setMeasuredDimension(resolveSize(width, widthSpec), resolveSize(size, heightSpec));
         }
+
+        /** The player shapes: one square cover, centred and cut to an outline path. */
+        boolean centered() { return shape == IMMERSIVE || shape == PLAYER_ART || shape == DISC || shape == PLAYER_ROUND; }
 
         void spin(boolean run) {
             if (run) {
@@ -2344,11 +2421,11 @@ public final class SpatchUi extends FrameLayout {
                 return;
             }
 
-            if (bitmap == null && size != 180 && (shape == IMMERSIVE || shape == PLAYER_ART || shape == DISC)) {
+            if (bitmap == null && size != 180 && centered()) {
                 bitmap = IMAGES.get(url + ":180");
             }
             int alpha = 255;
-            if (bitmap != null && (shape == WIDE || shape == IMMERSIVE || shape == PLAYER_ART || shape == DISC) && w > dp(200) && motionEnabled()) {
+            if (bitmap != null && (shape == WIDE || centered()) && w > dp(200) && motionEnabled()) {
                 long now = SystemClock.uptimeMillis();
                 if (revealedBitmap != bitmap) {
                     revealedBitmap = bitmap;
@@ -2360,7 +2437,7 @@ public final class SpatchUi extends FrameLayout {
             }
 
             int save = c.save();
-            if (shape == IMMERSIVE || shape == PLAYER_ART || shape == DISC) {
+            if (centered()) {
                 float side = coverSide();
                 c.translate((w - side) * .5f, (h - side) * .5f);
                 w = h = side;
@@ -2681,7 +2758,7 @@ public final class SpatchUi extends FrameLayout {
             }
             canvas.drawPath(path, paint);
             paint.setStyle(Paint.Style.FILL);
-            canvas.drawCircle(tip, y + amplitude * waveSample((tip - x0) / wavelength + phase), dp(4), paint);
+            canvas.drawCircle(tip, y + amplitude * waveSample((tip - x0) / wavelength + phase), dp(preview >= 0 ? 9 : 4), paint);
             paint.setColor(onVariant);
             paint.setTextSize(dp(12));
             paint.setTextAlign(Paint.Align.LEFT);
@@ -2694,7 +2771,16 @@ public final class SpatchUi extends FrameLayout {
                 remainingLabel = "−" + time(remaining);
                 shownRemaining = remaining / 1000;
             }
-            canvas.drawText(elapsedLabel, x0, timeBaseline, paint);
+            if (preview >= 0) {
+                // While scrubbing, the left label reads the target time, large and in the accent colour.
+                paint.setColor(primary);
+                paint.setTextSize(dp(15));
+                paint.setFakeBoldText(true);
+                canvas.drawText(time(Math.round(preview * (double) duration)), x0, timeBaseline + dp(2), paint);
+                paint.setFakeBoldText(false);
+                paint.setTextSize(dp(12));
+                paint.setColor(onVariant);
+            } else canvas.drawText(elapsedLabel, x0, timeBaseline, paint);
             paint.setTextAlign(Paint.Align.RIGHT);
             canvas.drawText(remainingLabel, x1, timeBaseline, paint);
             if (playing && isShown()) {

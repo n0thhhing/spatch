@@ -113,7 +113,7 @@ public final class SpatchApp {
     private static final class Back33 {
         private static void register(Activity activity, SpatchUi ui) {
             activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, ui::back);
+                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, (android.window.OnBackInvokedCallback) ui.backCallback());
         }
     }
 }
