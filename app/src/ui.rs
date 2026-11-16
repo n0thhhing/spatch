@@ -3,6 +3,8 @@
 //! Core replies arrive on other threads and wait in `LATEST` until the next frame picks them up.
 
 use crate::core;
+use crate::images;
+use crate::library::{self, Item};
 use crate::player::{self, Command, NowPlaying};
 use crate::window::SpatchWindow;
 use slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
@@ -14,7 +16,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 slint::slint! {
-    struct Row { title: string, artist: string }
+    export struct Row { title: string, subtitle: string, art: image, uri: string }
+
+    component Art inherits Rectangle {
+        in property <image> source;
+        background: #2b2640;
+        clip: true;
+        Image { width: parent.width; height: parent.height; source: root.source; image-fit: cover; }
+    }
 
     component Pill inherits Rectangle {
         in property <string> label;
@@ -27,76 +36,141 @@ slint::slint! {
         touch := TouchArea { clicked => { root.clicked(); } }
     }
 
+    component RowView inherits Rectangle {
+        in property <Row> item;
+        callback clicked();
+        height: 68px;
+        border-radius: 14px;
+        background: touch.pressed ? #2b2640 : transparent;
+        HorizontalLayout {
+            padding: 8px;
+            spacing: 14px;
+            Art { width: 52px; height: 52px; border-radius: 10px; source: root.item.art; }
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                Text { text: root.item.title; color: #f3eeff; font-size: 16px; font-weight: 600; overflow: elide; }
+                Text { text: root.item.subtitle; color: #bcb3dc; font-size: 13px; overflow: elide; }
+            }
+        }
+        touch := TouchArea { clicked => { root.clicked(); } }
+    }
+
+    component NavItem inherits Rectangle {
+        in property <string> label;
+        in property <bool> selected;
+        callback clicked();
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                height: 36px;
+                width: 88px;
+                border-radius: 18px;
+                background: root.selected ? #4a4458 : (touch.pressed ? #2b2640 : transparent);
+                Text { text: root.label; color: root.selected ? #f3eeff : #bcb3dc; font-size: 14px; font-weight: root.selected ? 700 : 500; }
+            }
+        }
+        touch := TouchArea { clicked => { root.clicked(); } }
+    }
+
     export component AppWindow inherits Window {
+        in-out property <int> tab;
         in property <string> track: "Nothing playing";
         in property <string> artist;
         in property <string> album;
+        in property <image> cover;
         in property <bool> playing;
         in property <float> progress;
         in property <string> position: "0:00";
         in property <string> duration: "0:00";
         in property <[Row]> up-next;
+        in property <[Row]> library;
+        in property <string> library-status: "Loading your library…";
         in property <string> status;
         callback toggle();
         callback next();
         callback previous();
+        callback seek(float);
+        callback play(string);
+        callback library-opened();
         callback dismiss();
         background: #141218;
 
         VerticalLayout {
-            padding: 24px;
-            padding-top: 48px;
-            spacing: 18px;
-
             HorizontalLayout {
-                Text { text: "spatch"; color: #e8def8; font-size: 26px; font-weight: 800; vertical-alignment: center; }
+                padding-left: 24px;
+                padding-right: 16px;
+                padding-top: 44px;
+                padding-bottom: 8px;
+                Text { text: root.tab == 0 ? "spatch" : "Your Library"; color: #e8def8; font-size: 26px; font-weight: 800; vertical-alignment: center; }
                 Rectangle {}
                 Pill { label: "Close"; width: 96px; height: 44px; clicked => { root.dismiss(); } }
             }
 
-            // Cover placeholder until images load (Phase 3).
-            Rectangle {
-                height: self.width;
-                border-radius: 28px;
-                background: @linear-gradient(135deg, #4f378b 0%, #2b2640 100%);
-                Text { text: "♪"; color: #d0bcff; font-size: 96px; }
-            }
-
-            VerticalLayout {
-                spacing: 4px;
-                Text { text: root.track; color: #f3eeff; font-size: 24px; font-weight: 700; overflow: elide; }
-                Text { text: root.artist; color: #bcb3dc; font-size: 17px; overflow: elide; }
-            }
-
-            VerticalLayout {
-                spacing: 6px;
-                Rectangle {
-                    height: 6px;
-                    border-radius: 3px;
-                    background: #3b3550;
-                    Rectangle { x: 0; width: parent.width * clamp(root.progress, 0, 1); height: parent.height; border-radius: 3px; background: #d0bcff; }
+            if root.tab == 0: Flickable {
+                content-height: page.preferred-height;
+                page := VerticalLayout {
+                    width: parent.width;
+                    padding: 24px;
+                    padding-top: 8px;
+                    spacing: 18px;
+                    Art { height: self.width; border-radius: 28px; source: root.cover; }
+                    VerticalLayout {
+                        spacing: 4px;
+                        Text { text: root.track; color: #f3eeff; font-size: 24px; font-weight: 700; overflow: elide; }
+                        Text { text: root.artist; color: #bcb3dc; font-size: 17px; overflow: elide; }
+                    }
+                    VerticalLayout {
+                        spacing: 6px;
+                        Rectangle {
+                            height: 24px;
+                            Rectangle {
+                                y: (parent.height - self.height) / 2;
+                                height: 6px;
+                                border-radius: 3px;
+                                background: #3b3550;
+                                Rectangle { x: 0; width: parent.width * clamp(root.progress, 0, 1); height: parent.height; border-radius: 3px; background: #d0bcff; }
+                            }
+                            TouchArea { clicked => { root.seek(self.mouse-x / self.width); } }
+                        }
+                        HorizontalLayout {
+                            Text { text: root.position; color: #bcb3dc; font-size: 13px; }
+                            Rectangle {}
+                            Text { text: root.duration; color: #bcb3dc; font-size: 13px; }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Pill { label: "Prev"; clicked => { root.previous(); } }
+                        Pill { label: root.playing ? "Pause" : "Play"; strong: true; clicked => { root.toggle(); } }
+                        Pill { label: "Next"; clicked => { root.next(); } }
+                    }
+                    if root.up-next.length > 0: Text { text: "Up next"; color: #e8def8; font-size: 18px; font-weight: 700; }
+                    for row in root.up-next: RowView { item: row; }
+                    if root.status != "": Text { text: root.status; color: #8a83a0; font-size: 12px; wrap: word-wrap; }
                 }
-                HorizontalLayout {
-                    Text { text: root.position; color: #bcb3dc; font-size: 13px; }
-                    Rectangle {}
-                    Text { text: root.duration; color: #bcb3dc; font-size: 13px; }
+            }
+
+            if root.tab == 1: VerticalLayout {
+                if root.library-status != "": Text { text: root.library-status; color: #bcb3dc; font-size: 14px; wrap: word-wrap; x: 24px; }
+                // shortcut: every row is built up front; fine for a few hundred, switch to a virtualised list for more.
+                Flickable {
+                    content-height: list.preferred-height;
+                    list := VerticalLayout {
+                        width: parent.width;
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        for row in root.library: RowView { item: row; clicked => { root.play(row.uri); } }
+                    }
                 }
             }
 
             HorizontalLayout {
-                spacing: 12px;
-                Pill { label: "Prev"; clicked => { root.previous(); } }
-                Pill { label: root.playing ? "Pause" : "Play"; strong: true; clicked => { root.toggle(); } }
-                Pill { label: "Next"; clicked => { root.next(); } }
+                height: 76px;
+                padding-bottom: 12px;
+                NavItem { label: "Now playing"; selected: root.tab == 0; clicked => { root.tab = 0; } }
+                NavItem { label: "Library"; selected: root.tab == 1; clicked => { root.tab = 1; root.library-opened(); } }
             }
-
-            Text { text: "Up next"; color: #e8def8; font-size: 18px; font-weight: 700; }
-            for row in root.up-next: VerticalLayout {
-                Text { text: row.title; color: #f3eeff; font-size: 16px; overflow: elide; }
-                Text { text: row.artist; color: #bcb3dc; font-size: 13px; overflow: elide; }
-            }
-            Rectangle {}
-            Text { text: root.status; color: #8a83a0; font-size: 12px; wrap: word-wrap; }
         }
     }
 }
@@ -107,6 +181,7 @@ thread_local! {
 }
 static LATEST: Mutex<Option<NowPlaying>> = Mutex::new(None);
 static STATUS: Mutex<Option<String>> = Mutex::new(None);
+static LIBRARY: Mutex<Option<Result<Vec<Item>, String>>> = Mutex::new(None);
 static DIRTY: AtomicBool = AtomicBool::new(false);
 static PLATFORM_SET: AtomicBool = AtomicBool::new(false);
 
@@ -131,6 +206,8 @@ struct App {
     ui: AppWindow,
     scale: f32,
     now: NowPlaying,
+    library: Vec<Item>,
+    library_asked: bool,
     /// The second the clock last showed: the progress moves once a second, not every frame.
     shown_second: i64,
 }
@@ -147,6 +224,48 @@ fn send(c: Command) {
         if let Err(e) = core::call(player::SERVICE, method, &request) {
             status(format!("{method} failed: {e}"));
         }
+    });
+}
+
+/// Retries while Spotify hasn't made its first call to a service yet (the app opened at launch).
+fn when_ready<T>(f: impl Fn() -> Result<T, String>) -> Result<T, String> {
+    let mut tries = 0;
+    loop {
+        match f() {
+            Err(e) if e.contains("isn't running yet") && tries < 40 => {
+                tries += 1;
+                std::thread::sleep(Duration::from_millis(250));
+            }
+            r => return r,
+        }
+    }
+}
+
+const COVER: i32 = 1200;
+const THUMB: i32 = 160;
+
+fn rows(items: impl Iterator<Item = (String, String, String, String)>) -> ModelRc<Row> {
+    let rows: Vec<Row> = items
+        .map(|(title, subtitle, image, uri)| Row { title: title.into(), subtitle: subtitle.into(), art: images::get(&image, THUMB).unwrap_or_default(), uri: uri.into() })
+        .collect();
+    ModelRc::new(VecModel::from(rows))
+}
+
+impl App {
+    /// Cover, Up Next and Library with whatever artwork has loaded so far.
+    fn show_art(&self) {
+        self.ui.set_cover(images::get(&self.now.image, COVER).unwrap_or_default());
+        self.ui.set_up_next(rows(self.now.up_next.iter().map(|(t, a, i)| (t.clone(), a.clone(), i.clone(), String::new()))));
+        self.ui.set_library(rows(self.library.iter().map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone()))));
+    }
+}
+
+fn load_library() {
+    std::thread::spawn(|| {
+        let result = when_ready(|| core::call(library::SERVICE, "All", &library::request(300))).and_then(|bytes| library::decode(&bytes));
+        *LIBRARY.lock().unwrap() = Some(result);
+        DIRTY.store(true, Ordering::Release);
+        core::wake();
     });
 }
 
@@ -176,6 +295,26 @@ pub fn open(density: f32) {
     let Some(window) = NEW_WINDOW.with(|w| w.borrow_mut().take()) else { return };
     window.window().dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: density });
     ui.on_dismiss(core::close_app);
+    ui.on_play(|uri| send(Command::Play(uri.to_string())));
+    ui.on_seek(|fraction| {
+        APP.with(|a| {
+            if let Some(app) = a.borrow().as_ref() {
+                if app.now.duration_ms > 0 {
+                    send(Command::SeekTo((fraction.clamp(0.0, 1.0) as f64 * app.now.duration_ms as f64) as i64));
+                }
+            }
+        })
+    });
+    ui.on_library_opened(|| {
+        APP.with(|a| {
+            if let Some(app) = a.borrow_mut().as_mut() {
+                if !app.library_asked {
+                    app.library_asked = true;
+                    load_library();
+                }
+            }
+        })
+    });
     ui.on_next(|| send(Command::Next));
     ui.on_previous(|| send(Command::Previous));
     let weak = ui.as_weak();
@@ -185,21 +324,9 @@ pub fn open(density: f32) {
     });
     let _ = ui.show();
     ui.set_status("Connecting to Spotify's player…".into());
-    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), shown_second: -1 }));
+    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), library_asked: false, shown_second: -1 }));
     std::thread::spawn(|| {
-        // Opened at launch, Spotify may not have called its player yet: retry briefly until the bridge has it.
-        let mut tries = 0;
-        let id = loop {
-            let id = subscribe_player();
-            match &id {
-                Err(e) if e.contains("isn't running yet") && tries < 40 => {
-                    tries += 1;
-                    std::thread::sleep(Duration::from_millis(250));
-                }
-                _ => break id,
-            }
-        };
-        match id {
+        match when_ready(subscribe_player) {
             Ok(id) => STREAM.lock().unwrap().replace(id),
             Err(e) => {
                 status(format!("Couldn't reach Spotify's player: {e}"));
@@ -262,14 +389,25 @@ pub fn frame() -> i64 {
                 app.ui.set_album(now.album.as_str().into());
                 app.ui.set_playing(now.playing);
                 app.ui.set_duration(clock(now.duration_ms).into());
-                let rows: Vec<Row> = now.up_next.iter().map(|(t, a)| Row { title: t.as_str().into(), artist: a.as_str().into() }).collect();
-                app.ui.set_up_next(ModelRc::new(VecModel::from(rows)));
                 app.now = now;
                 app.shown_second = -1;
+                app.show_art();
+            }
+            match LIBRARY.lock().unwrap().take() {
+                Some(Ok(items)) => {
+                    app.ui.set_library_status(if items.is_empty() { "Nothing in your library yet.".into() } else { SharedString::new() });
+                    app.library = items;
+                    app.show_art();
+                }
+                Some(Err(e)) => app.ui.set_library_status(format!("Couldn't load your library: {e}").into()),
+                None => {}
             }
             if let Some(s) = STATUS.lock().unwrap().take() {
                 app.ui.set_status(s.into());
             }
+        }
+        if images::collect() {
+            app.show_art();
         }
         let at = app.now.position_at(epoch_ms());
         if at / 1000 != app.shown_second {

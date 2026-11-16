@@ -18,7 +18,8 @@ pub struct NowPlaying {
     pub duration_ms: i64,
     /// ContextPlayerState.timestamp: when position_ms was true, in ms since the epoch.
     pub timestamp: u64,
-    pub up_next: Vec<(String, String)>,
+    /// Title, artist and artwork URL of the next tracks.
+    pub up_next: Vec<(String, String, String)>,
 }
 
 /// Spotify's image URIs (spotify:image:<id>) as their public CDN URL; anything else unchanged.
@@ -43,7 +44,7 @@ impl NowPlaying {
             .filter_map(|t| t.context_track.as_ref())
             .filter(|t| !t.uri.starts_with("spotify:delimiter"))
             .take(10)
-            .map(|t| (meta(t, &["title"]).to_string(), meta(t, &["artist_name"]).to_string()))
+            .map(|t| (meta(t, &["title"]).to_string(), meta(t, &["artist_name"]).to_string(), image_url(meta(t, &["image_url", "image_large_url", "image_small_url"]))))
             .collect();
         Ok(NowPlaying {
             uri: track.uri.clone(),
@@ -75,8 +76,10 @@ pub fn state_request() -> Vec<u8> {
         .encode_to_vec()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Command {
+    /// Plays a playlist, album, artist or show by URI from its start.
+    Play(String),
     Pause,
     Resume,
     Next,
@@ -87,6 +90,18 @@ pub enum Command {
 /// The RPC method and request bytes for a command.
 pub fn command(c: Command) -> (&'static str, Vec<u8>) {
     match c {
+        Command::Play(uri) => (
+            "Play",
+            es::PlayRequest {
+                prepare_play_request: Some(es::PreparePlayRequest {
+                    context: Some(es::Context { url: format!("context://{uri}"), uri, ..Default::default() }),
+                    play_origin: Some(es::PlayOrigin { feature_identifier: "spatch".into(), ..Default::default() }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }
+            .encode_to_vec(),
+        ),
         Command::Pause => ("Pause", es::PauseRequest::default().encode_to_vec()),
         Command::Resume => ("Resume", es::ResumeRequest::default().encode_to_vec()),
         Command::Next => ("SkipNext", es::SkipNextRequest::default().encode_to_vec()),
@@ -126,7 +141,7 @@ mod tests {
         assert_eq!(now.artist, "i wanna be a jack-o-lantern");
         assert_eq!(now.image, "https://i.scdn.co/image/ab67");
         assert!(now.playing);
-        assert_eq!(now.up_next, vec![("annoying".to_string(), "someone".to_string())]);
+        assert_eq!(now.up_next, vec![("annoying".to_string(), "someone".to_string(), "https://i.scdn.co/image/ab67".to_string())]);
         assert_eq!(now.position_at(7000), 3000);
         assert_eq!(now.position_at(999_999), 85000); // clamped to the end
     }
@@ -137,6 +152,14 @@ mod tests {
         let now = NowPlaying::decode(&state.encode_to_vec()).unwrap();
         assert!(!now.playing);
         assert_eq!(now.position_at(10_000), 40);
+    }
+
+    #[test]
+    fn play_carries_the_context() {
+        let (m, bytes) = command(Command::Play("spotify:playlist:1".into()));
+        assert_eq!(m, "Play");
+        let ctx = es::PlayRequest::decode(bytes.as_slice()).unwrap().prepare_play_request.unwrap().context.unwrap();
+        assert_eq!((ctx.uri.as_str(), ctx.url.as_str()), ("spotify:playlist:1", "context://spotify:playlist:1"));
     }
 
     #[test]

@@ -4,6 +4,8 @@
 //! only touches the Java hooks.
 
 pub mod core;
+pub mod images;
+pub mod library;
 pub mod player;
 #[cfg(target_os = "android")]
 mod surface;
