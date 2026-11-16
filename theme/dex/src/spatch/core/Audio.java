@@ -28,8 +28,6 @@ public final class Audio {
 
     /** 0..1, eased: low end, whole spectrum, and the strength of the last kick (decays to 0). */
     static volatile float bass, level, kick;
-    /** When the last kick landed (uptime ms), 0 if never. */
-    static volatile long kickAt;
     /** 48 log-spaced bands from 40 Hz to 16 kHz, 0..1; read by the spectrum ring. */
     static final float[] BANDS = new float[48];
 
@@ -39,7 +37,6 @@ public final class Audio {
     private static int capturing;
     private static byte[] fft;
     private static long sampled, retryAt;
-    private static float average;
 
     static boolean permitted(Context context) {
         return context.checkSelfPermission(PERMISSION) == 0;
@@ -116,18 +113,13 @@ public final class Audio {
             say("Listening to Spotify (audio session " + id + ")");
             float dt = sampled == 0 ? 16 : Math.min(100, now - sampled);
             sampled = now;
-            int rate = visualizer.getSamplingRate() / 1000;
-            float low = band(fft, rate, 40, 160), all = band(fft, rate, 40, 12000);
-            bass += (low - bass) * (1 - (float) Math.exp(-dt / (low > bass ? 18f : 120f)));
-            level += (all - level) * (1 - (float) Math.exp(-dt / (all > level ? 30f : 200f)));
-            average += (low - average) * (1 - (float) Math.exp(-dt / 900f));
-            // A kick: the low end jumps well above its recent average, at most ~4 per second.
-            if (low > .18f && low > average * 1.32f && now - kickAt > 240) {
-                kickAt = now;
-                kick = Math.min(1f, (low - average) * 3f + .35f);
+            nativeAnalyse(fft, visualizer.getSamplingRate() / 1000, dt, now, OUT);
+            System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
+            bass = OUT[48]; level = OUT[49]; kick = OUT[50];
+            if (now - loggedAt > 3000) {
+                loggedAt = now;
+                android.util.Log.i("SpatchAudio", String.format(java.util.Locale.ROOT, "strongest band %.3f, reference %.3f", OUT[51], OUT[52]));
             }
-            kick *= (float) Math.exp(-dt / 260f);
-            analyse(rate, dt / 1000f, now);
             return true;
         } catch (RuntimeException e) {
             say("Couldn’t read the audio: " + e);
@@ -137,81 +129,11 @@ public final class Audio {
         }
     }
 
-    // The analysis is Swiftify's (spotify-core/src/spectrum.rs), on Android's FFT: band *amplitudes*, linear, not dB,
-    // divided by one slow shared reference so balance between bands survives and a hit still lands tall, then a soft
-    // shoulder. It states plainly that scaling dB flattens dynamics into a wall of equal bars.
-    private static final float MIN_REFERENCE = .05f, INITIAL_REFERENCE = .25f, KNEE = 1.8f;
-    private static float reference = INITIAL_REFERENCE;
-    private static final float[] AMPLITUDE = new float[48];
+    // The analysis is in Rust (app/src/spectrum.rs): 48 bands, then bass, level, kick, strongest band and reference.
+    private static native void nativeAnalyse(byte[] fft, int rateHz, float dtMs, long nowMs, float[] out);
+    private static native void nativeReset();
+    private static final float[] OUT = new float[53];
     private static long loggedAt;
-
-    private static void analyse(int rate, float seconds, long now) {
-        float strongest = 0;
-        for (int i = 0; i < BANDS.length; i++) {
-            float from = 40f * (float) Math.pow(400, i / (double) BANDS.length), to = 40f * (float) Math.pow(400, (i + 1) / (double) BANDS.length);
-            AMPLITUDE[i] = bandAmplitude(fft, rate, from, to);
-            strongest = Math.max(strongest, AMPLITUDE[i]);
-        }
-        if (strongest > .005f) {
-            float target = Math.max(strongest, MIN_REFERENCE);
-            float tc = target > reference ? .35f : 3f;
-            reference += (target - reference) * (1 - (float) Math.exp(-seconds / tc));
-        }
-        float attack = 1 - (float) Math.exp(-seconds / .008f), release = 1 - (float) Math.exp(-seconds / .065f);
-        float tallest = 0;
-        for (int i = 0; i < BANDS.length; i++) {
-            float relative = Math.max(0f, AMPLITUDE[i] - .0001f) / reference;
-            float target = 1f - (float) Math.exp(-KNEE * Math.pow(relative, .85));
-            BANDS[i] += (target - BANDS[i]) * (target > BANDS[i] ? attack : release);
-            if (BANDS[i] < .0001f) BANDS[i] = 0;
-            tallest = Math.max(tallest, BANDS[i]);
-        }
-        if (now - loggedAt > 3000) {
-            loggedAt = now;
-            android.util.Log.i("SpatchAudio", String.format(java.util.Locale.ROOT, "strongest band %.3f, reference %.3f, tallest bar %.2f", strongest, reference, tallest));
-        }
-    }
-
-    /** Amplitude of the bins between two frequencies: root of their summed power, 0..~1. */
-    private static float bandAmplitude(byte[] fft, int rateHz, float fromHz, float toHz) {
-        if (rateHz <= 0 || fft.length < 4) return 0f;
-        int n = fft.length, max = n / 2 - 1;
-        int start = Math.max(1, Math.min(max, Math.round(fromHz * n / rateHz))), end = Math.min(max, Math.max(start, Math.round(toHz * n / rateHz)));
-        double power = 0;
-        for (int k = start; k <= end; k++) {
-            double re = fft[k * 2], im = fft[k * 2 + 1];
-            power += (re * re + im * im) / (128.0 * 128.0);
-        }
-        return (float) Math.sqrt(power);
-    }
-
-    /** Band energy between two frequencies (Hz) in dB (about 0 for full scale, -90 for silence). */
-    static float bandDb(byte[] fft, int rateHz, float fromHz, float toHz) {
-        if (rateHz <= 0 || fft.length < 4) return -90f;
-        int n = fft.length, max = n / 2 - 1;
-        int start = Math.max(1, Math.round(fromHz * n / rateHz)), end = Math.min(max, Math.max(start, Math.round(toHz * n / rateHz)));
-        double power = 0;
-        for (int k = start; k <= end; k++) {
-            double re = fft[k * 2], im = fft[k * 2 + 1];
-            power += (re * re + im * im) / (128.0 * 128.0);
-        }
-        power /= (end - start + 1);
-        return power <= 1e-9 ? -90f : (float) Math.max(-90.0, 10 * Math.log10(power));
-    }
-
-    /** Band energy between two frequencies (Hz) as a 0..1 display level (dB, silence at 0). */
-    static float band(byte[] fft, int rateHz, float fromHz, float toHz) {
-        if (rateHz <= 0 || fft.length < 4) return 0;
-        int n = fft.length, max = n / 2 - 1;
-        int start = Math.max(1, Math.round(fromHz * n / rateHz)), end = Math.min(max, Math.max(start, Math.round(toHz * n / rateHz)));
-        double power = 0;
-        for (int k = start; k <= end; k++) {
-            double re = fft[k * 2], im = fft[k * 2 + 1];
-            power += (re * re + im * im) / (128.0 * 128.0);
-        }
-        power /= (end - start + 1);
-        return power <= 0 ? 0 : Math.max(0, Math.min(1, (float) ((10 * Math.log10(power) + 48) / 44)));
-    }
 
     private static void release() {
         if (visualizer != null) {
@@ -219,6 +141,6 @@ public final class Audio {
         }
         visualizer = null;
         sampled = 0;
-        reference = INITIAL_REFERENCE;
+        try { nativeReset(); } catch (UnsatisfiedLinkError ignored) { /* the library isn't loaded yet */ }
     }
 }

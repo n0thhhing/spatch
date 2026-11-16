@@ -59,6 +59,9 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativePlaylist(String uri, int offset);
     private static native String[] nativePage(String uri);
     private static native String[] nativeDevices();
+    private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
+    private static native int nativeSeed(int[] pixels);
+    private static native void nativeRing(int perSide, float[] out);
     private static native String[] nativeSpotifySettings();
     private static native String nativeSetSpotifySetting(String key, int value);
     private static native String nativeTransfer(String id);
@@ -186,45 +189,12 @@ public final class SpatchUi extends FrameLayout {
         dark = theme == 1 || (theme == 0 && (getResources().getConfiguration().uiMode & 0x30) == 0x20);
         int accentChoice = Math.max(0, Math.min(ACCENTS.length - 1, prefs.getInt("accent", 0)));
         if (seed == null && accentChoice > 0) seed = ACCENTS[accentChoice];
-        float h = 262, c = .5f;
-        if (seed != null) {
-            float[] hsv = new float[3];
-            Color.colorToHSV(seed, hsv);
-            h = hsv[0];
-            c = Math.max(.35f, Math.min(.85f, hsv[1]));
-        }
-        if (dark) {
-            bg = hsl(h, .28f * c, .06f);
-            surf = hsl(h, .22f * c, .115f);
-            surfHi = hsl(h, .22f * c, .17f);
-            ink = hsl(h, .2f * c, .94f);
-            inkDim = hsl(h, .18f * c, .72f);
-            accent = hsl(h, Math.min(.9f, c + .1f), .74f);
-            accent2 = hsl((h + 42) % 360, Math.min(.9f, c + .1f), .70f);
-            onAccent = hsl(h, .5f, .13f);
-        } else {
-            bg = hsl(h, .3f * c, .965f);
-            surf = hsl(h, .3f * c, .925f);
-            surfHi = hsl(h, .3f * c, .875f);
-            ink = hsl(h, .25f * c, .10f);
-            inkDim = hsl(h, .2f * c, .36f);
-            accent = hsl(h, Math.min(.85f, c + .05f), .40f);
-            accent2 = hsl((h + 42) % 360, Math.min(.85f, c + .05f), .46f);
-            onAccent = hsl(h, .2f, .98f);
-        }
+        int[] p = nativePalette(seed == null ? 0 : seed, seed != null, dark);
+        bg = p[0]; surf = p[1]; surfHi = p[2]; ink = p[3]; inkDim = p[4]; accent = p[5]; accent2 = p[6]; onAccent = p[7];
         setBackgroundColor(bg);
         View decor = activity.getWindow().getDecorView();
         int bars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         decor.setSystemUiVisibility(dark ? decor.getSystemUiVisibility() & ~bars : decor.getSystemUiVisibility() | bars);
-    }
-
-    private static int hsl(float h, float s, float l) {
-        float c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60f) % 2 - 1)), m = l - c / 2;
-        float r, g, b;
-        if (h < 60) { r = c; g = x; b = 0; } else if (h < 120) { r = x; g = c; b = 0; }
-        else if (h < 180) { r = 0; g = c; b = x; } else if (h < 240) { r = 0; g = x; b = c; }
-        else if (h < 300) { r = x; g = 0; b = c; } else { r = c; g = 0; b = x; }
-        return Color.rgb(Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255));
     }
 
     private static int blend(int a, int b, float t) {
@@ -232,20 +202,13 @@ public final class SpatchUi extends FrameLayout {
             Math.round(Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t));
     }
 
-    /** The most colourful of a few averaged regions of a cover. */
+    /** The cover's seed colour: Rust picks the most colourful of a 6x6 shrink of it. */
     private static int seedOf(Bitmap bitmap) {
         Bitmap small = Bitmap.createScaledBitmap(bitmap, 6, 6, true);
-        float[] hsv = new float[3];
-        int best = small.getPixel(3, 3);
-        float score = -1;
-        for (int y = 0; y < 6; y++) for (int x = 0; x < 6; x++) {
-            int p = small.getPixel(x, y);
-            Color.colorToHSV(p, hsv);
-            float v = hsv[1] * (1f - Math.abs(hsv[2] - .6f));
-            if (v > score) { score = v; best = p; }
-        }
+        int[] pixels = new int[36];
+        small.getPixels(pixels, 0, 6, 0, 0, 6, 6);
         if (small != bitmap) small.recycle();
-        return best;
+        return nativeSeed(pixels);
     }
 
     /** Re-tints everything once the playing cover's colour is known; true if the palette changed. */
@@ -349,17 +312,6 @@ public final class SpatchUi extends FrameLayout {
     private long playhead() {
         long elapsed = playing && stamp > 0 ? Math.max(0, SystemClock.uptimeMillis() - stamp) : 0;
         return Math.max(0, Math.min(duration, position + elapsed));
-    }
-
-    /** Where each of `bars` bars on one side reads the `bands` analysis bands: the bass gets 46% of the bars for 30% of the bands. */
-    private static float[] bassPositions(int bars, int bands) {
-        float[] out = new float[bars];
-        for (int i = 0; i < bars; i++) {
-            float progress = bars == 1 ? 0f : i / (float) (bars - 1);
-            float source = progress <= .46f ? progress / .46f * .30f : .30f + (progress - .46f) / .54f * .70f;
-            out[i] = source * (bands - 1);
-        }
-        return out;
     }
 
     private static String initial(String name) {
@@ -2195,8 +2147,7 @@ public final class SpatchUi extends FrameLayout {
         private int sweepA, sweepB;
         private Bitmap shown, previous;
         private long fadeAt, lastFrame;
-        private final float[] level = new float[36];
-        private float[] positions;
+        private final float[] level = new float[36], ringTargets = new float[36];
 
         Disc() { super(activity); artViews.add(this); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
 
@@ -2261,22 +2212,12 @@ public final class SpatchUi extends FrameLayout {
             int half = bars / 2;
             float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
             lastFrame = now;
-            // Swiftify's ring (SpectrumShaping::bassExpanded): the 48 bands spread over each side's bars with the
-            // bass given more of them; a bar over several bands shows the strongest, so a narrow peak survives.
-            if (positions == null) positions = bassPositions(half, Audio.BANDS.length);
-            float[] bands = Audio.BANDS;
+            // The bands spread over each side's bars, bass-weighted (Rust: spectrum::bass_expanded).
+            if (live) nativeRing(half, ringTargets);
             for (int i = 0; i < half; i++) {
                 float v;
                 if (live) {
-                    float pos = positions[i];
-                    float lower = i == 0 ? 0f : (positions[i - 1] + pos) / 2f, upper = i == half - 1 ? bands.length - 1 : (pos + positions[i + 1]) / 2f;
-                    if (upper - lower <= 1f) {
-                        int lo = Math.max(0, Math.min(bands.length - 1, (int) Math.floor(pos))), hi = Math.min(lo + 1, bands.length - 1);
-                        v = bands[lo] * (1 - (pos - lo)) + bands[hi] * (pos - lo);
-                    } else {
-                        v = 0;
-                        for (int source = (int) Math.ceil(lower); source <= (int) Math.floor(upper) && source < bands.length; source++) v = Math.max(v, bands[source]);
-                    }
+                    v = ringTargets[i];
                 } else if (run) {
                     // No audio to read: a pulse that still reads as music.
                     float swell = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - i / (float) half) * .3f;
