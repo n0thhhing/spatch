@@ -16,7 +16,9 @@ cargo build --release --locked
 
 Set `ANDROID_NDK_HOME` to the installed NDK if cargo-ndk cannot locate it. The patcher reads `app/target/aarch64-linux-android/release/libspatch_app.so` or the file specified by `SPATCH_APP_SO`. It adds the library and the helper DEX to the base APK.
 
-On Android, tap the mini-player artwork or track information to open the player. Double-tap the artwork to enter immersive mode. Back returns to the standard player.
+Home and Library switch from the button group at the top, beside Settings. Tap the mini player to open the player, swipe it sideways to skip, or long-press a library item for Play, Shuffle play and Open. In the player, double-tap the artwork or use the corner button for immersive mode; pull the artwork down to close. In immersive mode a tap on the disc hides the controls.
+
+Settings covers theme, accent colour, artwork colours, the player artwork shape, motion effects, keep-screen-on, the details card and haptics. **Follow the music** makes the immersive glow, shockwaves and motes react to Spotify's own playback session; Android lists that capture as microphone access.
 
 ## Preview without Spotify
 
