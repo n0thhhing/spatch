@@ -264,8 +264,11 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
     #[cfg(feature = "preview")]
     if uri.starts_with("spotify:preview:") || library::is_liked_uri(&uri) {
         let demo = crate::preview::player();
-        let tracks = std::iter::once((demo.title, demo.artist, demo.image))
-            .chain(demo.up_next.into_iter().map(|t| (t.title, t.artist, t.image)));
+        // Forty rows (the demo tracks repeated) so long-list scrolling can be tried offline.
+        let tracks: Vec<_> = std::iter::once((demo.title, demo.artist, demo.image))
+            .chain(demo.up_next.into_iter().map(|t| (t.title, t.artist, t.image)))
+            .collect();
+        let tracks = tracks.iter().cloned().cycle().take(40);
         return strings(
             &mut env,
             ["".into(), "0".into()]
