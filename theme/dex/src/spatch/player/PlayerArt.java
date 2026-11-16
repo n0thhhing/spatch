@@ -104,8 +104,22 @@ public final class PlayerArt extends ImageView {
         } else previousArt=null;
     }
 
+    private long drawnAt;
+    /** Scrolled down to Spotify's cards, the artwork is off screen and stops drawing; this keeps a new song's colours coming. */
+    private final android.view.ViewTreeObserver.OnPreDrawListener offscreen=new android.view.ViewTreeObserver.OnPreDrawListener(){
+        public boolean onPreDraw(){
+            if(preview || SystemClock.uptimeMillis()-drawnAt<150 || !isCurrentPage()) return true;
+            Drawable art=getDrawable();
+            Tint.follow(art);
+            colourTitle();
+            if(atmosphere!=null && art!=null && art!=lastArt){ lastArt=art; atmosphere.capture(art); }
+            return true;
+        }
+    };
+
     protected void onDraw(Canvas canvas) {
         long now = SystemClock.uptimeMillis();
+        drawnAt = now;
         resnap(this, now);
         if (Wave.animationsEnabled()) spring(squish, squishTarget, now - squishAt);
         else { squish[0] = 1; squish[1] = 0; }
@@ -395,6 +409,7 @@ public final class PlayerArt extends ImageView {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         if(getWindowVisibility()==0) showing(true);
+        if(!preview) getViewTreeObserver().addOnPreDrawListener(offscreen);
     }
 
     protected void onDetachedFromWindow() {
@@ -402,6 +417,7 @@ public final class PlayerArt extends ImageView {
         expansion=null;
         AudioSpectrum.drop(AudioSpectrum.RADIAL);
         showing(false);
+        getViewTreeObserver().removeOnPreDrawListener(offscreen);
         super.onDetachedFromWindow();
     }
 
