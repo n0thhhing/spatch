@@ -17,6 +17,8 @@ pub struct NowPlaying {
     pub source: String,
     pub context: String,
     pub explicit: bool,
+    /// "Lossless · 24-bit · 44.1 kHz" while a lossless file plays, else "".
+    pub quality: String,
     /// Whether the song is in Liked Songs, as the player state says (`collection.in_collection`); None if it doesn't.
     pub liked: Option<bool>,
     pub image: String,
@@ -61,6 +63,20 @@ fn log_keys(track: &es::ContextTrack) {
     log::info!("Track metadata keys: {}", keys.join(" "));
 }
 
+/// What the player says is playing, when it's lossless (BitrateLevel 5 HIFI, 6 HIFI24, or a lossless source).
+fn quality_label(q: Option<&es::PlaybackQuality>) -> String {
+    let Some(q) = q.filter(|q| q.source_is_lossless || matches!(q.bitrate_level, 5 | 6)) else { return String::new() };
+    let mut label = "Lossless".to_string();
+    if q.playing_bit_depth > 0 {
+        label += &format!(" · {}-bit", q.playing_bit_depth);
+    }
+    if q.playing_sample_rate_hz > 0 {
+        let khz = q.playing_sample_rate_hz as f64 / 1000.0;
+        label += &if khz.fract() == 0.0 { format!(" · {khz:.0} kHz") } else { format!(" · {khz:.1} kHz") };
+    }
+    label
+}
+
 impl NowPlaying {
     pub fn decode(bytes: &[u8]) -> Result<NowPlaying, prost::DecodeError> {
         let state = es::ContextPlayerState::decode(bytes)?;
@@ -79,6 +95,7 @@ impl NowPlaying {
                 .unwrap_or_default(),
             context: state.context_uri.clone(),
             explicit: matches!(meta(&track, &["is_explicit", "explicit"]), "true" | "1"),
+            quality: quality_label(state.playback_quality.as_ref()),
             liked: match meta(&track, &["collection.in_collection"]) { "true" => Some(true), "false" => Some(false), _ => None },
             image: image_url(meta(&track, &["image_large_url", "image_url", "image_xlarge_url", "image_small_url"])),
             playing: state.is_playing && !state.is_paused,
@@ -213,6 +230,12 @@ mod tests {
         assert_eq!((now.title.as_str(), now.artist.as_str(), now.context.as_str()), ("city", "jack", "spotify:playlist:9"));
         assert!(now.explicit && now.playing);
         assert_eq!(now.liked, Some(true));
+        assert_eq!(now.quality, "");
+        let lossless = es::ContextPlayerState {
+            playback_quality: Some(es::PlaybackQuality { bitrate_level: 6, playing_bit_depth: 24, playing_sample_rate_hz: 44_100, ..Default::default() }),
+            ..Default::default()
+        };
+        assert_eq!(NowPlaying::decode(&lossless.encode_to_vec()).unwrap().quality, "Lossless · 24-bit · 44.1 kHz");
         assert_eq!(now.up_next.len(), 1);
         assert_eq!(now.image, "https://i.scdn.co/image/ab67");
         assert_eq!(now.up_next.len(), 1);

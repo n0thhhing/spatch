@@ -131,7 +131,7 @@ public final class SpatchUi extends FrameLayout {
     private int repeat;
     private Boolean pending, saved;
     private String savedUri = "";
-    private String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "";
+    private String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
     private List<Entry> upcoming = new ArrayList<>();
     private String libraryStatus = "Connecting to your library…";
 
@@ -143,6 +143,7 @@ public final class SpatchUi extends FrameLayout {
     private Disc disc;
     private Wave wave;
     private Backdrop backdrop;
+    private TextView pQuality;
     private TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
     private Icon pLike, pShuffle, pRepeat;
     private PlayButton pPlay, mPlay;
@@ -473,9 +474,10 @@ public final class SpatchUi extends FrameLayout {
         source = s[11];
         rating = s[12];
         context = s[13];
+        quality = s[14];
         stamp = SystemClock.uptimeMillis();
         List<Entry> next = new ArrayList<>();
-        for (int i = 14; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
+        for (int i = 15; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
         upcoming = next;
         if (changed) checkSaved(uri);
         if (refreshPalette()) recolor();
@@ -517,8 +519,7 @@ public final class SpatchUi extends FrameLayout {
         }
         int y = pageScroll != null ? pageScroll.getScrollY() : 0;
         build();
-        ScrollView s = pageScroll;
-        if (s != null && y > 0) s.post(() -> s.scrollTo(0, y));
+        keepScroll(pageScroll, y);
         if (before == null) return;
         android.graphics.drawable.BitmapDrawable ghost = new android.graphics.drawable.BitmapDrawable(getResources(), before);
         ghost.setBounds(0, 0, getWidth(), getHeight());
@@ -1238,9 +1239,10 @@ public final class SpatchUi extends FrameLayout {
             }
             return;
         }
-        String[] qualities = {"Low", "Normal", "High", "Very high"};
-        int quality = spotifyValue("stream_quality");
-        segmented(box, "Streaming quality", qualities, quality >= 1 && quality <= 4 ? quality - 1 : -1, i -> setSpotify("stream_quality", i + 1));
+        // Spotify's scale: 1 Low, 2 Normal, 3 High, 4 Very high, 5 Lossless (Premium where offered).
+        String[] qualities = {"Low", "Normal", "High", "Very high", "Lossless"};
+        int streaming = spotifyValue("stream_quality");
+        segmented(box, "Streaming quality", qualities, streaming >= 1 && streaming <= 5 ? streaming - 1 : -1, i -> setSpotify("stream_quality", i + 1));
         spotifySwitch(box, "Allow quality downgrade", "Lower the quality when your connection is slow", "allow_audio_quality_downgrade");
         spotifySwitch(box, "Download over cellular", "Let downloads use mobile data", "download_over_3g");
         spotifySwitch(box, "Normalise volume", "Play songs at the same level", "normalize");
@@ -1301,8 +1303,19 @@ public final class SpatchUi extends FrameLayout {
         if (palette) { paletteKey = "?"; refreshPalette(); recolor(); return; }
         int y = pageScroll != null ? pageScroll.getScrollY() : 0;
         showPage();
-        ScrollView again = pageScroll;
-        if (again != null && y > 0) again.post(() -> again.scrollTo(0, y));
+        keepScroll(pageScroll, y);
+    }
+
+    /** Puts a rebuilt page back at `y` after layout but before its first frame, so it never shows at the top. */
+    private static void keepScroll(ScrollView s, int y) {
+        if (s == null || y <= 0) return;
+        s.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                s.getViewTreeObserver().removeOnPreDrawListener(this);
+                s.scrollTo(0, y);
+                return true;
+            }
+        });
     }
 
     /** A title over a connected button group; the pick is stored as an index under `key`. */
@@ -1323,7 +1336,7 @@ public final class SpatchUi extends FrameLayout {
         for (int i = 0; i < names.length; i++) {
             final int pick = i;
             boolean on = i == current;
-            TextView option = text(names[i], 13, on ? onAccent : ink, true);
+            TextView option = text(names[i], names.length > 4 ? 12 : 13, on ? onAccent : ink, true);
             option.setGravity(Gravity.CENTER);
             option.setSingleLine(true);
             float outer = 20, inner = on ? 20 : 6;
@@ -1558,7 +1571,7 @@ public final class SpatchUi extends FrameLayout {
         else removeView(p);
         player = null;
         disc = null; wave = null; backdrop = null; nextPill = null;
-        pTitle = pArtist = pSource = pBadge = null;
+        pTitle = pArtist = pSource = pBadge = pQuality = null;
         pLike = pShuffle = pRepeat = null;
         pPlay = null;
     }
@@ -1613,6 +1626,13 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout.LayoutParams byp = fill(-2);
         byp.topMargin = dp(4);
         words.addView(byline, byp);
+        // What Spotify says is playing, when it's lossless.
+        pQuality = text("", 12, accent, true);
+        pQuality.setLetterSpacing(.04f);
+        pQuality.setVisibility(GONE);
+        LinearLayout.LayoutParams qp = lp(-2, -2);
+        qp.topMargin = dp(6);
+        words.addView(pQuality, qp);
         titleRow.addView(words, weight());
         pLike = new Icon("heart-outline", ink);
         titleRow.addView(iconButton(pLike, "Save to Liked Songs", this::toggleSaved), lp(dp(52), dp(52)));
@@ -1863,6 +1883,7 @@ public final class SpatchUi extends FrameLayout {
         if (pArtist != null) pArtist.setText(artist);
         if (pSource != null) pSource.setText(source.isEmpty() ? album : source);
         if (pBadge != null) pBadge.setVisibility(rating.isEmpty() ? GONE : VISIBLE);
+        if (pQuality != null) { pQuality.setText(quality.toUpperCase(java.util.Locale.ROOT)); pQuality.setVisibility(quality.isEmpty() ? GONE : VISIBLE); }
         if (pPlay != null) pPlay.set(on);
         if (pLike != null) {
             boolean isLiked = Boolean.TRUE.equals(saved);
