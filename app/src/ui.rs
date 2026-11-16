@@ -19,6 +19,23 @@ static LIBRARY: Mutex<Option<Vec<library::Item>>> = Mutex::new(None);
 static USERNAME: Mutex<Option<String>> = Mutex::new(None);
 /// What the last username lookup tried, shown on the Liked Songs page when it fails.
 static LIKED_NOTE: Mutex<String> = Mutex::new(String::new());
+/// The Liked Songs link the playlist service accepted, once one has worked.
+static LIKED_WORKING: Mutex<Option<String>> = Mutex::new(None);
+
+/// Every spelling of the Liked Songs link, most likely first: what the library lists, what the username
+/// gives, then the two names Spotify's own code compares against.
+#[cfg_attr(feature = "preview", allow(dead_code))]
+fn liked_candidates(first: &str) -> Vec<String> {
+    let listed = LIBRARY.lock().unwrap().iter().flatten().find(|i| library::is_liked(&i.uri)).map(|i| i.uri.clone());
+    let user = USERNAME.lock().unwrap().clone().map(|u| format!("spotify:user:{u}:collection"));
+    let mut all: Vec<String> = [Some(first.to_string()), listed, user, Some("spotify:internal:collection:tracks".into()), Some("spotify:collection".into()), Some("spotify:collection:tracks".into())]
+        .into_iter()
+        .flatten()
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    all.retain(|u| seen.insert(u.clone()));
+    all
+}
 
 /// `spotify:user:<name>:collection` (Liked Songs playing) names the account; remember it.
 fn learn_username(context: &str) {
@@ -255,7 +272,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JCla
     };
     #[cfg(feature = "preview")]
     let user: Option<String> = None;
-    let uri = listed.or_else(|| user.map(|u| format!("spotify:user:{u}:collection"))).unwrap_or_else(|| "spotify:collection:tracks".into());
+    let working = LIKED_WORKING.lock().unwrap().clone();
+    let uri = working.or(listed).or_else(|| user.map(|u| format!("spotify:user:{u}:collection"))).unwrap_or_else(|| "spotify:collection:tracks".into());
     string(&mut env, &uri)
 }
 
@@ -269,7 +287,32 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
     #[cfg(feature = "preview")]
     let reply: Result<playlist::Reply, String> = Ok(playlist::Reply::Page { tracks: crate::demo::playlist(), next: None, owner: None });
     #[cfg(not(feature = "preview"))]
-    let reply = bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset)).and_then(|bytes| playlist::decode(&bytes, offset));
+    let reply = if library::is_liked(&uri) {
+        // Liked Songs has several spellings and only one is accepted: try them in turn and keep what works.
+        let mut attempts = Vec::new();
+        let mut won = None;
+        for candidate in liked_candidates(&uri) {
+            match bridge::call(playlist::SERVICE, "Get", &playlist::request(&candidate, offset)).and_then(|bytes| playlist::decode(&bytes, offset)) {
+                Ok(reply) => {
+                    won = Some((candidate, reply));
+                    break;
+                }
+                Err(e) => attempts.push(format!("{candidate} -> {e}")),
+            }
+        }
+        match won {
+            Some((candidate, reply)) => {
+                *LIKED_WORKING.lock().unwrap() = Some(candidate);
+                Ok(reply)
+            }
+            None => {
+                *LIKED_NOTE.lock().unwrap() = attempts.join("\n");
+                Err(attempts.first().cloned().unwrap_or_else(|| "No Liked Songs link worked".into()))
+            }
+        }
+    } else {
+        bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset)).and_then(|bytes| playlist::decode(&bytes, offset))
+    };
     let fields = match reply {
         Ok(playlist::Reply::Loading) => vec!["loading".into()],
         Ok(playlist::Reply::Page { tracks, next, owner }) => {
