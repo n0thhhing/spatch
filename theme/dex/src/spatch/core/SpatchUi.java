@@ -1981,14 +1981,14 @@ public final class SpatchUi extends FrameLayout {
             float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
             lastFrame = now;
             // 1. What each bar is aiming for: the 24 bands spread smoothly across the half ring (not in steps),
-            //    with a treble tilt because music's high end is naturally quiet; or a pulse when audio can't be read.
+            //    (Audio already scales each band against its own recent average); or a pulse when audio can't be read.
             float loudest = 0;
             for (int i = 0; i < half; i++) {
                 float v;
                 if (live) {
                     float pos = i * (Audio.BANDS.length - 1) / (float) (half - 1);
                     int lo = (int) pos, hi = Math.min(Audio.BANDS.length - 1, lo + 1);
-                    v = (Audio.BANDS[lo] * (1 - (pos - lo)) + Audio.BANDS[hi] * (pos - lo)) * (1f + 1.3f * i / (float) (half - 1));
+                    v = Audio.BANDS[lo] * (1 - (pos - lo)) + Audio.BANDS[hi] * (pos - lo);
                 } else if (run) {
                     float swell = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - i / (float) half) * .3f;
                     v = .25f + .18f * (float) Math.sin(t * 2.6f + i * .5f) + .12f * (float) Math.sin(t * 1.5f - i * .27f) + swell;

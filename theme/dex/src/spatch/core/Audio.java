@@ -127,10 +127,25 @@ public final class Audio {
                 kick = Math.min(1f, (low - average) * 3f + .35f);
             }
             kick *= (float) Math.exp(-dt / 260f);
+            float sum = 0, peak = 0;
             for (int i = 0; i < BANDS.length; i++) {
                 float from = 50f * (float) Math.pow(320, i / (float) BANDS.length), to = 50f * (float) Math.pow(320, (i + 1) / (float) BANDS.length);
-                float target = band(fft, rate, from, to);
-                BANDS[i] += (target - BANDS[i]) * (1 - (float) Math.exp(-dt / (target > BANDS[i] ? 22f : 140f)));
+                float db = bandDb(fft, rate, from, to);
+                if (!seeded) DB_AVERAGE[i] = db;
+                DB_AVERAGE[i] += (db - DB_AVERAGE[i]) * (1 - (float) Math.exp(-dt / 1600f));
+                // Typical music sits within a few dB of the top of any fixed scale, which draws every bar the same
+                // height. So each band is shown mostly against its own recent average: a beat or a note stands out.
+                float absolute = Math.max(0f, Math.min(1f, (db + 46f) / 40f));
+                float relative = Math.max(0f, Math.min(1f, .45f + (db - DB_AVERAGE[i]) / 14f));
+                float target = Math.max(0f, Math.min(1f, absolute * .3f + relative * .7f - .12f));
+                BANDS[i] += (target - BANDS[i]) * (1 - (float) Math.exp(-dt / (target > BANDS[i] ? 24f : 130f)));
+                sum += db;
+                peak = Math.max(peak, BANDS[i]);
+            }
+            seeded = true;
+            if (now - loggedAt > 3000) {
+                loggedAt = now;
+                android.util.Log.i("SpatchAudio", String.format(java.util.Locale.ROOT, "bands: mean %.1f dB, tallest bar %.2f, bass %.2f", sum / BANDS.length, peak, bass));
             }
             return true;
         } catch (RuntimeException e) {
@@ -139,6 +154,24 @@ public final class Audio {
             retryAt = now + 2000;
             return true;
         }
+    }
+
+    private static final float[] DB_AVERAGE = new float[24];
+    private static boolean seeded;
+    private static long loggedAt;
+
+    /** Band energy between two frequencies (Hz) in dB (about 0 for full scale, -90 for silence). */
+    static float bandDb(byte[] fft, int rateHz, float fromHz, float toHz) {
+        if (rateHz <= 0 || fft.length < 4) return -90f;
+        int n = fft.length, max = n / 2 - 1;
+        int start = Math.max(1, Math.round(fromHz * n / rateHz)), end = Math.min(max, Math.max(start, Math.round(toHz * n / rateHz)));
+        double power = 0;
+        for (int k = start; k <= end; k++) {
+            double re = fft[k * 2], im = fft[k * 2 + 1];
+            power += (re * re + im * im) / (128.0 * 128.0);
+        }
+        power /= (end - start + 1);
+        return power <= 1e-9 ? -90f : (float) Math.max(-90.0, 10 * Math.log10(power));
     }
 
     /** Band energy between two frequencies (Hz) as a 0..1 display level (dB, silence at 0). */
@@ -161,5 +194,6 @@ public final class Audio {
         }
         visualizer = null;
         sampled = 0;
+        seeded = false;
     }
 }
