@@ -114,7 +114,7 @@ jobs:
       - name: Rust app library
         if: hashFiles('app/Cargo.toml') != ''
         run: |
-          sudo apt-get install -y -qq protobuf-compiler > /dev/null
+          sudo apt-get update -qq > /dev/null && sudo apt-get install -y -qq protobuf-compiler > /dev/null
           rustup target add aarch64-linux-android
           command -v cargo-ndk > /dev/null || cargo install cargo-ndk --locked --version 4.1.2
           (cd app && ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" cargo ndk -t arm64-v8a -P 29 build --release --locked)
