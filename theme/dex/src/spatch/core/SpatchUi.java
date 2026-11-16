@@ -96,6 +96,7 @@ public final class SpatchUi extends FrameLayout {
     private Entry playlist;
     private List<Entry> playlistTracks = new ArrayList<>();
     private boolean playlistLoading, playlistFailed, playerOpen;
+    private String playlistError = "";
     private int playlistRequest;
     private String query = "";
 
@@ -500,8 +501,10 @@ public final class SpatchUi extends FrameLayout {
         words.addView(mTitle);
         words.addView(mArtist);
         mini.addView(words, weight());
+        mini.addView(iconButton(new Icon("previous", ink), "Previous", () -> command(PREVIOUS, 0, "")), lp(dp(44), dp(44)));
         mPlay = new PlayButton();
-        mini.addView(mPlay, lp(dp(48), dp(48)));
+        mini.addView(mPlay, lp(dp(50), dp(50)));
+        mini.addView(iconButton(new Icon("next", ink), "Next", () -> command(NEXT, 0, "")), lp(dp(44), dp(44)));
         tappable(mini, "Open player", () -> openPlayer(true));
         LinearLayout.LayoutParams mp = fill(-2);
         mp.bottomMargin = dp(8);
@@ -853,6 +856,7 @@ public final class SpatchUi extends FrameLayout {
             playlistRequest++;
             playlistLoading = false;
             playlistFailed = true;
+            playlistError = "Spotify didn’t answer in time";
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
@@ -865,7 +869,8 @@ public final class SpatchUi extends FrameLayout {
                 }
                 playlistLoading = false;
                 playlistFailed = r == null || r.length < 2 || !r[0].isEmpty();
-                if (playlistFailed) android.util.Log.w("SpatchUi", "Playlist request failed: " + (r == null || r.length == 0 ? "no reply" : r[0]));
+                playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
+                if (playlistFailed) android.util.Log.w("SpatchUi", "Playlist request failed: " + playlistError);
                 else for (int i = 2; i + 3 < r.length; i += 4) playlistTracks.add(new Entry(r[i], r[i + 1], r[i + 2], r[i + 3], -1));
                 showPage();
             });
@@ -906,6 +911,13 @@ public final class SpatchUi extends FrameLayout {
         TextView count = text(playlistLoading ? "Loading…" : playlistFailed ? "Couldn’t load" : playlistTracks.size() + (playlistTracks.size() == 1 ? " song" : " songs"), 14, inkDim, false);
         count.setGravity(Gravity.CENTER);
         header.addView(count, fill(-2));
+        if (playlistFailed && !playlistError.isEmpty()) {
+            // Spotify's own reason, so a failure says what happened.
+            TextView why = text(playlistError + "\n" + playlist.uri, 12, inkDim, false);
+            why.setGravity(Gravity.CENTER);
+            why.setPadding(dp(8), dp(6), dp(8), dp(4));
+            header.addView(why, fill(-2));
+        }
         LinearLayout actions = row();
         actions.setGravity(Gravity.CENTER);
         TextView shuf = pill("Shuffle", () -> { command(SHUFFLE, 1, ""); command(PLAY, 0, playlist.uri); });
