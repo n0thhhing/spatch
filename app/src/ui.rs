@@ -142,19 +142,47 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRefreshLibrary(_: JNIEnv, _: J
     JNI_TRUE
 }
 
-/// Library items under a chip (-1 for all, else playlists 0, albums 1, artists 2, podcasts 3), up to
-/// `limit`, as five strings each: name, subtitle, uri, image, chip (or -1).
+fn item_fields<'a>(items: impl IntoIterator<Item = &'a library::Item>) -> Vec<String> {
+    items
+        .into_iter()
+        .flat_map(|i| [i.name.clone(), i.subtitle.clone(), i.uri.clone(), i.image.clone(), i.kind.chip().unwrap_or(-1).to_string()])
+        .collect()
+}
+
+/// Library items under a chip (-1 for all, else playlists 0, albums 1, artists 2, podcasts 3) matching
+/// `query`, optionally alphabetical, up to `limit`, as five strings each: name, subtitle, uri, image, chip (or -1).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeEntries(mut env: JNIEnv, _: JClass, filter: jint, limit: jint) -> jobjectArray {
-    let fields: Vec<String> = LIBRARY
-        .lock()
-        .unwrap()
-        .iter()
-        .flatten()
-        .filter(|item| filter == -1 || item.kind.chip() == Some(filter))
-        .take(limit.max(0) as usize)
-        .flat_map(|item| [item.name.clone(), item.subtitle.clone(), item.uri.clone(), item.image.clone(), item.kind.chip().unwrap_or(-1).to_string()])
-        .collect();
+pub extern "system" fn Java_spatch_SpatchUi_nativeEntries(
+    mut env: JNIEnv,
+    _: JClass,
+    filter: jint,
+    query: JString,
+    alphabetical: jboolean,
+    limit: jint,
+) -> jobjectArray {
+    let query = read(&mut env, &query).unwrap_or_default();
+    let fields = {
+        let library = LIBRARY.lock().unwrap();
+        item_fields(library::select(library.as_deref().unwrap_or(&[]), filter, &query, alphabetical != JNI_FALSE, limit.max(0) as usize))
+    };
+    strings(&mut env, fields)
+}
+
+/// What you played lately, from Spotify's own history, as five strings each (like `nativeEntries`).
+/// Blocks for up to a few seconds; empty if Spotify has nothing or didn't answer.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeRecent(mut env: JNIEnv, _: JClass) -> jobjectArray {
+    #[cfg(feature = "preview")]
+    let recent: Result<Vec<library::Item>, String> = Ok(crate::demo::recent());
+    #[cfg(not(feature = "preview"))]
+    let recent = crate::spotify::recent::fetch(12, std::time::Duration::from_secs(4));
+    let fields = match recent {
+        Ok(items) => item_fields(&items),
+        Err(error) => {
+            log::warn!("Recently played: {error}");
+            Vec::new()
+        }
+    };
     strings(&mut env, fields)
 }
 

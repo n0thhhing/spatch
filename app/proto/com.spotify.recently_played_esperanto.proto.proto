@@ -1,0 +1,223 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.recently_played_esperanto.proto;
+import "com.spotify.playlist.proto.proto";
+import "com.spotify.playlist.policy.proto.proto";
+import "com.spotify.cosmos.util.proto.proto";
+import "com.spotify.cosmos.util.policy.proto.proto";
+
+message GetRecentlyPlayedRequest {
+  uint32 limit = 1;
+  uint32 playlist_resync_limit = 2;
+  bool exclude_shows_mixed = 3;
+  bool exclude_shows_audio = 4;
+  bool exclude_shows_video = 5;
+  bool exclude_track_contexts = 6;
+  bool include_hidden = 7;
+  bool include_collection_songs = 8;
+  bool include_your_episodes = 9;
+  bool include_own_deleted_playlists = 10;
+  bool include_podcast_shorts = 11;
+  RecentlyPlayedArtistDecorationPolicy artist_policy = 12;
+  RecentlyPlayedAlbumDecorationPolicy album_policy = 13;
+  RecentlyPlayedTrackDecorationPolicy track_policy = 14;
+  RecentlyPlayedShowDecorationPolicy show_policy = 15;
+  RecentlyPlayedPlaylistDecorationPolicy playlist_policy = 16;
+  RecentlyPlayedCollectionTracksDecorationPolicy collection_tracks_policy = 17;
+  RecentlyPlayedProfileDecorationPolicy profile_policy = 18;
+  RecentlyPlayedEpisodeDecorationPolicy episode_policy = 19;
+  uint32 update_throttling = 20;
+  bool initial_response_from_cache = 21;
+}
+
+message GetRecentlyPlayedResponse {
+  repeated RecentlyPlayedContext context = 1;
+  bool loaded = 2;
+  uint32 status = 3;
+  string error = 4;
+}
+
+message GetRecentlyPlayedTracksRequest {
+  bool include_hidden = 1;
+  bool include_episodes = 2;
+  bool include_local_tracks = 3;
+  uint32 update_throttling = 4;
+  RecentlyPlayedTrackDecorationPolicy track_policy = 5;
+  RecentlyPlayedEpisodeDecorationPolicy episode_policy = 6;
+}
+
+message GetRecentlyPlayedTracksResponse {
+  repeated RecentlyPlayedEntity entity = 1;
+  uint32 missing_metadata_count = 2;
+  bool loaded = 3;
+  uint32 original_length = 4;
+  uint32 unfiltered_length = 5;
+  uint32 status = 6;
+  string error = 7;
+}
+
+message RecentlyPlayedAlbum {
+  .com.spotify.cosmos.util.proto.AlbumMetadata album_metadata = 1;
+  .com.spotify.cosmos.util.proto.AlbumSyncState album_sync_state = 3;
+  bool in_collection = 4;
+  uint32 type = 5;
+  uint32 add_time = 6;
+  string type_str = 7;
+}
+
+message RecentlyPlayedAlbumDecorationPolicy {
+  .com.spotify.cosmos.util.policy.proto.AlbumSyncDecorationPolicy sync_policy = 2;
+  .com.spotify.cosmos.util.policy.proto.AlbumDecorationPolicy album_policy = 3;
+  bool in_collection = 4;
+  bool type = 7;
+  bool timestamp = 8;
+  .com.spotify.cosmos.util.policy.proto.ArtistDecorationPolicy artists_policy = 9;
+}
+
+message RecentlyPlayedArtist {
+  .com.spotify.cosmos.util.proto.ArtistMetadata artist_metadata = 1;
+  .com.spotify.cosmos.util.proto.ArtistCollectionState artist_collection_state = 2;
+  .com.spotify.cosmos.util.proto.ArtistSyncState artist_sync_state = 3;
+  uint32 type = 4;
+  uint32 add_time = 5;
+  string type_str = 6;
+}
+
+message RecentlyPlayedArtistDecorationPolicy {
+  .com.spotify.cosmos.util.policy.proto.ArtistCollectionDecorationPolicy collection_policy = 1;
+  .com.spotify.cosmos.util.policy.proto.ArtistSyncDecorationPolicy sync_policy = 2;
+  .com.spotify.cosmos.util.policy.proto.ArtistDecorationPolicy artist_policy = 3;
+  bool type = 4;
+  bool timestamp = 5;
+}
+
+message RecentlyPlayedCollectionTracks {
+  string link = 1;
+  uint32 type = 2;
+  uint32 add_time = 3;
+  string type_str = 4;
+}
+
+message RecentlyPlayedCollectionTracksDecorationPolicy {
+  bool link = 1;
+  bool type = 2;
+  bool timestamp = 3;
+}
+
+message RecentlyPlayedContext {
+  oneof context {
+    RecentlyPlayedArtist artist = 1;
+    RecentlyPlayedAlbum album = 2;
+    RecentlyPlayedTrack track = 3;
+    RecentlyPlayedShow show = 4;
+    RecentlyPlayedProfile profile = 5;
+    RecentlyPlayedPlaylist playlist = 6;
+    RecentlyPlayedCollectionTracks collection_tracks = 7;
+    RecentlyPlayedEpisode episode = 8;
+  }
+}
+
+message RecentlyPlayedEntity {
+  oneof entity {
+    RecentlyPlayedTrack track = 1;
+    RecentlyPlayedEpisode episode = 2;
+  }
+}
+
+message RecentlyPlayedEpisode {
+  .com.spotify.cosmos.util.proto.EpisodeMetadata episode_metadata = 1;
+  .com.spotify.cosmos.util.proto.EpisodePlayState episode_play_state = 4;
+  uint32 type = 5;
+  uint32 add_time = 6;
+  .com.spotify.cosmos.util.proto.ShowMetadata show_metadata = 7;
+  string type_str = 8;
+}
+
+message RecentlyPlayedEpisodeDecorationPolicy {
+  RecentlyPlayedEpisodeMetadataDecorationPolicy episode_policy = 1;
+  RecentlyPlayedEpisodePlayedStateDecorationPolicy played_state_policy = 4;
+  .com.spotify.cosmos.util.policy.proto.ShowDecorationPolicy show_policy = 5;
+  bool type = 6;
+  bool timestamp = 7;
+}
+
+message RecentlyPlayedEpisodeMetadataDecorationPolicy {
+  bool link = 1;
+  bool length = 2;
+  bool name = 3;
+  bool covers = 9;
+  repeated int32 extension = 21;
+  bool is_book_chapter = 23;
+}
+
+message RecentlyPlayedEpisodePlayedStateDecorationPolicy {
+  bool time_left = 1;
+  bool is_played = 2;
+  bool last_played_at = 5;
+}
+
+message RecentlyPlayedPlaylist {
+  .com.spotify.playlist.proto.PlaylistMetadata playlist_metadata = 1;
+  uint32 type = 2;
+  uint32 add_time = 3;
+  string type_str = 4;
+  .com.spotify.playlist.proto.PlaylistOfflineState offline_state = 5;
+}
+
+message RecentlyPlayedPlaylistDecorationPolicy {
+  .com.spotify.playlist.policy.proto.PlaylistDecorationPolicy playlist_policy = 1;
+  bool type = 2;
+  bool timestamp = 3;
+}
+
+message RecentlyPlayedProfile {
+  string link = 1;
+  string name = 2;
+  string image_uri = 3;
+  uint32 offline_state = 4;
+  uint32 type = 5;
+  uint32 add_time = 6;
+  string type_str = 7;
+}
+
+message RecentlyPlayedProfileDecorationPolicy {
+  bool link = 1;
+  bool name = 2;
+  bool image_uri = 3;
+  bool offline = 4;
+  bool type = 5;
+  bool timestamp = 6;
+}
+
+message RecentlyPlayedShow {
+  .com.spotify.cosmos.util.proto.ShowMetadata show_metadata = 1;
+  .com.spotify.cosmos.util.proto.ShowCollectionState show_collection_state = 2;
+  uint32 type = 4;
+  uint32 add_time = 5;
+  string type_str = 6;
+}
+
+message RecentlyPlayedShowDecorationPolicy {
+  .com.spotify.cosmos.util.policy.proto.ShowDecorationPolicy show_policy = 1;
+  .com.spotify.cosmos.util.policy.proto.ShowCollectionDecorationPolicy collection_policy = 2;
+  bool type = 4;
+  bool timestamp = 5;
+}
+
+message RecentlyPlayedTrack {
+  .com.spotify.cosmos.util.proto.TrackMetadata track_metadata = 1;
+  .com.spotify.cosmos.util.proto.TrackCollectionState track_collection_state = 2;
+  uint32 type = 5;
+  uint32 add_time = 6;
+  string type_str = 7;
+}
+
+message RecentlyPlayedTrackDecorationPolicy {
+  .com.spotify.cosmos.util.policy.proto.TrackCollectionDecorationPolicy collection_policy = 1;
+  .com.spotify.cosmos.util.policy.proto.TrackDecorationPolicy track_policy = 3;
+  bool type = 7;
+  bool timestamp = 8;
+  .com.spotify.cosmos.util.policy.proto.ArtistDecorationPolicy artists_policy = 9;
+  .com.spotify.cosmos.util.policy.proto.AlbumDecorationPolicy album_policy = 10;
+}

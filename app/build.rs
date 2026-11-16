@@ -5,6 +5,7 @@ fn main() {
         "proto/spotify.your_library.esperanto.proto.proto",
         "proto/spotify.playlist.esperanto.proto.proto",
         "proto/spotify.collection.esperanto.proto.proto",
+        "proto/com.spotify.recently_played_esperanto.proto.proto",
     ];
     for p in &protos {
         println!("cargo:rerun-if-changed={p}");

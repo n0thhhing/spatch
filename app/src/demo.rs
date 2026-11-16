@@ -83,6 +83,11 @@ pub fn library() -> Vec<Item> {
         .collect()
 }
 
+/// Spotify's recently played, as the demo imagines it: the library's playlists and albums, newest first.
+pub fn recent() -> Vec<Item> {
+    library().into_iter().filter(|i| matches!(i.kind, Kind::Playlist | Kind::Album)).rev().take(6).collect()
+}
+
 /// Plays a command against the demo player, as the real one would answer it.
 pub fn apply(now: &mut NowPlaying, command: Command) {
     let here = index_of(&now.uri);

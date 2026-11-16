@@ -77,6 +77,23 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Item>, String> {
         .collect())
 }
 
+/// What the Library page shows: items under chip `chip` (-1 for all) whose name or subtitle contains
+/// `query` (ignoring case), in Spotify's order or alphabetical with Liked Songs kept on top.
+pub fn select<'a>(items: &'a [Item], chip: i32, query: &str, alphabetical: bool, limit: usize) -> Vec<&'a Item> {
+    let needle = query.trim().to_lowercase();
+    let mut found: Vec<&Item> = items
+        .iter()
+        .filter(|i| chip == -1 || i.kind.chip() == Some(chip))
+        .filter(|i| needle.is_empty() || i.name.to_lowercase().contains(&needle) || i.subtitle.to_lowercase().contains(&needle))
+        .collect();
+    if alphabetical {
+        // Stable, so equal names keep Spotify's order; the key is false for Liked Songs, so it sorts first.
+        found.sort_by_cached_key(|i| (!is_liked(&i.uri), i.name.to_lowercase()));
+    }
+    found.truncate(limit);
+    found
+}
+
 /// Liked Songs, under whichever of Spotify's URI spellings the library uses.
 pub fn is_liked(uri: &str) -> bool {
     matches!(uri, "spotify:collection" | "spotify:collection:tracks" | "spotify:internal:collection:tracks")
@@ -125,6 +142,22 @@ mod tests {
         assert_eq!(decode(&reply.encode_to_vec()).unwrap()[0].kind, Kind::Playlist);
         assert!(is_liked("spotify:user:test:collection:tracks"));
         assert!(!is_playlist("spotify:track:123") && !is_playlist("spotify:collection:your-episodes"));
+    }
+
+    #[test]
+    fn select_filters_searches_and_sorts() {
+        let item = |name: &str, uri: &str, kind| Item { name: name.into(), uri: uri.into(), subtitle: "x".into(), image: String::new(), kind };
+        let items = vec![
+            item("zebra", "spotify:playlist:1", Kind::Playlist),
+            item("Liked Songs", "spotify:user:me:collection", Kind::Playlist),
+            item("Apple", "spotify:album:2", Kind::Album),
+            item("mango", "spotify:playlist:3", Kind::Playlist),
+        ];
+        assert_eq!(select(&items, 0, "", false, 10).len(), 3);
+        assert_eq!(select(&items, -1, "", false, 2).len(), 2);
+        assert_eq!(select(&items, -1, "  APP", false, 10)[0].name, "Apple");
+        let names: Vec<_> = select(&items, -1, "", true, 10).iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, ["Liked Songs", "Apple", "mango", "zebra"]);
     }
 
     #[test]

@@ -52,7 +52,8 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativePlayer(long revision);
     private static native String nativeLibrary();
     private static native boolean nativeRefreshLibrary();
-    private static native String[] nativeEntries(int filter, int limit);
+    private static native String[] nativeEntries(int filter, String query, boolean alphabetical, int limit);
+    private static native String[] nativeRecent();
     private static native String nativeLiked();
     private static native String[] nativePlaylist(String uri, int offset);
     private static native boolean nativeCommand(int action, long value, String uri);
@@ -555,6 +556,7 @@ public final class SpatchUi extends FrameLayout {
         View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == LIBRARY ? libraryPage() : settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         if (tab != SETTINGS && playlist == null) refreshLibraryIfStale();
+        if (tab == HOME && playlist == null) loadRecentIfStale();
         refresh();
     }
 
@@ -623,7 +625,11 @@ public final class SpatchUi extends FrameLayout {
         page.addView(liked, likedParams);
 
         boolean any = false;
-        for (int c = 0; c < SECTIONS.length; c++) any |= shelf(page, c);
+        if (!recent.isEmpty()) any |= shelf(page, "Recently played", recent, null);
+        for (int c = 0; c < SECTIONS.length; c++) {
+            final int category = c;
+            any |= shelf(page, SECTIONS[c], entries(c, 14), () -> { filter = category; go(LIBRARY); });
+        }
         if (!any) {
             TextView note = text(libraryStatus, 14, inkDim, false);
             note.setPadding(dp(4), dp(24), 0, 0);
@@ -645,23 +651,51 @@ public final class SpatchUi extends FrameLayout {
         return v;
     }
 
-    private List<Entry> entries(int category, int limit) {
+    private static List<Entry> entryList(String[] f) {
         List<Entry> out = new ArrayList<>();
-        String[] f = nativeEntries(category, limit);
         if (f == null) return out;
         for (int i = 0; i + 4 < f.length; i += 5) out.add(new Entry(f[i], f[i + 1], f[i + 2], f[i + 3], Integer.parseInt(f[i + 4])));
         return out;
     }
 
-    private boolean shelf(LinearLayout page, int category) {
-        List<Entry> items = entries(category, 14);
+    /** Library items for a chip (-1 for all), searched and sorted by Rust. */
+    private List<Entry> entries(int category, String search, boolean alphabetical, int limit) {
+        return entryList(nativeEntries(category, search, alphabetical, limit));
+    }
+
+    private List<Entry> entries(int category, int limit) { return entries(category, "", false, limit); }
+
+    // ---- Spotify's own recently played, loaded in the background ----
+    private List<Entry> recent = new ArrayList<>();
+    private long recentAt;
+    private boolean loadingRecent;
+
+    private void loadRecentIfStale() {
+        long now = SystemClock.uptimeMillis();
+        if (!libraryReady || loadingRecent || (recentAt != 0 && now - recentAt < 60_000)) return;
+        loadingRecent = true;
+        PLAYLISTS.execute(() -> {
+            List<Entry> got = entryList(nativeRecent());
+            post(() -> {
+                loadingRecent = false;
+                recentAt = SystemClock.uptimeMillis();
+                if (got.equals(recent)) return;
+                recent = got;
+                if (tab == HOME && playlist == null && sheetClose == null) showPage();
+            });
+        });
+    }
+
+    private boolean shelf(LinearLayout page, String heading, List<Entry> items, Runnable seeAll) {
         if (items.isEmpty()) return false;
         LinearLayout head = row();
         head.setPadding(0, dp(24), 0, dp(10));
-        head.addView(text(SECTIONS[category], 22, ink, true), weight());
-        TextView all = text("See all", 14, accent, true);
-        tappable(all, "See all " + SECTIONS[category], () -> { filter = category; go(LIBRARY); });
-        head.addView(all);
+        head.addView(text(heading, 22, ink, true), weight());
+        if (seeAll != null) {
+            TextView all = text("See all", 14, accent, true);
+            tappable(all, "See all " + heading, seeAll);
+            head.addView(all);
+        }
         page.addView(head, fill(-2));
         HorizontalScrollView scroller = new HorizontalScrollView(activity);
         scroller.setHorizontalScrollBarEnabled(false);
@@ -669,7 +703,7 @@ public final class SpatchUi extends FrameLayout {
         int width = Math.max(120, Math.min(160, (getResources().getConfiguration().screenWidthDp - 50) / 2));
         for (Entry e : items) {
             LinearLayout tile = column();
-            Art art = new Art(category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
+            Art art = new Art(e.category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
             art.letter = initial(e.title);
             art.bind(e.image);
             tile.addView(art, lp(dp(width), dp(width)));
@@ -724,6 +758,14 @@ public final class SpatchUi extends FrameLayout {
         chipScroll.setHorizontalScrollBarEnabled(false);
         chipScroll.setPadding(dp(18), 0, dp(10), dp(6));
         LinearLayout chips = row();
+        boolean az = pref("library_az", false);
+        TextView sort = text(az ? "A–Z" : "Recent", 14, ink, true);
+        sort.setGravity(Gravity.CENTER);
+        sort.setPadding(dp(16), 0, dp(16), 0);
+        sort.setBackground(round(surfHi, 19));
+        tappable(sort, az ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z", () -> { prefs.edit().putBoolean("library_az", !az).apply(); showPage(); });
+        chips.addView(sort, lp(-2, dp(38)));
+        chips.addView(space(dp(8), 1));
         for (int i = -1; i < SECTIONS.length; i++) {
             final int index = i;
             boolean on = i == filter;
@@ -738,13 +780,12 @@ public final class SpatchUi extends FrameLayout {
         chipScroll.addView(chips);
         page.addView(chipScroll, fill(-2));
 
-        List<Entry> all = entries(filter, 400);
-        if (all.isEmpty()) {
+        List<Entry> shown = entries(filter, query, az, 400);
+        if (shown.isEmpty() && query.isEmpty()) {
             TextView note = text(libraryStatus, 14, inkDim, false);
             note.setPadding(dp(22), dp(20), dp(22), 0);
             page.addView(note);
         } else {
-            List<Entry> shown = matching(all, query);
             ListView list = entryList(shown, null);
             list.setPadding(dp(18), dp(4), dp(18), dp(170) + inset.bottom);
             list.setClipToPadding(false);
@@ -756,21 +797,12 @@ public final class SpatchUi extends FrameLayout {
                 @Override public void afterTextChanged(android.text.Editable e) {
                     query = e.toString();
                     shown.clear();
-                    shown.addAll(matching(all, query));
+                    shown.addAll(entries(filter, query, az, 400));
                     notifyList(list);
                 }
             });
         }
         return page;
-    }
-
-    private static List<Entry> matching(List<Entry> all, String q) {
-        List<Entry> out = new ArrayList<>();
-        String needle = q.trim().toLowerCase(java.util.Locale.ROOT);
-        for (Entry e : all) {
-            if (needle.isEmpty() || e.title.toLowerCase(java.util.Locale.ROOT).contains(needle) || e.subtitle.toLowerCase(java.util.Locale.ROOT).contains(needle)) out.add(e);
-        }
-        return out;
     }
 
     private ListView entryList(List<Entry> items, View header) {
