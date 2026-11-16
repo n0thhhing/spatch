@@ -145,6 +145,8 @@ pub fn state_request() -> Vec<u8> {
 pub enum Command {
     /// A playlist, album, artist or show by URI, from its start.
     Play(String),
+    /// A playlist from one of its songs: the song's uri and its position in the playlist.
+    PlayFrom { context: String, track: String, index: i64 },
     Pause,
     Resume,
     Next,
@@ -167,6 +169,22 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
             es::PlayRequest {
                 prepare_play_request: Some(es::PreparePlayRequest {
                     context: Some(es::Context { url: format!("context://{uri}"), uri, ..Default::default() }),
+                    play_origin: Some(es::PlayOrigin { feature_identifier: "spatch".into(), ..Default::default() }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }
+            .encode_to_vec(),
+        ),
+        Command::PlayFrom { context, track, index } => (
+            "Play",
+            es::PlayRequest {
+                prepare_play_request: Some(es::PreparePlayRequest {
+                    context: Some(es::Context { url: format!("context://{context}"), uri: context, ..Default::default() }),
+                    options: Some(es::PreparePlayOptions {
+                        skip_to: Some(es::SkipToTrack { track_uri: track, track_index: Some(es::OptionalInt64 { value: index }), ..Default::default() }),
+                        ..Default::default()
+                    }),
                     play_origin: Some(es::PlayOrigin { feature_identifier: "spatch".into(), ..Default::default() }),
                     ..Default::default()
                 }),
@@ -262,6 +280,11 @@ mod tests {
 
     #[test]
     fn commands_name_spotify_methods_and_carry_their_data() {
+        let (method, from) = command(Command::PlayFrom { context: "spotify:playlist:1".into(), track: "spotify:track:7".into(), index: 6 });
+        let sent = es::PlayRequest::decode(from.as_slice()).unwrap().prepare_play_request.unwrap();
+        let skip = sent.options.unwrap().skip_to.unwrap();
+        assert_eq!((method, sent.context.unwrap().uri.as_str()), ("Play", "spotify:playlist:1"));
+        assert_eq!((skip.track_uri.as_str(), skip.track_index.unwrap().value), ("spotify:track:7", 6));
         let (method, bytes) = command(Command::Play("spotify:playlist:1".into()));
         let context = es::PlayRequest::decode(bytes.as_slice()).unwrap().prepare_play_request.unwrap().context.unwrap();
         assert_eq!((method, context.url.as_str()), ("Play", "context://spotify:playlist:1"));

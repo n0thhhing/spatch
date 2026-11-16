@@ -56,7 +56,7 @@ pub fn playlist() -> Vec<Track> {
     (0..40)
         .map(|n| {
             let i = n % TRACKS.len();
-            Track { title: TRACKS[i].0.into(), artist: TRACKS[i].1.into(), uri: format!("spotify:preview:{i}"), image: format!("demo:{i}") }
+            Track { title: TRACKS[i].0.into(), artist: TRACKS[i].1.into(), uri: format!("spotify:preview:{i}"), image: format!("demo:{i}"), duration_ms: TRACKS[i].3 as u32, added: 40 - n as u32, ..Default::default() }
         })
         .collect()
 }
@@ -128,6 +128,7 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
             now.playing = matches!(command, Command::Resume);
         }
         Command::Play(uri) => *now = track(index_of(&uri), true),
+        Command::PlayFrom { track: uri, .. } => *now = track(index_of(&uri), true),
         Command::Next => *now = track((here + 1) % TRACKS.len(), now.playing),
         Command::Previous => *now = track((here + TRACKS.len() - 1) % TRACKS.len(), now.playing),
         Command::SkipTo { uri, .. } => *now = track(index_of(&uri), now.playing),

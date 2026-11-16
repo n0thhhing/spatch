@@ -398,10 +398,73 @@ fn page_fields(page: playlist::Reply) -> Vec<String> {
     if let Some(name) = owner {
         *USERNAME.lock().unwrap() = Some(name);
     }
-    ["".to_string(), next.unwrap_or(0).to_string()]
-        .into_iter()
-        .chain(tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]))
-        .collect()
+    ["".to_string(), next.unwrap_or(0).to_string()].into_iter().chain(tracks.into_iter().flat_map(playlist::Track::fields)).collect()
+}
+
+/// The rest of a playlist after its first page: every page from `offset` on, as song fields only. Blocks; stops
+/// at an error (returning what it has) or 10,000 songs.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, _: JClass, uri: JString, offset: jint) -> jobjectArray {
+    let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    let mut fields = Vec::new();
+    let mut next = Some(offset);
+    while let Some(at) = next.filter(|&at| at > 0 && at < 10_000) {
+        if cfg!(feature = "preview") {
+            break;
+        }
+        match bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, at)).and_then(|b| playlist::decode(&b, at)) {
+            Ok(playlist::Reply::Page { tracks, next: more, .. }) => {
+                fields.extend(tracks.into_iter().flat_map(playlist::Track::fields));
+                next = more;
+            }
+            Ok(playlist::Reply::Loading) => std::thread::sleep(std::time::Duration::from_millis(500)),
+            Err(error) => {
+                log::warn!("Playlist page at {at}: {error}");
+                break;
+            }
+        }
+    }
+    strings(&mut env, fields)
+}
+
+/// The songs to show, as indexes into `fields` (playlist::FIELDS strings per song), for a search and a sort
+/// (0 playlist order, 1 title, 2 artist, 3 album, 4 recently added).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeArrange(mut env: JNIEnv, _: JClass, fields: JObjectArray, query: JString, sort: jint) -> jni::sys::jintArray {
+    let query = read(&mut env, &query).unwrap_or_default();
+    let Ok(len) = env.get_array_length(&fields) else { return std::ptr::null_mut() };
+    let mut values = Vec::with_capacity(len as usize);
+    for i in 0..len {
+        let Ok(item) = env.get_object_array_element(&fields, i) else { return std::ptr::null_mut() };
+        let item = JString::from(item);
+        values.push(read(&mut env, &item).unwrap_or_default());
+        let _ = env.delete_local_ref(item);
+    }
+    let order: Vec<i32> = playlist::arrange(&values, &query, sort).into_iter().map(|i| i as i32).collect();
+    let Ok(out) = env.new_int_array(order.len() as i32) else { return std::ptr::null_mut() };
+    let _ = env.set_int_array_region(&out, 0, &order);
+    out.into_raw()
+}
+
+/// Plays `context` from the song `track` at `index` in it; true if Spotify accepted.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlayFrom(mut env: JNIEnv, _: JClass, context: JString, track: JString, index: jint) -> jboolean {
+    let (Some(context), Some(track)) = (read(&mut env, &context), read(&mut env, &track)) else { return JNI_FALSE };
+    let command = player::Command::PlayFrom { context, track, index: index.max(0) as i64 };
+    #[cfg(feature = "preview")]
+    {
+        let mut state = PLAYER.lock().unwrap();
+        if let Some(now) = &mut state.1 {
+            crate::demo::apply(now, command);
+            state.0 += 1;
+        }
+        return JNI_TRUE;
+    }
+    #[cfg(not(feature = "preview"))]
+    {
+        let (method, request) = player::command(command);
+        if bridge::call(player::SERVICE, method, &request).is_ok() { JNI_TRUE } else { JNI_FALSE }
+    }
 }
 
 /// The open playlist's saved-answer key and its subscription; bumps `PLAYLIST_REVISION` on each change.

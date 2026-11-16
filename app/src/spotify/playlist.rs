@@ -17,6 +17,48 @@ pub struct Track {
     pub artist: String,
     pub uri: String,
     pub image: String,
+    pub album: String,
+    pub album_uri: String,
+    pub artist_uri: String,
+    pub duration_ms: u32,
+    /// When it was added to the playlist (seconds since 1970), 0 if unknown.
+    pub added: u32,
+    pub liked: bool,
+}
+
+/// How many strings each song takes in the UI's arrays (`fields`).
+pub const FIELDS: usize = 10;
+
+impl Track {
+    /// title, artist, uri, image, album, album uri, artist uri, length ms, added, liked ("1" or "").
+    pub fn fields(self) -> [String; FIELDS] {
+        [self.title, self.artist, self.uri, self.image, self.album, self.album_uri, self.artist_uri,
+         self.duration_ms.to_string(), self.added.to_string(), if self.liked { "1".into() } else { String::new() }]
+    }
+}
+
+/// The order of songs to show, as indexes into `fields` (FIELDS strings per song): only those whose title,
+/// artist or album hold every word of `query`, sorted by `sort` (0 playlist order, 1 title, 2 artist, 3 album,
+/// 4 most recently added first).
+pub fn arrange(fields: &[String], query: &str, sort: i32) -> Vec<usize> {
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    let song = |i: usize| &fields[i * FIELDS..i * FIELDS + FIELDS];
+    let mut order: Vec<usize> = (0..fields.len() / FIELDS)
+        .filter(|&i| {
+            let s = song(i);
+            let text = format!("{} {} {}", s[0], s[1], s[4]).to_lowercase();
+            words.iter().all(|w| text.contains(w.as_str()))
+        })
+        .collect();
+    let key = |i: usize, column: usize| song(i)[column].to_lowercase();
+    match sort {
+        1 => order.sort_by_cached_key(|&i| key(i, 0)),
+        2 => order.sort_by_cached_key(|&i| (key(i, 1), key(i, 4))),
+        3 => order.sort_by_cached_key(|&i| (key(i, 4), key(i, 0))),
+        4 => order.sort_by_cached_key(|&i| std::cmp::Reverse(song(i)[8].parse::<u32>().unwrap_or(0))),
+        _ => {}
+    }
+    order
 }
 
 #[derive(Debug, PartialEq)]
@@ -49,12 +91,20 @@ pub fn request_range(uri: &str, offset: i32, length: i32) -> Vec<u8> {
                 ..Default::default()
             }),
             track: Some(policy::PlaylistTrackDecorationPolicy {
-                track: Some(metadata::TrackDecorationPolicy { name: true, link: true, ..Default::default() }),
-                artist: Some(metadata::ArtistDecorationPolicy { name: true, ..Default::default() }),
+                track: Some(metadata::TrackDecorationPolicy { name: true, link: true, length: true, ..Default::default() }),
+                artist: Some(metadata::ArtistDecorationPolicy { name: true, link: true, ..Default::default() }),
+                album: Some(policy::PlaylistAlbumDecorationPolicy {
+                    album: Some(metadata::AlbumDecorationPolicy { name: true, link: true, ..Default::default() }),
+                    ..Default::default()
+                }),
+                add_time: true,
+                in_collection: true,
                 ..Default::default()
             }),
             item: Some(policy::PlaylistItemDecorationPolicy {
                 uri: true,
+                add_time: true,
+                collection_state: true,
                 metadata: Some(policy::ItemMetadataPolicy { name: true, image: true, ..Default::default() }),
                 ..Default::default()
             }),
@@ -93,7 +143,20 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
             } else {
                 name
             };
-            Track { title, artist, uri: item.uri, image: item.metadata.as_ref().map_or_else(String::new, |m| image_url(&m.image)) }
+            let track = item.track_metadata.as_ref();
+            let album = track.and_then(|t| t.album.as_ref());
+            Track {
+                title,
+                artist,
+                uri: item.uri,
+                image: item.metadata.as_ref().map_or_else(String::new, |m| image_url(&m.image)),
+                album: album.map_or_else(String::new, |a| a.name.clone()),
+                album_uri: album.map_or_else(String::new, |a| a.link.clone()),
+                artist_uri: track.and_then(|t| t.artist.first()).map_or_else(String::new, |a| a.link.clone()),
+                duration_ms: track.map_or(0, |t| t.length),
+                added: item.add_time,
+                liked: item.track_collection_state.as_ref().is_some_and(|c| c.is_in_collection),
+            }
         })
         .collect();
     Ok(Reply::Page { tracks, next: more.then_some(end as i32), owner })
@@ -102,6 +165,25 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn songs(rows: &[(&str, &str, &str, u32)]) -> Vec<String> {
+        rows.iter()
+            .flat_map(|(title, artist, album, added)| {
+                Track { title: (*title).into(), artist: (*artist).into(), album: (*album).into(), added: *added, ..Default::default() }.fields()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn arranges_by_search_and_sort() {
+        let f = songs(&[("Zelda", "KevinKempt", "Quest", 30), ("annoying", "Pi'erre", "Bourne", 10), ("City", "jack", "Alpha", 20)]);
+        assert_eq!(arrange(&f, "", 0), vec![0, 1, 2]);
+        assert_eq!(arrange(&f, "", 1), vec![1, 2, 0], "title, ignoring case");
+        assert_eq!(arrange(&f, "", 3), vec![2, 1, 0], "album");
+        assert_eq!(arrange(&f, "", 4), vec![0, 2, 1], "newest first");
+        assert_eq!(arrange(&f, "kevin quest", 0), vec![0], "every word, across title, artist and album");
+        assert!(arrange(&f, "nothing", 0).is_empty());
+    }
 
     #[test]
     fn asks_for_a_range_and_keeps_the_uri() {

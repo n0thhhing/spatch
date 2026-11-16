@@ -92,7 +92,7 @@ fn album_page(a: &md::Album) -> AlbumPage {
         .disc
         .iter()
         .flat_map(|d| d.track.iter())
-        .map(|t| Track { title: t.name.clone(), artist: if t.artist.is_empty() { by.clone() } else { artists(&t.artist) }, uri: link("track", &t.gid), image: image.clone() })
+        .map(|t| Track { title: t.name.clone(), artist: if t.artist.is_empty() { by.clone() } else { artists(&t.artist) }, uri: link("track", &t.gid), image: image.clone(), ..Default::default() })
         .collect();
     AlbumPage { name: a.name.clone(), subtitle: [by, if year > 0 { year.to_string() } else { String::new() }].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" • "), image, tracks }
 }
@@ -127,6 +127,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Found>, String> {
                         artist: e.publish_time.as_ref().map_or(String::new(), |d| if d.year > 0 { format!("{}-{:02}-{:02}", d.year, d.month, d.day) } else { String::new() }),
                         uri: link("episode", &e.gid),
                         image: if e.cover_image.is_some() { cover(&e.cover_image, &[]) } else { image.clone() },
+                        ..Default::default()
                     })
                     .collect();
                 Some(Found::Show(ShowPage { name: s.name, subtitle: s.publisher, image, episodes }))
@@ -136,10 +137,11 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Found>, String> {
                 artist: e.show.as_ref().map_or(String::new(), |s| s.name.clone()),
                 uri: link("episode", &e.gid),
                 image: cover(&e.cover_image, &[]),
+                ..Default::default()
             })),
             Entity::Track(t) => {
                 let image = t.album.as_ref().map_or_else(String::new, |al| cover(&al.cover_group, &al.cover));
-                Some(Found::Track(Track { title: t.name.clone(), artist: artists(&t.artist), uri: link("track", &t.gid), image }))
+                Some(Found::Track(Track { title: t.name.clone(), artist: artists(&t.artist), uri: link("track", &t.gid), image, ..Default::default() }))
             }
             _ => None,
         })

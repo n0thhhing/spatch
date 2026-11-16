@@ -64,6 +64,9 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeWatchPlaylist(String uri, String key);
     private static native void nativeStopPlaylist();
     private static native long nativePlaylistRevision();
+    private static native String[] nativePlaylistRest(String uri, int offset);
+    private static native int[] nativeArrange(String[] fields, String query, int sort);
+    private static native boolean nativePlayFrom(String context, String track, int index);
     private static native String[] nativeCached(String key);
     private static native void nativeRemember(String key, String[] fields);
     private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
@@ -414,10 +417,8 @@ public final class SpatchUi extends FrameLayout {
             if (listRevision != playlistRevision) {
                 playlistRevision = listRevision;
                 Entry open = playlist;
-                if (open != null && !isDetail(open) && !playlistLoading) {
-                    String[] pushed = nativeCached("playlist:" + open.uri);
-                    if (pushed != null && pushed.length >= 2 && pushed[0].isEmpty() && !java.util.Arrays.equals(pushed, shownReply)) applyReply(open, pushed, false);
-                }
+                // The push carries the first page only, so ask again for the whole playlist; it redraws if it changed.
+                if (open != null && !isDetail(open) && !playlistLoading) loadPlaylist(open, 1);
             }
             long libRevision = nativeLibraryRevision();
             if (libRevision != libraryRevision) {
@@ -958,6 +959,15 @@ public final class SpatchUi extends FrameLayout {
     // ---------- Playlist ----------
 
     private void open(Entry e) {
+        // A song on a playlist or album page plays that list from the song, as Spotify does.
+        if (playlist != null && (e.uri.startsWith("spotify:track:") || e.uri.startsWith("spotify:episode:") || e.uri.startsWith("spotify:preview:"))) {
+            int index = e instanceof Song ? ((Song) e).index : Math.max(0, playlistTracks.indexOf(e));
+            String context = playUri();
+            COMMANDS.execute(() -> {
+                if (!nativePlayFrom(context, e.uri, index)) post(() -> Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show());
+            });
+            return;
+        }
         if (isDetail(e)) { openPlaylist(e); return; }
         boolean isList = e.category == 0 || e.uri.startsWith("spotify:playlist:") || (e.uri.startsWith("spotify:user:") && e.uri.contains(":playlist:")) || liked(e.uri);
         if (isList) openPlaylist(e);
@@ -969,6 +979,9 @@ public final class SpatchUi extends FrameLayout {
         playlistTracks = new ArrayList<>();
         releases = new ArrayList<>();
         liveUri = "";
+        songQuery = "";
+        songFields = new String[0];
+        allSongs.clear();
         shownReply = null;
         shownCached = false;
         detailTitle = detailSubtitle = detailImage = "";
@@ -992,7 +1005,7 @@ public final class SpatchUi extends FrameLayout {
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
-            String key = (isDetail(e) ? "page:" : "playlist:") + e.uri;
+            String key = (isDetail(e) ? "page:" : "playlist2:") + e.uri;
             // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
             if (attempt == 0) {
                 String[] saved = nativeCached(key);
@@ -1002,11 +1015,22 @@ public final class SpatchUi extends FrameLayout {
             String target = liked(e.uri) ? nativeLiked() : e.uri;
             if (target == null || target.isEmpty()) target = e.uri;
             final String resolved = target;
-            String[] r = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
-            boolean ok = r != null && r.length >= (isDetail(e) ? 6 : 2) && r[0].isEmpty();
+            String[] first = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
+            boolean ok = first != null && first.length >= (isDetail(e) ? 6 : 2) && first[0].isEmpty();
+            int more = ok && !isDetail(e) ? parseInt(first[1]) : 0;
+            if (more > 0) {
+                // Long playlist: show the first page now if nothing is on screen, then fetch the rest and show it all.
+                post(() -> { if (request == playlistRequest && playlist == e && shownReply == null) applyReply(e, first, false); });
+                String[] rest = nativePlaylistRest(resolved, more);
+                String[] all = java.util.Arrays.copyOf(first, first.length + rest.length);
+                System.arraycopy(rest, 0, all, first.length, rest.length);
+                all[1] = "0";
+                lastFull = all;
+            } else lastFull = first;
+            String[] r = lastFull;
             if (ok) nativeRemember(key, r);
-            // From here on Spotify pushes this playlist whenever it changes; the poll redraws.
-            if (ok && !isDetail(e) && playlist == e) { nativeWatchPlaylist(resolved, key); watchingPlaylist = true; }
+            // From here on Spotify pushes this playlist whenever it changes; the poll reloads it.
+            if (ok && !isDetail(e) && playlist == e) { nativeWatchPlaylist(resolved, "push:" + e.uri); watchingPlaylist = true; }
             post(() -> {
                 if (playlist == e) liveUri = resolved;
                 if (request != playlistRequest || playlist != e) return;
@@ -1021,8 +1045,16 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
+    /** Rust's playlist fields: SONG_FIELDS strings per song. */
+    private static final int SONG_FIELDS = 10;
+    /** Every song of the open playlist, in its order; playlistTracks is what the search and sort leave of it. */
+    private String[] songFields = new String[0];
+    private final List<Song> allSongs = new ArrayList<>();
+    private String songQuery = "";
+
     /** The reply this page is showing, and whether it came from the saved copy. */
     private String[] shownReply;
+    private volatile String[] lastFull;
     private boolean shownCached;
 
     private void applyReply(Entry e, String[] r, boolean cached) {
@@ -1046,8 +1078,35 @@ public final class SpatchUi extends FrameLayout {
         playlistFailed = r == null || r.length < 2 || !r[0].isEmpty();
         playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
         if (playlistFailed) android.util.Log.w("SpatchUi", "Playlist request failed: " + playlistError);
-        else for (int i = 2; i + 3 < r.length; i += 4) playlistTracks.add(new Entry(r[i], r[i + 1], r[i + 2], r[i + 3], -1));
+        else {
+            songFields = java.util.Arrays.copyOfRange(r, 2, 2 + (r.length - 2) / SONG_FIELDS * SONG_FIELDS);
+            allSongs.clear();
+            for (int i = 0; i * SONG_FIELDS < songFields.length; i++) allSongs.add(new Song(songFields, i * SONG_FIELDS, i));
+            arrangeSongs();
+        }
         showPage();
+    }
+
+    /** playlistTracks becomes the songs the search and sort leave, in that order (Rust: playlist::arrange). */
+    private void arrangeSongs() {
+        int[] order = nativeArrange(songFields, songQuery, prefs.getInt("song_sort", 0));
+        playlistTracks.clear();
+        if (order != null) for (int i : order) if (i < allSongs.size()) playlistTracks.add(allSongs.get(i));
+    }
+
+    private static int parseInt(String s) {
+        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; }
+    }
+
+    private static final String[] SONG_SORTS = {"Playlist order", "Title", "Artist", "Album", "Recently added"};
+
+    /** "2 h 31 min" or "48 min" for every song's length together. */
+    private String totalTime() {
+        long ms = 0;
+        for (Song song : allSongs) ms += song.duration;
+        long minutes = Math.round(ms / 60000.0);
+        if (minutes == 0) return "";
+        return minutes >= 60 ? (minutes / 60) + " h " + (minutes % 60) + " min" : minutes + " min";
     }
 
     /** Reads nativePage's reply into the page state and redraws. */
@@ -1064,6 +1123,30 @@ public final class SpatchUi extends FrameLayout {
             for (int i = 0; i < shelf && at + 3 < r.length; i++, at += 4) releases.add(new Entry(r[at], r[at + 1], r[at + 2], r[at + 3], 1));
         }
         showPage();
+    }
+
+    /** Long-press on a playlist song: play from it, queue it, go to its album or artist, like or unlike it. */
+    private void songActions(Song song) {
+        List<String> names = new ArrayList<>();
+        List<Runnable> runs = new ArrayList<>();
+        names.add("Play from here"); runs.add(() -> open(song));
+        names.add("Add to queue"); runs.add(() -> { command(QUEUE_ADD, 0, song.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
+        if (!song.albumUri.isEmpty()) { names.add("Go to album"); runs.add(() -> openPlaylist(new Entry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
+        if (!song.artistUri.isEmpty()) { names.add("Go to artist"); runs.add(() -> openPlaylist(new Entry(song.subtitle, "Artist", song.artistUri, "", -1))); }
+        names.add(song.liked ? "Remove from Liked Songs" : "Add to Liked Songs");
+        runs.add(() -> {
+            boolean want = !song.liked;
+            song.liked = want;
+            DATA.execute(() -> {
+                boolean done = nativeSave(song.uri, want);
+                post(() -> {
+                    if (!done) song.liked = !want;
+                    Toast.makeText(activity, !done ? "That didn’t go through" : want ? "Added to Liked Songs" : "Removed from Liked Songs", Toast.LENGTH_SHORT).show();
+                });
+            });
+        });
+        String note = song.album.isEmpty() ? song.subtitle : song.subtitle + " • " + song.album;
+        sheet(song.title, note, names.toArray(new String[0]), choice -> runs.get(choice).run());
     }
 
     private View playlistPage() {
@@ -1101,7 +1184,9 @@ public final class SpatchUi extends FrameLayout {
         name.setMaxLines(2);
         name.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(name, fill(-2));
-        String songs = playlistTracks.size() + (playlistTracks.size() == 1 ? " song" : " songs");
+        int total = detail ? playlistTracks.size() : allSongs.size();
+        String time = detail ? "" : totalTime();
+        String songs = total + (total == 1 ? " song" : " songs") + (time.isEmpty() ? "" : " • " + time);
         TextView count = text(playlistLoading ? "Loading…" : playlistFailed ? "Couldn’t load" : detail && !detailSubtitle.isEmpty() ? detailSubtitle + " • " + songs : songs, 14, inkDim, false);
         count.setGravity(Gravity.CENTER);
         header.addView(count, fill(-2));
@@ -1126,6 +1211,37 @@ public final class SpatchUi extends FrameLayout {
         ap.topMargin = dp(4);
         header.addView(actions, ap);
         if (playlistFailed) header.addView(pill("Retry", () -> { playlistLoading = true; playlistFailed = false; showPage(); loadPlaylist(playlist, 0); }));
+        android.widget.EditText songSearch = null;
+        TextView sortPill = null;
+        if (!detail && allSongs.size() > 1) {
+            // Search and sort inside the playlist, done in Rust over the songs already here.
+            LinearLayout tools = row();
+            LinearLayout search = row();
+            search.setPadding(dp(14), 0, dp(6), 0);
+            search.setBackground(round(surf, 22));
+            search.addView(new Icon("search", inkDim), lp(dp(20), dp(20)));
+            songSearch = new android.widget.EditText(activity);
+            songSearch.setBackground(null);
+            songSearch.setHint("Find in playlist");
+            songSearch.setHintTextColor(inkDim);
+            songSearch.setTextColor(ink);
+            songSearch.setTextSize(15);
+            songSearch.setSingleLine(true);
+            songSearch.setPadding(dp(10), 0, dp(4), 0);
+            songSearch.setText(songQuery);
+            search.addView(songSearch, new LinearLayout.LayoutParams(0, dp(44), 1));
+            tools.addView(search, new LinearLayout.LayoutParams(0, dp(44), 1));
+            tools.addView(space(dp(8), 1));
+            sortPill = text(SONG_SORTS[Math.max(0, Math.min(SONG_SORTS.length - 1, prefs.getInt("song_sort", 0)))], 14, ink, true);
+            sortPill.setGravity(Gravity.CENTER);
+            sortPill.setPadding(dp(14), 0, dp(14), 0);
+            sortPill.setSingleLine(true);
+            sortPill.setBackground(round(surfHi, 22));
+            tools.addView(sortPill, lp(-2, dp(44)));
+            LinearLayout.LayoutParams tp = fill(-2);
+            tp.topMargin = dp(14);
+            header.addView(tools, tp);
+        }
 
         if (playlistTracks.isEmpty() && releases.isEmpty()) {
             ScrollView s = new ScrollView(activity);
@@ -1133,6 +1249,27 @@ public final class SpatchUi extends FrameLayout {
             page.addView(s, new LinearLayout.LayoutParams(-1, 0, 1));
         } else {
             ListView list = entryList(playlistTracks, header);
+            list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            if (songSearch != null) {
+                songSearch.addTextChangedListener(new android.text.TextWatcher() {
+                    @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
+                    @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
+                    @Override public void afterTextChanged(android.text.Editable e) {
+                        songQuery = e.toString();
+                        arrangeSongs();
+                        notifyList(list);
+                    }
+                });
+            }
+            if (sortPill != null) {
+                TextView pillView = sortPill;
+                tappable(sortPill, "Sort songs", () -> sheet("Sort songs", "Only changes how Spatch shows this playlist", SONG_SORTS, choice -> {
+                    prefs.edit().putInt("song_sort", choice).apply();
+                    pillView.setText(SONG_SORTS[choice]);
+                    arrangeSongs();
+                    notifyList(list);
+                }));
+            }
             if (!releases.isEmpty()) {
                 LinearLayout footer = column();
                 shelf(footer, "Releases", releases, null);
@@ -1147,6 +1284,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void actions(Entry e) {
+        if (e instanceof Song) { songActions((Song) e); return; }
         boolean song = playlist != null;
         String[] options = song ? new String[]{"Play", "Add to queue"} : new String[]{"Play", "Shuffle play", "Open"};
         sheet(e.title, e.subtitle.isEmpty() ? "Choose what to do" : e.subtitle, options, choice -> {
@@ -2412,7 +2550,7 @@ public final class SpatchUi extends FrameLayout {
 
     // ================= data =================
 
-    private static final class Entry {
+    private static class Entry {
         final String title, subtitle, uri, image;
         final int category;
         Entry(String title, String subtitle, String uri, String image, int category) { this.title = title; this.subtitle = subtitle; this.uri = uri; this.image = image; this.category = category; }
@@ -2422,5 +2560,22 @@ public final class SpatchUi extends FrameLayout {
             return title.equals(e.title) && subtitle.equals(e.subtitle) && uri.equals(e.uri) && image.equals(e.image) && category == e.category;
         }
         @Override public int hashCode() { return java.util.Objects.hash(title, subtitle, uri, image, category); }
+    }
+
+    /** A playlist song: an Entry plus what Rust's playlist fields carry, and its place in the playlist. */
+    private static final class Song extends Entry {
+        final String album, albumUri, artistUri;
+        final long duration;
+        final int index;
+        boolean liked;
+        Song(String[] f, int at, int index) {
+            super(f[at], f[at + 1], f[at + 2], f[at + 3], -1);
+            album = f[at + 4]; albumUri = f[at + 5]; artistUri = f[at + 6];
+            long ms = 0;
+            try { ms = Long.parseLong(f[at + 7]); } catch (NumberFormatException ignored) { /* no length */ }
+            duration = ms;
+            liked = !f[at + 9].isEmpty();
+            this.index = index;
+        }
     }
 }
