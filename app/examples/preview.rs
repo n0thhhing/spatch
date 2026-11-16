@@ -25,6 +25,13 @@ fn main() {
     ui.set_track("city".into());
     ui.set_artist("i wanna be a jack-o-lantern".into());
     ui.set_playing(true);
+    ui.set_shuffle(true);
+    ui.set_repeat(2);
+    // A stand-in blurred cover: a 2x2 image stretched as the phone stretches the 12x12 one.
+    let cover: Vec<u8> = (0..64 * 64).flat_map(|i| { let (x, y) = (i % 64, i / 64); [200 - x as u8, 40 + y as u8 * 2, 60 + (x + y) as u8, 255] }).collect();
+    let (pixels, size) = spatch_app::images::backdrop(&cover, 64, 64);
+    let tiny = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&pixels, size, size);
+    ui.set_backdrop(slint::Image::from_rgba8(tiny));
     ui.set_progress(0.4);
     ui.set_position("0:34".into());
     ui.set_duration("1:25".into());

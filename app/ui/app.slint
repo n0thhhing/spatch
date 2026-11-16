@@ -1,7 +1,7 @@
 // Spatch's own Spotify UI: Material 3 Expressive, the Pixel look, coloured by the Spatch theme.
 import { Theme, Type } from "theme.slint";
 import { Icons } from "icons.slint";
-import { Icon, IconButton, Art, Row, ListItem, FilterChip, NavItem, WavyProgress, PlayButton, MiniPlayer } from "components.slint";
+import { Icon, IconButton, Art, Row, ListItem, FilterChip, NavItem, WavyProgress, PlayButton, MiniPlayer, ToggleButton } from "components.slint";
 
 export { Theme, Row }
 
@@ -10,6 +10,10 @@ export component AppWindow inherits Window {
     in property <string> track: "Nothing playing";
     in property <string> artist;
     in property <image> cover;
+    // A 12x12 copy of the cover: stretched over the screen it is the blurred backdrop.
+    in property <image> backdrop;
+    in property <bool> shuffle;
+    in property <int> repeat;
     in property <bool> playing;
     in property <float> progress;
     in property <string> position: "0:00";
@@ -23,6 +27,8 @@ export component AppWindow inherits Window {
     callback next();
     callback previous();
     callback seek(float);
+    callback shuffle-clicked();
+    callback repeat-clicked();
     callback play(string);
     callback library-opened();
     callback filter-changed(int);
@@ -33,12 +39,12 @@ export component AppWindow inherits Window {
     // The mini player rides above the navigation bar off the player page.
     property <length> mini: root.tab == 0 ? 0px : 76px;
 
-    // The cover's colour washes down from the top behind the player, as on Pixel.
-    Rectangle {
-        y: 0;
-        height: root.height * 0.7;
-        visible: root.tab == 0;
-        background: @linear-gradient(180deg, Theme.primary-container.with-alpha(0.55) 0%, Theme.background 100%);
+    // Spatch's player backdrop: the cover blurred across the whole screen (a tiny copy scaled up
+    // smoothly), dimmed so text stays readable and fading into the page at the bottom.
+    if root.tab == 0: Rectangle {
+        Image { width: parent.width; height: parent.height; source: root.backdrop; image-fit: fill; image-rendering: smooth; }
+        Rectangle { background: Theme.background.with-alpha(0.6); }
+        Rectangle { background: @linear-gradient(180deg, transparent 0%, transparent 45%, Theme.background 100%); }
     }
 
     // Three bands placed outright (top bar, pages, navigation bar): a layout let the shorter page cap the height.
@@ -78,47 +84,56 @@ export component AppWindow inherits Window {
                 padding-top: 8px;
                 padding-bottom: 16px;
                 spacing: 0px;
-                Rectangle {
-                    height: self.width;
-                    drop-shadow-blur: 24px;
-                    drop-shadow-offset-y: 8px;
-                    drop-shadow-color: #00000066;
-                    border-radius: 32px;
-                    Art { border-radius: 32px; source: root.cover; }
+                // Spatch's round artwork, with a soft ring in the cover's accent.
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: min(parent.width, 340px);
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        border-width: 2px;
+                        border-color: Theme.primary.with-alpha(0.45);
+                        drop-shadow-blur: 32px;
+                        drop-shadow-color: Theme.primary.with-alpha(0.25);
+                        Art {
+                            x: 10px;
+                            y: 10px;
+                            width: parent.width - 20px;
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            source: root.cover;
+                        }
+                    }
                 }
                 Rectangle { height: 28px; }
-                Text { text: root.track; color: Theme.on-surface; font-size: Type.title-large + 2px; font-weight: 600; overflow: elide; }
+                // The title leans towards the cover's colour, as Spatch's does.
+                Text { text: root.track; color: Theme.on-surface.mix(Theme.primary, 0.7); font-size: Type.title-large + 4px; font-weight: 700; overflow: elide; }
                 Rectangle { height: 4px; }
                 Text { text: root.artist; color: Theme.on-surface-variant; font-size: Type.body-large; overflow: elide; }
                 Rectangle { height: 20px; }
-                WavyProgress { progress: root.progress; playing: root.playing; seek(f) => { root.seek(f); } }
-                HorizontalLayout {
-                    Text { text: root.position; color: Theme.on-surface-variant; font-size: Type.label-medium; }
-                    Rectangle {}
-                    Text { text: root.duration; color: Theme.on-surface-variant; font-size: Type.label-medium; }
-                }
-                Rectangle { height: 16px; }
-                HorizontalLayout {
-                    alignment: center;
-                    spacing: 20px;
-                    IconButton {
-                        icon: Icons.skip-previous;
-                        size: 64px;
-                        icon-size: 32px;
-                        y: 8px;
-                        container: Theme.surface-container-high;
-                        content: Theme.on-surface;
-                        clicked => { root.previous(); }
-                    }
-                    PlayButton { playing: root.playing; clicked => { root.toggle(); } }
-                    IconButton {
-                        icon: Icons.skip-next;
-                        size: 64px;
-                        icon-size: 32px;
-                        y: 8px;
-                        container: Theme.surface-container-high;
-                        content: Theme.on-surface;
-                        clicked => { root.next(); }
+                // Spatch's controls card: the wavy seek bar over shuffle, previous, play, next and repeat.
+                Rectangle {
+                    border-radius: 32px;
+                    background: Theme.surface-container.with-alpha(0.78);
+                    height: card.preferred-height;
+                    card := VerticalLayout {
+                        padding: 20px;
+                        padding-bottom: 12px;
+                        spacing: 4px;
+                        WavyProgress { progress: root.progress; playing: root.playing; seek(f) => { root.seek(f); } }
+                        HorizontalLayout {
+                            Text { text: root.position; color: Theme.on-surface-variant; font-size: Type.label-medium; }
+                            Rectangle {}
+                            Text { text: root.duration; color: Theme.on-surface-variant; font-size: Type.label-medium; }
+                        }
+                        HorizontalLayout {
+                            alignment: space-between;
+                            ToggleButton { icon: Icons.shuffle; active: root.shuffle; y: 16px; clicked => { root.shuffle-clicked(); } }
+                            IconButton { icon: Icons.skip-previous; size: 56px; icon-size: 32px; y: 16px; content: Theme.on-surface; clicked => { root.previous(); } }
+                            PlayButton { playing: root.playing; clicked => { root.toggle(); } }
+                            IconButton { icon: Icons.skip-next; size: 56px; icon-size: 32px; y: 16px; content: Theme.on-surface; clicked => { root.next(); } }
+                            ToggleButton { icon: Icons.repeat; active: root.repeat > 0; badge: root.repeat == 2 ? "1" : ""; y: 16px; clicked => { root.repeat-clicked(); } }
+                        }
                     }
                 }
                 Rectangle { height: 28px; }

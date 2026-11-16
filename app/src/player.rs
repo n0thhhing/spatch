@@ -14,6 +14,9 @@ pub struct NowPlaying {
     pub album: String,
     pub image: String,
     pub playing: bool,
+    pub shuffle: bool,
+    /// 0 off, 1 the context, 2 the track (Spotify's own cycle).
+    pub repeat: u8,
     pub position_ms: i64,
     pub duration_ms: i64,
     /// ContextPlayerState.timestamp: when position_ms was true, in ms since the epoch.
@@ -53,6 +56,8 @@ impl NowPlaying {
             album: meta(&track, &["album_title"]).to_string(),
             image: image_url(meta(&track, &["image_large_url", "image_url", "image_xlarge_url", "image_small_url"])),
             playing: state.is_playing && !state.is_paused,
+            shuffle: state.options.as_ref().is_some_and(|o| o.shuffling_context),
+            repeat: state.options.as_ref().map_or(0, |o| if o.repeating_track { 2 } else if o.repeating_context { 1 } else { 0 }),
             position_ms: state.position_as_of_timestamp.map(|p| p.value).unwrap_or(0),
             duration_ms: state.duration.map(|d| d.value).unwrap_or(0),
             timestamp: state.timestamp,
@@ -85,6 +90,9 @@ pub enum Command {
     Next,
     Previous,
     SeekTo(i64),
+    Shuffle(bool),
+    /// 0 off, 1 the context, 2 the track.
+    Repeat(u8),
 }
 
 /// The RPC method and request bytes for a command.
@@ -106,6 +114,16 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
         Command::Resume => ("Resume", es::ResumeRequest::default().encode_to_vec()),
         Command::Next => ("SkipNext", es::SkipNextRequest::default().encode_to_vec()),
         Command::Previous => ("SkipPrev", es::SkipPrevRequest { allow_seeking: true, ..Default::default() }.encode_to_vec()),
+        Command::Shuffle(on) => ("SetShufflingContext", es::SetShufflingContextRequest { shuffling_context: on, ..Default::default() }.encode_to_vec()),
+        Command::Repeat(mode) => (
+            "SetOptions",
+            es::SetOptionsRequest {
+                repeating_context: Some(es::OptionalBoolean { value: mode >= 1 }),
+                repeating_track: Some(es::OptionalBoolean { value: mode == 2 }),
+                ..Default::default()
+            }
+            .encode_to_vec(),
+        ),
         Command::SeekTo(ms) => ("SeekTo", es::SeekToRequest { position: ms, ..Default::default() }.encode_to_vec()),
     }
 }
@@ -152,6 +170,21 @@ mod tests {
         let now = NowPlaying::decode(&state.encode_to_vec()).unwrap();
         assert!(!now.playing);
         assert_eq!(now.position_at(10_000), 40);
+    }
+
+    #[test]
+    fn shuffle_and_repeat_follow_the_options() {
+        let state = es::ContextPlayerState {
+            options: Some(es::ContextPlayerOptions { shuffling_context: true, repeating_context: true, repeating_track: true, ..Default::default() }),
+            ..Default::default()
+        };
+        let now = NowPlaying::decode(&state.encode_to_vec()).unwrap();
+        assert!(now.shuffle);
+        assert_eq!(now.repeat, 2);
+        let (m, bytes) = command(Command::Repeat(1));
+        let r = es::SetOptionsRequest::decode(bytes.as_slice()).unwrap();
+        assert_eq!((m, r.repeating_context.unwrap().value, r.repeating_track.unwrap().value), ("SetOptions", true, false));
+        assert_eq!(command(Command::Shuffle(true)).0, "SetShufflingContext");
     }
 
     #[test]

@@ -104,6 +104,7 @@ impl App {
     /// Cover, Up Next and Library with whatever artwork has loaded so far.
     fn show_art(&mut self) {
         self.ui.set_cover(images::get(&self.now.image, COVER).unwrap_or_default());
+        self.ui.set_backdrop(images::blurred(&self.now.image).unwrap_or_default());
         // Like Pixel's player, the screen takes its colours from the cover; grey covers keep the wallpaper's.
         let theme = match images::seed(&self.now.image) {
             Some(Some(seed)) => colors::from_seed(seed),
@@ -201,6 +202,17 @@ pub fn open(look: Look) {
         })
     });
     ui.on_play(|uri| send(Command::Play(uri.to_string())));
+    // Shuffle flips; repeat goes off, the context, the track and back, as in Spotify's own player.
+    ui.on_shuffle_clicked(|| {
+        if let Some(on) = APP.with(|a| a.borrow().as_ref().map(|app| app.now.shuffle)) {
+            send(Command::Shuffle(!on));
+        }
+    });
+    ui.on_repeat_clicked(|| {
+        if let Some(mode) = APP.with(|a| a.borrow().as_ref().map(|app| app.now.repeat)) {
+            send(Command::Repeat((mode + 1) % 3));
+        }
+    });
     ui.on_seek(|fraction| {
         APP.with(|a| {
             if let Some(app) = a.borrow().as_ref() {
@@ -292,6 +304,8 @@ pub fn frame() -> i64 {
                 app.ui.set_track(if now.title.is_empty() { "Nothing playing".into() } else { SharedString::from(now.title.as_str()) });
                 app.ui.set_artist(now.artist.as_str().into());
                 app.ui.set_playing(now.playing);
+                app.ui.set_shuffle(now.shuffle);
+                app.ui.set_repeat(now.repeat as i32);
                 app.ui.set_duration(clock(now.duration_ms).into());
                 app.now = now;
                 app.shown_second = -1;
