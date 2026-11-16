@@ -47,10 +47,25 @@ fn meta<'a>(track: &'a es::ContextTrack, keys: &[&str]) -> &'a str {
         .map_or("", String::as_str)
 }
 
+/// Logs which metadata keys the core attaches to each new song (Canvas, Spotify's colours, lyrics...), once per
+/// song, so what's really there can be read from the device log.
+fn log_keys(track: &es::ContextTrack) {
+    static LAST: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+    let mut last = LAST.lock().unwrap();
+    if track.uri.is_empty() || *last == track.uri {
+        return;
+    }
+    last.clone_from(&track.uri);
+    let mut keys: Vec<&str> = track.metadata.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    log::info!("Track metadata keys: {}", keys.join(" "));
+}
+
 impl NowPlaying {
     pub fn decode(bytes: &[u8]) -> Result<NowPlaying, prost::DecodeError> {
         let state = es::ContextPlayerState::decode(bytes)?;
         let track = state.track.as_ref().and_then(|t| t.context_track.clone()).unwrap_or_default();
+        log_keys(&track);
         let options = state.options.as_ref();
         Ok(NowPlaying {
             uri: track.uri.clone(),
