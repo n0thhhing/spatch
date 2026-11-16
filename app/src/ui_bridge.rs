@@ -135,6 +135,25 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(env: JNIEnv, _: JClass
         .map_or(std::ptr::null_mut(), JString::into_raw)
 }
 
+/// Fetches the library again; true when it differs from what the UI has. Blocks: off the UI thread.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeRefreshLibrary(_: JNIEnv, _: JClass) -> jboolean {
+    #[cfg(feature = "preview")]
+    return JNI_FALSE;
+    #[cfg(not(feature = "preview"))]
+    {
+        let Ok(items) = core::call(library::SERVICE, "All", &library::request(300)).and_then(|bytes| library::decode(&bytes)) else {
+            return JNI_FALSE;
+        };
+        let mut current = LIBRARY_ITEMS.lock().unwrap();
+        if current.as_ref() == Some(&items) {
+            return JNI_FALSE;
+        }
+        *current = Some(items);
+        JNI_TRUE
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeEntries(
     mut env: JNIEnv,

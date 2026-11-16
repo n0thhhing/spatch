@@ -65,6 +65,7 @@ public final class SpatchUi extends FrameLayout {
     private static native boolean nativeConnect();
     private static native String[] nativePlayer(long revision);
     private static native String nativeLibrary();
+    private static native boolean nativeRefreshLibrary();
     private static native String[] nativeEntries(int filter, int limit);
     private static native String nativeLiked();
     private static native String[] nativePlaylist(String uri, int offset);
@@ -289,6 +290,7 @@ public final class SpatchUi extends FrameLayout {
                 libraryReady = status != null && status.isEmpty();
                 String previousStatus = libraryStatus;
                 if (libraryReady) {
+                    libraryLoadedAt = SystemClock.uptimeMillis();
                     libraryStatus = "Nothing saved here yet";
                 } else {
                     libraryStatus = "Couldn’t load your library";
@@ -297,6 +299,24 @@ public final class SpatchUi extends FrameLayout {
                         + (status == null ? "No response" : status));
                 }
                 if ((screen == HOME || screen == LIBRARY) && !previousStatus.equals(libraryStatus)) redrawPage();
+            });
+        });
+    }
+
+    private long libraryLoadedAt;
+    private boolean refreshing;
+
+    /** Back on Home or Library after a while: fetch the library again quietly and redraw only if it changed. */
+    private void refreshLibraryIfStale() {
+        long now = SystemClock.uptimeMillis();
+        if (!libraryReady || refreshing || now - libraryLoadedAt < 90_000) return;
+        refreshing = true;
+        libraryLoadedAt = now;
+        LIBRARY_DATA.execute(() -> {
+            boolean changed = nativeRefreshLibrary();
+            post(() -> {
+                refreshing = false;
+                if (changed && (screen == HOME || screen == LIBRARY) && sheetClose == null) redrawPage();
             });
         });
     }
@@ -593,7 +613,10 @@ public final class SpatchUi extends FrameLayout {
         content = column();
         content.setPadding(inset.left, inset.top, inset.right, inset.bottom);
         addView(content, new FrameLayout.LayoutParams(-1, -1));
-        if (screen == HOME || screen == LIBRARY) buildBrowse();
+        if (screen == HOME || screen == LIBRARY) {
+            buildBrowse();
+            refreshLibraryIfStale();
+        }
         else if (screen == QUEUE) buildQueue();
         else if (screen == PLAYLIST) buildPlaylist();
         else if (screen == SETTINGS) buildSettings();
