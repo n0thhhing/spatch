@@ -1289,8 +1289,11 @@ public final class SpatchUi extends FrameLayout {
         infoNext.removeAllViews();
         for (int i = 0; i < Math.min(3, upcoming.size()); i++) {
             EntryRow row = new EntryRow();
-            row.bind(upcoming.get(i));
+            Entry queued = upcoming.get(i);
+            row.bind(queued);
             row.setBackground(background(container, 18));
+            final int index = i;
+            if (!queued.uri.isEmpty()) makeClickable(row, "Play " + queued.title, () -> command(SKIP_TO, index, queued.uri));
             infoNext.addView(row, match(-2));
             gap(infoNext, 4);
         }
