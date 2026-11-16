@@ -696,10 +696,19 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSave(mut env: JNIEnv, _: JClas
     }
     #[cfg(not(feature = "preview"))]
     {
-        let method = if save != JNI_FALSE { "Add" } else { "Remove" };
+        let want = save != JNI_FALSE;
+        let method = if want { "Add" } else { "Remove" };
         match bridge::call(collection::SERVICE, method, &collection::change_request(&uri)).and_then(|b| collection::decode_change(&b)) {
-            Ok(()) => JNI_TRUE,
-            Err(_) => JNI_FALSE,
+            Ok(()) => {
+                if let Some(now) = PLAYER.lock().unwrap().1.as_mut().filter(|now| now.uri == uri) {
+                    now.liked = Some(want);
+                }
+                JNI_TRUE
+            }
+            Err(e) => {
+                log::warn!("Collection {method} failed for {uri}: {e}");
+                JNI_FALSE
+            }
         }
     }
 }

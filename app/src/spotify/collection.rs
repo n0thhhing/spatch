@@ -25,10 +25,10 @@ pub fn decode_change(bytes: &[u8]) -> Result<(), String> {
     check(es::CollectionAddRemoveItemsResponse::decode(bytes).map_err(|e| e.to_string())?.status)
 }
 
-/// Status code 0, or no status at all, is success.
+/// Status code 0 or 200 (Cosmos HTTP OK), or no status at all, is success.
 fn check(status: Option<es::Status>) -> Result<(), String> {
     match status {
-        Some(s) if s.code != 0 => Err(if s.reason.is_empty() { format!("Collection error {}", s.code) } else { s.reason }),
+        Some(s) if !matches!(s.code, 0 | 200) => Err(if s.reason.is_empty() { format!("Collection error {}", s.code) } else { s.reason }),
         _ => Ok(()),
     }
 }
@@ -41,9 +41,19 @@ mod tests {
     fn contains_reads_the_first_answer_and_reports_errors() {
         let yes = es::CollectionContainsResponse { found: vec![true], ..Default::default() };
         assert_eq!(decode_contains(&yes.encode_to_vec()), Ok(true));
+        let ok200 = es::CollectionContainsResponse {
+            status: Some(es::Status { code: 200, reason: String::new() }),
+            found: vec![true],
+            ..Default::default()
+        };
+        assert_eq!(decode_contains(&ok200.encode_to_vec()), Ok(true));
         let bad = es::CollectionContainsResponse { status: Some(es::Status { code: 3, reason: "offline".into() }), ..Default::default() };
         assert_eq!(decode_contains(&bad.encode_to_vec()), Err("offline".into()));
         assert!(decode_change(&es::CollectionAddRemoveItemsResponse::default().encode_to_vec()).is_ok());
+        let change_ok = es::CollectionAddRemoveItemsResponse { status: Some(es::Status { code: 200, reason: String::new() }) };
+        assert!(decode_change(&change_ok.encode_to_vec()).is_ok());
+        let change_err = es::CollectionAddRemoveItemsResponse { status: Some(es::Status { code: 400, reason: "Invalid uri".into() }) };
+        assert_eq!(decode_change(&change_err.encode_to_vec()), Err("Invalid uri".into()));
     }
 
     #[test]
