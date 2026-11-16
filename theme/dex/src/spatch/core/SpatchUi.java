@@ -679,9 +679,31 @@ public final class SpatchUi extends FrameLayout {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
             lp.rightMargin = dp(6);
             chips.addView(layout, 0, lp);
+            boolean alpha = pref("library_az", false);
+            TextView sort = chip(alpha ? "A–Z" : "Recent", high, onSurface, () -> {
+                prefs.edit().putBoolean("library_az", !pref("library_az", false)).apply();
+                collectionRow = collectionOffset = 0;
+                render();
+            });
+            sort.setContentDescription(alpha ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z");
+            sort.setBackground(background(high, 20));
+            sort.setMinHeight(dp(40));
+            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, dp(40));
+            sp.rightMargin = dp(6);
+            chips.addView(sort, 1, sp);
             choices.addView(chips);
             content.addView(choices, match(-2));
             List<Entry> entries = entries(filter, 300);
+            if (pref("library_az", false)) {
+                // Pinned items (Liked Songs first) stay on top; the rest sort by name.
+                List<Entry> pinned = new ArrayList<>();
+                for (Entry e : entries) if (e.uri.contains("collection")) pinned.add(e);
+                entries.removeAll(pinned);
+                java.text.Collator order = java.text.Collator.getInstance();
+                order.setStrength(java.text.Collator.PRIMARY);
+                entries.sort((a, b) -> order.compare(a.title, b.title));
+                entries.addAll(0, pinned);
+            }
             if (entries.isEmpty()) libraryMessage(feed());
             else {
                 List<Entry> shown = matching(entries, libraryQuery);
