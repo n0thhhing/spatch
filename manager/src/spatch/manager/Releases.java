@@ -88,15 +88,49 @@ final class Releases {
         return parse(releasesJson, commitsJson, "");
     }
 
+    /** Last good reply per URL: {etag, body}. */
+    private static final java.util.Map<String, String[]> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * A GitHub API reply. Unauthenticated calls get 60 an hour per network, and the build card polls,
+     * so each URL is asked "changed since this ETag?": an unchanged 304 doesn't count against the limit.
+     * Out of quota, the last reply stands in; with none, the error says when the limit resets.
+     */
     static String get(String url) throws IOException {
-        HttpURLConnection c = open(url, "application/vnd.github+json");
-        try (InputStream in = c.getInputStream()) {
+        String[] cached = CACHE.get(url);
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        try {
+            c.setRequestProperty("Accept", "application/vnd.github+json");
+            c.setRequestProperty("User-Agent", "SpatchManager");
+            if (cached != null) c.setRequestProperty("If-None-Match", cached[0]);
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(30000);
+            int code = c.getResponseCode();
+            if (code == 304 && cached != null) return cached[1];
+            if ((code == 403 || code == 429) && "0".equals(c.getHeaderField("X-RateLimit-Remaining"))) {
+                if (cached != null) return cached[1];
+                throw new IOException(limitMessage(c.getHeaderField("X-RateLimit-Reset")));
+            }
+            if (code / 100 != 2) throw new IOException("GitHub answered " + code + ".");
             java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
-            Bundle.copy(in, body); // InputStream.readAllBytes needs Android 13
-            return body.toString("UTF-8");
+            try (InputStream in = c.getInputStream()) {
+                Bundle.copy(in, body); // InputStream.readAllBytes needs Android 13
+            }
+            String text = body.toString("UTF-8"), etag = c.getHeaderField("ETag");
+            if (etag != null) CACHE.put(url, new String[] {etag, text});
+            return text;
         } finally {
             c.disconnect();
         }
+    }
+
+    /** GitHub's hourly allowance for this network, and when it comes back (X-RateLimit-Reset, epoch seconds). */
+    static String limitMessage(String reset) {
+        long minutes = -1;
+        try {
+            minutes = Math.max(1, (Long.parseLong(reset) * 1000 - System.currentTimeMillis() + 59_999) / 60_000);
+        } catch (NumberFormatException | NullPointerException ignored) {}
+        return "GitHub's hourly limit for this network is used up" + (minutes > 0 ? "; it resets in " + minutes + " min." : "; try again later.");
     }
 
     static Releases parse(String releasesJson, String commitsJson, String branch) throws IOException {
