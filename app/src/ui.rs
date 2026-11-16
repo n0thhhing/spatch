@@ -314,20 +314,19 @@ pub fn frame() -> i64 {
 
 /// MotionEvent's masked action and position in pixels.
 pub fn touch(action: i32, x: f32, y: f32) {
-    APP.with(|a| {
-        let a = a.borrow();
-        let Some(app) = a.as_ref() else { return };
-        let position = LogicalPosition::new(x / app.scale, y / app.scale);
-        let event = match action {
-            0 | 5 => WindowEvent::PointerPressed { position, button: PointerEventButton::Left },
-            1 | 6 => WindowEvent::PointerReleased { position, button: PointerEventButton::Left },
-            2 => WindowEvent::PointerMoved { position },
-            3 => WindowEvent::PointerExited,
-            _ => return,
-        };
-        app.window.window().dispatch_event(event);
-        if matches!(action, 1 | 3 | 6) {
-            app.window.window().dispatch_event(WindowEvent::PointerExited); // no hover on a touch screen
-        }
-    });
+    // Take the window out before dispatching: Slint runs callbacks (Library, the chips) inside
+    // dispatch_event, and those borrow the app mutably; holding a borrow here panicked.
+    let Some((window, scale)) = APP.with(|a| a.borrow().as_ref().map(|app| (app.window.clone(), app.scale))) else { return };
+    let position = LogicalPosition::new(x / scale, y / scale);
+    let event = match action {
+        0 | 5 => WindowEvent::PointerPressed { position, button: PointerEventButton::Left },
+        1 | 6 => WindowEvent::PointerReleased { position, button: PointerEventButton::Left },
+        2 => WindowEvent::PointerMoved { position },
+        3 => WindowEvent::PointerExited,
+        _ => return,
+    };
+    window.window().dispatch_event(event);
+    if matches!(action, 1 | 3 | 6) {
+        window.window().dispatch_event(WindowEvent::PointerExited); // no hover on a touch screen
+    }
 }
