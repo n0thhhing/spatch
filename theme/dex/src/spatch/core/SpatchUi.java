@@ -1069,24 +1069,17 @@ public final class SpatchUi extends FrameLayout {
         }
         body.addView(details, match(-2));
         trackTitle = text("", full ? 32 : 40, onSurface, true);
-        trackTitle.setMaxLines(2);
-        trackTitle.setEllipsize(TextUtils.TruncateAt.END);
+        marquee(trackTitle);
         trackArtist = text("", 17, onVariant, false);
         albumTitle = text("", 13, onVariant, false);
         LinearLayout titleRow = row();
         titleRow.setGravity(Gravity.TOP);
         titleRow.addView(trackTitle, weighted());
         trackTitle.setOnLongClickListener(v -> shareSheet());
-        explicitBadge = text("E", 12, surface, true);
-        explicitBadge.setGravity(Gravity.CENTER);
-        explicitBadge.setBackground(background(onVariant, 4));
-        explicitBadge.setContentDescription("Explicit");
-        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(dp(18), dp(18));
-        ep.setMargins(dp(6), dp(14), dp(4), 0);
-        titleRow.addView(explicitBadge, ep);
         titleRow.addView(likeButton(), control(48));
         details.addView(titleRow, match(-2));
-        for (TextView labelView : new TextView[]{trackArtist, albumTitle}) details.addView(labelView, match(-2));
+        details.addView(artistLine(false), match(-2));
+        details.addView(albumTitle, match(-2));
         gap(details, full ? 2 : 8);
         wave = new Wave();
         details.addView(wave, match(dp(full ? 54 : 65)));
@@ -1181,14 +1174,12 @@ public final class SpatchUi extends FrameLayout {
         trackTitle = text("", 30, onSurface, true);
         trackTitle.setGravity(Gravity.CENTER);
         trackTitle.setOnLongClickListener(v -> shareSheet());
-        trackTitle.setMaxLines(2);
-        trackTitle.setEllipsize(TextUtils.TruncateAt.END);
+        marquee(trackTitle);
         chrome.addView(trackTitle, match(-2));
         trackArtist = text("", 17, onVariant, false);
-        trackArtist.setGravity(Gravity.CENTER);
-        trackArtist.setPadding(0, dp(4), 0, 0);
-        single(trackArtist);
-        chrome.addView(trackArtist, match(-2));
+        LinearLayout byline = artistLine(true);
+        byline.setPadding(0, dp(4), 0, 0);
+        chrome.addView(byline, match(-2));
         gap(chrome, 10);
         wave = new Wave();
         chrome.addView(wave, match(dp(54)));
@@ -1269,6 +1260,33 @@ public final class SpatchUi extends FrameLayout {
         return g;
     }
 
+    /** Titles stay on one line; a long one scrolls slowly instead of wrapping. */
+    private void marquee(TextView v) {
+        v.setSingleLine(true);
+        v.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+        v.setMarqueeRepeatLimit(-1);
+        v.setHorizontalFadingEdgeEnabled(true);
+        v.setFadingEdgeLength(dp(24));
+        v.setSelected(true);
+    }
+
+    /** The artist with the explicit badge in front of it, centred on the text so it is never clipped. */
+    private LinearLayout artistLine(boolean centred) {
+        LinearLayout line = row();
+        line.setGravity((centred ? Gravity.CENTER_HORIZONTAL : Gravity.START) | Gravity.CENTER_VERTICAL);
+        explicitBadge = text("E", 11, surface, true);
+        explicitBadge.setGravity(Gravity.CENTER);
+        explicitBadge.setIncludeFontPadding(false);
+        explicitBadge.setBackground(background(onVariant, 4));
+        explicitBadge.setContentDescription("Explicit");
+        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(dp(17), dp(17));
+        ep.rightMargin = dp(7);
+        line.addView(explicitBadge, ep);
+        single(trackArtist);
+        line.addView(trackArtist, centred ? new LinearLayout.LayoutParams(-2, -2) : weighted());
+        return line;
+    }
+
     private void toggleChrome() {
         View chrome = immersiveChrome;
         if (chrome == null) return;
@@ -1345,6 +1363,7 @@ public final class SpatchUi extends FrameLayout {
         private float gradientRadius;
         private final View stage;
         private final int[] at = new int[2], origin = new int[2];
+        private final Path liquid = new Path();
 
         /** Full screen behind the content, centred on the disc's stage, so only the screen edges bound the halo. */
         Glow(View stage) {
@@ -1393,22 +1412,32 @@ public final class SpatchUi extends FrameLayout {
                 paint.setStyle(Paint.Style.FILL);
             }
             if (audio) {
-                // Spectrum ring: each band is a short ray off the disc's rim, mirrored left and right.
-                int n = Audio.BANDS.length;
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeCap(Paint.Cap.ROUND);
-                paint.setStrokeWidth(dp(3));
-                paint.setColor(primary);
-                float rim = side / 2f + dp(8);
-                for (int i = 0; i < n * 2; i++) {
-                    float v = Audio.BANDS[i < n ? i : n * 2 - 1 - i];
-                    if (v < .02f) continue;
-                    double a = -Math.PI / 2 + (i + .5) / (n * 2) * Math.PI * 2;
-                    float len = dp(4) + dp(26) * v;
-                    float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
-                    paint.setAlpha(Math.round(90 + 140 * v));
-                    c.drawLine(cx + cos * rim, cy + sin * rim, cx + cos * (rim + len), cy + sin * (rim + len), paint);
+                // A liquid ring hugging the disc: its edge swells with each band, mirrored left and right.
+                int n = Audio.BANDS.length, points = n * 2;
+                float rim = side / 2f + dp(6);
+                float[] px = new float[points], py = new float[points];
+                for (int k = 0; k < points; k++) {
+                    float v = Audio.BANDS[k < n ? k : points - 1 - k];
+                    double a = -Math.PI / 2 + (k + .5) / points * Math.PI * 2;
+                    float rr = rim + dp(22) * v;
+                    px[k] = cx + (float) Math.cos(a) * rr;
+                    py[k] = cy + (float) Math.sin(a) * rr;
                 }
+                liquid.rewind();
+                for (int k = 0; k < points; k++) {
+                    int nx = (k + 1) % points;
+                    float mx = (px[k] + px[nx]) / 2f, my = (py[k] + py[nx]) / 2f;
+                    if (k == 0) liquid.moveTo((px[points - 1] + px[0]) / 2f, (py[points - 1] + py[0]) / 2f);
+                    liquid.quadTo(px[k], py[k], mx, my);
+                }
+                liquid.close();
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor((primary & 0x00ffffff) | 0x2e000000);
+                c.drawPath(liquid, paint);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(1.5f));
+                paint.setColor((primary & 0x00ffffff) | 0x99000000);
+                c.drawPath(liquid, paint);
                 paint.setStyle(Paint.Style.FILL);
                 Audio.want();
             }
@@ -1512,8 +1541,8 @@ public final class SpatchUi extends FrameLayout {
         AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
         if (audio == null) return;
         VolumeSlider slider = new VolumeSlider(audio);
-        LinearLayout.LayoutParams p = match(dp(44));
-        p.setMargins(dp(4), dp(10), dp(4), 0);
+        LinearLayout.LayoutParams p = match(dp(36));
+        p.setMargins(0, dp(6), 0, 0);
         details.addView(slider, p);
     }
 
@@ -1524,6 +1553,7 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Glyph icon = new Glyph("volume", false);
         private float shown = -1;
+        private boolean dragging;
 
         VolumeSlider(AudioManager audio) {
             super(activity);
@@ -1542,21 +1572,19 @@ public final class SpatchUi extends FrameLayout {
             if (shown < 0 || !motionEnabled()) shown = target;
             shown += (target - shown) * .35f;
             if (Math.abs(target - shown) > .002f) postInvalidateOnAnimation(); else shown = target;
-            paint.setColor((onSurface & 0x00ffffff) | 0x1f000000);
-            c.drawRoundRect(0, 0, w, h, r, r, paint);
-            float fill = h + (w - h) * shown;
-            paint.setColor(primary);
-            c.drawRoundRect(0, 0, fill, h, r, r, paint);
-            if (fill > h * 1.6f) {
-                paint.setColor(onPrimary);
-                c.drawRoundRect(fill - dp(10), h * .28f, fill - dp(6), h * .72f, dp(2), dp(2), paint);
-            }
+            // A quiet line: speaker, thin track, small thumb that grows while dragged.
+            float side = dp(20), left = h, right = w - dp(8), mid = h / 2f;
             c.save();
-            float side = dp(22);
-            c.translate(r - side / 2f, (h - side) / 2f);
+            c.translate((h - side) / 2f, (h - side) / 2f);
             c.scale(side / 24f, side / 24f);
-            icon.drawGlyph(c, "volume", onPrimary, 1f, 1f);
+            icon.drawGlyph(c, "volume", onVariant, 1f, 1f);
             c.restore();
+            float x = left + (right - left) * shown;
+            paint.setColor((onSurface & 0x00ffffff) | 0x26000000);
+            c.drawRoundRect(left, mid - dp(2), right, mid + dp(2), dp(2), dp(2), paint);
+            paint.setColor(primary);
+            c.drawRoundRect(left, mid - dp(2), Math.max(left + dp(4), x), mid + dp(2), dp(2), dp(2), paint);
+            c.drawCircle(x, mid, dp(dragging ? 9 : 6), paint);
         }
 
         @Override public boolean onTouchEvent(MotionEvent e) {
@@ -1565,8 +1593,9 @@ public final class SpatchUi extends FrameLayout {
                     getParent().requestDisallowInterceptTouchEvent(true);
                 case MotionEvent.ACTION_MOVE:
                 case MotionEvent.ACTION_UP:
+                    dragging = e.getActionMasked() != MotionEvent.ACTION_UP;
                     float h = getHeight();
-                    float f = Math.max(0f, Math.min(1f, (e.getX() - h / 2f) / Math.max(1f, getWidth() - h)));
+                    float f = Math.max(0f, Math.min(1f, (e.getX() - h) / Math.max(1f, getWidth() - dp(8) - h)));
                     int value = min + Math.round(f * (max - min));
                     if (value != audio.getStreamVolume(stream)) {
                         audio.setStreamVolume(stream, value, 0);
