@@ -3415,6 +3415,7 @@ public final class SpatchUi extends FrameLayout {
         private float preview = -1;
         private long shownElapsed = -1, shownRemaining = -1;
         private String elapsedLabel = "", remainingLabel = "";
+        private float amp = -1, wavePhase;
 
         Wave() {
             super(activity);
@@ -3439,8 +3440,14 @@ public final class SpatchUi extends FrameLayout {
             paint.setColor(primary);
             paint.setStyle(Paint.Style.STROKE);
             path.rewind();
-            float phase = playing && motionEnabled() ? (SystemClock.uptimeMillis() % 1600) / 1600f : 0;
-            float amplitude = playing && pref("wavy", true) ? dp(3) : 0;
+            long now = SystemClock.uptimeMillis();
+            // The phase keeps flowing while the wave flattens, so pausing settles instead of snapping.
+            if (playing || amp > .05f) wavePhase = (now % 1600) / 1600f;
+            float target = playing && pref("wavy", true) ? dp(3) : 0;
+            amp = amp < 0 || !motionEnabled() ? target : amp + (target - amp) * .12f;
+            if (Math.abs(target - amp) < .05f) amp = target;
+            float phase = motionEnabled() ? wavePhase : 0;
+            float amplitude = amp;
             float wavelength = dp(33);
             for (float x = x0; x < tip; x += dp(2)) {
                 float dy = amplitude * waveSample((x - x0) / wavelength + phase);
@@ -3473,7 +3480,8 @@ public final class SpatchUi extends FrameLayout {
             } else canvas.drawText(elapsedLabel, x0, timeBaseline, paint);
             paint.setTextAlign(Paint.Align.RIGHT);
             canvas.drawText(remainingLabel, x1, timeBaseline, paint);
-            if (playing && isShown()) {
+            boolean settling = Math.abs((playing && pref("wavy", true) ? dp(3) : 0) - amp) > 0;
+            if ((playing || settling) && isShown()) {
                 if (motionEnabled()) postInvalidateOnAnimation();
                 else postInvalidateDelayed(500);
             }
