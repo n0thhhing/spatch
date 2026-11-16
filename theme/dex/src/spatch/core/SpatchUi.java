@@ -1858,7 +1858,9 @@ public final class SpatchUi extends FrameLayout {
         private SweepGradient sweep;
         private int sweepA, sweepB;
         private Bitmap shown, previous;
-        private long fadeAt;
+        private long fadeAt, lastFrame;
+        private final float[] wanted = new float[36], level = new float[36];
+        private float gainRef = .5f;
 
         Disc() { super(activity); artViews.add(this); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
 
@@ -1918,14 +1920,39 @@ public final class SpatchUi extends FrameLayout {
             paint.setStrokeWidth(Math.min(dp(7), (float) (Math.PI * 2 * ring / bars) * .55f));
             float t = now / 1000f;
             boolean live = audio && Audio.BANDS[0] + Audio.BANDS[8] > 0;
+            int half = bars / 2;
+            float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
+            lastFrame = now;
+            // 1. What each bar is aiming for: the 24 bands spread smoothly across the half ring (not in steps),
+            //    with a treble tilt because music's high end is naturally quiet; or a pulse when audio can't be read.
+            float loudest = 0;
+            for (int i = 0; i < half; i++) {
+                float v;
+                if (live) {
+                    float pos = i * (Audio.BANDS.length - 1) / (float) (half - 1);
+                    int lo = (int) pos, hi = Math.min(Audio.BANDS.length - 1, lo + 1);
+                    v = (Audio.BANDS[lo] * (1 - (pos - lo)) + Audio.BANDS[hi] * (pos - lo)) * (1f + 1.3f * i / (float) (half - 1));
+                } else if (run) {
+                    float swell = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - i / (float) half) * .3f;
+                    v = .25f + .18f * (float) Math.sin(t * 2.6f + i * .5f) + .12f * (float) Math.sin(t * 1.5f - i * .27f) + swell;
+                } else v = .05f;
+                wanted[i] = v;
+                loudest = Math.max(loudest, v);
+            }
+            // 2. Auto-gain: quiet and loud songs both fill the range; the reference forgets slowly.
+            gainRef = Math.max(loudest, gainRef - dt * .08f);
+            float scale = live ? .9f / Math.max(.45f, gainRef) : 1f;
+            // 3. Blend neighbours (no lone spikes), compress a little, then ease: quick to rise, slow to fall.
+            for (int i = 0; i < half; i++) {
+                float blended = (wanted[Math.max(0, i - 1)] + 2f * wanted[i] + wanted[Math.min(half - 1, i + 1)]) / 4f * scale;
+                float v = (float) Math.pow(Math.min(1.2f, Math.max(0f, blended)), .85);
+                float tau = v > level[i] ? .045f : .22f;
+                level[i] += (v - level[i]) * (1f - (float) Math.exp(-dt / tau));
+            }
             for (int k = 0; k < bars; k++) {
-                int half = bars / 2, bi = k < half ? k : bars - 1 - k;
-                // Real levels when Spotify's audio is readable; otherwise a lively travelling pulse that still reads as music.
-                float pulse = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - bi / (float) half) * .35f;
-                float v = live ? Math.min(1f, Audio.BANDS[Math.min(Audio.BANDS.length - 1, bi * Audio.BANDS.length / half)] * 1.35f)
-                    : run ? Math.min(1f, .22f + .2f * (float) Math.sin(t * 3.1f + bi * .55f) + .14f * (float) Math.sin(t * 1.7f - bi * .31f) + pulse) : .06f;
+                int bi = k < half ? k : bars - 1 - k;
                 double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
-                float len = dp(3) + (bar - dp(6)) * Math.max(0, v), start = ring + dp(10);
+                float len = dp(3) + (bar - dp(6)) * Math.min(1f, level[bi]), start = ring + dp(10);
                 float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
                 c.drawLine(cx + cos * start, cy + sin * start, cx + cos * (start + len), cy + sin * (start + len), paint);
             }
