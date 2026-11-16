@@ -385,18 +385,82 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
     };
     let fields = match reply {
         Ok(playlist::Reply::Loading) => vec!["loading".into()],
-        Ok(playlist::Reply::Page { tracks, next, owner }) => {
-            if let Some(name) = owner {
-                *USERNAME.lock().unwrap() = Some(name);
-            }
-            ["".to_string(), next.unwrap_or(0).to_string()]
-            .into_iter()
-                .chain(tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]))
-                .collect()
-        }
+        Ok(page) => page_fields(page),
         Err(error) => vec![if error.is_empty() { "Couldn’t load playlist".into() } else { error }],
     };
     strings(&mut env, fields)
+}
+
+/// A playlist page as the UI reads it: "", the next offset, then title, artist, uri and image per track.
+fn page_fields(page: playlist::Reply) -> Vec<String> {
+    let playlist::Reply::Page { tracks, next, owner } = page else { return vec!["loading".into()] };
+    if let Some(name) = owner {
+        *USERNAME.lock().unwrap() = Some(name);
+    }
+    ["".to_string(), next.unwrap_or(0).to_string()]
+        .into_iter()
+        .chain(tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]))
+        .collect()
+}
+
+/// The open playlist's saved-answer key and its subscription; bumps `PLAYLIST_REVISION` on each change.
+static WATCHED_PLAYLIST: Mutex<Option<(String, i64)>> = Mutex::new(None);
+static PLAYLIST_REVISION: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+fn stop_watching_playlist() {
+    if let Some((_, id)) = WATCHED_PLAYLIST.lock().unwrap().take() {
+        if id != 0 {
+            bridge::cancel(id);
+        }
+    }
+}
+
+/// Keeps the open playlist live: PlaylistDataService.Subscribe (Spotify's own playlist screen uses it) sends
+/// the first page again whenever the playlist changes. Each change replaces the saved answer under `key`.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeWatchPlaylist(mut env: JNIEnv, _: JClass, uri: JString, key: JString) {
+    let (Some(uri), Some(key)) = (read(&mut env, &uri), read(&mut env, &key)) else { return };
+    stop_watching_playlist();
+    if cfg!(feature = "preview") || !library::is_playlist(&uri) {
+        return;
+    }
+    // The key goes in first, so a push that lands before the id is known still counts.
+    *WATCHED_PLAYLIST.lock().unwrap() = Some((key.clone(), 0));
+    let watched = key.clone();
+    let opened = bridge::subscribe(playlist::SERVICE, "Subscribe", &playlist::request(&uri, 0), move |reply| {
+        let Ok(bytes) = reply else {
+            log::warn!("Playlist stream ended: {}", reply.err().unwrap_or_default());
+            return;
+        };
+        let Ok(page @ playlist::Reply::Page { .. }) = playlist::decode(bytes, 0) else { return };
+        if WATCHED_PLAYLIST.lock().unwrap().as_ref().is_none_or(|(k, _)| k != &watched) {
+            return;
+        }
+        let encoded = crate::cache::encode(&page_fields(page));
+        if crate::cache::get(&watched).as_deref() != Some(encoded.as_slice()) {
+            crate::cache::put(&watched, &encoded);
+            PLAYLIST_REVISION.fetch_add(1, Ordering::Relaxed);
+        }
+    });
+    match opened {
+        Ok(id) => match WATCHED_PLAYLIST.lock().unwrap().as_mut() {
+            Some((k, slot)) if *k == key => *slot = id,
+            _ => bridge::cancel(id), // another playlist opened meanwhile
+        },
+        Err(error) => log::warn!("Playlist stream: {error}"),
+    }
+}
+
+/// Stops following the open playlist (the page closed).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeStopPlaylist(_: JNIEnv, _: JClass) {
+    stop_watching_playlist();
+}
+
+/// Bumps whenever the open playlist changes.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRevision(_: JNIEnv, _: JClass) -> jlong {
+    PLAYLIST_REVISION.load(Ordering::Relaxed)
 }
 
 /// An album or artist page: [error], or "", name, subtitle, image, track count, release count, then four

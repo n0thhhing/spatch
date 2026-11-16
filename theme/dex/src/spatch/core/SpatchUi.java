@@ -61,6 +61,9 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativeDevices();
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
+    private static native void nativeWatchPlaylist(String uri, String key);
+    private static native void nativeStopPlaylist();
+    private static native long nativePlaylistRevision();
     private static native String[] nativeCached(String key);
     private static native void nativeRemember(String key, String[] fields);
     private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
@@ -400,6 +403,15 @@ public final class SpatchUi extends FrameLayout {
             }
             if (!libraryReady && !fetching && now >= libraryRetry) loadLibrary();
             // The library changed (Spotify pushed it to the core, which streamed it to Rust): redraw.
+            long listRevision = nativePlaylistRevision();
+            if (listRevision != playlistRevision) {
+                playlistRevision = listRevision;
+                Entry open = playlist;
+                if (open != null && !isDetail(open) && !playlistLoading) {
+                    String[] pushed = nativeCached("playlist:" + open.uri);
+                    if (pushed != null && pushed.length >= 2 && pushed[0].isEmpty() && !java.util.Arrays.equals(pushed, shownReply)) applyReply(open, pushed, false);
+                }
+            }
             long libRevision = nativeLibraryRevision();
             if (libRevision != libraryRevision) {
                 libraryRevision = libRevision;
@@ -432,7 +444,8 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
-    private long libraryRevision;
+    private long libraryRevision, playlistRevision;
+    private boolean watchingPlaylist;
 
     private void refreshLibraryIfStale() {
         long now = SystemClock.uptimeMillis();
@@ -598,6 +611,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void showPage() {
+        if (playlist == null && watchingPlaylist) { watchingPlaylist = false; PLAYLISTS.execute(SpatchUi::nativeStopPlaylist); }
         pageHost.removeAllViews();
         pageScroll = null;
         pageList = null;
@@ -984,6 +998,8 @@ public final class SpatchUi extends FrameLayout {
             String[] r = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
             boolean ok = r != null && r.length >= (isDetail(e) ? 6 : 2) && r[0].isEmpty();
             if (ok) nativeRemember(key, r);
+            // From here on Spotify pushes this playlist whenever it changes; the poll redraws.
+            if (ok && !isDetail(e) && playlist == e) { nativeWatchPlaylist(resolved, key); watchingPlaylist = true; }
             post(() -> {
                 if (playlist == e) liveUri = resolved;
                 if (request != playlistRequest || playlist != e) return;
@@ -1003,11 +1019,22 @@ public final class SpatchUi extends FrameLayout {
     private boolean shownCached;
 
     private void applyReply(Entry e, String[] r, boolean cached) {
+        // Replacing what's on screen (saved copy -> Spotify's answer, or a push) keeps the scroll position.
+        boolean replacing = shownReply != null;
+        ListView list = pageList;
+        int first = replacing && list != null ? list.getFirstVisiblePosition() : 0;
+        int top = replacing && list != null && list.getChildCount() > 0 ? list.getChildAt(0).getTop() : 0;
         shownReply = r;
         shownCached = cached;
         playlistTracks = new ArrayList<>();
         releases = new ArrayList<>();
-        if (isDetail(e)) { applyDetail(r); return; }
+        if (isDetail(e)) applyDetail(r);
+        else applyPlaylist(r);
+        ListView again = pageList;
+        if (replacing && again != null && first > 0) again.setSelectionFromTop(Math.min(first, Math.max(0, again.getCount() - 1)), top);
+    }
+
+    private void applyPlaylist(String[] r) {
         playlistLoading = false;
         playlistFailed = r == null || r.length < 2 || !r[0].isEmpty();
         playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
