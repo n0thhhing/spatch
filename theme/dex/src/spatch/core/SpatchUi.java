@@ -804,6 +804,22 @@ public final class SpatchUi extends FrameLayout {
             TextView greeting = text(hello, 15, onVariant, false);
             greeting.setPadding(0, 0, 0, dp(2));
             bar.addView(greeting, match(-2));
+        } else if (libraryReady) {
+            // What's in the library, at a glance.
+            StringBuilder summary = new StringBuilder();
+            String[] nouns = {"playlist", "album", "artist", "podcast"};
+            for (int i = 0; i < nouns.length; i++) {
+                int count = entries(i, 1000).size();
+                if (count == 0) continue;
+                if (summary.length() > 0) summary.append(" · ");
+                summary.append(count).append(' ').append(nouns[i]).append(count == 1 ? "" : "s");
+            }
+            if (summary.length() > 0) {
+                TextView line = text(summary.toString(), 15, onVariant, false);
+                line.setPadding(0, 0, 0, dp(2));
+                single(line);
+                bar.addView(line, match(-2));
+            }
         }
         gap(bar, 8);
         LinearLayout group = row();
