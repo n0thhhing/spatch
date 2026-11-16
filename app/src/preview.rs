@@ -23,11 +23,13 @@ fn track(index: usize, playing: bool) -> NowPlaying {
     let up_next = (1..TRACKS.len())
         .map(|offset| {
             let next = (index + offset) % TRACKS.len();
-            (
-                TRACKS[next].0.into(),
-                TRACKS[next].1.into(),
-                format!("demo:{next}"),
-            )
+            crate::player::NextTrack {
+                title: TRACKS[next].0.into(),
+                artist: TRACKS[next].1.into(),
+                image: format!("demo:{next}"),
+                uri: format!("spotify:preview:{next}"),
+                uid: format!("preview-{next}"),
+            }
         })
         .collect();
     NowPlaying {
@@ -148,6 +150,10 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
         Command::Pause => now.playing = false,
         Command::Resume => now.playing = true,
         Command::Next => *now = track((index + 1) % TRACKS.len(), now.playing),
+        Command::SkipTo { uri, .. } => {
+            let to = uri.rsplit(':').next().and_then(|value| value.parse::<usize>().ok()).unwrap_or(index);
+            *now = track(to % TRACKS.len(), now.playing);
+        }
         Command::Previous => *now = track((index + TRACKS.len() - 1) % TRACKS.len(), now.playing),
         Command::SeekTo(position) => now.position_ms = position.clamp(0, now.duration_ms),
         Command::Shuffle(on) => {
@@ -177,6 +183,6 @@ mod tests {
         assert_eq!(now.position_at(clock() + 10_000), 120_000);
         apply(&mut now, Command::Next);
         assert_eq!(now.title, "Signal Fires");
-        assert_eq!(now.up_next[0].0, "Soft Landing");
+        assert_eq!(now.up_next[0].title, "Soft Landing");
     }
 }

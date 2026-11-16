@@ -26,8 +26,18 @@ pub struct NowPlaying {
     pub duration_ms: i64,
     /// ContextPlayerState.timestamp: when position_ms was true, in ms since the epoch.
     pub timestamp: u64,
-    /// Title, artist and artwork URL of the next tracks.
-    pub up_next: Vec<(String, String, String)>,
+    /// The next tracks, in order.
+    pub up_next: Vec<NextTrack>,
+}
+
+/// A queued track: what to show, and the uri/uid SkipNext needs to jump straight to it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NextTrack {
+    pub title: String,
+    pub artist: String,
+    pub image: String,
+    pub uri: String,
+    pub uid: String,
 }
 
 /// Spotify's image URIs (spotify:image:<id>) as their public CDN URL; anything else unchanged.
@@ -52,7 +62,13 @@ impl NowPlaying {
             .filter_map(|t| t.context_track.as_ref())
             .filter(|t| !t.uri.starts_with("spotify:delimiter"))
             .take(10)
-            .map(|t| (meta(t, &["title"]).to_string(), meta(t, &["artist_name"]).to_string(), image_url(meta(t, &["image_url", "image_large_url", "image_small_url"]))))
+            .map(|t| NextTrack {
+                title: meta(t, &["title"]).to_string(),
+                artist: meta(t, &["artist_name"]).to_string(),
+                image: image_url(meta(t, &["image_url", "image_large_url", "image_small_url"])),
+                uri: t.uri.clone(),
+                uid: t.uid.clone(),
+            })
             .collect();
         let track_number = meta(&track, &["track_number"]);
         let disc_number = meta(&track, &["disc_number"]);
@@ -112,6 +128,8 @@ pub enum Command {
     Shuffle(bool),
     /// 0 off, 1 the context, 2 the track.
     Repeat(u8),
+    /// Skips forward to a track in Up Next, as Spotify's queue does.
+    SkipTo { uri: String, uid: String },
 }
 
 /// The RPC method and request bytes for a command.
@@ -132,6 +150,10 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
         Command::Pause => ("Pause", es::PauseRequest::default().encode_to_vec()),
         Command::Resume => ("Resume", es::ResumeRequest::default().encode_to_vec()),
         Command::Next => ("SkipNext", es::SkipNextRequest::default().encode_to_vec()),
+        Command::SkipTo { uri, uid } => (
+            "SkipNext",
+            es::SkipNextRequest { track: Some(es::ContextTrack { uri, uid, ..Default::default() }), ..Default::default() }.encode_to_vec(),
+        ),
         Command::Previous => ("SkipPrev", es::SkipPrevRequest { allow_seeking: true, ..Default::default() }.encode_to_vec()),
         Command::Shuffle(on) => ("SetShufflingContext", es::SetShufflingContextRequest { shuffling_context: on, ..Default::default() }.encode_to_vec()),
         Command::Repeat(mode) => (
@@ -188,7 +210,12 @@ mod tests {
         assert_eq!(now.artist, "i wanna be a jack-o-lantern");
         assert_eq!(now.image, "https://i.scdn.co/image/ab67");
         assert!(now.playing);
-        assert_eq!(now.up_next, vec![("annoying".to_string(), "someone".to_string(), "https://i.scdn.co/image/ab67".to_string())]);
+        assert_eq!(now.up_next.len(), 1);
+        assert_eq!((now.up_next[0].title.as_str(), now.up_next[0].artist.as_str(), now.up_next[0].uri.as_str()), ("annoying", "someone", "spotify:track:2"));
+        assert_eq!(now.up_next[0].image, "https://i.scdn.co/image/ab67");
+        let (method, bytes) = command(Command::SkipTo { uri: "spotify:track:2".into(), uid: "u2".into() });
+        let skip = es::SkipNextRequest::decode(bytes.as_slice()).unwrap().track.unwrap();
+        assert_eq!((method, skip.uri.as_str(), skip.uid.as_str()), ("SkipNext", "spotify:track:2", "u2"));
         assert_eq!(now.position_at(7000), 3000);
         assert_eq!(now.position_at(999_999), 85000); // clamped to the end
     }

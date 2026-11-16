@@ -50,7 +50,7 @@ public final class SpatchUi extends FrameLayout {
     private int secondaryContainer, onSecondaryContainer, tertiaryContainer, onTertiaryContainer;
     private boolean dark;
     private static final int HOME = 0, LIBRARY = 1, PLAYER = 2, IMMERSIVE = 3, QUEUE = 4, PLAYLIST = 5, SETTINGS = 6;
-    private static final int PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7;
+    private static final int PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8;
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
     private static final ExecutorService LIBRARY_DATA = Executors.newSingleThreadExecutor();
@@ -318,8 +318,8 @@ public final class SpatchUi extends FrameLayout {
         albumArtist = state[12]; release = state[13]; albumPosition = state[14]; rating = state[15];
         stamp = SystemClock.uptimeMillis();
         List<Entry> next = new ArrayList<>();
-        for (int i = 16; i + 2 < state.length; i += 3) {
-            next.add(new Entry(state[i], state[i + 1], "", state[i + 2], -1));
+        for (int i = 16; i + 3 < state.length; i += 4) {
+            next.add(new Entry(state[i], state[i + 1], state[i + 3], state[i + 2], -1));
         }
         boolean queueChanged = !upcoming.equals(next);
         if (queueChanged) upcoming = next;
@@ -1485,6 +1485,11 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void selectEntry(Entry entry) {
+        if (screen == QUEUE) {
+            int index = upcoming.indexOf(entry);
+            if (index >= 0) command(SKIP_TO, index, entry.uri);
+            return;
+        }
         if (entry.category == 0 || entry.uri.startsWith("spotify:playlist:")
                 || (entry.uri.startsWith("spotify:user:") && entry.uri.contains(":playlist:"))) {
             openPlaylist(entry);

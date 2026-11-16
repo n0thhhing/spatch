@@ -107,7 +107,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(
         fields.into_iter().chain(
             now.up_next
                 .into_iter()
-                .flat_map(|(title, artist, image)| [title, artist, image]),
+                .flat_map(|t| [t.title, t.artist, t.image, t.uri]),
         ),
     )
     .unwrap_or(std::ptr::null_mut())
@@ -199,6 +199,18 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(
             }
             Command::Play(uri)
         }
+        // Jump to Up Next entry `value`, if it is still the track the UI showed there.
+        8 => {
+            let Ok(text) = env.get_string(&uri) else {
+                return JNI_FALSE;
+            };
+            let uri = String::from(text);
+            let state = STATE.lock().unwrap();
+            let Some(next) = state.1.as_ref().and_then(|now| now.up_next.get(value.max(0) as usize)).filter(|t| t.uri == uri) else {
+                return JNI_FALSE;
+            };
+            Command::SkipTo { uri, uid: next.uid.clone() }
+        }
         _ => return JNI_FALSE,
     };
     #[cfg(feature = "preview")]
@@ -232,7 +244,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
     #[cfg(feature = "preview")]
     if uri.starts_with("spotify:preview:") || library::is_liked_uri(&uri) {
         let demo = crate::preview::player();
-        let tracks = std::iter::once((demo.title, demo.artist, demo.image)).chain(demo.up_next);
+        let tracks = std::iter::once((demo.title, demo.artist, demo.image))
+            .chain(demo.up_next.into_iter().map(|t| (t.title, t.artist, t.image)));
         return strings(
             &mut env,
             ["".into(), "0".into()]
