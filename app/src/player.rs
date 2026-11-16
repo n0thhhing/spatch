@@ -13,6 +13,8 @@ pub struct NowPlaying {
     pub artist: String,
     pub album: String,
     pub source: String,
+    /// The playlist, album or other context playback comes from (ContextPlayerState.context_uri).
+    pub context: String,
     pub album_artist: String,
     pub release: String,
     pub album_position: String,
@@ -86,6 +88,7 @@ impl NowPlaying {
             title: meta(&track, &["title"]).to_string(),
             artist: meta(&track, &["artist_name", "album_artist_name"]).to_string(),
             album: meta(&track, &["album_title"]).to_string(),
+            context: state.context_uri.clone(),
             source: ["context_title", "title", "name"].into_iter()
                 .find_map(|key| state.context_metadata.get(key).filter(|value| !value.is_empty()))
                 .cloned().unwrap_or_default(),

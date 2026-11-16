@@ -38,6 +38,7 @@ fn track(index: usize, playing: bool) -> NowPlaying {
         artist: artist.into(),
         album: album.into(),
         source: "Preview mix".into(),
+        context: "spotify:preview:collection".into(),
         album_artist: artist.into(),
         release: "2025".into(),
         album_position: format!("Track {} · Disc 1", index + 1),

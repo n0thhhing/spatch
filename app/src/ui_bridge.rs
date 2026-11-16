@@ -101,6 +101,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(
         now.release,
         now.album_position,
         if now.explicit { "Explicit".into() } else { String::new() },
+        now.context,
     ];
     strings(
         &mut env,

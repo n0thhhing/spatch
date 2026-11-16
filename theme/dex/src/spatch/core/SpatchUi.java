@@ -303,6 +303,17 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
+    private String contextUri = "";
+
+    /** Whether playback comes from this library item; Liked Songs has several URI spellings. */
+    private boolean playingFrom(String item) {
+        if (contextUri.isEmpty() || item.isEmpty()) return false;
+        return item.equals(contextUri) || (liked(item) && liked(contextUri));
+    }
+
+    private static boolean liked(String uri) {
+        return uri.equals("spotify:collection") || uri.endsWith(":collection") || uri.endsWith(":collection:tracks");
+    }
     private long libraryLoadedAt;
     private boolean refreshing;
 
@@ -338,7 +349,11 @@ public final class SpatchUi extends FrameLayout {
         albumArtist = state[12]; release = state[13]; albumPosition = state[14]; rating = state[15];
         stamp = SystemClock.uptimeMillis();
         List<Entry> next = new ArrayList<>();
-        for (int i = 16; i + 3 < state.length; i += 4) {
+        String context = state[16];
+        boolean contextChanged = !context.equals(contextUri);
+        contextUri = context;
+        if (contextChanged && (screen == HOME || screen == LIBRARY) && sheetClose == null && revision > 1) post(this::redrawPage);
+        for (int i = 17; i + 3 < state.length; i += 4) {
             next.add(new Entry(state[i], state[i + 1], state[i + 3], state[i + 2], -1));
         }
         boolean queueChanged = !upcoming.equals(next);
@@ -838,11 +853,13 @@ public final class SpatchUi extends FrameLayout {
                 art.letter = initial(entry.title);
                 art.bind(entry.image);
                 tile.addView(art, control(44));
-                TextView name = text(entry.title, 14, onSurface, true);
+                boolean playingFrom = playingFrom(entry.uri);
+                TextView name = text(entry.title, 14, playingFrom ? primary : onSurface, true);
                 name.setMaxLines(2);
                 name.setEllipsize(TextUtils.TruncateAt.END);
                 name.setPadding(dp(10), 0, 0, 0);
                 tile.addView(name, weighted());
+                if (playingFrom) tile.addView(new Bars(primary), new LinearLayout.LayoutParams(dp(14), dp(13)));
                 makeClickable(tile, (entry.category == 0 ? "Open " : "Play ") + entry.title, () -> selectEntry(entry));
                 springPress(tile);
                 longPress(tile, entry);
@@ -2540,7 +2557,8 @@ public final class SpatchUi extends FrameLayout {
             imageView.invalidate();
             name.setText(entry.title);
             subtitle.setText(entry.subtitle);
-            boolean current = screen == PLAYLIST && !title.isEmpty() && entry.title.equals(title) && entry.subtitle.equals(artist);
+            boolean current = screen == PLAYLIST ? !title.isEmpty() && entry.title.equals(title) && entry.subtitle.equals(artist)
+                : screen == LIBRARY && playingFrom(entry.uri);
             name.setTextColor(current ? primary : onSurface);
             bars.setVisibility(current ? VISIBLE : GONE);
         }
