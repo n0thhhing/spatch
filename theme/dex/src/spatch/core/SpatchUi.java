@@ -320,6 +320,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void command(int action, long value, String target) {
+        if (pref("haptics", true) && (action == PREVIOUS || action == NEXT)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
         COMMANDS.execute(() -> {
             if (!nativeCommand(action, value, target)) post(() -> {
                 if (isAttachedToWindow()) Toast.makeText(activity, "Playback command unavailable", Toast.LENGTH_SHORT).show();
@@ -1362,10 +1363,66 @@ public final class SpatchUi extends FrameLayout {
                 return true;
             }
         });
+        float[] start = new float[2];
+        boolean[] dragging = new boolean[1];
         view.setOnTouchListener((v, event) -> {
+            if (!mini && content != null && motionEnabled()) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        start[0] = event.getRawX(); start[1] = event.getRawY();
+                        dragging[0] = false;
+                        break;
+                    case MotionEvent.ACTION_MOVE: {
+                        float dx = event.getRawX() - start[0], dy = event.getRawY() - start[1];
+                        // A downward pull at the top of the page is ours before the details scroller can claim it.
+                        if (!dragging[0] && dy > 0 && dy > Math.abs(dx) && !scrolledDown(v)) {
+                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+                        if (!dragging[0] && dy > dp(16) && dy > Math.abs(dx) * 1.4f && !scrolledDown(v)) {
+                            dragging[0] = true;
+                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+                        if (dragging[0]) {
+                            // The page follows the finger with resistance, shrinking a little, like a card being put away.
+                            float pull = Math.max(0, dy);
+                            float eased = pull / (1f + pull / dp(420));
+                            content.setTranslationY(eased);
+                            float k = Math.min(1f, eased / dp(300));
+                            content.setScaleX(1f - .06f * k);
+                            content.setScaleY(1f - .06f * k);
+                            if (atmosphere != null) atmosphere.setAlpha(1f - .5f * k);
+                            return true;
+                        }
+                        break;
+                    }
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (dragging[0]) {
+                            dragging[0] = false;
+                            float dy = event.getRawY() - start[1];
+                            if (event.getActionMasked() == MotionEvent.ACTION_UP && dy > dp(140)) {
+                                if (pref("haptics", true)) v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+                                back();
+                            } else {
+                                content.animate().translationY(0).scaleX(1f).scaleY(1f).setDuration(320)
+                                    .setInterpolator(new android.view.animation.OvershootInterpolator(.8f)).start();
+                                if (atmosphere != null) atmosphere.animate().alpha(1f).setDuration(320).start();
+                            }
+                            return true;
+                        }
+                        break;
+                }
+            }
             gestures.onTouchEvent(event);
             return true;
         });
+    }
+
+    private static boolean scrolledDown(View v) {
+        for (android.view.ViewParent p = v.getParent(); p instanceof View; p = p.getParent()) {
+            if (p instanceof ScrollView && ((ScrollView) p).getScrollY() > 0) return true;
+        }
+        return false;
     }
 
     private void selectEntry(Entry entry) {
@@ -2109,6 +2166,7 @@ public final class SpatchUi extends FrameLayout {
 
     private void toggle() {
         if (uri.isEmpty() || pendingPlayback != null) return;
+        if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM);
         boolean requested = !playing;
         int attempt = ++playbackAttempt;
         pendingPlayback = requested;
@@ -2358,6 +2416,14 @@ public final class SpatchUi extends FrameLayout {
             setMeasuredDimension(resolveSize(width, widthSpec), resolveSize(size, heightSpec));
         }
 
+        private final Matrix turn = new Matrix();
+        private long contourStarted;
+        private float contourAngle;
+
+        private float contourAngle(long now) {
+            return contourStarted == 0 ? contourAngle : (contourAngle + (now - contourStarted) * .006f) % 360f;
+        }
+
         /** The player shapes: one square cover, centred and cut to an outline path. */
         boolean centered() { return shape == IMMERSIVE || shape == PLAYER_ART || shape == DISC || shape == PLAYER_ROUND; }
 
@@ -2444,6 +2510,15 @@ public final class SpatchUi extends FrameLayout {
                 paint.setShader(null);
                 float[] points = coverPath(shape);
                 outline(outline, points, points, 0, 0, 0, side);
+                if (shape == IMMERSIVE && motionEnabled() && pref("spin_art", true)) {
+                    // The scallop's outline turns slowly while playing; the picture inside stays upright.
+                    long now = SystemClock.uptimeMillis();
+                    if (playing && contourStarted == 0) contourStarted = now;
+                    if (!playing && contourStarted != 0) { contourAngle = contourAngle(now); contourStarted = 0; }
+                    turn.setRotate(contourAngle(now), side / 2f, side / 2f);
+                    outline.transform(turn);
+                    if (contourStarted != 0 && getLocalVisibleRect(visible)) postInvalidateOnAnimation();
+                }
                 if (alpha < 255 || bitmap == null) {
                     paint.setColor(container);
                     c.drawPath(outline, paint);
