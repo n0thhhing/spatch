@@ -807,9 +807,13 @@ public final class SpatchUi extends FrameLayout {
         label.setPadding(dp(6), 0, 0, 0);
         button.addView(label);
         makeClickable(button, title, selected ? () -> {
+            if (pref("haptics", true)) button.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
             if (scroll != null) scroll.smoothScrollTo(0, 0);
             if (libraryList != null) libraryList.smoothScrollToPosition(0);
-        } : action);
+        } : () -> {
+            if (pref("haptics", true)) button.performHapticFeedback(android.view.HapticFeedbackConstants.SEGMENT_TICK);
+            action.run();
+        });
         springPress(button);
         return button;
     }
@@ -2809,7 +2813,10 @@ public final class SpatchUi extends FrameLayout {
         v.setMinHeight(dp(48));
         v.setPadding(dp(14), 0, dp(14), 0);
         v.setBackground(background(bg, 16));
-        makeClickable(v, null, action);
+        makeClickable(v, null, () -> {
+            if (pref("haptics", true)) v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+            action.run();
+        });
         springPress(v);
         return v;
     }
