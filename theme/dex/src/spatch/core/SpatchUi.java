@@ -1278,6 +1278,7 @@ public final class SpatchUi extends FrameLayout {
         oneLine(pSource);
         from.addView(pSource, fill(-2));
         top.addView(from, weight());
+        top.addView(iconButton(new Icon("timer", sleepAt > SystemClock.uptimeMillis() ? accent : ink), "Sleep timer", this::openSleepTimer), lp(dp(48), dp(48)));
         top.addView(iconButton(new Icon("devices", ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
         top.addView(iconButton(new Icon("queue", ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
         col.addView(top, fill(-2));
@@ -1401,6 +1402,27 @@ public final class SpatchUi extends FrameLayout {
         String[] names = new String[upcoming.size()];
         for (int i = 0; i < names.length; i++) names[i] = upcoming.get(i).title + (upcoming.get(i).subtitle.isEmpty() ? "" : " · " + upcoming.get(i).subtitle);
         sheet("Up next", source.isEmpty() ? "Coming up" : "From " + source, names, i -> command(SKIP_TO, i, upcoming.get(i).uri));
+    }
+
+    // Sleep timer: pauses playback later. Kept on the main looper, not in a view, so it survives page changes.
+    private static final android.os.Handler MAIN = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static long sleepAt;
+    private static final Runnable SLEEP = () -> {
+        sleepAt = 0;
+        COMMANDS.execute(() -> nativeCommand(PAUSE, 0, ""));
+    };
+
+    private void openSleepTimer() {
+        String[] names = {"Off", "15 minutes", "30 minutes", "45 minutes", "1 hour", "End of this track"};
+        long left = sleepAt - SystemClock.uptimeMillis();
+        String note = left > 0 ? "Pausing in " + Math.max(1, (left + 59_999) / 60_000) + " min" : "Pause playback later";
+        sheet("Sleep timer", note, names, choice -> {
+            MAIN.removeCallbacks(SLEEP);
+            long delay = choice == 0 ? 0 : choice == 5 ? Math.max(1000, duration - playhead() - 500) : new long[]{0, 15, 30, 45, 60}[choice] * 60_000L;
+            sleepAt = choice == 0 ? 0 : SystemClock.uptimeMillis() + delay;
+            if (choice != 0) MAIN.postDelayed(SLEEP, delay);
+            Toast.makeText(activity, choice == 0 ? "Sleep timer off" : "Pausing " + (choice == 5 ? "after this track" : "in " + names[choice]), Toast.LENGTH_SHORT).show();
+        });
     }
 
     /** Lists the devices Spotify can play on and moves playback to the one you pick. */
