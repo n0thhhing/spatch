@@ -14,6 +14,31 @@ pub struct Item {
     /// "Playlist • creator", "Album • artist", "Artist", ...
     pub subtitle: String,
     pub image: String,
+    pub kind: Kind,
+}
+
+/// What an item is, for the Library's filter chips (their order: playlists, albums, artists, podcasts).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Kind {
+    Playlist,
+    Album,
+    Artist,
+    Podcast,
+    #[default]
+    Other,
+}
+
+impl Kind {
+    /// The chip index an item shows under, or None for Other.
+    pub fn chip(self) -> Option<i32> {
+        match self {
+            Kind::Playlist => Some(0),
+            Kind::Album => Some(1),
+            Kind::Artist => Some(2),
+            Kind::Podcast => Some(3),
+            Kind::Other => None,
+        }
+    }
 }
 
 /// The first `length` items, in Spotify's own order (pinned first).
@@ -36,16 +61,16 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Item>, String> {
         .chain(&reply.entity)
         .filter_map(|e| {
             let info = e.entity_info.as_ref()?;
-            let subtitle = match &e.entity {
-                Some(Entity::Playlist(p)) => with("Playlist", &p.creator_name),
-                Some(Entity::Album(a)) => with("Album", &a.artist_name),
-                Some(Entity::Artist(_)) => "Artist".into(),
-                Some(Entity::Show(_)) => "Podcast".into(),
-                Some(Entity::Book(b)) => with("Audiobook", &b.author_name),
-                Some(Entity::Folder(_)) => "Folder".into(),
-                _ => String::new(),
+            let (kind, subtitle) = match &e.entity {
+                Some(Entity::Playlist(p)) => (Kind::Playlist, with("Playlist", &p.creator_name)),
+                Some(Entity::Album(a)) => (Kind::Album, with("Album", &a.artist_name)),
+                Some(Entity::Artist(_)) => (Kind::Artist, "Artist".into()),
+                Some(Entity::Show(_)) => (Kind::Podcast, "Podcast".into()),
+                Some(Entity::Book(b)) => (Kind::Other, with("Audiobook", &b.author_name)),
+                Some(Entity::Folder(_)) => (Kind::Other, "Folder".into()),
+                _ => (Kind::Other, String::new()),
             };
-            Some(Item { name: info.name.clone(), uri: info.uri.clone(), subtitle, image: image_url(&info.image_uri) })
+            Some(Item { name: info.name.clone(), uri: info.uri.clone(), subtitle, image: image_url(&info.image_uri), kind })
         })
         .collect())
 }
@@ -80,6 +105,7 @@ mod tests {
         assert_eq!(items.iter().map(|i| i.subtitle.as_str()).collect::<Vec<_>>(), ["Playlist", "Playlist • levi", "Album • pooterdabooter"]);
         assert_eq!(items[1].uri, "spotify:playlist:1");
         assert_eq!(items[2].image, "https://i.scdn.co/image/ab");
+        assert_eq!(items.iter().map(|i| i.kind.chip()).collect::<Vec<_>>(), [Some(0), Some(0), Some(1)]);
     }
 
     #[test]

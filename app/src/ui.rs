@@ -2,178 +2,22 @@
 //! single-threaded: everything here runs on Android's main thread, called from SpatchApp's natives.
 //! Core replies arrive on other threads and wait in `LATEST` until the next frame picks them up.
 
+use crate::colors;
 use crate::core;
 use crate::images;
 use crate::library::{self, Item};
 use crate::player::{self, Command, NowPlaying};
 use crate::window::SpatchWindow;
 use slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
-use slint::{LogicalPosition, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle, LogicalPosition, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-slint::slint! {
-    export struct Row { title: string, subtitle: string, art: image, uri: string }
-
-    component Art inherits Rectangle {
-        in property <image> source;
-        background: #2b2640;
-        clip: true;
-        Image { width: parent.width; height: parent.height; source: root.source; image-fit: cover; }
-    }
-
-    component Pill inherits Rectangle {
-        in property <string> label;
-        in property <bool> strong;
-        callback clicked();
-        height: 56px;
-        border-radius: self.height / 2;
-        background: strong ? (touch.pressed ? #b69df8 : #d0bcff) : (touch.pressed ? #3b3550 : #2b2640);
-        Text { text: root.label; color: root.strong ? #381e72 : #e8def8; font-size: 18px; font-weight: 700; }
-        touch := TouchArea { clicked => { root.clicked(); } }
-    }
-
-    component RowView inherits Rectangle {
-        in property <Row> item;
-        callback clicked();
-        height: 68px;
-        border-radius: 14px;
-        background: touch.pressed ? #2b2640 : transparent;
-        HorizontalLayout {
-            padding: 8px;
-            spacing: 14px;
-            Art { width: 52px; height: 52px; border-radius: 10px; source: root.item.art; }
-            VerticalLayout {
-                alignment: center;
-                spacing: 2px;
-                Text { text: root.item.title; color: #f3eeff; font-size: 16px; font-weight: 600; overflow: elide; }
-                Text { text: root.item.subtitle; color: #bcb3dc; font-size: 13px; overflow: elide; }
-            }
-        }
-        touch := TouchArea { clicked => { root.clicked(); } }
-    }
-
-    component NavItem inherits Rectangle {
-        in property <string> label;
-        in property <bool> selected;
-        callback clicked();
-        VerticalLayout {
-            alignment: center;
-            Rectangle {
-                height: 36px;
-                width: 88px;
-                border-radius: 18px;
-                background: root.selected ? #4a4458 : (touch.pressed ? #2b2640 : transparent);
-                Text { text: root.label; color: root.selected ? #f3eeff : #bcb3dc; font-size: 14px; font-weight: root.selected ? 700 : 500; }
-            }
-        }
-        touch := TouchArea { clicked => { root.clicked(); } }
-    }
-
-    export component AppWindow inherits Window {
-        in-out property <int> tab;
-        in property <string> track: "Nothing playing";
-        in property <string> artist;
-        in property <string> album;
-        in property <image> cover;
-        in property <bool> playing;
-        in property <float> progress;
-        in property <string> position: "0:00";
-        in property <string> duration: "0:00";
-        in property <[Row]> up-next;
-        in property <[Row]> library;
-        in property <string> library-status: "Loading your library…";
-        in property <string> status;
-        callback toggle();
-        callback next();
-        callback previous();
-        callback seek(float);
-        callback play(string);
-        callback library-opened();
-        callback dismiss();
-        background: #141218;
-
-        VerticalLayout {
-            HorizontalLayout {
-                padding-left: 24px;
-                padding-right: 16px;
-                padding-top: 44px;
-                padding-bottom: 8px;
-                Text { text: root.tab == 0 ? "spatch" : "Your Library"; color: #e8def8; font-size: 26px; font-weight: 800; vertical-alignment: center; }
-                Rectangle {}
-                Pill { label: "Close"; width: 96px; height: 44px; clicked => { root.dismiss(); } }
-            }
-
-            if root.tab == 0: Flickable {
-                content-height: page.preferred-height;
-                page := VerticalLayout {
-                    width: parent.width;
-                    padding: 24px;
-                    padding-top: 8px;
-                    spacing: 18px;
-                    Art { height: self.width; border-radius: 28px; source: root.cover; }
-                    VerticalLayout {
-                        spacing: 4px;
-                        Text { text: root.track; color: #f3eeff; font-size: 24px; font-weight: 700; overflow: elide; }
-                        Text { text: root.artist; color: #bcb3dc; font-size: 17px; overflow: elide; }
-                    }
-                    VerticalLayout {
-                        spacing: 6px;
-                        Rectangle {
-                            height: 24px;
-                            Rectangle {
-                                y: (parent.height - self.height) / 2;
-                                height: 6px;
-                                border-radius: 3px;
-                                background: #3b3550;
-                                Rectangle { x: 0; width: parent.width * clamp(root.progress, 0, 1); height: parent.height; border-radius: 3px; background: #d0bcff; }
-                            }
-                            TouchArea { clicked => { root.seek(self.mouse-x / self.width); } }
-                        }
-                        HorizontalLayout {
-                            Text { text: root.position; color: #bcb3dc; font-size: 13px; }
-                            Rectangle {}
-                            Text { text: root.duration; color: #bcb3dc; font-size: 13px; }
-                        }
-                    }
-                    HorizontalLayout {
-                        spacing: 12px;
-                        Pill { label: "Prev"; clicked => { root.previous(); } }
-                        Pill { label: root.playing ? "Pause" : "Play"; strong: true; clicked => { root.toggle(); } }
-                        Pill { label: "Next"; clicked => { root.next(); } }
-                    }
-                    if root.up-next.length > 0: Text { text: "Up next"; color: #e8def8; font-size: 18px; font-weight: 700; }
-                    for row in root.up-next: RowView { item: row; }
-                    if root.status != "": Text { text: root.status; color: #8a83a0; font-size: 12px; wrap: word-wrap; }
-                }
-            }
-
-            if root.tab == 1: VerticalLayout {
-                if root.library-status != "": Text { text: root.library-status; color: #bcb3dc; font-size: 14px; wrap: word-wrap; x: 24px; }
-                // shortcut: every row is built up front; fine for a few hundred, switch to a virtualised list for more.
-                Flickable {
-                    content-height: list.preferred-height;
-                    list := VerticalLayout {
-                        width: parent.width;
-                        padding-left: 16px;
-                        padding-right: 16px;
-                        for row in root.library: RowView { item: row; clicked => { root.play(row.uri); } }
-                    }
-                }
-            }
-
-            HorizontalLayout {
-                height: 76px;
-                padding-bottom: 12px;
-                NavItem { label: "Now playing"; selected: root.tab == 0; clicked => { root.tab = 0; } }
-                NavItem { label: "Library"; selected: root.tab == 1; clicked => { root.tab = 1; root.library-opened(); } }
-            }
-        }
-    }
-}
+// The screens live in app/ui/*.slint (compiled by build.rs): Material 3 Expressive, the Pixel look.
+slint::include_modules!();
 
 thread_local! {
     static APP: RefCell<Option<App>> = const { RefCell::new(None) };
@@ -208,6 +52,8 @@ struct App {
     now: NowPlaying,
     library: Vec<Item>,
     library_asked: bool,
+    /// The selected chip (playlists, albums, artists, podcasts), or -1 for everything.
+    filter: i32,
     /// The second the clock last showed: the progress moves once a second, not every frame.
     shown_second: i64,
 }
@@ -256,7 +102,9 @@ impl App {
     fn show_art(&self) {
         self.ui.set_cover(images::get(&self.now.image, COVER).unwrap_or_default());
         self.ui.set_up_next(rows(self.now.up_next.iter().map(|(t, a, i)| (t.clone(), a.clone(), i.clone(), String::new()))));
-        self.ui.set_library(rows(self.library.iter().map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone()))));
+        let filter = self.filter;
+        let shown = self.library.iter().filter(|i| filter < 0 || i.kind.chip() == Some(filter));
+        self.ui.set_library(rows(shown.map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone()))));
     }
 }
 
@@ -278,8 +126,39 @@ fn epoch_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
+/// The look the app opens with: the Spatch theme's nine colours and the system bars' heights (px).
+pub struct Look {
+    pub density: f32,
+    pub theme: [u32; 9],
+    pub inset_top: f32,
+    pub inset_bottom: f32,
+}
+
+fn apply_theme(ui: &AppWindow, look: &Look) {
+    let r = colors::roles(&look.theme);
+    let c = |argb: u32| slint::Color::from_argb_encoded(argb);
+    let t = ui.global::<Theme>();
+    t.set_background(c(r.background));
+    t.set_surface_container(c(r.surface_container));
+    t.set_surface_container_high(c(r.surface_container_high));
+    t.set_surface_container_highest(c(r.surface_container_highest));
+    t.set_on_surface(c(r.on_surface));
+    t.set_on_surface_variant(c(r.on_surface_variant));
+    t.set_primary(c(r.primary));
+    t.set_on_primary(c(r.on_primary));
+    t.set_primary_container(c(r.primary_container));
+    t.set_on_primary_container(c(r.on_primary_container));
+    t.set_secondary_container(c(r.secondary_container));
+    t.set_on_secondary_container(c(r.on_secondary_container));
+    t.set_outline(c(r.outline));
+    t.set_outline_variant(c(r.outline_variant));
+    t.set_inset_top(look.inset_top / look.density);
+    t.set_inset_bottom(look.inset_bottom / look.density);
+}
+
 /// Opens the app's window at the screen's density and starts following the player.
-pub fn open(density: f32) {
+pub fn open(look: Look) {
+    let density = look.density;
     if !PLATFORM_SET.swap(true, Ordering::AcqRel) {
         if let Err(e) = slint::platform::set_platform(Box::new(AndroidPlatform { start: Instant::now() })) {
             log::error!("set_platform: {e}");
@@ -294,7 +173,16 @@ pub fn open(density: f32) {
     };
     let Some(window) = NEW_WINDOW.with(|w| w.borrow_mut().take()) else { return };
     window.window().dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: density });
+    apply_theme(&ui, &look);
     ui.on_dismiss(core::close_app);
+    ui.on_filter_changed(|filter| {
+        APP.with(|a| {
+            if let Some(app) = a.borrow_mut().as_mut() {
+                app.filter = filter;
+                app.show_art();
+            }
+        })
+    });
     ui.on_play(|uri| send(Command::Play(uri.to_string())));
     ui.on_seek(|fraction| {
         APP.with(|a| {
@@ -324,7 +212,7 @@ pub fn open(density: f32) {
     });
     let _ = ui.show();
     ui.set_status("Connecting to Spotify's player…".into());
-    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), library_asked: false, shown_second: -1 }));
+    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), library_asked: false, filter: -1, shown_second: -1 }));
     std::thread::spawn(|| {
         match when_ready(subscribe_player) {
             Ok(id) => STREAM.lock().unwrap().replace(id),
@@ -386,7 +274,6 @@ pub fn frame() -> i64 {
             if let Some(now) = LATEST.lock().unwrap().take() {
                 app.ui.set_track(if now.title.is_empty() { "Nothing playing".into() } else { SharedString::from(now.title.as_str()) });
                 app.ui.set_artist(now.artist.as_str().into());
-                app.ui.set_album(now.album.as_str().into());
                 app.ui.set_playing(now.playing);
                 app.ui.set_duration(clock(now.duration_ms).into());
                 app.now = now;

@@ -30,6 +30,7 @@ slint = { version = "=1.18.1", default-features = false, features = ["std", "com
 
 [build-dependencies]
 prost-build = "0.14"
+slint-build = "=1.18.1"
 
 [profile.release]
 opt-level = "s"

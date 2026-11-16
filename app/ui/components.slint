@@ -1,0 +1,185 @@
+import { Theme, Type } from "theme.slint";
+import { Icons } from "icons.slint";
+
+// A Material Symbol (24px grid, 960 units).
+export component Icon inherits Path {
+    in property <string> icon;
+    in property <length> size: 24px;
+    width: root.size;
+    height: root.size;
+    viewbox-x: 0;
+    viewbox-y: -960;
+    viewbox-width: 960;
+    viewbox-height: 960;
+    commands: root.icon;
+    fill: Theme.on-surface;
+    stroke-width: 0;
+}
+
+// Pressed-state layer (M3: the content colour at 10%).
+export component StateLayer inherits Rectangle {
+    in property <bool> pressed;
+    in property <color> tint: Theme.on-surface;
+    background: root.pressed ? root.tint.with-alpha(0.10) : transparent;
+    animate background { duration: 120ms; }
+}
+
+// M3 standard icon button: 40px target, 24px icon; filled-tonal or filled when asked.
+export component IconButton inherits Rectangle {
+    in property <string> icon;
+    in property <length> size: 40px;
+    in property <length> icon-size: 24px;
+    in property <color> container: transparent;
+    in property <color> content: Theme.on-surface-variant;
+    callback clicked();
+    width: root.size;
+    height: root.size;
+    border-radius: root.size / 2;
+    background: root.container;
+    clip: true;
+    StateLayer { pressed: touch.pressed; tint: root.content; }
+    Icon { icon: root.icon; size: root.icon-size; fill: root.content; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// Artwork with the theme's container behind it while it loads.
+export component Art inherits Rectangle {
+    in property <image> source;
+    background: Theme.surface-container-high;
+    clip: true;
+    Image { width: parent.width; height: parent.height; source: root.source; image-fit: cover; }
+}
+
+export struct Row { title: string, subtitle: string, art: image, uri: string }
+
+// M3 two-line list item: 72px, 56px leading image.
+export component ListItem inherits Rectangle {
+    in property <Row> item;
+    callback clicked();
+    height: 72px;
+    StateLayer { pressed: touch.pressed; }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 24px;
+        spacing: 16px;
+        alignment: start;
+        Art { width: 56px; height: 56px; y: 8px; border-radius: 12px; source: root.item.art; }
+        VerticalLayout {
+            alignment: center;
+            Text { text: root.item.title; color: Theme.on-surface; font-size: Type.body-large; overflow: elide; }
+            Text { text: root.item.subtitle; color: Theme.on-surface-variant; font-size: Type.body-medium; overflow: elide; }
+        }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// M3 filter chip: outlined, filled with a check when selected.
+export component FilterChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback clicked();
+    height: 32px;
+    border-radius: 8px;
+    border-width: root.selected ? 0px : 1px;
+    border-color: Theme.outline-variant;
+    background: root.selected ? Theme.secondary-container : transparent;
+    clip: true;
+    StateLayer { pressed: touch.pressed; tint: root.selected ? Theme.on-secondary-container : Theme.on-surface-variant; }
+    HorizontalLayout {
+        padding-left: root.selected ? 8px : 16px;
+        padding-right: 16px;
+        spacing: 8px;
+        if root.selected: Icon { icon: Icons.check; size: 18px; y: 7px; fill: Theme.on-secondary-container; }
+        Text { text: root.label; vertical-alignment: center; font-size: Type.label-large; font-weight: 500; color: root.selected ? Theme.on-secondary-container : Theme.on-surface-variant; }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// M3 navigation bar destination: icon in a 64x32 pill indicator, label under it.
+export component NavItem inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <bool> selected;
+    callback clicked();
+    VerticalLayout {
+        alignment: center;
+        spacing: 4px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 64px;
+                height: 32px;
+                border-radius: 16px;
+                background: root.selected ? Theme.secondary-container : transparent;
+                animate background { duration: 200ms; }
+                clip: true;
+                StateLayer { pressed: touch.pressed; }
+                Icon { icon: root.icon; fill: root.selected ? Theme.on-secondary-container : Theme.on-surface-variant; }
+            }
+        }
+        Text {
+            text: root.label;
+            horizontal-alignment: center;
+            font-size: Type.label-medium;
+            font-weight: root.selected ? 700 : 500;
+            color: root.selected ? Theme.on-surface : Theme.on-surface-variant;
+        }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// M3 Expressive wavy progress: the played part waves while playing, the rest is a flat track.
+// Tap to seek.
+export component WavyProgress inherits Rectangle {
+    in property <float> progress;
+    in property <bool> playing;
+    callback seek(float);
+    height: 24px;
+    property <length> at: root.width * clamp(root.progress, 0, 1);
+    Rectangle {
+        x: root.at + 6px;
+        y: (root.height - self.height) / 2;
+        width: max(0px, root.width - root.at - 6px);
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.secondary-container;
+    }
+    Rectangle {
+        x: 0; // children without an x are centred
+        width: root.at;
+        clip: true;
+        if root.playing: Path {
+            x: 0;
+            width: root.width;
+            height: root.height;
+            viewbox-x: 0;
+            viewbox-y: -10;
+            viewbox-width: 1000;
+            viewbox-height: 20;
+            commands: "M0 0 Q25 -10 50 0 Q75 10 100 0 Q125 -10 150 0 Q175 10 200 0 Q225 -10 250 0 Q275 10 300 0 Q325 -10 350 0 Q375 10 400 0 Q425 -10 450 0 Q475 10 500 0 Q525 -10 550 0 Q575 10 600 0 Q625 -10 650 0 Q675 10 700 0 Q725 -10 750 0 Q775 10 800 0 Q825 -10 850 0 Q875 10 900 0 Q925 -10 950 0 Q975 10 1000 0 Q1025 -10 1050 0 Q1075 10 1100 0 Q1125 -10 1150 0 Q1175 10 1200 0";
+            stroke: Theme.primary;
+            stroke-width: 4px;
+            stroke-line-cap: round;
+            fill: transparent;
+        }
+        if !root.playing: Rectangle { y: (root.height - 4px) / 2; height: 4px; border-radius: 2px; background: Theme.primary; }
+    }
+    // The stop indicator at the end of the track.
+    Rectangle { x: root.width - 4px; y: (root.height - 4px) / 2; width: 4px; height: 4px; border-radius: 2px; background: Theme.primary; }
+    TouchArea { clicked => { root.seek(self.mouse-x / self.width); } }
+}
+
+// M3 Expressive play button: a circle when paused, morphing to a rounded square while playing.
+export component PlayButton inherits Rectangle {
+    in property <bool> playing;
+    callback clicked();
+    width: 96px;
+    height: 80px;
+    border-radius: root.playing ? 24px : 40px;
+    animate border-radius { duration: 350ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    background: Theme.primary;
+    clip: true;
+    StateLayer { pressed: touch.pressed; tint: Theme.on-primary; }
+    Icon { icon: root.playing ? Icons.pause : Icons.play; size: 36px; fill: Theme.on-primary; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}

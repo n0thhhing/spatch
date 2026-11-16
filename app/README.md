@@ -87,6 +87,19 @@ Enums are emitted as `int32`, which has the same wire format. `app/proto` holds 
 compiles and its imports. Copy more packages from the full set as screens need them, and add them to
 `build.rs`.
 
+## UI
+
+The screens are in `ui/*.slint`, compiled by `build.rs`. They follow Material 3 Expressive, the look of
+Pixel's own apps:
+- `theme.slint`: Material colour roles, made in `colors.rs` from the running Spatch theme's nine colours
+  (Java passes them, with the system bar heights, at open).
+- `icons.slint`: Material Symbols generated from Spatch's bundled `spatch_ms_*` drawables.
+- `components.slint`: icon buttons, list items, filter chips, the navigation bar, the wavy progress bar
+  and the play button that morphs from circle to rounded square.
+
+`cargo run --example preview -- <dir>` renders both screens on the Mac as PPM files, a quick layout check
+without a phone.
+
 ## Building
 
 ```bash

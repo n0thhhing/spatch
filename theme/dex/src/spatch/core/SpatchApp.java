@@ -124,8 +124,22 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
         app.spotify = decor.findViewById(0x01020002); // android.R.id.content
         if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
         else app.spotify = null;
-        nativeOpen(activity.getResources().getDisplayMetrics().density);
+        nativeOpen(activity.getResources().getDisplayMetrics().density, theme(), bar(activity, "status_bar_height"), bar(activity, "navigation_bar_height"));
         return true;
+    }
+
+    /** The running Spatch theme's nine roles (Palette's base colours, mapped), which the app turns into Material 3 roles. */
+    private static int[] theme() {
+        int[] base = {0xff14121c, 0xff1d1a2a, 0xff2b2640, 0xfff3eeff, 0xffc6b8ff, 0xffbcb3dc, 0xffd0bcff, 0xffe0d2ff, 0xffb7a3ee};
+        int[] out = new int[base.length];
+        for (int i = 0; i < base.length; i++) out[i] = Palette.color(base[i]);
+        return out;
+    }
+
+    /** A system bar's height in pixels (the app draws under both). */
+    private static int bar(Context c, String name) {
+        int id = c.getResources().getIdentifier(name, "dimen", "android");
+        return id == 0 ? 0 : c.getResources().getDimensionPixelSize(id);
     }
 
     /** Called by the Rust app (any thread) to close itself. */
@@ -201,7 +215,7 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
         return true;
     }
 
-    static native void nativeOpen(float density);
+    static native void nativeOpen(float density, int[] theme, int insetTop, int insetBottom);
 
     static native void nativeClose();
 

@@ -3,6 +3,7 @@
 //! library, playlists...) as protobuf bytes. Nothing here sees an obfuscated name, so a Spotify update
 //! only touches the Java hooks.
 
+pub mod colors;
 pub mod core;
 pub mod images;
 pub mod library;
