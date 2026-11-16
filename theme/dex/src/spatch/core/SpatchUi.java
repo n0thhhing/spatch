@@ -1789,10 +1789,7 @@ public final class SpatchUi extends FrameLayout {
             makeClickable(swatch, seedNames[i] + " colours", () -> {
                 prefs.edit().putInt("accent", seed).apply();
                 if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
-                int y = scroll == null ? 0 : scroll.getScrollY();
-                render();
-                ScrollView again = scroll;
-                if (again != null) again.post(() -> again.scrollTo(0, y));
+                restyleFrom(swatch);
             });
             swatch.setForeground(null);
             springPress(swatch);
@@ -1847,6 +1844,73 @@ public final class SpatchUi extends FrameLayout {
         about.addView(reset, rp);
     }
 
+    /**
+     * Rebuilds Settings in its new look, revealed in a growing circle from the tapped control: the old
+     * screen is kept as a picture on top with a hole that widens until it is gone.
+     */
+    private void restyleFrom(View origin) {
+        int y = scroll == null ? 0 : scroll.getScrollY();
+        Bitmap before = null;
+        int[] at = new int[2], here = new int[2];
+        origin.getLocationInWindow(at);
+        getLocationInWindow(here);
+        float cx = at[0] - here[0] + origin.getWidth() / 2f, cy = at[1] - here[1] + origin.getHeight() / 2f;
+        if (motionEnabled() && getWidth() > 0 && getHeight() > 0) {
+            try {
+                before = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
+                draw(new Canvas(before));
+            } catch (OutOfMemoryError e) {
+                before = null;
+            }
+        }
+        render();
+        ScrollView again = scroll;
+        if (again != null) again.post(() -> again.scrollTo(0, y));
+        if (before == null) return;
+        Bitmap picture = before;
+        float reach = (float) Math.hypot(Math.max(cx, getWidth() - cx), Math.max(cy, getHeight() - cy));
+        Veil veil = new Veil(picture, cx, cy);
+        veil.setBounds(0, 0, getWidth(), getHeight());
+        getOverlay().add(veil);
+        android.animation.ValueAnimator grow = android.animation.ValueAnimator.ofFloat(0f, reach);
+        grow.setDuration(520);
+        grow.setInterpolator(new android.view.animation.PathInterpolator(.4f, 0f, .2f, 1f));
+        grow.addUpdateListener(f -> {
+            veil.radius = (float) f.getAnimatedValue();
+            veil.invalidateSelf();
+        });
+        grow.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                getOverlay().remove(veil);
+                picture.recycle();
+            }
+        });
+        grow.start();
+    }
+
+    /** The old screen as a picture with a circular hole: as the hole grows, the new look shows through. */
+    private static final class Veil extends android.graphics.drawable.Drawable {
+        private final Bitmap picture;
+        private final float cx, cy;
+        private final Path hole = new Path();
+        float radius;
+
+        Veil(Bitmap picture, float cx, float cy) { this.picture = picture; this.cx = cx; this.cy = cy; }
+
+        @Override public void draw(Canvas c) {
+            hole.rewind();
+            hole.addCircle(cx, cy, radius, Path.Direction.CW);
+            c.save();
+            c.clipOutPath(hole);
+            c.drawBitmap(picture, 0, 0, null);
+            c.restore();
+        }
+
+        @Override public void setAlpha(int alpha) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+    }
+
     /** A connected button group storing its index under `key`; picking one rebuilds the page in place. */
     private LinearLayout choiceRow(String[] names, String key, String spoken) {
         LinearLayout options = row();
@@ -1863,10 +1927,7 @@ public final class SpatchUi extends FrameLayout {
             makeClickable(option, names[i] + spoken, () -> {
                 prefs.edit().putInt(key, choice).apply();
                 if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
-                int y = scroll == null ? 0 : scroll.getScrollY();
-                render();
-                ScrollView again = scroll;
-                if (again != null) again.post(() -> again.scrollTo(0, y));
+                restyleFrom(option);
             });
             springPress(option);
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(44), 1);
