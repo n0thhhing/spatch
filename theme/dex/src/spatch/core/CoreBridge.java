@@ -1,8 +1,6 @@
 package spatch;
 
 import com.spotify.esperanto.esperanto.Transport;
-import com.spotify.esperanto.esperanto.CoroutineTransport;
-import java.util.concurrent.CompletableFuture;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -12,11 +10,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Spatch's door into Spotify's core. Every Esperanto client (ClientBase) is built around a transport
- * that carries protobuf bytes to a service by name: "spotify.player.esperanto.proto.ContextPlayer" /
- * "GetState" and so on. ClientBase's constructor hands its transport here; it comes back wrapped, so
- * the first call to each service records which transport serves it. The Rust app then calls any
- * service the same way Spotify's own UI does, with bytes in and bytes out (app/proto has the schemas).
+ * Spatch's door into Spotify's core. Every Esperanto client is built around a transport that carries
+ * protobuf bytes to a service by name ("spotify.player.esperanto.proto.ContextPlayer" / "GetState").
+ * ClientBase's constructor hands its transport to {@link #wrap}, so the first call to each service
+ * records which transport serves it; Rust then calls any service the way Spotify's own screens do.
  */
 public final class CoreBridge implements Transport {
     private static final ConcurrentHashMap<String, Transport> SERVICES = new ConcurrentHashMap<String, Transport>();
@@ -24,23 +21,9 @@ public final class CoreBridge implements Transport {
     private static final AtomicLong NEXT = new AtomicLong(1);
     /** The first native transport seen: serves services Spotify hasn't called yet. */
     private static volatile Transport fallback;
-    private static volatile CoroutineTransport playlistTransport;
+    /** A service every signed-in session uses, so its transport is known to reach the account. */
+    private static final String ACCOUNT_SERVICE = "spotify.your_library_esperanto.proto.YourLibraryService";
     private final Transport inner;
-
-    private static int coroutineTransports;
-
-    public static void coroutineTransport(Object transport) {
-        playlistTransport = (CoroutineTransport) transport;
-        android.util.Log.i("SpatchCore", "Coroutine transport #" + (++coroutineTransports) + ": " + System.identityHashCode(transport));
-    }
-
-    /** A transport Spotify itself has used, preferring the library's: it is known to be connected to the account. */
-    private static Transport liveTransport(String service) {
-        Transport t = SERVICES.get(service);
-        if (t == null) t = SERVICES.get("spotify.your_library_esperanto.proto.YourLibraryService");
-        if (t == null) t = SERVICES.get("spotify.player.esperanto.proto.ContextPlayer");
-        return t != null ? t : transport(service);
-    }
 
     private CoreBridge(Transport inner) {
         this.inner = inner;
@@ -55,8 +38,14 @@ public final class CoreBridge implements Transport {
         return new CoreBridge(t);
     }
 
+    /** Hook: the account's coroutine transport; nothing needs it now that playlists use the account's Rx transport. */
+    public static void coroutineTransport(Object transport) {}
+
+    /** Hook: Spotify's Cosmos router; kept so the hook stays valid, unused by the UI. */
+    public static void router(Object router) {}
+
     private void seen(String service) {
-        if (service != null && !SERVICES.containsKey(service)) SERVICES.putIfAbsent(service, inner);
+        if (service != null) SERVICES.putIfAbsent(service, inner);
     }
 
     public Single callSingle(String service, String method, byte[] request) {
@@ -81,58 +70,15 @@ public final class CoreBridge implements Transport {
         return t;
     }
 
-    /** From Rust, on its own thread (never the main one): one request, its reply. Throws with Spotify's error. */
-    public static byte[] call(String service, String method, byte[] request) throws Exception {
-        CoroutineTransport transport = playlistTransport;
-        if (service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
-            // First the transport the library already answers on (the Rx fallback before was the first native
-            // transport ever created, possibly not the account's).
-            Transport live = liveTransport(service);
-            try {
-                return (byte[]) live.callSingle(service, method, request).timeout(5, TimeUnit.SECONDS).blockingGet();
-            } catch (RuntimeException e) {
-                android.util.Log.w("SpatchCore", "Playlist via the library's transport failed (" + e + "); services seen: " + services()
-                    + "; coroutine transports: " + coroutineTransports);
-                if (transport == null) throw e;
-            }
-        }
-        if (transport != null && service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
-            // Spotify's playlist screen never calls Get: it subscribes and renders each emission. Do the same,
-            // keep the first reply, and stop. (Get, by coroutine or Rx, never answered on the phone.)
-            String method2 = method.equals("Get") ? "Subscribe" : method;
-            CompletableFuture<Object> first = new CompletableFuture<>();
-            Thread collector = new Thread(() -> {
-                try {
-                    p.S_KotlinFlow flow = transport.callStream(service, method2, request);
-                    flow.collect(new p.vr20() {
-                        public Object emit(Object value, p.lnm continuation) {
-                            first.complete(value);
-                            throw new java.util.concurrent.CancellationException("Spatch took the first reply");
-                        }
-                    }, new p.lnm() {
-                        public p.o8n getContext() { return p.o6x.a; }
-                        public void resumeWith(Object value) { if (!first.isDone()) first.complete(value); }
-                    });
-                } catch (java.util.concurrent.CancellationException done) {
-                    // our own stop after the first reply
-                } catch (Throwable e) {
-                    first.completeExceptionally(e);
-                }
-            }, "SpatchPlaylist");
-            collector.setDaemon(true);
-            collector.start();
-            String why;
-            try {
-                Object result = first.get(9, TimeUnit.SECONDS);
-                if (result instanceof byte[]) return (byte[]) result;
-                why = result == null ? "null" : result.getClass().getName() + ": " + result;
-            } catch (Exception e) {
-                why = String.valueOf(e.getCause() != null ? e.getCause() : e);
-            }
-            android.util.Log.w("SpatchCore", "Playlist " + method2 + " on the coroutine transport gave no bytes (" + why + ")");
-            throw new IllegalStateException("Playlist service: " + why);
-        }
-        return (byte[]) transport(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
+    /**
+     * From Rust, on its own thread (never the main one): one request, its reply. Services Spotify hasn't
+     * used yet go over the account's transport (the library's) rather than whichever native one came first.
+     */
+    public static byte[] call(String service, String method, byte[] request) {
+        Transport t = SERVICES.get(service);
+        if (t == null) t = SERVICES.get(ACCOUNT_SERVICE);
+        if (t == null) t = transport(service);
+        return (byte[]) t.callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
     }
 
     /** From Rust: replies stream to nativeNext(token, bytes) until cancel(id) or an error (nativeError). */
@@ -157,26 +103,7 @@ public final class CoreBridge implements Transport {
         if (d != null) d.dispose();
     }
 
-    /** Spotify's native Cosmos router (sp:// and hm:// requests through the core's own connection). */
-    private static volatile Object router;
-
-    /** Hook: RemoteNativeRxRouter's constructor. */
-    public static void router(Object r) {
-        if (router == null && r instanceof com.spotify.cosmos.rxrouter.RxRouter) router = r;
-    }
-
-    /** From Rust, off the main thread: one Cosmos request; the body of the first reply. Throws on a non-2xx status. */
-    public static byte[] request(String action, String uri, byte[] body) {
-        Object r = router;
-        if (r == null) throw new IllegalStateException("Spotify's router isn't running yet");
-        com.spotify.cosmos.cosmos.Response reply = (com.spotify.cosmos.cosmos.Response)
-            ((com.spotify.cosmos.rxrouter.RxRouter) r).resolve(new com.spotify.cosmos.cosmos.Request(action, uri, body)).blockingFirst();
-        if (reply.getStatus() / 100 != 2) throw new IllegalStateException(action + " " + uri + " answered " + reply.getStatus());
-        byte[] out = reply.getBody();
-        return out == null ? new byte[0] : out;
-    }
-
-    /** Decodes artwork off the UI thread and scales it to the requested size. */
+    /** Downloads artwork off the UI thread and scales it to fit `size`; null if it can't be had. */
     static android.graphics.Bitmap artwork(String url, int size) {
         if (!url.startsWith("https://")) return null;
         try {
@@ -213,11 +140,6 @@ public final class CoreBridge implements Transport {
         } catch (Throwable e) {
             return null;
         }
-    }
-
-    /** Services seen so far, for the developer log. */
-    public static String services() {
-        return new java.util.TreeSet<String>(SERVICES.keySet()).toString() + (fallback == null ? " (no native transport yet)" : "") + (router == null ? " (no router yet)" : "");
     }
 
     static native void nativeInit();

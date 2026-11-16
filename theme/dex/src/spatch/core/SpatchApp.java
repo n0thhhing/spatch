@@ -13,38 +13,37 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/** Mounts the Spatch UI over Spotify while its core runs underneath. */
+/** Mounts the Spatch UI over Spotify's screen while Spotify's core keeps running underneath. */
 public final class SpatchApp {
-    private static final String ASSET = "spatch/libspatch_app.so";
+    private static final String LIBRARY_ASSET = "spatch/libspatch_app.so";
+    private static final String ROOT_TAG = "spatch-root";
+    private static boolean loaded, watching;
     private static String loadError;
-    private static boolean loaded;
-    private static final String ROOT = "spatch-root";
-    private static boolean watching;
 
-    /** Whether the Rust library is loaded; copies it out of the APK on first use. */
-    static synchronized boolean load(Context c) {
+    /** Copies the Rust library out of the APK on first use and loads it; true once it is loaded. */
+    private static synchronized boolean load(Context context) {
         if (loaded) return true;
         try {
-            File dir = new File(c.getFilesDir(), "spatch-app");
+            File dir = new File(context.getFilesDir(), "spatch-app");
             if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException("can't create " + dir);
-            byte[] bytes = read(c.getAssets().open(ASSET));
+            byte[] bytes = read(context.getAssets().open(LIBRARY_ASSET));
             java.util.zip.CRC32 crc = new java.util.zip.CRC32();
             crc.update(bytes, 0, bytes.length);
             File lib = new File(dir, "libspatch_app-" + bytes.length + "-" + Long.toHexString(crc.getValue()) + ".so");
             if (!lib.isFile()) {
-                File tmp = new File(dir, lib.getName() + ".part");
-                try (OutputStream out = new FileOutputStream(tmp)) {
+                File part = new File(dir, lib.getName() + ".part");
+                try (OutputStream out = new FileOutputStream(part)) {
                     out.write(bytes);
                 }
-                if (!tmp.renameTo(lib)) throw new java.io.IOException("can't save " + lib);
+                if (!part.renameTo(lib)) throw new java.io.IOException("can't save " + lib);
                 File[] old = dir.listFiles();
                 if (old != null) for (File f : old) if (!f.equals(lib)) f.delete();
             }
+            // Android 14 refuses to load a writable library.
             if (lib.canWrite() && !lib.setReadOnly()) throw new java.io.IOException("can't make " + lib + " read-only");
             System.load(lib.getAbsolutePath());
             CoreBridge.nativeInit();
             loaded = true;
-            loadError = null;
         } catch (Throwable e) {
             loadError = String.valueOf(e);
         }
@@ -60,18 +59,18 @@ public final class SpatchApp {
         }
     }
 
-    /** Called from the launcher activity before Spotify resumes its presentation layer. */
+    /** Hook: the launcher activity's onResume, before Spotify resumes its own screen. */
     public static void resumed(Activity activity) {
         if (!watching) {
             watching = true;
             activity.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
                 @Override public void onActivityResumed(Activity resumed) { mount(resumed); }
-                @Override public void onActivityCreated(Activity activity, Bundle state) {}
-                @Override public void onActivityStarted(Activity activity) {}
-                @Override public void onActivityPaused(Activity activity) {}
-                @Override public void onActivityStopped(Activity activity) {}
-                @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
-                @Override public void onActivityDestroyed(Activity activity) {}
+                @Override public void onActivityCreated(Activity a, Bundle state) {}
+                @Override public void onActivityStarted(Activity a) {}
+                @Override public void onActivityPaused(Activity a) {}
+                @Override public void onActivityStopped(Activity a) {}
+                @Override public void onActivitySaveInstanceState(Activity a, Bundle state) {}
+                @Override public void onActivityDestroyed(Activity a) {}
             });
         }
         mount(activity);
@@ -81,18 +80,19 @@ public final class SpatchApp {
         if (activity.isFinishing()) return;
         try {
             ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
-            View nativeContent = decor.findViewById(android.R.id.content);
-            if (nativeContent != null) {
-                nativeContent.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-                nativeContent.setVisibility(View.INVISIBLE);
+            View spotify = decor.findViewById(android.R.id.content);
+            if (spotify != null) {
+                spotify.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+                spotify.setVisibility(View.INVISIBLE);
             }
-            if (decor.findViewWithTag(ROOT) != null) return;
-
-            activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+            if (decor.findViewWithTag(ROOT_TAG) != null) return;
             View root;
             if (load(activity)) {
                 SpatchUi ui = new SpatchUi(activity);
-                if (Build.VERSION.SDK_INT >= 33) Back33.register(activity, ui);
+                if (Build.VERSION.SDK_INT >= 33) {
+                    activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                        android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, (android.window.OnBackInvokedCallback) ui.backCallback());
+                }
                 root = ui;
             } else {
                 android.util.Log.e("SpatchApp", "load failed: " + loadError);
@@ -103,17 +103,10 @@ public final class SpatchApp {
                 error.setText("Spatch couldn’t start");
                 root = error;
             }
-            root.setTag(ROOT);
+            root.setTag(ROOT_TAG);
             decor.addView(root, new FrameLayout.LayoutParams(-1, -1));
         } catch (Throwable t) {
             android.util.Log.e("SpatchApp", "mount failed", t);
-        }
-    }
-
-    private static final class Back33 {
-        private static void register(Activity activity, SpatchUi ui) {
-            activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, (android.window.OnBackInvokedCallback) ui.backCallback());
         }
     }
 }
