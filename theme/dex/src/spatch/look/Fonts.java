@@ -84,7 +84,7 @@ public final class Fonts {
 
     static synchronized void select(String id) {
         selected = known(id);
-        if (prefs != null) prefs.edit().putString(KEY, selected).apply();
+        if (prefs != null) prefs.edit().putString(KEY, selected).commit(); // a restart can follow at once
     }
 
     private static String[] builtIn(String id) {

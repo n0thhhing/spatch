@@ -182,6 +182,9 @@ public final class Palette {
     static void restart(Context c){
         android.content.Intent launch=c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
         if(launch==null || launch.getComponent()==null)throw new IllegalStateException("Launcher unavailable");
+        // Choices are saved with apply(), which writes in the background: a commit waits until every one is on disk,
+        // or exiting straight after a pick (a font, then Restart now) loses it and the old choice comes back.
+        c.getSharedPreferences("spatch",0).edit().commit();
         c.startActivity(android.content.Intent.makeRestartActivityTask(launch.getComponent()));
         Runtime.getRuntime().exit(0);
     }
