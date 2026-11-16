@@ -481,11 +481,37 @@ public final class SpatchUi extends FrameLayout {
         if (playerOpen) { playerOpen = false; openPlayer(false); }
     }
 
+    /** Rebuilds in the new palette; the old screen, kept as a picture, fades away over it. */
     private void recolor() {
+        Bitmap before = null;
+        if (motion() && getWidth() > 0 && getHeight() > 0) {
+            try {
+                before = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
+                draw(new Canvas(before));
+            } catch (OutOfMemoryError e) {
+                before = null;
+            }
+        }
         int y = pageScroll != null ? pageScroll.getScrollY() : 0;
         build();
         ScrollView s = pageScroll;
         if (s != null && y > 0) s.post(() -> s.scrollTo(0, y));
+        if (before == null) return;
+        android.graphics.drawable.BitmapDrawable ghost = new android.graphics.drawable.BitmapDrawable(getResources(), before);
+        ghost.setBounds(0, 0, getWidth(), getHeight());
+        getOverlay().add(ghost);
+        android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(255, 0);
+        fade.setDuration(650);
+        fade.setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f));
+        fade.addUpdateListener(a -> ghost.setAlpha((int) a.getAnimatedValue()));
+        Bitmap picture = before;
+        fade.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                getOverlay().remove(ghost);
+                picture.recycle();
+            }
+        });
+        fade.start();
     }
 
     private static final android.view.animation.Interpolator EMPHASIZED = new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f);
@@ -517,6 +543,7 @@ public final class SpatchUi extends FrameLayout {
         mini.setBackground(round(blend(surfHi, accent, .12f), 30));
         mini.setElevation(dp(3));
         mArt = new Art(Art.CIRCLE, true);
+        mArt.crossfade = true;
         mini.addView(mArt, lp(dp(46), dp(46)));
         LinearLayout words = column();
         words.setPadding(dp(11), 0, dp(6), 0);
@@ -599,6 +626,7 @@ public final class SpatchUi extends FrameLayout {
         hero.setBackground(round(surf, 30));
         hero.setClipToOutline(true);
         heroArt = new Art(Art.WIDE, false);
+        heroArt.crossfade = true;
         hero.addView(heroArt, new LayoutParams(-1, dp(200)));
         View scrim = new View(activity);
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{surf & 0x00ffffff, (surf & 0x00ffffff) | 0xc8000000, surf}));
@@ -1638,12 +1666,35 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final Matrix crop = new Matrix();
         private final RectF box = new RectF();
+        /** Mini player and hero: a new cover fades in over the old one instead of replacing it. */
+        boolean crossfade;
         private boolean waiting;
         private long shownAt;
+        private Bitmap shownBitmap, previousBitmap;
 
         Art(int shape, boolean ring) { super(activity); this.shapeKind = shape; this.ring = ring; artViews.add(this); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
 
-        void bind(String u) { if (!url.equals(u)) { url = u; waiting = false; shownAt = 0; invalidate(); } }
+        void bind(String u) {
+            if (url.equals(u)) return;
+            url = u;
+            waiting = false;
+            shownAt = 0;
+            if (!crossfade) { shownBitmap = previousBitmap = null; }
+            invalidate();
+        }
+
+        private void drawCover(Canvas c, Bitmap b, int alpha, float radius) {
+            BitmapShader shader = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            float k = Math.max(box.width() / b.getWidth(), box.height() / b.getHeight());
+            crop.setScale(k, k);
+            crop.postTranslate(box.left + (box.width() - b.getWidth() * k) / 2, box.top + (box.height() - b.getHeight() * k) / 2);
+            shader.setLocalMatrix(crop);
+            paint.setShader(shader);
+            paint.setAlpha(alpha);
+            c.drawRoundRect(box, radius, radius, paint);
+            paint.setAlpha(255);
+            paint.setShader(null);
+        }
 
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
@@ -1653,7 +1704,15 @@ public final class SpatchUi extends FrameLayout {
             float r = shapeKind == CIRCLE ? Math.min(box.width(), box.height()) / 2 : shapeKind == WIDE ? 0 : dp(16);
             Bitmap b = art(url, w > dp(200) || h > dp(190) ? 440 : 180);
             if (b == null) b = art(url, 180);
-            if (b == null || (shownAt != 0 && SystemClock.uptimeMillis() - shownAt < 320)) {
+            if (crossfade && b != null && b != shownBitmap) {
+                previousBitmap = motion() ? shownBitmap : null;
+                shownBitmap = b;
+                if (previousBitmap != null) { shownAt = SystemClock.uptimeMillis(); waiting = false; }
+            }
+            if (previousBitmap != null && shownAt != 0 && SystemClock.uptimeMillis() - shownAt < 420) {
+                drawCover(c, previousBitmap, 255, r);
+            } else previousBitmap = null;
+            if (b == null || (previousBitmap == null && shownAt != 0 && SystemClock.uptimeMillis() - shownAt < 320)) {
                 paint.setShader(new LinearGradient(0, 0, w, h, surfHi, surf, Shader.TileMode.CLAMP));
                 c.drawRoundRect(box, r, r, paint);
                 paint.setShader(null);
@@ -1670,18 +1729,10 @@ public final class SpatchUi extends FrameLayout {
                 }
             } else {
                 if (waiting && motion()) { waiting = false; shownAt = SystemClock.uptimeMillis(); }
-                float f = shownAt == 0 ? 1f : Math.min(1f, (SystemClock.uptimeMillis() - shownAt) / 320f);
-                BitmapShader shader = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                float k = Math.max(box.width() / b.getWidth(), box.height() / b.getHeight());
-                crop.setScale(k, k);
-                crop.postTranslate(box.left + (box.width() - b.getWidth() * k) / 2, box.top + (box.height() - b.getHeight() * k) / 2);
-                shader.setLocalMatrix(crop);
-                paint.setShader(shader);
-                paint.setAlpha(Math.round(255 * f * (2f - f)));
-                c.drawRoundRect(box, r, r, paint);
-                paint.setAlpha(255);
-                paint.setShader(null);
-                if (f < 1f) postInvalidateOnAnimation(); else shownAt = 0;
+                long span = previousBitmap != null ? 420 : 320;
+                float f = shownAt == 0 ? 1f : Math.min(1f, (SystemClock.uptimeMillis() - shownAt) / (float) span);
+                drawCover(c, b, Math.round(255 * f * (2f - f)), r);
+                if (f < 1f) postInvalidateOnAnimation(); else { shownAt = 0; previousBitmap = null; }
             }
             if (ring) {
                 float f = duration <= 0 ? 0 : Math.min(1f, playhead() / (float) duration);
@@ -1704,6 +1755,8 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Matrix m = new Matrix();
         private android.animation.ObjectAnimator drift;
+        private Bitmap shown, previous;
+        private long fadeAt;
 
         Backdrop() {
             super(activity);
@@ -1721,6 +1774,17 @@ public final class SpatchUi extends FrameLayout {
             }
         }
 
+        private void wash(Canvas c, Bitmap blur, float w, float h, int alpha) {
+            BitmapShader s = new BitmapShader(blur, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            m.setScale(w / blur.getWidth(), h / blur.getHeight());
+            s.setLocalMatrix(m);
+            paint.setShader(s);
+            paint.setAlpha(alpha);
+            c.drawRect(0, 0, w, h, paint);
+            paint.setAlpha(255);
+            paint.setShader(null);
+        }
+
         @Override protected void onDetachedFromWindow() { if (drift != null) drift.cancel(); super.onDetachedFromWindow(); }
 
         @Override protected void onDraw(Canvas c) {
@@ -1728,15 +1792,20 @@ public final class SpatchUi extends FrameLayout {
             art(image, 440);
             Bitmap blur = IMAGES.get(image + ":440/blur");
             c.drawColor(bg);
-            if (blur != null) {
-                BitmapShader s = new BitmapShader(blur, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                m.setScale(w / blur.getWidth(), h / blur.getHeight());
-                s.setLocalMatrix(m);
-                paint.setShader(s);
-                paint.setColorFilter(VIVID);
-                c.drawRect(0, 0, w, h, paint);
-                paint.setColorFilter(null);
+            long now = SystemClock.uptimeMillis();
+            // A new cover's blur fades in over the old one.
+            if (blur != null && blur != shown) {
+                previous = motion() ? shown : null;
+                shown = blur;
+                fadeAt = now;
             }
+            float f = previous == null ? 1f : Math.min(1f, (now - fadeAt) / 700f);
+            if (f >= 1f) previous = null;
+            paint.setColorFilter(VIVID);
+            if (previous != null) wash(c, previous, w, h, 255);
+            if (shown != null) wash(c, shown, w, h, Math.round(255 * f));
+            paint.setColorFilter(null);
+            if (f < 1f) postInvalidateOnAnimation();
             paint.setShader(new LinearGradient(0, 0, 0, h, new int[]{(bg & 0x00ffffff) | 0x66000000, (bg & 0x00ffffff) | 0x99000000, bg}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
             c.drawRect(0, 0, w, h, paint);
             paint.setShader(null);
