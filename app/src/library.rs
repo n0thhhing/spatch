@@ -70,9 +70,27 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Item>, String> {
                 Some(Entity::Folder(_)) => (Kind::Other, "Folder".into()),
                 _ => (Kind::Other, String::new()),
             };
+            let kind = if is_playlist_uri(&info.uri) { Kind::Playlist } else { kind };
             Some(Item { name: info.name.clone(), uri: info.uri.clone(), subtitle, image: image_url(&info.image_uri), kind })
         })
         .collect())
+}
+
+pub fn is_liked_uri(uri: &str) -> bool {
+    uri == "spotify:collection"
+        || uri == "spotify:collection:tracks"
+        || uri == "spotify:internal:collection:tracks"
+        || uri.strip_prefix("spotify:user:").is_some_and(|tail| {
+            tail.split_once(':').is_some_and(|(_, kind)| matches!(kind, "collection" | "collection:tracks"))
+        })
+}
+
+pub fn is_playlist_uri(uri: &str) -> bool {
+    is_liked_uri(uri)
+        || uri.strip_prefix("spotify:playlist:").is_some_and(|id| !id.is_empty())
+        || uri.strip_prefix("spotify:user:").is_some_and(|tail| {
+            tail.split_once(":playlist:").is_some_and(|(_, id)| !id.is_empty())
+        })
 }
 
 fn with(kind: &str, who: &str) -> String {
@@ -106,6 +124,17 @@ mod tests {
         assert_eq!(items[1].uri, "spotify:playlist:1");
         assert_eq!(items[2].image, "https://i.scdn.co/image/ab");
         assert_eq!(items.iter().map(|i| i.kind.chip()).collect::<Vec<_>>(), [Some(0), Some(0), Some(1)]);
+    }
+
+    #[test]
+    fn classifies_library_playlists_even_without_decoration() {
+        let mut item = entity("Playlist", "spotify:user:test:playlist:123", Entity::Playlist(Default::default()));
+        item.entity = None;
+        let reply = es::YourLibraryResponse { entity: vec![item], ..Default::default() };
+        assert_eq!(decode(&reply.encode_to_vec()).unwrap()[0].kind, Kind::Playlist);
+        assert!(is_liked_uri("spotify:user:test:collection:tracks"));
+        assert!(!is_playlist_uri("spotify:track:123"));
+        assert!(!is_playlist_uri("spotify:collection:your-episodes"));
     }
 
     #[test]

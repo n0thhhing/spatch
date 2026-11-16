@@ -1,6 +1,8 @@
 package spatch;
 
 import com.spotify.esperanto.esperanto.Transport;
+import com.spotify.esperanto.esperanto.CoroutineTransport;
+import java.util.concurrent.CompletableFuture;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -22,7 +24,12 @@ public final class CoreBridge implements Transport {
     private static final AtomicLong NEXT = new AtomicLong(1);
     /** The first native transport seen: serves services Spotify hasn't called yet. */
     private static volatile Transport fallback;
+    private static volatile CoroutineTransport playlistTransport;
     private final Transport inner;
+
+    public static void coroutineTransport(Object transport) {
+        playlistTransport = (CoroutineTransport) transport;
+    }
 
     private CoreBridge(Transport inner) {
         this.inner = inner;
@@ -64,7 +71,18 @@ public final class CoreBridge implements Transport {
     }
 
     /** From Rust, on its own thread (never the main one): one request, its reply. Throws with Spotify's error. */
-    public static byte[] call(String service, String method, byte[] request) {
+    public static byte[] call(String service, String method, byte[] request) throws Exception {
+        CoroutineTransport transport = playlistTransport;
+        if (transport != null && service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
+            CompletableFuture<Object> reply = new CompletableFuture<>();
+            Object result = transport.callSingle(service, method, request, new p.lnm() {
+                public p.o8n getContext() { return p.o6x.a; }
+                public void resumeWith(Object value) { reply.complete(value); }
+            });
+            if (result == p.d9n.a) result = reply.get(8, TimeUnit.SECONDS);
+            if (result instanceof byte[]) return (byte[]) result;
+            throw new IllegalStateException("Playlist service returned no data");
+        }
         return (byte[]) transport(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
     }
 

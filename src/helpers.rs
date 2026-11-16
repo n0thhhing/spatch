@@ -25,6 +25,11 @@ pub fn helpers(debug: bool) -> Vec<(&'static str, &'static str)> {
 
 /// Compile-only stand-ins for platform and Spotify classes; never packaged.
 pub const STUBS: &[(&str, &str)] = &[
+    ("d9n.java", include_str!("../theme/dex/stubs/p/d9n.java")),
+    ("o6x.java", include_str!("../theme/dex/stubs/p/o6x.java")),
+    ("o8n.java", include_str!("../theme/dex/stubs/p/o8n.java")),
+    ("lnm.java", include_str!("../theme/dex/stubs/p/lnm.java")),
+    ("CoroutineTransport.java", include_str!("../theme/dex/stubs/com/spotify/esperanto/esperanto/CoroutineTransport.java")),
     (
         "Request.java",
         include_str!("../theme/dex/stubs/com/spotify/cosmos/cosmos/Request.java"),

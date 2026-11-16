@@ -16,6 +16,7 @@ import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.text.TextUtils;
@@ -33,6 +34,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
@@ -94,9 +96,9 @@ public final class SpatchUi extends FrameLayout {
     private boolean playlistLoading, playlistFailed;
     private TextView trackTitle, trackArtist, albumTitle, heroTitle, heroArtist;
     private Art trackArt, heroArt, atmosphere;
-    private View selectedDestination;
     private Glyph playButton, heroPlay, shuffleButton, repeatButton;
     private Wave wave;
+    private Visualizer visualizer;
 
     SpatchUi(Activity activity) {
         super(activity);
@@ -271,29 +273,13 @@ public final class SpatchUi extends FrameLayout {
         if (filter != selected) collectionRow = collectionOffset = 0;
         filter = selected;
         render();
-        if (coverTransition && trackArt != null) moveArtwork(from, cover, previous == IMMERSIVE, trackArt);
-        if (motionEnabled()) {
-            boolean playerTransition = screen == PLAYER || screen == IMMERSIVE || previous == PLAYER || previous == IMMERSIVE;
+        if (coverTransition && trackArt != null) moveArtwork(from, cover, original.shape, trackArt);
+        if (coverTransition) {
             content.setAlpha(0f);
-            if (coverTransition) {
-                // The independent artwork overlay supplies the movement between the two layouts.
-            } else if (previous == screen) {
-                content.setAlpha(.78f);
-                content.setTranslationY(dp(8));
-            } else if (playerTransition) {
-                content.setTranslationY(dp(action == 5 ? 10 : 26));
-                content.setScaleX(.975f);
-                content.setScaleY(.975f);
-            } else {
-                content.setTranslationX(dp(action == 5 || screen == HOME ? -18 : 18));
-            }
-            content.animate().alpha(1f).translationX(0).translationY(0).scaleX(1).scaleY(1)
-                .setDuration(310).setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
-            if (!coverTransition) animateAccent(heroArt != null ? heroArt : trackArt, .93f, 75);
-            if (previous != screen) animateAccent(selectedDestination, .72f, 35);
+            content.animate().alpha(1f).setDuration(220).start();
             if (atmosphere != null) {
                 atmosphere.setAlpha(0f);
-                atmosphere.animate().alpha(1f).setDuration(400).start();
+                atmosphere.animate().alpha(1f).setDuration(220).start();
             }
         }
     }
@@ -308,7 +294,7 @@ public final class SpatchUi extends FrameLayout {
         return new RectF(x, y, x + side, y + side);
     }
 
-    private void moveArtwork(RectF from, Bitmap bitmap, boolean fromImmersive, Art target) {
+    private void moveArtwork(RectF from, Bitmap bitmap, int fromShape, Art target) {
         target.setAlpha(0f);
         getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
             @Override public boolean onPreDraw() {
@@ -316,7 +302,7 @@ public final class SpatchUi extends FrameLayout {
                 if (trackArt != target) return true;
                 RectF to = coverBounds(target);
                 CoverTransition moving = new CoverTransition(from, to, bitmap,
-                    fromImmersive, target.shape == Art.IMMERSIVE);
+                    fromShape, target.shape);
                 getOverlay().add(moving);
                 android.animation.ValueAnimator animation = android.animation.ValueAnimator.ofFloat(0f, 1f);
                 animation.setDuration(420);
@@ -352,12 +338,12 @@ public final class SpatchUi extends FrameLayout {
         private final BitmapShader shader;
         float progress;
 
-        CoverTransition(RectF from, RectF to, Bitmap bitmap, boolean firstImmersive, boolean lastImmersive) {
+        CoverTransition(RectF from, RectF to, Bitmap bitmap, int firstShape, int lastShape) {
             this.from = from;
             this.to = to;
             this.bitmap = bitmap;
-            first = firstImmersive ? COVER : PLAYER_COVER;
-            last = lastImmersive ? COVER : PLAYER_COVER;
+            first = coverPath(firstShape);
+            last = coverPath(lastShape);
             shader = bitmap == null ? null : new BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             setBounds(0, 0, getWidth(), getHeight());
         }
@@ -380,6 +366,10 @@ public final class SpatchUi extends FrameLayout {
         @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
         @Override public void setColorFilter(android.graphics.ColorFilter filter) { paint.setColorFilter(filter); }
         @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+    }
+
+    private static float[] coverPath(int shape) {
+        return shape == Art.ROUND ? CIRCLE_COVER : shape == Art.IMMERSIVE ? COVER : PLAYER_COVER;
     }
 
     private static float mix(float start, float end, float fraction) {
@@ -420,11 +410,11 @@ public final class SpatchUi extends FrameLayout {
         libraryList = playlistList = null;
         trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = null;
         trackArt = heroArt = atmosphere = null;
-        selectedDestination = null;
         playbackSource = null;
         playButton = heroPlay = shuffleButton = repeatButton = null;
         wave = null;
-        if (screen == IMMERSIVE) {
+        visualizer = null;
+        if (screen == PLAYER || screen == IMMERSIVE) {
             atmosphere = new Art(Art.BACKDROP);
             addView(atmosphere, new FrameLayout.LayoutParams(-1, -1));
         }
@@ -565,7 +555,6 @@ public final class SpatchUi extends FrameLayout {
         icon.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         if (selected) {
             icon.setBackground(background(secondaryContainer, 16));
-            selectedDestination = icon;
         }
         icon.ink = selected ? onSecondaryContainer : onVariant;
         tab.addView(icon, new LinearLayout.LayoutParams(dp(64), dp(32)));
@@ -574,7 +563,6 @@ public final class SpatchUi extends FrameLayout {
         label.setGravity(Gravity.CENTER);
         tab.addView(label, match(-2));
         makeClickable(tab, title, action);
-        springPress(tab);
         return tab;
     }
 
@@ -637,7 +625,7 @@ public final class SpatchUi extends FrameLayout {
         mini.setPadding(dp(8), dp(4), dp(5), dp(4));
         mini.setBackground(background(high, 28));
         mini.setElevation(dp(4));
-        trackArt = new Art(Art.PLAYER_ART);
+        trackArt = new Art(Art.ROUND);
         mini.addView(trackArt, new LinearLayout.LayoutParams(dp(42), dp(42)));
         trackArt.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         makeClickable(trackArt, "Open player", this::openPlayer);
@@ -663,46 +651,49 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void buildPlayer() {
-        LinearLayout top = row();
-        top.setPadding(dp(10), dp(6), dp(10), 0);
-        if (screen == PLAYER) top.addView(glyph("down", "Close player", false, this::back), control(48));
-        top.addView(new View(activity), control(48));
-        playbackSource = text("", 16, onSurface, true);
-        single(playbackSource);
-        playbackSource.setGravity(Gravity.CENTER);
-        top.addView(playbackSource, weighted());
-        if (screen == PLAYER) top.addView(glyph("immersive", "Open immersive mode", false, () -> navigate(3, 0)), control(48));
-        top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
-        content.addView(top, match(-2));
+        boolean full = screen == IMMERSIVE;
+        if (!full) {
+            LinearLayout top = row();
+            top.setPadding(dp(10), dp(6), dp(10), 0);
+            top.addView(glyph("down", "Close player", false, this::back), control(48));
+            top.addView(new View(activity), control(48));
+            playbackSource = text("", 16, onSurface, true);
+            single(playbackSource);
+            playbackSource.setGravity(Gravity.CENTER);
+            top.addView(playbackSource, weighted());
+            top.addView(glyph("immersive", "Open immersive mode", false, () -> navigate(3, 0)), control(48));
+            top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
+            content.addView(top, match(-2));
+        }
 
         LinearLayout body = column();
         body.setPadding(dp(16), 0, dp(16), dp(12));
         body.setGravity(Gravity.CENTER_HORIZONTAL);
         content.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
-        trackArt = new Art(screen == IMMERSIVE ? Art.IMMERSIVE : Art.PLAYER_ART);
+        trackArt = new Art(screen == PLAYER ? Art.IMMERSIVE : Art.PLAYER_ART);
         body.addView(trackArt, new LinearLayout.LayoutParams(-1, 0, 1));
         trackArt.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         makeClickable(trackArt, screen == IMMERSIVE ? "Return to player" : "Open immersive mode", () -> navigate(3, 0));
         artworkGestures(trackArt, false);
-        gap(body, screen == IMMERSIVE ? 18 : 12);
+        gap(body, full ? 4 : 18);
         LinearLayout details = column();
-        if (screen == IMMERSIVE) {
+        if (!full) {
             details.setPadding(dp(16), dp(16), dp(16), dp(12));
             details.setBackground(background(container, 30));
         }
         body.addView(details, match(-2));
-        trackTitle = text("", screen == IMMERSIVE ? 40 : 36, onSurface, true);
+        trackTitle = text("", full ? 32 : 40, onSurface, true);
         trackTitle.setMaxLines(2);
         trackTitle.setEllipsize(TextUtils.TruncateAt.END);
         trackArtist = text("", 17, onVariant, false);
         albumTitle = text("", 13, onVariant, false);
         for (TextView labelView : new TextView[]{trackTitle, trackArtist, albumTitle}) {
-            labelView.setGravity(screen == IMMERSIVE ? Gravity.START : Gravity.CENTER);
+            labelView.setGravity(full ? Gravity.CENTER : Gravity.START);
             details.addView(labelView, match(-2));
         }
-        gap(details, 8);
+        gap(details, full ? 2 : 8);
         wave = new Wave();
-        details.addView(wave, match(dp(65)));
+        details.addView(wave, match(dp(full ? 54 : 65)));
         LinearLayout controls = row();
         controls.setGravity(Gravity.CENTER);
         shuffleButton = glyph("shuffle", "Shuffle", false, () -> command(SHUFFLE, shuffle ? 0 : 1, ""));
@@ -714,6 +705,40 @@ public final class SpatchUi extends FrameLayout {
         addTransport(controls, glyph("next", "Next track", false, () -> command(NEXT, 0, "")), 50, false, false);
         addTransport(controls, repeatButton, 48, false, true);
         details.addView(controls, match(-2));
+        if (full) {
+            addVolume(details);
+            visualizer = new Visualizer();
+            details.addView(visualizer, match(dp(82)));
+        }
+    }
+
+    private void addVolume(LinearLayout details) {
+        AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
+        if (audio == null) return;
+        SeekBar slider = new SeekBar(activity);
+        slider.setContentDescription("Media volume");
+        slider.setProgressTintList(ColorStateList.valueOf(primary));
+        slider.setThumbTintList(ColorStateList.valueOf(primary));
+        int stream = AudioManager.STREAM_MUSIC;
+        int min = android.os.Build.VERSION.SDK_INT >= 28 ? audio.getStreamMinVolume(stream) : 0;
+        slider.setMax(audio.getStreamMaxVolume(stream) - min);
+        slider.setProgress(audio.getStreamVolume(stream) - min);
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar view, int value, boolean fromUser) {
+                if (fromUser) audio.setStreamVolume(stream, min + value, 0);
+            }
+            @Override public void onStartTrackingTouch(SeekBar view) {}
+            @Override public void onStopTrackingTouch(SeekBar view) {
+                view.setProgress(audio.getStreamVolume(stream) - min);
+            }
+        });
+        LinearLayout volume = row();
+        Glyph icon = new Glyph("volume", false);
+        icon.ink = onVariant;
+        icon.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        volume.addView(icon, control(36));
+        volume.addView(slider, new LinearLayout.LayoutParams(0, dp(48), 1));
+        details.addView(volume, match(-2));
     }
 
     private void artworkGestures(View view, boolean mini) {
@@ -748,7 +773,8 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void selectEntry(Entry entry) {
-        if (entry.category == 0 || entry.uri.contains(":playlist:") || entry.uri.contains(":collection")) {
+        if (entry.category == 0 || entry.uri.startsWith("spotify:playlist:")
+                || (entry.uri.startsWith("spotify:user:") && entry.uri.contains(":playlist:"))) {
             openPlaylist(entry);
         } else if (!entry.uri.isEmpty()) {
             command(PLAY, 0, entry.uri);
@@ -766,10 +792,20 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void loadPlaylist(Entry entry, int offset) {
+        loadPlaylist(entry, offset, 0);
+    }
+
+    private void loadPlaylist(Entry entry, int offset, int attempt) {
         LIBRARY_DATA.execute(() -> {
             String[] result = nativePlaylist(entry.uri, offset);
             post(() -> {
-                if (playlist != entry) return;
+                if (playlist != entry || screen != PLAYLIST) return;
+                if (result != null && result.length == 1 && "loading".equals(result[0]) && attempt < 3) {
+                    postDelayed(() -> {
+                        if (playlist == entry && screen == PLAYLIST) loadPlaylist(entry, offset, attempt + 1);
+                    }, 650);
+                    return;
+                }
                 playlistLoading = false;
                 playlistFailed = result == null || result.length < 2 || !result[0].isEmpty();
                 if (!playlistFailed) {
@@ -890,6 +926,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void refreshPlayer() {
+        if (visualizer != null) visualizer.invalidate();
         String shown = title.isEmpty() ? "Nothing playing" : title;
         if (playbackSource != null) playbackSource.setText(source.isEmpty() ? album : source);
         if (trackTitle != null) trackTitle.setText(shown);
@@ -1019,15 +1056,6 @@ public final class SpatchUi extends FrameLayout {
         shape.setCornerRadii(new float[]{dp(topLeft), dp(topLeft), dp(topRight), dp(topRight),
             dp(bottomRight), dp(bottomRight), dp(bottomLeft), dp(bottomLeft)});
         return shape;
-    }
-
-    private void animateAccent(View view, float startScale, long delay) {
-        if (view == null || !motionEnabled()) return;
-        view.animate().cancel();
-        view.setScaleX(startScale);
-        view.setScaleY(startScale);
-        view.animate().scaleX(1f).scaleY(1f).setStartDelay(delay).setDuration(420)
-            .setInterpolator(new android.view.animation.OvershootInterpolator(.95f)).start();
     }
 
     private void springPress(View view) {
@@ -1477,6 +1505,35 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
+    private final class Visualizer extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        Visualizer() {
+            super(activity);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+
+        @Override protected void onDraw(Canvas canvas) {
+            boolean running = playing && motionEnabled() && getWindowVisibility() == VISIBLE;
+            float phase = (playhead() % 2400) / 2400f;
+            float step = getWidth() / 32f;
+            paint.setStrokeWidth(Math.min(dp(4), step * .45f));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            float baseline = getHeight() - paint.getStrokeWidth() / 2f;
+            for (int i = 0; i < 32; i++) {
+                float envelope = 1f - Math.abs(i - 15.5f) / 17f;
+                float ripple = .5f + .5f * waveSample(i * .12f - phase);
+                float bar = dp(3) + getHeight() * .75f * envelope * ripple;
+                float x = (i + .5f) * step;
+                paint.setColor(i % 3 == 0 ? primary : onSecondaryContainer);
+                paint.setAlpha(playing ? 180 : 100);
+                canvas.drawLine(x, baseline - bar, x, baseline, paint);
+            }
+            // shortcut: follows playback position; upgrade when the core exposes audio samples.
+            if (running) postInvalidateDelayed(42);
+        }
+    }
+
     private final class Wave extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
@@ -1493,7 +1550,8 @@ public final class SpatchUi extends FrameLayout {
         @Override protected void onDraw(Canvas canvas) {
             long elapsed = playhead();
             float fraction = preview >= 0 ? preview : duration <= 0 ? 0 : elapsed / (float) duration;
-            float x0 = dp(8), x1 = getWidth() - dp(8), y = dp(23);
+            float x0 = dp(8), x1 = getWidth() - dp(8), y = Math.min(dp(23), getHeight() * .35f);
+            float timeBaseline = getHeight() - dp(10);
             float tip = x0 + Math.max(0, x1 - x0) * fraction;
             paint.setColor(high);
             paint.setStrokeWidth(dp(4));
@@ -1526,9 +1584,9 @@ public final class SpatchUi extends FrameLayout {
                 remainingLabel = "−" + time(remaining);
                 shownRemaining = remaining / 1000;
             }
-            canvas.drawText(elapsedLabel, x0, dp(54), paint);
+            canvas.drawText(elapsedLabel, x0, timeBaseline, paint);
             paint.setTextAlign(Paint.Align.RIGHT);
-            canvas.drawText(remainingLabel, x1, dp(54), paint);
+            canvas.drawText(remainingLabel, x1, timeBaseline, paint);
             if (playing && isShown()) {
                 if (motionEnabled()) postInvalidateOnAnimation();
                 else postInvalidateDelayed(500);
@@ -1590,6 +1648,7 @@ public final class SpatchUi extends FrameLayout {
 
     private static native float[] nativeGeometry(String kind);
     private static final float[] COVER = nativeGeometry("cover");
+    private static final float[] CIRCLE_COVER = nativeGeometry("circle-cover");
     private static final float[] PLAYER_COVER = nativeGeometry("player-cover");
     private static final float[] WORDMARK = nativeGeometry("wordmark");
     private static final float[] BUTTON_FIVE = nativeGeometry("button5");
@@ -1597,7 +1656,7 @@ public final class SpatchUi extends FrameLayout {
     private static final float[] WAVE = nativeGeometry("wave");
     private static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
     static {
-        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "queue", "immersive", "home", "library"}) {
+        for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume", "queue", "immersive", "home", "library"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
     }

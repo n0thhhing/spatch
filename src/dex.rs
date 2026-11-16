@@ -31,9 +31,10 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Each is an alias (`S_...`) or a smali path.
-const RELOCATED: [&str; 2] = [
-    // classes.dex is at the method-reference limit: the two core hooks' classes move out with their new calls.
+const RELOCATED: [&str; 3] = [
+    // classes.dex is at the method-reference limit: the core hooks' classes move out with their new calls.
     "smali/com/spotify/esperanto/esperanto/ClientBase.smali",
+    "smali/com/spotify/esperanto/esperantoimpl/DispatchingCoroutineTransport.smali",
     "smali/com/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter.smali",
 ];
 

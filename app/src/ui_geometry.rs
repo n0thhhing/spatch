@@ -1,7 +1,7 @@
 //! Normalized paths for the Android Canvas renderer. Shape coordinates are generated once.
+use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::jfloatArray;
-use jni::JNIEnv;
 use std::f32::consts::TAU;
 
 fn polar(angle: f32, radius: f32, center: f32) -> [f32; 2] {
@@ -10,11 +10,13 @@ fn polar(angle: f32, radius: f32, center: f32) -> [f32; 2] {
 
 fn geometry(kind: &str) -> Vec<f32> {
     match kind {
-        "cover" | "player-cover" | "button5" | "button9" | "wordmark" => (0..120)
+        "cover" | "circle-cover" | "player-cover" | "button5" | "button9" | "wordmark" => (0..120)
             .flat_map(|i| {
                 let angle = i as f32 / 120.0 * TAU;
                 let (radius, center) = if kind == "cover" {
                     (0.461 + 0.021 * (angle * 8.0).cos(), 0.5)
+                } else if kind == "circle-cover" {
+                    (0.5, 0.5)
                 } else if kind == "player-cover" {
                     let (x, y) = (angle.cos().abs(), angle.sin().abs());
                     let (mut low, mut high) = (0.0, 0.71);
@@ -93,6 +95,10 @@ fn glyph(kind: &str) -> &'static [f32] {
         ],
         "library" => &[
             2., 4., 5., 4., 19., 2., 9., 5., 9., 19., 2., 14., 5., 19., 19.,
+        ],
+        "volume" => &[
+            -6., 4., 9., 8., 9., 13., 5., 13., 19., 8., 15., 4., 15., 4., 16., 8., 18., 11., 18.,
+            13., 16., 16.,
         ],
         "queue" => &[
             2., 4., 6., 20., 6., 2., 4., 11., 20., 11., 2., 4., 16., 14., 16.,

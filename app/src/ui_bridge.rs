@@ -1,11 +1,11 @@
 //! JNI boundary for Spatch's Android views. Network calls run on the Java worker.
 use crate::{core, library, player};
-use jni::objects::{JClass, JObjectArray, JString};
-use jni::sys::{jboolean, jint, jlong, jobjectArray, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
+use jni::objects::{JClass, JObjectArray, JString};
+use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong, jobjectArray, jstring};
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Mutex,
+    atomic::{AtomicBool, Ordering},
 };
 
 static CONNECTED: AtomicBool = AtomicBool::new(false);
@@ -162,7 +162,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(env: JNIEnv, _: JClass) 
     let uri = items
         .iter()
         .flatten()
-        .find(|item| item.uri == "spotify:collection:tracks" || item.uri.ends_with(":collection"))
+        .find(|item| library::is_liked_uri(&item.uri))
         .map_or("spotify:collection:tracks", |item| item.uri.as_str());
     env.new_string(uri)
         .map_or(std::ptr::null_mut(), JString::into_raw)
@@ -226,7 +226,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
     };
     let uri = String::from(uri);
     #[cfg(feature = "preview")]
-    if uri.starts_with("spotify:preview:") {
+    if uri.starts_with("spotify:preview:") || library::is_liked_uri(&uri) {
         let demo = crate::preview::player();
         let tracks = std::iter::once((demo.title, demo.artist, demo.image)).chain(demo.up_next);
         return strings(
@@ -240,13 +240,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
         .unwrap_or(std::ptr::null_mut());
     }
 
-    if !uri.starts_with("spotify:")
-        || (!uri.starts_with("spotify:playlist:")
-            && !uri.contains(":collection")
-            && !uri.contains(":playlist:"))
-    {
+    if !library::is_playlist_uri(&uri) {
         return std::ptr::null_mut();
     }
+    let uri = if library::is_liked_uri(&uri) {
+        "spotify:collection:tracks".into()
+    } else {
+        uri
+    };
     use crate::protos::{
         com::spotify::cosmos::util::policy::proto as metadata,
         com::spotify::playlist::policy::proto as policy, spotify::playlist::esperanto::proto as es,
@@ -301,6 +302,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
         })
     });
     let fields = match result {
+        Ok(data) if data.loading_contents && data.item.is_empty() => vec!["loading".into()],
         Ok(data) => {
             let end = offset as usize + data.item.len();
             let more = !data.item.is_empty()
@@ -408,7 +410,10 @@ mod tests {
     fn player_art_toggles_immersive_and_playlist_back_preserves_library_filter() {
         let library = navigate(HOME, 1, 0);
         let player = navigate(library, 2, 0);
-        assert_eq!(navigate(navigate(player, 3, 0), 3, 0), player);
+        assert_eq!(player & 7, PLAYER);
+        let immersive = navigate(player, 3, 0);
+        assert_eq!(immersive & 7, IMMERSIVE);
+        assert_eq!(navigate(immersive, 3, 0), player);
         let playlist = navigate(library, 6, 0);
         assert_eq!(playlist & 7, PLAYLIST);
         assert_eq!(navigate(playlist, 5, 0), library | (1 << 3));
@@ -417,8 +422,8 @@ mod tests {
     #[test]
     fn back_returns_through_queue_immersive_player_and_filtered_library() {
         let library = navigate(HOME, 1, 2);
-        let player = navigate(library, 2, 0);
         assert_eq!(navigate(library, 3, 0), library);
+        let player = navigate(library, 2, 0);
         let immersive = navigate(player, 3, 0);
         assert_eq!(immersive & 7, IMMERSIVE);
         let queue = navigate(immersive, 4, 0);
