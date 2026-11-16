@@ -1320,10 +1320,10 @@ public final class SpatchUi extends FrameLayout {
         pShuffle = new Icon("shuffle", inkDim);
         pRepeat = new Icon("repeat", inkDim);
         controls.addView(iconButton(pShuffle, "Shuffle", () -> command(SHUFFLE, shuffle ? 0 : 1, "")), lp(dp(52), dp(52)));
-        controls.addView(iconButton(new Icon("previous", ink), "Previous", () -> command(PREVIOUS, 0, "")), lp(dp(60), dp(60)));
+        controls.addView(holdToSeek(iconButton(new Icon("previous", ink), "Previous, hold to rewind", () -> command(PREVIOUS, 0, "")), false), lp(dp(60), dp(60)));
         pPlay = new PlayButton();
         controls.addView(pPlay, lp(dp(86), dp(86)));
-        controls.addView(iconButton(new Icon("next", ink), "Next", () -> command(NEXT, 0, "")), lp(dp(60), dp(60)));
+        controls.addView(holdToSeek(iconButton(new Icon("next", ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), lp(dp(60), dp(60)));
         controls.addView(iconButton(pRepeat, "Repeat", () -> command(REPEAT, (repeat + 1) % 3, "")), lp(dp(52), dp(52)));
         col.addView(controls, fill(-2));
 
@@ -1334,6 +1334,36 @@ public final class SpatchUi extends FrameLayout {
         np.topMargin = dp(12);
         col.addView(nextPill, np);
         tappable(nextPill, "Up next", this::openQueue);
+    }
+
+    /** Tap skips; holding the button jumps ten seconds at a time until it is released. */
+    private View holdToSeek(View button, boolean forward) {
+        boolean[] held = new boolean[1];
+        Runnable[] step = new Runnable[1];
+        step[0] = () -> {
+            if (!held[0] || duration <= 0 || !button.isAttachedToWindow()) return;
+            long target = Math.max(0, Math.min(duration - 1500, playhead() + (forward ? 10_000 : -10_000)));
+            position = target;
+            stamp = SystemClock.uptimeMillis();
+            if (wave != null) wave.invalidate();
+            command(SEEK, target, "");
+            tick(button);
+            button.postDelayed(step[0], 480);
+        };
+        button.setOnLongClickListener(v -> { held[0] = true; step[0].run(); return true; });
+        // iconButton installs its own touch listener for the press animation; wrap it so releasing still ends the hold.
+        button.setOnTouchListener(new View.OnTouchListener() {
+            @Override public boolean onTouch(View v, MotionEvent e) {
+                int a = e.getActionMasked();
+                if (a == MotionEvent.ACTION_DOWN) v.animate().scaleX(.96f).scaleY(.96f).setDuration(90).start();
+                else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                    held[0] = false;
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start();
+                }
+                return false;
+            }
+        });
+        return button;
     }
 
     private View iconButton(Icon icon, String label, Runnable action) {
