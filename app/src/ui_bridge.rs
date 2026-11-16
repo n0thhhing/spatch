@@ -293,11 +293,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
     if !library::is_playlist_uri(&uri) {
         return std::ptr::null_mut();
     }
-    let uri = if library::is_liked_uri(&uri) {
-        "spotify:collection:tracks".into()
-    } else {
-        uri
-    };
+    // Liked Songs goes through as the library names it (spotify:user:<id>:collection): the playlist
+    // service rejects the generic spotify:collection:tracks with "Invalid link".
     use crate::protos::{
         com::spotify::cosmos::util::policy::proto as metadata,
         com::spotify::playlist::policy::proto as policy, spotify::playlist::esperanto::proto as es,
