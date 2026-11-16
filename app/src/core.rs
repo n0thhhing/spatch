@@ -133,6 +133,18 @@ pub fn cancel(id: i64) {
     }
 }
 
+/// Asks Java for a frame soon (any thread): core replies arrive while the app may be idle.
+pub fn wake() {
+    if let Ok(j) = java() {
+        if let Ok(mut env) = j.vm.attach_current_thread_permanently() {
+            let class: &JClass = j.app.as_obj().into();
+            if env.call_static_method(class, "wake", "()V", &[]).is_err() {
+                let _ = env.exception_clear();
+            }
+        }
+    }
+}
+
 /// Asks Java to take the app's surface down (it calls nativeClose on the main thread).
 pub fn close_app() {
     if let Ok(j) = java() {

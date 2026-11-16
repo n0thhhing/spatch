@@ -16,7 +16,9 @@ import java.io.OutputStream;
 
 /**
  * Hosts the Rust app (assets/spatch/libspatch_app.so) over Spotify's window: a full-screen
- * SurfaceView whose buffer the Rust side draws into, with touches and frame ticks passed down.
+ * SurfaceView the Rust side renders into on the GPU, with touches passed down. Frames are asked for
+ * only while something is due (nativeFrame says when), so an idle screen draws nothing and the display
+ * can drop its refresh rate; while animating the surface asks for 120 Hz.
  * Spotify keeps running underneath, so its core (sign-in, playback) is live for CoreBridge.
  * The library ships as an asset and is copied out once: Spotify's manifest and splits stay untouched.
  */
@@ -27,7 +29,14 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
     private static SpatchApp current;
     private final Activity activity;
     private final FrameLayout host;
-    private boolean ticking;
+    private android.view.Surface surface;
+    private View spotify;
+    private boolean attached, framePending, fast;
+    private final Runnable later = new Runnable() {
+        public void run() {
+            schedule(0);
+        }
+    };
 
     private SpatchApp(Activity activity) {
         this.activity = activity;
@@ -88,7 +97,12 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
         if (!load(activity)) return false;
         SpatchApp app = new SpatchApp(activity);
         current = app;
-        ((ViewGroup) activity.getWindow().getDecorView()).addView(app.host, new FrameLayout.LayoutParams(-1, -1));
+        ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+        decor.addView(app.host, new FrameLayout.LayoutParams(-1, -1));
+        // Spotify's own screen under ours stops drawing (its player animates every frame otherwise).
+        app.spotify = decor.findViewById(0x01020002); // android.R.id.content
+        if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
+        else app.spotify = null;
         nativeOpen(activity.getResources().getDisplayMetrics().density);
         return true;
     }
@@ -101,7 +115,9 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
             public void run() {
                 if (current != app) return;
                 current = null;
-                app.ticking = false;
+                app.attached = false;
+                app.host.removeCallbacks(app.later);
+                if (app.spotify != null) app.spotify.setVisibility(View.VISIBLE);
                 ViewGroup parent = (ViewGroup) app.host.getParent();
                 if (parent != null) parent.removeView(app.host);
                 nativeClose();
@@ -112,26 +128,55 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
     public void surfaceCreated(SurfaceHolder holder) {}
 
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        nativeSurface(holder.getSurface(), width, height);
-        if (!ticking) {
-            ticking = true;
+        surface = holder.getSurface();
+        fast = false;
+        nativeSurface(surface, width, height);
+        attached = true;
+        schedule(0);
+    }
+
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        attached = false;
+        host.removeCallbacks(later);
+        nativeSurface(null, 0, 0);
+        surface = null;
+    }
+
+    /** The next frame: 0 at the next vsync, a delay in ms, or none (negative) until woken. */
+    private void schedule(long delay) {
+        if (!attached || current != this) return;
+        host.removeCallbacks(later);
+        if (delay > 0) host.postDelayed(later, delay);
+        else if (delay == 0 && !framePending) {
+            framePending = true;
             Choreographer.getInstance().postFrameCallback(this);
         }
     }
 
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        ticking = false;
-        nativeSurface(null, 0, 0);
+    public void doFrame(long frameTimeNanos) {
+        framePending = false;
+        if (!attached || current != this) return;
+        long next = nativeFrame();
+        boolean animating = next == 0;
+        // 120 Hz only while something moves; otherwise no preference, so the panel can idle down.
+        if (animating != fast && surface != null && android.os.Build.VERSION.SDK_INT >= 30) {
+            fast = animating;
+            try {
+                surface.setFrameRate(animating ? 120f : 0f, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+            } catch (RuntimeException ignored) {} // a surface going away
+        }
+        schedule(next);
     }
 
-    public void doFrame(long frameTimeNanos) {
-        if (!ticking || current != this) return;
-        nativeFrame();
-        Choreographer.getInstance().postFrameCallback(this);
+    /** Called by the Rust app from any thread when new data arrives. */
+    static void wake() {
+        final SpatchApp app = current;
+        if (app != null) app.host.post(app.later);
     }
 
     public boolean onTouch(View v, MotionEvent e) {
         nativeTouch(e.getActionMasked(), e.getX(), e.getY());
+        schedule(0);
         return true;
     }
 
@@ -141,7 +186,7 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
 
     static native void nativeSurface(Object surface, int width, int height);
 
-    static native void nativeFrame();
+    static native long nativeFrame();
 
     static native void nativeTouch(int action, float x, float y);
 }

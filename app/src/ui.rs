@@ -1,12 +1,12 @@
-//! The app's screens (Slint) on a software-rendered window that Java's surface shows. Slint is
+//! The app's screens (Slint) in a GPU-rendered window on Java's surface (window.rs). Slint is
 //! single-threaded: everything here runs on Android's main thread, called from SpatchApp's natives.
 //! Core replies arrive on other threads and wait in `LATEST` until the next frame picks them up.
 
 use crate::core;
 use crate::player::{self, Command, NowPlaying};
-use slint::platform::software_renderer::{MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType};
+use crate::window::SpatchWindow;
 use slint::platform::{Platform, PointerEventButton, WindowAdapter, WindowEvent};
-use slint::{LogicalPosition, ModelRc, PhysicalSize, SharedString, VecModel};
+use slint::{LogicalPosition, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -103,7 +103,7 @@ slint::slint! {
 
 thread_local! {
     static APP: RefCell<Option<App>> = const { RefCell::new(None) };
-    static NEW_WINDOW: RefCell<Option<Rc<MinimalSoftwareWindow>>> = const { RefCell::new(None) };
+    static NEW_WINDOW: RefCell<Option<Rc<SpatchWindow>>> = const { RefCell::new(None) };
 }
 static LATEST: Mutex<Option<NowPlaying>> = Mutex::new(None);
 static STATUS: Mutex<Option<String>> = Mutex::new(None);
@@ -116,7 +116,7 @@ struct AndroidPlatform {
 
 impl Platform for AndroidPlatform {
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+        let window = SpatchWindow::new();
         NEW_WINDOW.with(|w| *w.borrow_mut() = Some(window.clone()));
         Ok(window)
     }
@@ -127,15 +127,18 @@ impl Platform for AndroidPlatform {
 }
 
 struct App {
-    window: Rc<MinimalSoftwareWindow>,
+    window: Rc<SpatchWindow>,
     ui: AppWindow,
     scale: f32,
     now: NowPlaying,
+    /// The second the clock last showed: the progress moves once a second, not every frame.
+    shown_second: i64,
 }
 
 fn status(text: impl Into<String>) {
     *STATUS.lock().unwrap() = Some(text.into());
     DIRTY.store(true, Ordering::Release);
+    core::wake();
 }
 
 fn send(c: Command) {
@@ -171,7 +174,7 @@ pub fn open(density: f32) {
         }
     };
     let Some(window) = NEW_WINDOW.with(|w| w.borrow_mut().take()) else { return };
-    window.dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: density });
+    window.window().dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: density });
     ui.on_dismiss(core::close_app);
     ui.on_next(|| send(Command::Next));
     ui.on_previous(|| send(Command::Previous));
@@ -182,7 +185,7 @@ pub fn open(density: f32) {
     });
     let _ = ui.show();
     ui.set_status("Connecting to Spotify's player…".into());
-    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default() }));
+    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), shown_second: -1 }));
     std::thread::spawn(|| {
         let id = core::subscribe(player::SERVICE, "GetState", &player::state_request(), |reply| match reply {
             Ok(bytes) => match NowPlaying::decode(bytes) {
@@ -190,6 +193,7 @@ pub fn open(density: f32) {
                     *LATEST.lock().unwrap() = Some(now);
                     *STATUS.lock().unwrap() = Some(String::new());
                     DIRTY.store(true, Ordering::Release);
+                    core::wake();
                 }
                 Err(e) => status(format!("Couldn't read the player state: {e}")),
             },
@@ -219,18 +223,21 @@ pub fn close() {
 }
 
 pub fn resize(width: u32, height: u32) {
-    APP.with(|a| {
-        if let Some(app) = a.borrow().as_ref() {
-            app.window.set_size(PhysicalSize::new(width, height));
-        }
-    });
+    with_window(|w| w.resize(width, height));
 }
 
-/// Once per vsync: takes in core updates, moves the progress bar and runs Slint's timers.
-pub fn frame() {
-    APP.with(|a| {
+/// The app's window, if open.
+pub fn with_window<R>(f: impl FnOnce(&SpatchWindow) -> R) -> Option<R> {
+    APP.with(|a| a.borrow().as_ref().map(|app| f(&app.window)))
+}
+
+/// Once per wanted frame: takes in core updates, moves the clock, runs Slint's timers and draws if
+/// anything changed. Returns when the next frame is wanted: 0 next vsync (animating), a delay in ms
+/// (the clock's next second while playing), or -1 when nothing will change until woken.
+pub fn frame() -> i64 {
+    let next = APP.with(|a| {
         let mut a = a.borrow_mut();
-        let Some(app) = a.as_mut() else { return };
+        let Some(app) = a.as_mut() else { return -1 };
         if DIRTY.swap(false, Ordering::AcqRel) {
             if let Some(now) = LATEST.lock().unwrap().take() {
                 app.ui.set_track(if now.title.is_empty() { "Nothing playing".into() } else { SharedString::from(now.title.as_str()) });
@@ -241,27 +248,26 @@ pub fn frame() {
                 let rows: Vec<Row> = now.up_next.iter().map(|(t, a)| Row { title: t.as_str().into(), artist: a.as_str().into() }).collect();
                 app.ui.set_up_next(ModelRc::new(VecModel::from(rows)));
                 app.now = now;
+                app.shown_second = -1;
             }
             if let Some(s) = STATUS.lock().unwrap().take() {
                 app.ui.set_status(s.into());
             }
         }
         let at = app.now.position_at(epoch_ms());
-        app.ui.set_position(clock(at).into());
-        app.ui.set_progress(if app.now.duration_ms > 0 { at as f32 / app.now.duration_ms as f32 } else { 0.0 });
+        if at / 1000 != app.shown_second {
+            app.shown_second = at / 1000;
+            app.ui.set_position(clock(at).into());
+            app.ui.set_progress(if app.now.duration_ms > 0 { at as f32 / app.now.duration_ms as f32 } else { 0.0 });
+        }
+        if app.now.playing { 1000 - at % 1000 } else { -1 }
     });
     slint::platform::update_timers_and_animations();
-}
-
-/// Draws into a locked surface buffer; false when nothing changed since the last draw.
-pub fn render(buffer: &mut [PremultipliedRgbaColor], stride: usize) -> bool {
-    APP.with(|a| {
-        let a = a.borrow();
-        let Some(app) = a.as_ref() else { return false };
-        app.window.draw_if_needed(|renderer| {
-            renderer.render(buffer, stride);
-        })
+    with_window(|w| {
+        w.draw_if_needed();
+        if w.animating() || w.wants_frame() { 0 } else { next }
     })
+    .unwrap_or(-1)
 }
 
 /// MotionEvent's masked action and position in pixels.
@@ -277,9 +283,9 @@ pub fn touch(action: i32, x: f32, y: f32) {
             3 => WindowEvent::PointerExited,
             _ => return,
         };
-        app.window.dispatch_event(event);
+        app.window.window().dispatch_event(event);
         if matches!(action, 1 | 3 | 6) {
-            app.window.dispatch_event(WindowEvent::PointerExited); // no hover on a touch screen
+            app.window.window().dispatch_event(WindowEvent::PointerExited); // no hover on a touch screen
         }
     });
 }

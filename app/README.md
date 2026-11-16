@@ -27,9 +27,14 @@ Rust (app/)  ── JNI ──>  spatch.CoreBridge.call / subscribe   (theme/dex
                          Esperanto transport ──> Spotify's core (liborbit)
 ```
 
-`spatch.SpatchApp` hosts the UI: a full-screen `SurfaceView` over Spotify's activity. Rust locks its
-buffer (`ANativeWindow`, RGBA_8888) and Slint's software renderer draws into it. Frames come from
-`Choreographer`, touches from the view. The library ships as `assets/spatch/libspatch_app.so` and is
+`spatch.SpatchApp` hosts the UI: a full-screen `SurfaceView` over Spotify's activity, with Spotify's
+own content view set invisible underneath so it stops drawing. Rust hands the surface's `ANativeWindow`
+to Slint's Skia renderer (`i-slint-renderer-skia`, OpenGL ES through EGL, the renderer Slint's own Android
+backend uses; its public custom-platform GPU API is off on Android), wrapped in a small window adapter
+(`window.rs`). Frames are only asked for when something is due. `nativeFrame` returns 0 (next vsync,
+while animating), a delay (the clock's next second while playing) or -1 (idle until a touch or a core
+reply wakes it). The surface asks for 120 Hz only while animating, so the LTPO panel can drop its
+refresh rate when nothing moves. The library ships as `assets/spatch/libspatch_app.so` and is
 copied to app storage and loaded with `System.load`, so Spotify's manifest and splits are untouched.
 Open it from **Spatch settings → Developer options → Open Spatch app (preview)** (debug builds).
 
@@ -103,4 +108,4 @@ The nightly workflow builds the library whenever `app/` exists.
   - whether bare command requests (no logging params) are accepted;
   - text rendering: Slint 1.18 finds fonts through fontique, whose Android backend reads
     `/system/etc/fonts.xml`, so system fonts should load, but this hasn't been seen on a screen yet;
-  - frame pacing of full-screen software rendering.
+  - the EGL surface on the SurfaceView (Skia via OpenGL ES) and the on-demand frame pacing.

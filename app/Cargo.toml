@@ -13,11 +13,20 @@ crate-type = ["cdylib", "rlib"]
 jni = "0.21"
 log = "0.4"
 prost = "0.14"
-slint = { version = "1.18", default-features = false, features = ["std", "compat-1-2", "renderer-software", "software-renderer-systemfonts"] }
+slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-2"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15"
 ndk-sys = "0.6"
+# Slint's own Android backend renders with this (Skia on OpenGL ES through EGL). Its public custom-platform
+# GPU API is off on Android and the backend needs a NativeActivity, so the renderer is used directly;
+# internal crate, so it is pinned to the slint version.
+i-slint-renderer-skia = { version = "=1.18.1", default-features = false }
+raw-window-handle = "0.6"
+
+# Host builds (tests) only need a renderer to satisfy the window adapter.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-2", "renderer-software"] }
 
 [build-dependencies]
 prost-build = "0.14"

@@ -8,6 +8,7 @@ pub mod player;
 #[cfg(target_os = "android")]
 mod surface;
 pub mod ui;
+pub mod window;
 
 /// Types for Spotify's Esperanto protos (app/proto, rebuilt by scripts/port/protos.py).
 #[allow(clippy::all, non_camel_case_types)]
