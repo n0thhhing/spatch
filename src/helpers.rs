@@ -1,7 +1,7 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 2] = [
+pub const HELPERS: [(&str, &str); 3] = [
     (
         "CoreBridge",
         include_str!("../theme/dex/src/spatch/core/CoreBridge.java"),
@@ -9,6 +9,10 @@ pub const HELPERS: [(&str, &str); 2] = [
     (
         "SpatchApp",
         include_str!("../theme/dex/src/spatch/core/SpatchApp.java"),
+    ),
+    (
+        "dev/makepad/android/MakepadNative",
+        include_str!("../theme/dex/src/dev/makepad/android/MakepadNative.java"),
     ),
 ];
 /// Added by `--debug` only, and found by name at runtime, so other builds contain none of this code.

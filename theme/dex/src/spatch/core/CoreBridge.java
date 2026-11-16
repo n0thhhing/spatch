@@ -153,6 +153,8 @@ public final class CoreBridge implements Transport {
         return new java.util.TreeSet<String>(SERVICES.keySet()).toString() + (fallback == null ? " (no native transport yet)" : "") + (router == null ? " (no router yet)" : "");
     }
 
+    static native void nativeInit();
+
     static native void nativeNext(long token, byte[] value);
 
     static native void nativeError(long token, String message);

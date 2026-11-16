@@ -117,8 +117,10 @@ jobs:
           sudo apt-get install -y -qq protobuf-compiler > /dev/null
           rustup target add aarch64-linux-android
           command -v cargo-ndk > /dev/null || cargo install cargo-ndk --locked --version 4.1.2
-          (cd app && ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" cargo ndk -t arm64-v8a -P 26 build --release --locked)
+          (cd app && ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" cargo ndk -t arm64-v8a -P 29 build --release --locked)
+          ./scripts/app-assets.sh
           echo "SPATCH_APP_SO=$PWD/app/target/aarch64-linux-android/release/libspatch_app.so" >> "$GITHUB_ENV"
+          echo "SPATCH_APP_ASSETS=$PWD/app/target/makepad-assets" >> "$GITHUB_ENV"
       - name: Spotify APKM from the private source
         env:
           INVITE: ${{ secrets.SOURCE_INVITE }}

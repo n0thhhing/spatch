@@ -1,9 +1,9 @@
-//! Artwork: fetched and decoded by Android on four worker threads, cut to its shape there (a circle or a
-//! rounded square, baked into the pixels: the phone's renderer doesn't clip images to rounded shapes),
-//! turned into Slint images on the UI thread (slint::Image isn't Send) and kept for the session.
+//! Artwork: fetched and decoded by Android on four worker threads; the UI takes the pixels and makes
+//! GPU textures of them (shaders cut the shapes). Also the pure pixel work the UI uses: a blurred
+//! backdrop from a cover, and cutting an image to a circle or rounded square.
 
 use crate::core;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Mutex, OnceLock};
 
@@ -18,14 +18,12 @@ pub enum Shape {
     Circle,
 }
 
-/// (cache key, url, the shaped image, the unshaped pixels for seeds and backdrops).
-type Decoded = (String, String, Option<(u32, u32, Vec<u8>)>, Option<(u32, u32, Vec<u8>)>);
+/// (url, the decoded pixels or None when it couldn't be had).
+pub type Decoded = (String, Option<(u32, u32, Vec<u8>)>);
 
 struct Job {
-    key: String,
     url: String,
     size: i32,
-    shape: Shape,
 }
 
 struct Loader {
@@ -50,11 +48,26 @@ fn loader() -> &'static Loader {
 fn work(rx: &Mutex<Receiver<Job>>) {
     loop {
         let Ok(job) = rx.lock().unwrap().recv() else { return };
-        let raw = core::image(&job.url, job.size);
-        let shaped = raw.as_ref().map(|(w, h, rgba)| cut(rgba, *w, *h, job.shape));
-        loader().done.lock().unwrap().push((job.key, job.url, shaped, raw));
+        let image = core::image(&job.url, job.size);
+        loader().done.lock().unwrap().push((job.url, image));
         core::wake();
     }
+}
+
+/// Starts loading an image at about `size` pixels (once per url).
+pub fn request(url: &str, size: i32) {
+    if url.is_empty() || !url.starts_with("https://") {
+        return;
+    }
+    let l = loader();
+    if l.pending.lock().unwrap().insert(url.to_string()) {
+        let _ = l.jobs.lock().unwrap().send(Job { url: url.to_string(), size });
+    }
+}
+
+/// Finished downloads since the last call.
+pub fn take_ready() -> Vec<Decoded> {
+    std::mem::take(&mut *loader().done.lock().unwrap())
 }
 
 /// The image cut to `shape`, with anti-aliased edges (pixels outside become transparent).
@@ -94,14 +107,6 @@ pub fn cut(rgba: &[u8], w: u32, h: u32, shape: Shape) -> (u32, u32, Vec<u8>) {
     (w, h, out)
 }
 
-thread_local! {
-    static CACHE: std::cell::RefCell<HashMap<String, slint::Image>> = Default::default();
-    /// Each loaded image's seed colour (colors::seed), for art-coloured screens.
-    static SEEDS: std::cell::RefCell<HashMap<String, Option<u32>>> = Default::default();
-    /// A 12x12 copy of each image: stretched across the screen it is the blurred backdrop
-    /// (Spatch's player trick: a tiny raster, scaled up smoothly, is the blur).
-    static TINY: std::cell::RefCell<HashMap<String, slint::Image>> = Default::default();
-}
 
 const TINY_SIZE: u32 = 12;
 /// The backdrop is the 12x12 copy smoothed up to this size here, so it looks blurred on any renderer.
@@ -132,11 +137,6 @@ pub fn backdrop(rgba: &[u8], w: u32, h: u32) -> (Vec<u8>, u32) {
     (smooth(&shrink(rgba, w, h, TINY_SIZE), TINY_SIZE, BACKDROP_SIZE), BACKDROP_SIZE)
 }
 
-/// The image's blurred backdrop, once it has loaded.
-pub fn blurred(url: &str) -> Option<slint::Image> {
-    TINY.with(|t| t.borrow().get(url).cloned())
-}
-
 /// Box-averages RGBA down to `n` x `n`.
 pub fn shrink(rgba: &[u8], w: u32, h: u32, n: u32) -> Vec<u8> {
     let mut out = vec![0u8; (n * n * 4) as usize];
@@ -162,59 +162,6 @@ pub fn shrink(rgba: &[u8], w: u32, h: u32, n: u32) -> Vec<u8> {
         }
     }
     out
-}
-
-/// The seed colour of a loaded image: Some(None) for a grey one, None if it hasn't loaded.
-pub fn seed(url: &str) -> Option<Option<u32>> {
-    SEEDS.with(|s| s.borrow().get(url).copied())
-}
-
-/// The image at about `size` pixels cut to `shape` if it's loaded; otherwise starts loading it (once).
-pub fn get(url: &str, size: i32, shape: Shape) -> Option<slint::Image> {
-    if url.is_empty() || !url.starts_with("https://") {
-        return None;
-    }
-    let key = format!("{shape:?}|{size}|{url}");
-    if let Some(image) = CACHE.with(|c| c.borrow().get(&key).cloned()) {
-        return Some(image);
-    }
-    let l = loader();
-    if l.pending.lock().unwrap().insert(key.clone()) {
-        let _ = l.jobs.lock().unwrap().send(Job { key, url: url.to_string(), size, shape });
-    }
-    None
-}
-
-/// Takes in finished downloads (UI thread); true when any arrived, so views can pick them up.
-pub fn collect() -> bool {
-    let done = std::mem::take(&mut *loader().done.lock().unwrap());
-    if done.is_empty() {
-        return false;
-    }
-    CACHE.with(|c| {
-        let mut c = c.borrow_mut();
-        for (key, url, shaped, raw) in done {
-            loader().pending.lock().unwrap().remove(&key);
-            if let Some((w, h, rgba)) = raw {
-                if SEEDS.with(|s| !s.borrow().contains_key(&url)) {
-                    SEEDS.with(|s| s.borrow_mut().insert(url.clone(), crate::colors::seed(&rgba)));
-                    let (tiny, size) = backdrop(&rgba, w, h);
-                    let tiny = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&tiny, size, size);
-                    TINY.with(|t| t.borrow_mut().insert(url.clone(), slint::Image::from_rgba8(tiny)));
-                }
-            }
-            match shaped {
-                Some((w, h, rgba)) => {
-                    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&rgba, w, h);
-                    c.insert(key, slint::Image::from_rgba8(buffer));
-                }
-                None => {
-                    c.insert(key, slint::Image::default()); // failed: don't ask again this session
-                }
-            }
-        }
-    });
-    true
 }
 
 #[cfg(test)]

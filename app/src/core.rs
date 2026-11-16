@@ -2,7 +2,7 @@
 //! bytes in and out. Single calls block (run them off the UI thread); streams call back on Rx threads.
 
 use jni::objects::{GlobalRef, JByteArray, JClass, JString, JValue};
-use jni::sys::{jint, jlong, JNI_VERSION_1_6};
+use jni::sys::jlong;
 use jni::{JNIEnv, JavaVM};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -23,14 +23,12 @@ fn handlers() -> &'static Mutex<HashMap<i64, Handler>> {
     HANDLERS.get_or_init(Default::default)
 }
 
-/// System.load runs this on the loading thread, whose class loader can see Spatch's classes;
-/// later native threads can't, so both classes are kept here.
+/// Java calls this right after System.load, on a thread whose class loader can see Spatch's classes
+/// (later native threads can't, so both classes are kept here). Makepad's crates own JNI_OnLoad.
 #[unsafe(no_mangle)]
-pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: *mut std::ffi::c_void) -> jint {
-    #[cfg(target_os = "android")]
-    android_logger::init_once(android_logger::Config::default().with_tag("SpatchApp").with_max_level(log::LevelFilter::Info));
+pub extern "system" fn Java_spatch_CoreBridge_nativeInit<'l>(mut env: JNIEnv<'l>, _class: JClass<'l>) {
     let java = (|| -> jni::errors::Result<Java> {
-        let mut env = vm.get_env()?;
+        let vm = env.get_java_vm()?;
         let bridge = env.find_class("spatch/CoreBridge")?;
         let bridge = env.new_global_ref(bridge)?;
         let app = env.find_class("spatch/SpatchApp")?;
@@ -41,9 +39,8 @@ pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: *mut std::ffi::c_void) 
         Ok(j) => {
             let _ = JAVA.set(j);
         }
-        Err(e) => log::error!("JNI_OnLoad: {e}"),
+        Err(e) => log::error!("nativeInit: {e}"),
     }
-    JNI_VERSION_1_6
 }
 
 fn java() -> Result<&'static Java, String> {
@@ -158,16 +155,9 @@ pub fn cancel(id: i64) {
     }
 }
 
-/// Asks Java for a frame soon (any thread): core replies arrive while the app may be idle.
+/// Wakes the UI (any thread): core replies and images arrive while it may be idle.
 pub fn wake() {
-    if let Ok(j) = java() {
-        if let Ok(mut env) = j.vm.attach_current_thread_permanently() {
-            let class: &JClass = j.app.as_obj().into();
-            if env.call_static_method(class, "wake", "()V", &[]).is_err() {
-                let _ = env.exception_clear();
-            }
-        }
-    }
+    makepad_widgets::SignalToUI::set_ui_signal();
 }
 
 /// Asks Java to take the app's surface down (it calls nativeClose on the main thread).

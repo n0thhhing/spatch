@@ -395,6 +395,9 @@ fn compile_helper(
         .map(|(n, _)| root.join(format!("{n}.java")))
         .collect();
     for ((_, src), p) in helpers.iter().zip(&helper_paths) {
+        if let Some(parent) = p.parent() {
+            fs::create_dir_all(parent)?;
+        }
         let source = src
             .replace("@THEME@", theme.name)
             .replace("@VERSION@", env!("CARGO_PKG_VERSION"))
@@ -417,9 +420,8 @@ fn compile_helper(
         ],
     )?;
     // Each helper plus its nested classes (Name$Inner.class).
-    let class_paths: Vec<_> = fs::read_dir(cls.join("spatch"))?
-        .map(|e| Ok(e?.path()))
-        .collect::<Result<_>>()?;
+    let mut class_paths = Vec::new();
+    collect_classes(&cls, &mut class_paths)?;
     let mut d8 = vec![
         OsStr::new("--release"),
         OsStr::new("--min-api"),
@@ -436,9 +438,14 @@ fn compile_helper(
     tools.run(&tools.d8, &d8)?;
     let out = dex.join("classes.dex");
     let classes = tools.run(&tools.dexdump, &[OsStr::new("-f"), out.as_os_str()])?;
-    let all_present = helpers
-        .iter()
-        .all(|(n, _)| classes.contains(&format!("'Lspatch/{n};'")));
+    let all_present = helpers.iter().all(|(n, _)| {
+        let desc = if n.contains('/') {
+            format!("'L{n};'")
+        } else {
+            format!("'Lspatch/{n};'")
+        };
+        classes.contains(&desc)
+    });
     let nested = class_paths
         .iter()
         .filter(|p| p.to_string_lossy().contains('$'))
@@ -456,6 +463,18 @@ fn compile_helper(
     }
     check_ref_limits(HELPER_DEX, &classes)?;
     Ok(fs::read(out)?)
+}
+
+fn collect_classes(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_classes(&path, out)?;
+        } else if path.extension().and_then(|e| e.to_str()) == Some("class") {
+            out.push(path);
+        }
+    }
+    Ok(())
 }
 
 /// Fails if a reassembled DEX exceeds the method or field reference limit.

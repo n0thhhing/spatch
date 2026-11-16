@@ -77,8 +77,12 @@ pub fn run(
     // DEX that hosts the app, and the Rust app itself. Spotify's resources stay untouched.
     let mut compiled = dex::build(&base, &staging.path, tools, theme, debug)?;
     let helper = compiled.pop().expect("dex::build returns the helper last");
+    let app_assets = rust_app_assets()?;
     let mut added = vec![helper];
     added.push((RUST_APP_ASSET, rust_app()?.ok_or("the Rust app library is missing: build app/ (see app/README.md) or set SPATCH_APP_SO")?));
+    for (name, bytes) in &app_assets {
+        added.push((name.as_str(), bytes.clone()));
+    }
     let signing = match output {
         Output::DryRun => {
             println!(
@@ -186,6 +190,39 @@ fn rust_app() -> Result<Option<Vec<u8>>> {
     }
     let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("app/target/aarch64-linux-android/release/libspatch_app.so");
     Ok(if built.is_file() { Some(fs::read(built)?) } else { None })
+}
+
+/// Makepad widget and app resources to ship under assets/makepad/: $SPATCH_APP_ASSETS, else app/target/makepad-assets.
+fn rust_app_assets() -> Result<Vec<(String, Vec<u8>)>> {
+    let root = match std::env::var_os("SPATCH_APP_ASSETS") {
+        Some(p) => std::path::PathBuf::from(p),
+        None => Path::new(env!("CARGO_MANIFEST_DIR")).join("app/target/makepad-assets"),
+    };
+    if !root.is_dir() {
+        return Err(format!("Makepad assets missing at {}: run scripts/app-assets.sh or set SPATCH_APP_ASSETS", root.display()).into());
+    }
+    let mut out = Vec::new();
+    collect_assets(&root, &root, &mut out)?;
+    if out.is_empty() {
+        return Err(format!("Makepad assets directory {} is empty", root.display()).into());
+    }
+    Ok(out)
+}
+
+fn collect_assets(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) -> Result<()> {
+    let mut entries: Vec<_> = fs::read_dir(dir)?.collect::<std::result::Result<_, _>>()?;
+    entries.sort_by_key(|e| e.file_name());
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_assets(root, &path, out)?;
+        } else if path.is_file() {
+            let rel = path.strip_prefix(root).map_err(|e| e.to_string())?;
+            let rel_str = rel.to_string_lossy().replace('\\', "/");
+            out.push((format!("assets/makepad/{rel_str}"), fs::read(&path)?));
+        }
+    }
+    Ok(())
 }
 
 pub fn is_signature_entry(name: &str) -> bool {

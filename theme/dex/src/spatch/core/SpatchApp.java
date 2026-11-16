@@ -2,13 +2,15 @@ package spatch;
 
 import android.app.Activity;
 import android.content.Context;
-import android.view.Choreographer;
+import android.content.res.AssetManager;
+import android.os.Build;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import dev.makepad.android.MakepadNative;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -16,36 +18,74 @@ import java.io.OutputStream;
 
 /**
  * Hosts the Rust app (assets/spatch/libspatch_app.so) over Spotify's window: a full-screen
- * SurfaceView the Rust side renders into on the GPU, with touches passed down. Frames are asked for
- * only while something is due (nativeFrame says when), so an idle screen draws nothing and the display
- * can drop its refresh rate; while animating the surface asks for 120 Hz.
+ * SurfaceView fed to Makepad's Android layer (dev.makepad.android.MakepadNative).
  * Spotify keeps running underneath, so its core (sign-in, playback) is live for CoreBridge.
- * The library ships as an asset and is copied out once: Spotify's manifest and splits stay untouched.
  */
-public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCallback, View.OnTouchListener {
+public final class SpatchApp implements SurfaceHolder.Callback, View.OnTouchListener {
     private static final String ASSET = "spatch/libspatch_app.so";
     private static String loadError;
     private static boolean loaded;
+    private static boolean makepadStarted;
     private static SpatchApp current;
-    private final Activity activity;
     private final FrameLayout host;
-    private android.view.Surface surface;
     private View spotify;
-    private boolean attached, framePending, fast;
-    private final Runnable later = new Runnable() {
-        public void run() {
-            schedule(0);
-        }
-    };
 
     private SpatchApp(Activity activity) {
-        this.activity = activity;
         host = new FrameLayout(activity);
-        host.setClickable(true); // nothing reaches Spotify's views underneath
+        host.setClickable(true);
         SurfaceView surface = new SurfaceView(activity);
         surface.getHolder().addCallback(this);
         surface.setOnTouchListener(this);
         host.addView(surface, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    /** Host object passed to MakepadNative.activityOnCreate: provides AssetManager, no-ops the rest. */
+    public static final class Host {
+        private final Activity activity;
+
+        Host(Activity activity) {
+            this.activity = activity;
+        }
+
+        public AssetManager getAssets() {
+            return activity.getAssets();
+        }
+
+        public void setFullScreen(boolean fullscreen) {}
+
+        public void switchActivity() {}
+
+        public void showKeyboard(boolean visible) {}
+
+        public void copyToClipboard(String content) {}
+
+        public void requestHttp(long id, long metadataId, String url, String method, String headers, byte[] body) {}
+
+        public void openWebSocket(long id, String url, long callback) {}
+
+        public void sendWebSocketMessage(long id, byte[] message) {}
+
+        public void closeWebSocket(long id) {}
+
+        public String[] getAudioDevices(long flag) {
+            return new String[0];
+        }
+
+        public void openAllMidiDevices(long delay) {}
+
+        public void prepareVideoPlayback(long id, Object source, int tex, boolean autoplay, boolean loop) {}
+
+        public void beginVideoPlayback(long id) {}
+
+        public void pauseVideoPlayback(long id) {}
+
+        public void resumeVideoPlayback(long id) {}
+
+        public void muteVideoPlayback(long id) {}
+
+        public void unmuteVideoPlayback(long id) {}
+
+        public void cleanupVideoPlaybackResources(long id) {}
     }
 
     /** Whether the Rust library is loaded; copies it out of the APK on first use. */
@@ -55,7 +95,6 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
             File dir = new File(c.getFilesDir(), "spatch-app");
             if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException("can't create " + dir);
             byte[] bytes = read(c.getAssets().open(ASSET));
-            // Named by size and checksum so an updated library never loads a stale copy.
             java.util.zip.CRC32 crc = new java.util.zip.CRC32();
             crc.update(bytes, 0, bytes.length);
             File lib = new File(dir, "libspatch_app-" + bytes.length + "-" + Long.toHexString(crc.getValue()) + ".so");
@@ -68,7 +107,6 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
                 File[] old = dir.listFiles();
                 if (old != null) for (File f : old) if (!f.equals(lib)) f.delete();
             }
-            // Android 14+ refuses to load a library the app could still write (dynamic code loading rules).
             if (lib.canWrite() && !lib.setReadOnly()) throw new java.io.IOException("can't make " + lib + " read-only");
             System.load(lib.getAbsolutePath());
             loaded = true;
@@ -79,7 +117,6 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
         return loaded;
     }
 
-    /** Why the library didn't load, or null. */
     static String loadError() {
         return loadError;
     }
@@ -98,7 +135,7 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
     /** Spotify's main screen resumed: the app comes up over it once per launch, as the UI. */
     public static void resumed(Activity a) {
         if (startHandled || !"com.spotify.music.SpotifyMainActivity".equals(a.getClass().getName())) return;
-        startHandled = true; // after Close, Spotify's own UI stays until the next launch
+        startHandled = true;
         open(a);
     }
 
@@ -106,40 +143,31 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
     static boolean open(Activity activity) {
         if (current != null) return true;
         if (!load(activity)) return false;
+        if (!makepadStarted) {
+            makepadStarted = true;
+            CoreBridge.nativeInit();
+            MakepadNative.activityOnCreate(new Host(activity));
+            float density = activity.getResources().getDisplayMetrics().density;
+            MakepadNative.onAndroidParams(
+                activity.getCacheDir().getAbsolutePath(),
+                density,
+                false,
+                "",
+                "",
+                ""
+            );
+            MakepadNative.initChoreographer(60f, Build.VERSION.SDK_INT);
+            MakepadNative.activityOnStart();
+        }
+        MakepadNative.activityOnResume();
         SpatchApp app = new SpatchApp(activity);
         current = app;
         ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
         decor.addView(app.host, new FrameLayout.LayoutParams(-1, -1));
-        // Spotify's own screen under ours stops drawing (its player animates every frame otherwise).
         app.spotify = decor.findViewById(0x01020002); // android.R.id.content
         if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
         else app.spotify = null;
-        nativeOpen(activity.getResources().getDisplayMetrics().density, theme(activity), bar(activity, "status_bar_height"), bar(activity, "navigation_bar_height"), java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY));
         return true;
-    }
-
-    /**
-     * Material You's colours (Android 12+, from the wallpaper), in the nine roles the app maps to
-     * Material 3: background, surface, card, text, accent 2, secondary text, accent, light accent,
-     * accent 3. Before Android 12, or if a colour is missing, the app keeps its built-in purple.
-     */
-    private static int[] theme(Context c) {
-        String[] names = {"system_neutral1_900", "system_neutral1_800", "system_neutral2_800", "system_neutral1_50",
-            "system_accent2_200", "system_neutral2_200", "system_accent1_200", "system_accent1_100", "system_accent3_200"};
-        int[] out = new int[names.length];
-        if (android.os.Build.VERSION.SDK_INT < 31) return null;
-        for (int i = 0; i < names.length; i++) {
-            int id = c.getResources().getIdentifier(names[i], "color", "android");
-            if (id == 0) return null;
-            out[i] = c.getResources().getColor(id);
-        }
-        return out;
-    }
-
-    /** A system bar's height in pixels (the app draws under both). */
-    private static int bar(Context c, String name) {
-        int id = c.getResources().getIdentifier(name, "dimen", "android");
-        return id == 0 ? 0 : c.getResources().getDimensionPixelSize(id);
     }
 
     /** Called by the Rust app (any thread) to close itself. */
@@ -150,78 +178,28 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
             public void run() {
                 if (current != app) return;
                 current = null;
-                app.attached = false;
-                app.host.removeCallbacks(app.later);
+                MakepadNative.activityOnPause();
                 if (app.spotify != null) app.spotify.setVisibility(View.VISIBLE);
                 ViewGroup parent = (ViewGroup) app.host.getParent();
                 if (parent != null) parent.removeView(app.host);
-                nativeClose();
             }
         });
     }
 
-    public void surfaceCreated(SurfaceHolder holder) {}
+    public void surfaceCreated(SurfaceHolder holder) {
+        MakepadNative.surfaceOnSurfaceCreated(holder.getSurface());
+    }
 
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        surface = holder.getSurface();
-        fast = false;
-        nativeSurface(surface, width, height);
-        attached = true;
-        schedule(0);
+        MakepadNative.surfaceOnSurfaceChanged(holder.getSurface(), width, height);
     }
 
     public void surfaceDestroyed(SurfaceHolder holder) {
-        attached = false;
-        host.removeCallbacks(later);
-        nativeSurface(null, 0, 0);
-        surface = null;
-    }
-
-    /** The next frame: 0 at the next vsync, a delay in ms, or none (negative) until woken. */
-    private void schedule(long delay) {
-        if (!attached || current != this) return;
-        host.removeCallbacks(later);
-        if (delay > 0) host.postDelayed(later, delay);
-        else if (delay == 0 && !framePending) {
-            framePending = true;
-            Choreographer.getInstance().postFrameCallback(this);
-        }
-    }
-
-    public void doFrame(long frameTimeNanos) {
-        framePending = false;
-        if (!attached || current != this) return;
-        long next = nativeFrame();
-        boolean animating = next == 0;
-        // 120 Hz only while something moves; otherwise no preference, so the panel can idle down.
-        if (animating != fast && surface != null && android.os.Build.VERSION.SDK_INT >= 30) {
-            fast = animating;
-            try {
-                surface.setFrameRate(animating ? 120f : 0f, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
-            } catch (RuntimeException ignored) {} // a surface going away
-        }
-        schedule(next);
-    }
-
-    /** Called by the Rust app from any thread when new data arrives. */
-    static void wake() {
-        final SpatchApp app = current;
-        if (app != null) app.host.post(app.later);
+        MakepadNative.surfaceOnSurfaceDestroyed();
     }
 
     public boolean onTouch(View v, MotionEvent e) {
-        nativeTouch(e.getActionMasked(), e.getX(), e.getY());
-        schedule(0);
+        MakepadNative.surfaceOnTouch(e);
         return true;
     }
-
-    static native void nativeOpen(float density, int[] theme, int insetTop, int insetBottom, int hour);
-
-    static native void nativeClose();
-
-    static native void nativeSurface(Object surface, int width, int height);
-
-    static native long nativeFrame();
-
-    static native void nativeTouch(int action, float x, float y);
 }
