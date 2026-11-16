@@ -144,6 +144,8 @@ public final class SpatchUi extends FrameLayout {
     private Wave wave;
     private Backdrop backdrop;
     private TextView pQuality;
+    /** The backdrop's cover, kept across rebuilds so a recolour doesn't start it from a blank background. */
+    private Bitmap lastBlur;
     private TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
     private Icon pLike, pShuffle, pRepeat;
     private PlayButton pPlay, mPlay;
@@ -222,7 +224,11 @@ public final class SpatchUi extends FrameLayout {
 
     /** Re-tints everything once the playing cover's colour is known; true if the palette changed. */
     private boolean refreshPalette() {
-        Integer seed = pref("art_colors", true) ? SEEDS.get(image) : null;
+        boolean fromArt = pref("art_colors", true);
+        Integer seed = fromArt ? SEEDS.get(image) : null;
+        // A new cover's colour is known once its art loads: keep the current colours until then rather than
+        // flashing to the default palette and back on every skip. A forced refresh ("?") still applies.
+        if (fromArt && seed == null && !image.isEmpty() && !"?".equals(paletteKey) && !failed.contains(image + ":440")) return false;
         String key = seed == null ? "" : String.valueOf(seed);
         if (key.equals(paletteKey)) return false;
         paletteKey = key;
@@ -2147,7 +2153,7 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Matrix m = new Matrix();
         private android.animation.ObjectAnimator drift;
-        private Bitmap shown, previous;
+        private Bitmap shown = lastBlur, previous;
         private long fadeAt;
 
         Backdrop() {
@@ -2192,6 +2198,7 @@ public final class SpatchUi extends FrameLayout {
                 shown = blur;
                 fadeAt = now;
             }
+            lastBlur = shown;
             float f = previous == null ? 1f : Math.min(1f, (now - fadeAt) / 700f);
             if (f >= 1f) previous = null;
             paint.setColorFilter(VIVID);
