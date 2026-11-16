@@ -39,7 +39,10 @@ fn main() {
     let (cover_px, cover) = art([200, 60, 80], [60, 30, 120]);
     let (pixels, size) = spatch_app::images::backdrop(&cover_px, 64, 64);
     ui.set_backdrop(slint::Image::from_rgba8(slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&pixels, size, size)));
-    ui.set_cover(cover.clone());
+    let shaped = |shape| { let (w, h, px) = spatch_app::images::cut(&cover_px, 64, 64, shape); slint::Image::from_rgba8(slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&px, w, h)) };
+    ui.set_cover(shaped(spatch_app::images::Shape::Rounded));
+    ui.set_cover_round(shaped(spatch_app::images::Shape::Circle));
+    let _ = cover;
     ui.set_greeting(spatch_app::ui::greeting(1).into());
     ui.set_track("city".into());
     ui.set_artist("i wanna be a jack-o-lantern".into());
@@ -51,7 +54,11 @@ fn main() {
     ui.set_remaining("-0:51".into());
     ui.set_library_status("".into());
     ui.set_library_count("212 saved".into());
-    let row = |t: &str, s: &str, round: bool, a: [u8; 3], b: [u8; 3]| Row { title: t.into(), subtitle: s.into(), art: art(a, b).1, uri: "".into(), round };
+    let row = |t: &str, s: &str, round: bool, a: [u8; 3], b: [u8; 3]| {
+        let (px, _) = art(a, b);
+        let (w, h, px) = spatch_app::images::cut(&px, 64, 64, if round { spatch_app::images::Shape::Circle } else { spatch_app::images::Shape::Rounded });
+        Row { title: t.into(), subtitle: s.into(), art: slint::Image::from_rgba8(slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&px, w, h)), uri: "".into(), round }
+    };
     ui.set_up_next(ModelRc::new(VecModel::from(vec![row("annoying", "i wanna be mesmerizing to you", false, [90, 140, 90], [30, 60, 40])])));
     ui.set_playlists(ModelRc::new(VecModel::from(vec![
         row("Liked Songs", "Playlist", false, [90, 60, 220], [180, 160, 255]),

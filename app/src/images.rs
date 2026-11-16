@@ -1,5 +1,6 @@
-//! Artwork: fetched and decoded by Android on four worker threads, turned into Slint images on the UI
-//! thread (slint::Image isn't Send) and kept for the session.
+//! Artwork: fetched and decoded by Android on four worker threads, cut to its shape there (a circle or a
+//! rounded square, baked into the pixels: the phone's renderer doesn't clip images to rounded shapes),
+//! turned into Slint images on the UI thread (slint::Image isn't Send) and kept for the session.
 
 use crate::core;
 use std::collections::{HashMap, HashSet};
@@ -8,10 +9,27 @@ use std::sync::{Mutex, OnceLock};
 
 const WORKERS: usize = 4;
 
-type Decoded = (String, Option<(u32, u32, Vec<u8>)>);
+/// The shape an image is cut to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Shape {
+    /// Corners rounded by 18% of the shorter side, as the app's tiles and cards are.
+    Rounded,
+    /// A circle (the image is centre-cropped to a square first): artists, the player's cover.
+    Circle,
+}
+
+/// (cache key, url, the shaped image, the unshaped pixels for seeds and backdrops).
+type Decoded = (String, String, Option<(u32, u32, Vec<u8>)>, Option<(u32, u32, Vec<u8>)>);
+
+struct Job {
+    key: String,
+    url: String,
+    size: i32,
+    shape: Shape,
+}
 
 struct Loader {
-    jobs: Mutex<Sender<(String, i32)>>,
+    jobs: Mutex<Sender<Job>>,
     done: Mutex<Vec<Decoded>>,
     pending: Mutex<HashSet<String>>,
 }
@@ -19,7 +37,7 @@ struct Loader {
 fn loader() -> &'static Loader {
     static LOADER: OnceLock<Loader> = OnceLock::new();
     LOADER.get_or_init(|| {
-        let (tx, rx) = channel::<(String, i32)>();
+        let (tx, rx) = channel::<Job>();
         let rx = std::sync::Arc::new(Mutex::new(rx));
         for _ in 0..WORKERS {
             let rx = rx.clone();
@@ -29,13 +47,51 @@ fn loader() -> &'static Loader {
     })
 }
 
-fn work(rx: &Mutex<Receiver<(String, i32)>>) {
+fn work(rx: &Mutex<Receiver<Job>>) {
     loop {
-        let Ok((url, size)) = rx.lock().unwrap().recv() else { return };
-        let image = core::image(&url, size);
-        loader().done.lock().unwrap().push((url, image));
+        let Ok(job) = rx.lock().unwrap().recv() else { return };
+        let raw = core::image(&job.url, job.size);
+        let shaped = raw.as_ref().map(|(w, h, rgba)| cut(rgba, *w, *h, job.shape));
+        loader().done.lock().unwrap().push((job.key, job.url, shaped, raw));
         core::wake();
     }
+}
+
+/// The image cut to `shape`, with anti-aliased edges (pixels outside become transparent).
+pub fn cut(rgba: &[u8], w: u32, h: u32, shape: Shape) -> (u32, u32, Vec<u8>) {
+    let (rgba, w, h) = match shape {
+        Shape::Circle if w != h => {
+            let s = w.min(h);
+            let (ox, oy) = ((w - s) / 2, (h - s) / 2);
+            let mut sq = Vec::with_capacity((s * s * 4) as usize);
+            for y in 0..s {
+                let row = (((y + oy) * w + ox) * 4) as usize;
+                sq.extend_from_slice(&rgba[row..row + (s * 4) as usize]);
+            }
+            (sq, s, s)
+        }
+        _ => (rgba.to_vec(), w, h),
+    };
+    let mut out = rgba;
+    let r = match shape {
+        Shape::Circle => w.min(h) as f32 / 2.0,
+        Shape::Rounded => w.min(h) as f32 * 0.18,
+    };
+    let (fw, fh) = (w as f32, h as f32);
+    for y in 0..h {
+        for x in 0..w {
+            // Distance outside the rounded rectangle whose corners are radius r.
+            let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+            let dx = (r - px).max(px - (fw - r)).max(0.0);
+            let dy = (r - py).max(py - (fh - r)).max(0.0);
+            let coverage = (r - (dx * dx + dy * dy).sqrt() + 0.5).clamp(0.0, 1.0);
+            if coverage < 1.0 {
+                let a = &mut out[((y * w + x) * 4 + 3) as usize];
+                *a = (*a as f32 * coverage).round() as u8;
+            }
+        }
+    }
+    (w, h, out)
 }
 
 thread_local! {
@@ -113,17 +169,18 @@ pub fn seed(url: &str) -> Option<Option<u32>> {
     SEEDS.with(|s| s.borrow().get(url).copied())
 }
 
-/// The image if it's loaded; otherwise starts loading it (once) and returns None.
-pub fn get(url: &str, size: i32) -> Option<slint::Image> {
+/// The image at about `size` pixels cut to `shape` if it's loaded; otherwise starts loading it (once).
+pub fn get(url: &str, size: i32, shape: Shape) -> Option<slint::Image> {
     if url.is_empty() || !url.starts_with("https://") {
         return None;
     }
-    if let Some(image) = CACHE.with(|c| c.borrow().get(url).cloned()) {
+    let key = format!("{shape:?}|{size}|{url}");
+    if let Some(image) = CACHE.with(|c| c.borrow().get(&key).cloned()) {
         return Some(image);
     }
     let l = loader();
-    if l.pending.lock().unwrap().insert(url.to_string()) {
-        let _ = l.jobs.lock().unwrap().send((url.to_string(), size));
+    if l.pending.lock().unwrap().insert(key.clone()) {
+        let _ = l.jobs.lock().unwrap().send(Job { key, url: url.to_string(), size, shape });
     }
     None
 }
@@ -136,17 +193,24 @@ pub fn collect() -> bool {
     }
     CACHE.with(|c| {
         let mut c = c.borrow_mut();
-        for (url, image) in done {
-            loader().pending.lock().unwrap().remove(&url);
-            if let Some((w, h, rgba)) = image {
-                SEEDS.with(|s| s.borrow_mut().insert(url.clone(), crate::colors::seed(&rgba)));
-                let (tiny, size) = backdrop(&rgba, w, h);
-                let tiny = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&tiny, size, size);
-                TINY.with(|t| t.borrow_mut().insert(url.clone(), slint::Image::from_rgba8(tiny)));
-                let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&rgba, w, h);
-                c.insert(url, slint::Image::from_rgba8(buffer));
-            } else {
-                c.insert(url, slint::Image::default()); // failed: don't ask again this session
+        for (key, url, shaped, raw) in done {
+            loader().pending.lock().unwrap().remove(&key);
+            if let Some((w, h, rgba)) = raw {
+                if SEEDS.with(|s| !s.borrow().contains_key(&url)) {
+                    SEEDS.with(|s| s.borrow_mut().insert(url.clone(), crate::colors::seed(&rgba)));
+                    let (tiny, size) = backdrop(&rgba, w, h);
+                    let tiny = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&tiny, size, size);
+                    TINY.with(|t| t.borrow_mut().insert(url.clone(), slint::Image::from_rgba8(tiny)));
+                }
+            }
+            match shaped {
+                Some((w, h, rgba)) => {
+                    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&rgba, w, h);
+                    c.insert(key, slint::Image::from_rgba8(buffer));
+                }
+                None => {
+                    c.insert(key, slint::Image::default()); // failed: don't ask again this session
+                }
             }
         }
     });
@@ -155,7 +219,23 @@ pub fn collect() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{shrink, smooth};
+    use super::{Shape, cut, shrink, smooth};
+
+    #[test]
+    fn cut_makes_circles_and_rounded_corners() {
+        let rgba = [255u8; 40 * 40 * 4];
+        let alpha = |img: &(u32, u32, Vec<u8>), x: u32, y: u32| img.2[((y * img.0 + x) * 4 + 3) as usize];
+        let circle = cut(&rgba, 40, 40, Shape::Circle);
+        assert_eq!(alpha(&circle, 0, 0), 0, "a circle's corner is clear");
+        assert_eq!(alpha(&circle, 20, 20), 255, "its middle is solid");
+        assert!(alpha(&circle, 20, 0) > 240, "its top edge midpoint is inside (anti-aliased edge)");
+        let rounded = cut(&rgba, 40, 40, Shape::Rounded);
+        assert_eq!(alpha(&rounded, 0, 0), 0);
+        assert_eq!(alpha(&rounded, 20, 0), 255);
+        // A wide image becomes a centred square circle.
+        let wide = cut(&[255u8; 60 * 40 * 4], 60, 40, Shape::Circle);
+        assert_eq!((wide.0, wide.1), (40, 40));
+    }
 
     #[test]
     fn smooth_blends_between_pixels() {

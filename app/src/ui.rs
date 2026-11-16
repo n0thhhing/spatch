@@ -4,7 +4,7 @@
 
 use crate::colors;
 use crate::core;
-use crate::images;
+use crate::images::{self, Shape};
 use crate::library::{self, Item};
 use crate::player::{self, Command, NowPlaying};
 use crate::window::SpatchWindow;
@@ -90,11 +90,13 @@ fn when_ready<T>(f: impl Fn() -> Result<T, String>) -> Result<T, String> {
 }
 
 const COVER: i32 = 1200;
-const THUMB: i32 = 160;
+const CARD: i32 = 480;
+// shortcut: every library item's art is decoded at this size up front; switch to loading what's on screen for big libraries.
+const THUMB: i32 = 256;
 
 fn rows(items: impl Iterator<Item = (String, String, String, String, bool)>) -> ModelRc<Row> {
     let rows: Vec<Row> = items
-        .map(|(title, subtitle, image, uri, round)| Row { title: title.into(), subtitle: subtitle.into(), art: images::get(&image, THUMB).unwrap_or_default(), uri: uri.into(), round })
+        .map(|(title, subtitle, image, uri, round)| Row { title: title.into(), subtitle: subtitle.into(), art: images::get(&image, THUMB, if round { Shape::Circle } else { Shape::Rounded }).unwrap_or_default(), uri: uri.into(), round })
         .collect();
     ModelRc::new(VecModel::from(rows))
 }
@@ -102,7 +104,9 @@ fn rows(items: impl Iterator<Item = (String, String, String, String, bool)>) -> 
 impl App {
     /// Cover, Up Next and Library with whatever artwork has loaded so far.
     fn show_art(&mut self) {
-        self.ui.set_cover(images::get(&self.now.image, COVER).unwrap_or_default());
+        // The player's cover is a circle; the cards and the floating player show it as a rounded square.
+        self.ui.set_cover_round(images::get(&self.now.image, COVER, Shape::Circle).unwrap_or_default());
+        self.ui.set_cover(images::get(&self.now.image, CARD, Shape::Rounded).unwrap_or_default());
         self.ui.set_backdrop(images::blurred(&self.now.image).unwrap_or_default());
         // Like Pixel's player, the screen takes its colours from the cover; grey covers keep the wallpaper's.
         let theme = match images::seed(&self.now.image) {

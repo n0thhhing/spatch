@@ -46,6 +46,8 @@ export component AppWindow inherits Window {
     in property <string> track;
     in property <string> artist;
     in property <image> cover;
+    // The cover cut to a circle, for the player.
+    in property <image> cover-round;
     // A small copy of the cover, smoothed: stretched, it is the blurred backdrop.
     in property <image> backdrop;
     in property <bool> playing;
@@ -307,7 +309,7 @@ export component AppWindow inherits Window {
                             border-radius: self.width / 2;
                             drop-shadow-blur: 30px;
                             drop-shadow-color: Theme.primary.with-alpha(0.3);
-                            Art { border-radius: parent.width / 2; source: root.cover; }
+                            Art { border-radius: parent.width / 2; background: transparent; source: root.cover-round; }
                         }
                     }
                 }
