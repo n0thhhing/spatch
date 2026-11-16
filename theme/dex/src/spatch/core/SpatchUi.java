@@ -75,6 +75,8 @@ public final class SpatchUi extends FrameLayout {
     private String libraryStatus = "Connecting to your library…";
     private String title = "", artist = "", album = "", image = "", uri = "";
     private boolean playing, shuffle;
+    private Boolean pendingPlayback;
+    private int playbackAttempt;
     private int repeat;
     private long position, duration, stamp;
     private List<Entry> upcoming = new ArrayList<>();
@@ -194,8 +196,12 @@ public final class SpatchUi extends FrameLayout {
 
     private void applyPlayer(String[] state) {
         revision = Long.parseLong(state[0]);
+        boolean trackChanged = !uri.equals(state[1]);
         uri = state[1]; title = state[2]; artist = state[3]; album = state[4]; image = state[5];
         playing = Boolean.parseBoolean(state[6]);
+        if (pendingPlayback != null && (trackChanged || pendingPlayback == playing)) {
+            pendingPlayback = null;
+        }
         shuffle = Boolean.parseBoolean(state[7]);
         repeat = Integer.parseInt(state[8]);
         position = Long.parseLong(state[9]);
@@ -617,8 +623,7 @@ public final class SpatchUi extends FrameLayout {
         if (trackArt != null) trackArt.bind(image);
         if (heroArt != null) heroArt.bind(image);
         if (atmosphere != null) atmosphere.bind(image);
-        if (playButton != null) playButton.setPlayback(playing, !uri.isEmpty());
-        if (heroPlay != null) heroPlay.setPlayback(playing, !uri.isEmpty());
+        refreshPlaybackButtons();
         if (shuffleButton != null) {
             shuffleButton.setSelected(shuffle);
             shuffleButton.updateContainer();
@@ -635,8 +640,37 @@ public final class SpatchUi extends FrameLayout {
         if (wave != null) wave.invalidate();
     }
 
+    private void refreshPlaybackButtons() {
+        boolean shownPlaying = pendingPlayback == null ? playing : pendingPlayback;
+        if (playButton != null) playButton.setPlayback(shownPlaying, !uri.isEmpty());
+        if (heroPlay != null) heroPlay.setPlayback(shownPlaying, !uri.isEmpty());
+    }
+
     private void toggle() {
-        if (!uri.isEmpty()) command(playing ? 0 : 1, 0, "");
+        if (uri.isEmpty() || pendingPlayback != null) return;
+        boolean requested = !playing;
+        int attempt = ++playbackAttempt;
+        pendingPlayback = requested;
+        refreshPlaybackButtons();
+        COMMANDS.execute(() -> {
+            boolean accepted = nativeCommand(requested ? 1 : 0, 0, "");
+            post(() -> {
+                if (accepted) {
+                    postDelayed(() -> finishPlaybackAttempt(attempt, false), 2500);
+                } else {
+                    finishPlaybackAttempt(attempt, true);
+                }
+            });
+        });
+    }
+
+    private void finishPlaybackAttempt(int attempt, boolean failed) {
+        if (attempt != playbackAttempt || pendingPlayback == null) return;
+        pendingPlayback = null;
+        refreshPlaybackButtons();
+        if (failed && isAttachedToWindow()) {
+            Toast.makeText(activity, "Playback command unavailable", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private long playhead() {

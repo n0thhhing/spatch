@@ -17,7 +17,7 @@ fn geometry(kind: &str) -> Vec<f32> {
                     (0.461 + 0.021 * (angle * 8.0).cos(), 0.5)
                 } else {
                     let points = if kind == "button5" { 5.0 } else { 9.0 };
-                    (0.88 + 0.10 * (angle * points).cos(), 0.0)
+                    (0.91 + 0.055 * (angle * points).cos(), 0.0)
                 };
                 polar(angle, radius, center)
             })
