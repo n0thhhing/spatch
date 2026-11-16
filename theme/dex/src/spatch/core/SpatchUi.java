@@ -35,7 +35,6 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
-import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
@@ -111,15 +110,18 @@ public final class SpatchUi extends FrameLayout {
         applyPalette();
         setClickable(true);
         setFocusableInTouchMode(true);
+        // Content sits inside the system bars; the backdrop and motes draw under them, edge to edge.
         setOnApplyWindowInsetsListener((v, insets) -> {
-            setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
-                       insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            inset.set(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                      insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            if (content != null) content.setPadding(inset.left, inset.top, inset.right, inset.bottom);
             return insets;
         });
         render();
     }
 
     private final android.content.SharedPreferences prefs;
+    private final android.graphics.Rect inset = new android.graphics.Rect();
 
     private boolean pref(String key, boolean fallback) { return prefs.getBoolean(key, fallback); }
 
@@ -204,8 +206,8 @@ public final class SpatchUi extends FrameLayout {
 
     private void paintSystemBars() {
         android.view.Window window = activity.getWindow();
-        window.setStatusBarColor(surface);
-        window.setNavigationBarColor(surface);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
         View decor = window.getDecorView();
         int bars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         int current = decor.getSystemUiVisibility();
@@ -532,6 +534,7 @@ public final class SpatchUi extends FrameLayout {
             }
         }
         content = column();
+        content.setPadding(inset.left, inset.top, inset.right, inset.bottom);
         addView(content, new FrameLayout.LayoutParams(-1, -1));
         if (screen == HOME || screen == LIBRARY) buildBrowse();
         else if (screen == QUEUE) buildQueue();
@@ -973,6 +976,12 @@ public final class SpatchUi extends FrameLayout {
         chrome.animate().alpha(hide ? 0f : 1f).translationY(hide ? dp(24) : 0).setStartDelay(0).setDuration(320)
             .setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
         chrome.setVisibility(VISIBLE);
+        if (trackArt != null && trackArt.getParent() instanceof View) {
+            View stage = (View) trackArt.getParent();
+            float grow = hide ? 1.14f : 1f;
+            stage.animate().scaleX(grow).scaleY(grow).translationY(hide ? chrome.getHeight() / 2f : 0)
+                .setDuration(420).setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
+        }
         ViewGroup group = (ViewGroup) chrome;
         for (int i = 0; i < group.getChildCount(); i++) group.getChildAt(i).setEnabled(!hide);
     }
@@ -1144,30 +1153,92 @@ public final class SpatchUi extends FrameLayout {
     private void addVolume(LinearLayout details) {
         AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
         if (audio == null) return;
-        SeekBar slider = new SeekBar(activity);
-        slider.setContentDescription("Media volume");
-        slider.setProgressTintList(ColorStateList.valueOf(primary));
-        slider.setThumbTintList(ColorStateList.valueOf(primary));
-        int stream = AudioManager.STREAM_MUSIC;
-        int min = android.os.Build.VERSION.SDK_INT >= 28 ? audio.getStreamMinVolume(stream) : 0;
-        slider.setMax(audio.getStreamMaxVolume(stream) - min);
-        slider.setProgress(audio.getStreamVolume(stream) - min);
-        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar view, int value, boolean fromUser) {
-                if (fromUser) audio.setStreamVolume(stream, min + value, 0);
+        VolumeSlider slider = new VolumeSlider(audio);
+        LinearLayout.LayoutParams p = match(dp(44));
+        p.setMargins(dp(4), dp(10), dp(4), 0);
+        details.addView(slider, p);
+    }
+
+    /** Expressive slider: a thick pill track that fills with the accent, the speaker riding inside it. */
+    private final class VolumeSlider extends View {
+        private final AudioManager audio;
+        private final int stream = AudioManager.STREAM_MUSIC, min, max;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Glyph icon = new Glyph("volume", false);
+        private float shown = -1;
+
+        VolumeSlider(AudioManager audio) {
+            super(activity);
+            this.audio = audio;
+            min = android.os.Build.VERSION.SDK_INT >= 28 ? audio.getStreamMinVolume(stream) : 0;
+            max = audio.getStreamMaxVolume(stream);
+            setFocusable(true);
+            setContentDescription("Media volume");
+        }
+
+        private float level() { return max <= min ? 0 : (audio.getStreamVolume(stream) - min) / (float) (max - min); }
+
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight(), r = h / 2f;
+            float target = level();
+            if (shown < 0 || !motionEnabled()) shown = target;
+            shown += (target - shown) * .35f;
+            if (Math.abs(target - shown) > .002f) postInvalidateOnAnimation(); else shown = target;
+            paint.setColor((onSurface & 0x00ffffff) | 0x1f000000);
+            c.drawRoundRect(0, 0, w, h, r, r, paint);
+            float fill = h + (w - h) * shown;
+            paint.setColor(primary);
+            c.drawRoundRect(0, 0, fill, h, r, r, paint);
+            if (fill > h * 1.6f) {
+                paint.setColor(onPrimary);
+                c.drawRoundRect(fill - dp(10), h * .28f, fill - dp(6), h * .72f, dp(2), dp(2), paint);
             }
-            @Override public void onStartTrackingTouch(SeekBar view) {}
-            @Override public void onStopTrackingTouch(SeekBar view) {
-                view.setProgress(audio.getStreamVolume(stream) - min);
+            c.save();
+            float side = dp(22);
+            c.translate(r - side / 2f, (h - side) / 2f);
+            c.scale(side / 24f, side / 24f);
+            icon.drawGlyph(c, "volume", onPrimary, 1f, 1f);
+            c.restore();
+        }
+
+        @Override public boolean onTouchEvent(MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                case MotionEvent.ACTION_MOVE:
+                case MotionEvent.ACTION_UP:
+                    float h = getHeight();
+                    float f = Math.max(0f, Math.min(1f, (e.getX() - h / 2f) / Math.max(1f, getWidth() - h)));
+                    int value = min + Math.round(f * (max - min));
+                    if (value != audio.getStreamVolume(stream)) {
+                        audio.setStreamVolume(stream, value, 0);
+                        if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+                    }
+                    invalidate();
+                    return true;
+                default:
+                    return e.getActionMasked() == MotionEvent.ACTION_CANCEL;
             }
-        });
-        LinearLayout volume = row();
-        Glyph icon = new Glyph("volume", false);
-        icon.ink = onVariant;
-        icon.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        volume.addView(icon, control(36));
-        volume.addView(slider, new LinearLayout.LayoutParams(0, dp(48), 1));
-        details.addView(volume, match(-2));
+        }
+
+        @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo node) {
+            super.onInitializeAccessibilityNodeInfo(node);
+            node.setClassName(android.widget.SeekBar.class.getName());
+            node.setRangeInfo(AccessibilityNodeInfo.RangeInfo.obtain(AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT,
+                min, max, audio.getStreamVolume(stream)));
+            node.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD);
+            node.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD);
+        }
+
+        @Override public boolean performAccessibilityAction(int action, Bundle arguments) {
+            if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD || action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {
+                audio.adjustStreamVolume(stream, action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                    ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER, 0);
+                invalidate();
+                return true;
+            }
+            return super.performAccessibilityAction(action, arguments);
+        }
     }
 
     private void artworkGestures(View view, boolean mini) {
