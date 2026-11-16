@@ -108,21 +108,22 @@ public final class CoreBridge implements Transport {
         return out == null ? new byte[0] : out;
     }
 
-    /**
-     * From Rust, off the main thread: an image (Spotify's public CDN) decoded with Android's own decoder
-     * and scaled to fit `size` pixels. Returns width and height (4 bytes each, big-endian) then RGBA
-     * pixels, or null when it can't be had.
-     */
-    public static byte[] image(String url, int size) {
+    /** Decodes artwork off the UI thread and scales it to the requested size. */
+    static android.graphics.Bitmap artwork(String url, int size) {
+        if (!url.startsWith("https://")) return null;
         try {
             java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
             c.setConnectTimeout(15000);
             c.setReadTimeout(20000);
+            c.setInstanceFollowRedirects(false);
             byte[] data;
             try (java.io.InputStream in = c.getInputStream()) {
                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
                 byte[] buf = new byte[1 << 14];
-                for (int n; (n = in.read(buf)) > 0;) out.write(buf, 0, n);
+                for (int n; (n = in.read(buf)) > 0;) {
+                    if (out.size() + n > 8 * 1024 * 1024) return null;
+                    out.write(buf, 0, n);
+                }
                 data = out.toByteArray();
             } finally {
                 c.disconnect();
@@ -131,18 +132,16 @@ public final class CoreBridge implements Transport {
             bounds.inJustDecodeBounds = true;
             android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
             android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
-            while (bounds.outWidth / (opts.inSampleSize == 0 ? 1 : opts.inSampleSize) >= size * 2) opts.inSampleSize = Math.max(2, opts.inSampleSize * 2);
+            opts.inSampleSize = 1;
+            int longest = Math.max(bounds.outWidth, bounds.outHeight);
+            while (longest / opts.inSampleSize >= size * 2) opts.inSampleSize *= 2;
             android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, opts);
             if (b == null) return null;
             if (b.getWidth() > size || b.getHeight() > size) {
                 float k = Math.min(size / (float) b.getWidth(), size / (float) b.getHeight());
                 b = android.graphics.Bitmap.createScaledBitmap(b, Math.max(1, Math.round(b.getWidth() * k)), Math.max(1, Math.round(b.getHeight() * k)), true);
             }
-            if (b.getConfig() != android.graphics.Bitmap.Config.ARGB_8888) return null; // JPEGs from the CDN decode as ARGB_8888
-            java.nio.ByteBuffer out = java.nio.ByteBuffer.allocate(8 + b.getWidth() * b.getHeight() * 4);
-            out.putInt(b.getWidth()).putInt(b.getHeight());
-            b.copyPixelsToBuffer(out); // RGBA byte order
-            return out.array();
+            return b;
         } catch (Throwable e) {
             return null;
         }

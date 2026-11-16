@@ -1,92 +1,25 @@
 package spatch;
 
 import android.app.Activity;
+import android.app.Application;
 import android.content.Context;
-import android.content.res.AssetManager;
 import android.os.Build;
-import android.view.MotionEvent;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import dev.makepad.android.MakepadNative;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/**
- * Hosts the Rust app (assets/spatch/libspatch_app.so) over Spotify's window: a full-screen
- * SurfaceView fed to Makepad's Android layer (dev.makepad.android.MakepadNative).
- * Spotify keeps running underneath, so its core (sign-in, playback) is live for CoreBridge.
- */
-public final class SpatchApp implements SurfaceHolder.Callback, View.OnTouchListener {
+/** Mounts the Spatch UI over Spotify while its core runs underneath. */
+public final class SpatchApp {
     private static final String ASSET = "spatch/libspatch_app.so";
     private static String loadError;
     private static boolean loaded;
-    private static boolean makepadStarted;
-    private static SpatchApp current;
-    private final FrameLayout host;
-    private View spotify;
-
-    private SpatchApp(Activity activity) {
-        host = new FrameLayout(activity);
-        host.setClickable(true);
-        SurfaceView surface = new SurfaceView(activity);
-        surface.getHolder().addCallback(this);
-        surface.setOnTouchListener(this);
-        host.addView(surface, new FrameLayout.LayoutParams(-1, -1));
-    }
-
-    /** Host object passed to MakepadNative.activityOnCreate: provides AssetManager, no-ops the rest. */
-    public static final class Host {
-        private final Activity activity;
-
-        Host(Activity activity) {
-            this.activity = activity;
-        }
-
-        public AssetManager getAssets() {
-            return activity.getAssets();
-        }
-
-        public void setFullScreen(boolean fullscreen) {}
-
-        public void switchActivity() {}
-
-        public void showKeyboard(boolean visible) {}
-
-        public void copyToClipboard(String content) {}
-
-        public void requestHttp(long id, long metadataId, String url, String method, String headers, byte[] body) {}
-
-        public void openWebSocket(long id, String url, long callback) {}
-
-        public void sendWebSocketMessage(long id, byte[] message) {}
-
-        public void closeWebSocket(long id) {}
-
-        public String[] getAudioDevices(long flag) {
-            return new String[0];
-        }
-
-        public void openAllMidiDevices(long delay) {}
-
-        public void prepareVideoPlayback(long id, Object source, int tex, boolean autoplay, boolean loop) {}
-
-        public void beginVideoPlayback(long id) {}
-
-        public void pauseVideoPlayback(long id) {}
-
-        public void resumeVideoPlayback(long id) {}
-
-        public void muteVideoPlayback(long id) {}
-
-        public void unmuteVideoPlayback(long id) {}
-
-        public void cleanupVideoPlaybackResources(long id) {}
-    }
+    private static final String ROOT = "spatch-root";
+    private static boolean watching;
 
     /** Whether the Rust library is loaded; copies it out of the APK on first use. */
     static synchronized boolean load(Context c) {
@@ -109,16 +42,13 @@ public final class SpatchApp implements SurfaceHolder.Callback, View.OnTouchList
             }
             if (lib.canWrite() && !lib.setReadOnly()) throw new java.io.IOException("can't make " + lib + " read-only");
             System.load(lib.getAbsolutePath());
+            CoreBridge.nativeInit();
             loaded = true;
             loadError = null;
         } catch (Throwable e) {
             loadError = String.valueOf(e);
         }
         return loaded;
-    }
-
-    static String loadError() {
-        return loadError;
     }
 
     private static byte[] read(InputStream in) throws java.io.IOException {
@@ -130,88 +60,60 @@ public final class SpatchApp implements SurfaceHolder.Callback, View.OnTouchList
         }
     }
 
-    private static boolean startHandled;
-
-    /** Spotify's main screen resumed: the app comes up over it once per launch, as the UI. */
-    public static void resumed(Activity a) {
-        if (startHandled || !"com.spotify.music.SpotifyMainActivity".equals(a.getClass().getName())) return;
-        startHandled = true;
-        try {
-            open(a);
-        } catch (Throwable t) {
-            android.util.Log.e("SpatchApp", "resumed failed", t);
+    /** Called from the launcher activity before Spotify resumes its presentation layer. */
+    public static void resumed(Activity activity) {
+        if (!watching) {
+            watching = true;
+            activity.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+                @Override public void onActivityResumed(Activity resumed) { mount(resumed); }
+                @Override public void onActivityCreated(Activity activity, Bundle state) {}
+                @Override public void onActivityStarted(Activity activity) {}
+                @Override public void onActivityPaused(Activity activity) {}
+                @Override public void onActivityStopped(Activity activity) {}
+                @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
+                @Override public void onActivityDestroyed(Activity activity) {}
+            });
         }
+        mount(activity);
     }
 
-    /** Opens the Rust app over this activity. False (see loadError) when the library can't load. */
-    static boolean open(Activity activity) {
-        if (current != null) return true;
+    private static void mount(Activity activity) {
+        if (activity.isFinishing()) return;
         try {
-            if (!load(activity)) {
-                android.util.Log.e("SpatchApp", "load failed: " + loadError);
-                return false;
-            }
-            if (!makepadStarted) {
-                makepadStarted = true;
-                CoreBridge.nativeInit();
-                MakepadNative.activityOnCreate(new Host(activity));
-                float density = activity.getResources().getDisplayMetrics().density;
-                MakepadNative.onAndroidParams(
-                    activity.getCacheDir().getAbsolutePath(),
-                    density,
-                    false,
-                    "",
-                    "",
-                    ""
-                );
-                MakepadNative.initChoreographer(60f, Build.VERSION.SDK_INT);
-                MakepadNative.activityOnStart();
-            }
-            MakepadNative.activityOnResume();
-            SpatchApp app = new SpatchApp(activity);
-            current = app;
             ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
-            decor.addView(app.host, new FrameLayout.LayoutParams(-1, -1));
-            app.spotify = decor.findViewById(0x01020002); // android.R.id.content
-            if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
-            else app.spotify = null;
-            return true;
+            View nativeContent = decor.findViewById(android.R.id.content);
+            if (nativeContent != null) {
+                nativeContent.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+                nativeContent.setVisibility(View.INVISIBLE);
+            }
+            if (decor.findViewWithTag(ROOT) != null) return;
+
+            activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+            View root;
+            if (load(activity)) {
+                SpatchUi ui = new SpatchUi(activity);
+                if (Build.VERSION.SDK_INT >= 33) Back33.register(activity, ui);
+                root = ui;
+            } else {
+                android.util.Log.e("SpatchApp", "load failed: " + loadError);
+                android.widget.TextView error = new android.widget.TextView(activity);
+                error.setGravity(android.view.Gravity.CENTER);
+                error.setTextColor(android.graphics.Color.WHITE);
+                error.setBackgroundColor(0xff111715);
+                error.setText("Spatch couldn’t start");
+                root = error;
+            }
+            root.setTag(ROOT);
+            decor.addView(root, new FrameLayout.LayoutParams(-1, -1));
         } catch (Throwable t) {
-            android.util.Log.e("SpatchApp", "open failed", t);
-            return false;
+            android.util.Log.e("SpatchApp", "mount failed", t);
         }
     }
 
-    /** Called by the Rust app (any thread) to close itself. */
-    static void close() {
-        final SpatchApp app = current;
-        if (app == null) return;
-        app.host.post(new Runnable() {
-            public void run() {
-                if (current != app) return;
-                current = null;
-                MakepadNative.activityOnPause();
-                if (app.spotify != null) app.spotify.setVisibility(View.VISIBLE);
-                ViewGroup parent = (ViewGroup) app.host.getParent();
-                if (parent != null) parent.removeView(app.host);
-            }
-        });
-    }
-
-    public void surfaceCreated(SurfaceHolder holder) {
-        MakepadNative.surfaceOnSurfaceCreated(holder.getSurface());
-    }
-
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        MakepadNative.surfaceOnSurfaceChanged(holder.getSurface(), width, height);
-    }
-
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        MakepadNative.surfaceOnSurfaceDestroyed();
-    }
-
-    public boolean onTouch(View v, MotionEvent e) {
-        MakepadNative.surfaceOnTouch(e);
-        return true;
+    private static final class Back33 {
+        private static void register(Activity activity, SpatchUi ui) {
+            activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, ui::back);
+        }
     }
 }

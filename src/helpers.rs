@@ -11,8 +11,8 @@ pub const HELPERS: [(&str, &str); 3] = [
         include_str!("../theme/dex/src/spatch/core/SpatchApp.java"),
     ),
     (
-        "dev/makepad/android/MakepadNative",
-        include_str!("../theme/dex/src/dev/makepad/android/MakepadNative.java"),
+        "SpatchUi",
+        include_str!("../theme/dex/src/spatch/core/SpatchUi.java"),
     ),
 ];
 /// Added by `--debug` only, and found by name at runtime, so other builds contain none of this code.

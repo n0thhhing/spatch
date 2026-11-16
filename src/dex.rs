@@ -382,11 +382,13 @@ fn compile_helper(
     }
     let javac = tools.java_home.join("bin/javac");
     tools.run(&javac, &javac_stubs)?;
+    let android = crate::tools::android_jar().ok_or("missing android.jar: install Android SDK platform 35 or later")?;
+    let classpath = std::env::join_paths([android.as_path(), stub_cls.as_path()])?;
     let mut javac_helpers = vec![
         OsStr::new("--release"),
         OsStr::new("11"),
         OsStr::new("-cp"),
-        stub_cls.as_os_str(),
+        classpath.as_os_str(),
         OsStr::new("-d"),
         cls.as_os_str(),
     ];
@@ -427,6 +429,8 @@ fn compile_helper(
         OsStr::new("--min-api"),
         OsStr::new("24"),
         OsStr::new("--lib"),
+        android.as_os_str(),
+        OsStr::new("--lib"),
         stub_jar.as_os_str(),
         OsStr::new("--output"),
         dex.as_os_str(),
@@ -438,28 +442,36 @@ fn compile_helper(
     tools.run(&tools.d8, &d8)?;
     let out = dex.join("classes.dex");
     let classes = tools.run(&tools.dexdump, &[OsStr::new("-f"), out.as_os_str()])?;
-    let all_present = helpers.iter().all(|(n, _)| {
-        let desc = if n.contains('/') {
-            format!("'L{n};'")
-        } else {
-            format!("'Lspatch/{n};'")
-        };
-        classes.contains(&desc)
-    });
-    let nested = class_paths
+    let mut expected: std::collections::HashSet<String> = class_paths
         .iter()
-        .filter(|p| p.to_string_lossy().contains('$'))
-        .count();
-    if classes.matches("Class descriptor").count() != helpers.len() + nested + RELOCATED.len()
-        || !all_present
-        || !relocated()?
-            .iter()
-            .all(|(_, _, _, class)| classes.contains(&format!("'{class}'")))
-    {
-        return Err(
-            "helper DEX must contain exactly the spatch helpers and the relocated original classes"
-                .into(),
-        );
+        .map(|p| -> Result<String> {
+            let relative = p.strip_prefix(&cls)?.with_extension("");
+            Ok(format!("L{};", relative.to_string_lossy().replace('\\', "/")))
+        })
+        .collect::<Result<_>>()?;
+    expected.extend(relocated()?.into_iter().map(|(_, _, _, class)| class.to_owned()));
+    let actual: std::collections::HashSet<_> = classes.lines()
+        .filter_map(|line| line.trim().strip_prefix("Class descriptor"))
+        .filter_map(|line| line.split_once(':'))
+        .map(|(_, name)| name.trim().trim_matches('\''))
+        .collect();
+    let unexpected = actual.iter().find(|&&name| {
+        if expected.contains(name) {
+            return false;
+        }
+        // d8 desugars UI lambdas into classes belonging to their compiled owner.
+        !name.split_once("$$ExternalSynthetic").is_some_and(|(owner, suffix)| {
+            expected.contains(&format!("{owner};"))
+                && suffix.starts_with("Lambda")
+                && suffix.strip_prefix("Lambda").and_then(|n| n.strip_suffix(';'))
+                    .is_some_and(|n| !n.is_empty() && n.bytes().all(|c| c.is_ascii_digit()))
+        })
+    });
+    if let Some(name) = unexpected {
+        return Err(format!("unexpected helper DEX class {name}").into());
+    }
+    if let Some(name) = expected.iter().find(|name| !actual.contains(name.as_str())) {
+        return Err(format!("missing helper DEX class {name}").into());
     }
     check_ref_limits(HELPER_DEX, &classes)?;
     Ok(fs::read(out)?)

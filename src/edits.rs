@@ -12,6 +12,6 @@ pub const EDITS: [Edit; 3] = [
     Edit { file: "smali/com/spotify/esperanto/esperanto/ClientBase.smali", anchor: "    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n", replacement: "    invoke-static {p1}, Lspatch/CoreBridge;->wrap(Ljava/lang/Object;)Lcom/spotify/esperanto/esperanto/Transport;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n" },
     // And Spotify's native Cosmos router, for sp:// and hm:// requests through the core's own connection.
     Edit { file: "smali/com/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter.smali", anchor: "    iput-boolean p3, p0, Lcom/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter;->dispatchOnComputationScheduler:Z\n", replacement: "    iput-boolean p3, p0, Lcom/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter;->dispatchOnComputationScheduler:Z\n\n    invoke-static {p0}, Lspatch/CoreBridge;->router(Ljava/lang/Object;)V\n" },
-    // The app is the UI: it opens over Spotify's main screen when that resumes (once per launch).
+    // The app is the UI: it mounts on the launcher activity and follows later resumes.
     Edit { file: "smali_classes2/com/spotify/music/SpotifyMainActivity.smali", anchor: ".method public final onResume()V\n    .locals 7\n", replacement: ".method public final onResume()V\n    .locals 7\n\n    invoke-static {p0}, Lspatch/SpatchApp;->resumed(Landroid/app/Activity;)V\n" },
 ];

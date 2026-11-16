@@ -2,23 +2,17 @@
 name = "spatch_app"
 version = "0.2.0"
 edition = "2021"
-description = "Spatch's own Spotify UI: Rust and Makepad over Spotify's core, inside the patched app"
+description = "Spatch's Rust bridge to Spotify's core"
 license = "MIT"
 publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-# The same UI in a desktop window, for checking it without a phone.
-[[bin]]
-name = "spatch-desktop"
-path = "src/main.rs"
-
 [dependencies]
 jni = "0.21"
 log = "0.4"
 prost = "0.14"
-makepad-widgets = "1.0.0"
 
 [build-dependencies]
 prost-build = "0.14"

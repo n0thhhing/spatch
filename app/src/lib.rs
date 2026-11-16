@@ -1,12 +1,8 @@
-//! Spatch's own Spotify UI, in Makepad. It runs inside the patched Spotify app: Java's SpatchApp hosts a
-//! surface and feeds it to Makepad's Android layer (dev.makepad.android.MakepadNative), and CoreBridge
-//! carries Esperanto calls to Spotify's core (player, library...) as protobuf bytes. Nothing here sees an
-//! obfuscated name, so a Spotify update only touches the Java hooks.
+//! Spotify data and commands for the Spatch UI.
 
-pub mod app;
-pub mod colors;
 pub mod core;
-pub mod images;
+mod ui_bridge;
+mod ui_geometry;
 pub mod library;
 pub mod player;
 

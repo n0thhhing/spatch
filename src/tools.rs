@@ -103,14 +103,30 @@ fn on_path(name: &str) -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
-/// Highest-versioned build-tools directory under ANDROID_HOME, ANDROID_SDK_ROOT or known installs.
-fn build_tools_dir() -> Option<PathBuf> {
-    let roots = ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
+fn sdk_roots() -> impl Iterator<Item = PathBuf> {
+    ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
         .iter()
         .filter_map(|v| env::var_os(v).map(PathBuf::from))
         .chain(env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Android/sdk")))
-        .chain(SDK_ROOTS.iter().map(PathBuf::from));
-    roots
+        .chain(SDK_ROOTS.iter().map(PathBuf::from))
+}
+
+pub fn android_jar() -> Option<PathBuf> {
+    sdk_roots()
+        .filter_map(|root| std::fs::read_dir(root.join("platforms")).ok())
+        .flat_map(|entries| entries.filter_map(|entry| entry.ok().map(|entry| entry.path())))
+        .filter(|path| path.join("android.jar").is_file())
+        .max_by_key(|path| {
+            let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            name.strip_prefix("android-").unwrap_or("").split('.')
+                .map(|part| part.parse::<u32>().unwrap_or(0)).collect::<Vec<_>>()
+        })
+        .map(|path| path.join("android.jar"))
+}
+
+/// Highest-versioned build-tools directory under ANDROID_HOME, ANDROID_SDK_ROOT or known installs.
+fn build_tools_dir() -> Option<PathBuf> {
+    sdk_roots()
         .filter_map(|r| std::fs::read_dir(r.join("build-tools")).ok())
         .flat_map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())))
         .filter(|p| p.join("apksigner").is_file())
