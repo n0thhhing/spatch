@@ -1034,6 +1034,7 @@ public final class SpatchUi extends FrameLayout {
         FrameLayout.LayoutParams artParams = new FrameLayout.LayoutParams(-1, -1);
         artParams.setMargins(dp(36), dp(28), dp(36), dp(28));
         stage.addView(trackArt, artParams);
+        if (trackArt.shape == Art.DISC) stage.addView(new Sheen(), new FrameLayout.LayoutParams(artParams));
         content.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1));
 
         LinearLayout chrome = column();
@@ -2796,7 +2797,10 @@ public final class SpatchUi extends FrameLayout {
                 if (blur != null) {
                     paint.setAlpha(255);
                     setBitmap(blur, w, h);
+                    // A saturation lift keeps the blurred cover's colour instead of a muddy average.
+                    paint.setColorFilter(VIVID);
                     c.drawRect(0, 0, w, h, paint);
+                    paint.setColorFilter(null);
                     paint.setShader(null);
                 }
                 if (wash == null || washHeight != h) {
@@ -2862,6 +2866,10 @@ public final class SpatchUi extends FrameLayout {
                     c.drawCircle(side / 2, side / 2, side / 2 - dp(1), paint);
                     paint.setColor(0x1effffff);
                     c.drawCircle(side / 2, side / 2, side * .36f, paint);
+                    // Fine grooves between the label and the rim.
+                    paint.setStrokeWidth(dp(.6f));
+                    paint.setColor(0x10ffffff);
+                    for (float g = .39f; g < .49f; g += .018f) c.drawCircle(side / 2, side / 2, side * g, paint);
                     paint.setStyle(Paint.Style.FILL);
                     paint.setColor(surface);
                     paint.setAlpha(230);
@@ -2947,6 +2955,39 @@ public final class SpatchUi extends FrameLayout {
                 bitmapShader = null;
                 previousBitmap = null;
             }
+        }
+    }
+
+    private static final android.graphics.ColorMatrixColorFilter VIVID;
+    static {
+        android.graphics.ColorMatrix m = new android.graphics.ColorMatrix();
+        m.setSaturation(1.45f);
+        VIVID = new android.graphics.ColorMatrixColorFilter(m);
+    }
+
+    /** Light falling on the disc from the upper left; it stays put while the record turns under it. */
+    private final class Sheen extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float shaderSide;
+        Sheen() {
+            super(activity);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+        @Override protected void onDraw(Canvas c) {
+            float side = Math.min(Math.min(getWidth(), getHeight()), dp(344));
+            if (side <= 0) return;
+            float cx = getWidth() / 2f, cy = getHeight() / 2f;
+            if (shaderSide != side) {
+                shaderSide = side;
+                android.graphics.SweepGradient sweep = new android.graphics.SweepGradient(cx, cy,
+                    new int[]{0x00ffffff, 0x2effffff, 0x00ffffff, 0x00ffffff, 0x1affffff, 0x00ffffff},
+                    new float[]{0f, .09f, .2f, .5f, .6f, .7f});
+                Matrix turn = new Matrix();
+                turn.setRotate(195, cx, cy);
+                sweep.setLocalMatrix(turn);
+                paint.setShader(sweep);
+            }
+            c.drawCircle(cx, cy, side / 2f - dp(1), paint);
         }
     }
 
