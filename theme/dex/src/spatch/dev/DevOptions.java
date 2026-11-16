@@ -29,7 +29,7 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
     private final SpatchSettings page;
     private final Context context;
     private final TextView status, results, crash, log;
-    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, restart, frames, inspect, sampler;
+    private final View run, copyReport, refreshLog, copyLog, clearCrash, testCrash, restart, frames, inspect, sampler, openApp;
     private final M3Switch framesSwitch, inspectSwitch, samplerSwitch;
     private String report = "Not run yet";
 
@@ -105,6 +105,7 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
         page.addSectionHeader("App");
         LinearLayout app = page.addGroup();
         restart = row(app, "repeat", "Restart Spotify", null);
+        openApp = row(app, "fullscreen", "Open Spatch app (preview)", "The Rust app on Spotify's core. Core services seen: " + CoreBridge.services());
         page.finish(app);
         page.finishCategory(root);
         refresh();
@@ -265,7 +266,18 @@ public final class DevOptions implements View.OnClickListener, DialogInterface.O
                 .setPositiveButton("Crash", this).setNegativeButton("Cancel", this).show();
         } else if (v == restart) {
             Palette.restart(context);
+        } else if (v == openApp) {
+            android.app.Activity activity = activity(v);
+            if (activity == null || !SpatchApp.open(activity))
+                new AlertDialog.Builder(context, Palette.dialogTheme()).setTitle("Spatch app didn't open")
+                    .setMessage(activity == null ? "No activity to open it over." : String.valueOf(SpatchApp.loadError())).setPositiveButton("OK", null).show(); // not this: its positive button is the test crash
         }
+    }
+
+    private static android.app.Activity activity(View v) {
+        android.content.Context c = v.getContext();
+        while (c instanceof android.content.ContextWrapper && !(c instanceof android.app.Activity)) c = ((android.content.ContextWrapper) c).getBaseContext();
+        return c instanceof android.app.Activity ? (android.app.Activity) c : null;
     }
 
     public void onClick(DialogInterface dialog, int which) {

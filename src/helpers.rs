@@ -1,7 +1,7 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes (theme tokens substituted before compiling), shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 67] = [
+pub const HELPERS: [(&str, &str); 69] = [
     (
         "ThemeImport",
         include_str!("../theme/dex/src/spatch/look/ThemeImport.java"),
@@ -21,6 +21,14 @@ pub const HELPERS: [(&str, &str); 67] = [
     (
         "PlayerCards",
         include_str!("../theme/dex/src/spatch/player/PlayerCards.java"),
+    ),
+    (
+        "CoreBridge",
+        include_str!("../theme/dex/src/spatch/core/CoreBridge.java"),
+    ),
+    (
+        "SpatchApp",
+        include_str!("../theme/dex/src/spatch/core/SpatchApp.java"),
     ),
     (
         "ArtContour",
@@ -298,6 +306,38 @@ pub fn helpers(debug: bool) -> Vec<(&'static str, &'static str)> {
 
 /// Compile-only stand-ins for platform and Spotify classes; never packaged.
 pub const STUBS: &[(&str, &str)] = &[
+    (
+        "Transport.java",
+        include_str!("../theme/dex/stubs/com/spotify/esperanto/esperanto/Transport.java"),
+    ),
+    (
+        "Single.java",
+        include_str!("../theme/dex/stubs/io/reactivex/rxjava3/core/Single.java"),
+    ),
+    (
+        "Observable.java",
+        include_str!("../theme/dex/stubs/io/reactivex/rxjava3/core/Observable.java"),
+    ),
+    (
+        "Consumer.java",
+        include_str!("../theme/dex/stubs/io/reactivex/rxjava3/functions/Consumer.java"),
+    ),
+    (
+        "Disposable.java",
+        include_str!("../theme/dex/stubs/io/reactivex/rxjava3/disposables/Disposable.java"),
+    ),
+    (
+        "Surface.java",
+        include_str!("../theme/dex/stubs/android/view/Surface.java"),
+    ),
+    (
+        "SurfaceHolder.java",
+        include_str!("../theme/dex/stubs/android/view/SurfaceHolder.java"),
+    ),
+    (
+        "SurfaceView.java",
+        include_str!("../theme/dex/stubs/android/view/SurfaceView.java"),
+    ),
     (
         "JSONObject.java",
         include_str!("../theme/dex/stubs/org/json/JSONObject.java"),
