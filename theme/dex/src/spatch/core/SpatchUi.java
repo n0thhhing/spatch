@@ -349,6 +349,17 @@ public final class SpatchUi extends FrameLayout {
         return Math.max(0, Math.min(duration, position + elapsed));
     }
 
+    /** Where each of `bars` bars on one side reads the `bands` analysis bands: the bass gets 46% of the bars for 30% of the bands. */
+    private static float[] bassPositions(int bars, int bands) {
+        float[] out = new float[bars];
+        for (int i = 0; i < bars; i++) {
+            float progress = bars == 1 ? 0f : i / (float) (bars - 1);
+            float source = progress <= .46f ? progress / .46f * .30f : .30f + (progress - .46f) / .54f * .70f;
+            out[i] = source * (bands - 1);
+        }
+        return out;
+    }
+
     private static String initial(String name) {
         for (int i = 0; i < name.length(); i++) {
             int cp = name.codePointAt(i);
@@ -2078,8 +2089,8 @@ public final class SpatchUi extends FrameLayout {
         private int sweepA, sweepB;
         private Bitmap shown, previous;
         private long fadeAt, lastFrame;
-        private final float[] wanted = new float[36], level = new float[36];
-        private float gainRef = .5f;
+        private final float[] level = new float[36];
+        private float[] positions;
 
         Disc() { super(activity); artViews.add(this); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
 
@@ -2144,31 +2155,31 @@ public final class SpatchUi extends FrameLayout {
             int half = bars / 2;
             float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
             lastFrame = now;
-            // 1. What each bar is aiming for: the 24 bands spread smoothly across the half ring (not in steps),
-            //    (Audio already scales each band against its own recent average); or a pulse when audio can't be read.
-            float loudest = 0;
+            // Swiftify's ring (SpectrumShaping::bassExpanded): the 48 bands spread over each side's bars with the
+            // bass given more of them; a bar over several bands shows the strongest, so a narrow peak survives.
+            if (positions == null) positions = bassPositions(half, Audio.BANDS.length);
+            float[] bands = Audio.BANDS;
             for (int i = 0; i < half; i++) {
                 float v;
                 if (live) {
-                    float pos = i * (Audio.BANDS.length - 1) / (float) (half - 1);
-                    int lo = (int) pos, hi = Math.min(Audio.BANDS.length - 1, lo + 1);
-                    v = Audio.BANDS[lo] * (1 - (pos - lo)) + Audio.BANDS[hi] * (pos - lo);
+                    float pos = positions[i];
+                    float lower = i == 0 ? 0f : (positions[i - 1] + pos) / 2f, upper = i == half - 1 ? bands.length - 1 : (pos + positions[i + 1]) / 2f;
+                    if (upper - lower <= 1f) {
+                        int lo = Math.max(0, Math.min(bands.length - 1, (int) Math.floor(pos))), hi = Math.min(lo + 1, bands.length - 1);
+                        v = bands[lo] * (1 - (pos - lo)) + bands[hi] * (pos - lo);
+                    } else {
+                        v = 0;
+                        for (int source = (int) Math.ceil(lower); source <= (int) Math.floor(upper) && source < bands.length; source++) v = Math.max(v, bands[source]);
+                    }
                 } else if (run) {
+                    // No audio to read: a pulse that still reads as music.
                     float swell = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - i / (float) half) * .3f;
                     v = .25f + .18f * (float) Math.sin(t * 2.6f + i * .5f) + .12f * (float) Math.sin(t * 1.5f - i * .27f) + swell;
-                } else v = .05f;
-                wanted[i] = v;
-                loudest = Math.max(loudest, v);
-            }
-            // 2. Auto-gain: quiet and loud songs both fill the range; the reference forgets slowly.
-            gainRef = Math.max(loudest, gainRef - dt * .08f);
-            float scale = live ? .9f / Math.max(.45f, gainRef) : 1f;
-            // 3. Blend neighbours (no lone spikes), compress a little, then ease: quick to rise, slow to fall.
-            for (int i = 0; i < half; i++) {
-                float blended = (wanted[Math.max(0, i - 1)] + 2f * wanted[i] + wanted[Math.min(half - 1, i + 1)]) / 4f * scale;
-                float v = (float) Math.pow(Math.min(1.2f, Math.max(0f, blended)), .85);
-                float tau = v > level[i] ? .045f : .22f;
-                level[i] += (v - level[i]) * (1f - (float) Math.exp(-dt / tau));
+                } else v = 0f;
+                // Swiftify's ring style: base .02 + 1.12 x level^1.1, rising in 16 ms and falling in 45 ms.
+                float shown = Math.max(0f, Math.min(1f, .02f + 1.12f * (float) Math.pow(Math.max(0f, v), 1.1)));
+                float tau = shown > level[i] ? .016f : .045f;
+                level[i] += (shown - level[i]) * (1f - (float) Math.exp(-dt / tau));
             }
             for (int k = 0; k < bars && style == 0; k++) {
                 int bi = k < half ? k : bars - 1 - k;

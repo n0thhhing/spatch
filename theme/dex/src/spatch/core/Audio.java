@@ -30,8 +30,8 @@ public final class Audio {
     static volatile float bass, level, kick;
     /** When the last kick landed (uptime ms), 0 if never. */
     static volatile long kickAt;
-    /** 24 log-spaced bands from 50 Hz to 16 kHz, 0..1, eased; read by the spectrum ring. */
-    static final float[] BANDS = new float[24];
+    /** 48 log-spaced bands from 40 Hz to 16 kHz, 0..1; read by the spectrum ring. */
+    static final float[] BANDS = new float[48];
 
     private static android.os.Handler worker;
     private static volatile long wantedUntil;
@@ -127,26 +127,7 @@ public final class Audio {
                 kick = Math.min(1f, (low - average) * 3f + .35f);
             }
             kick *= (float) Math.exp(-dt / 260f);
-            float sum = 0, peak = 0;
-            for (int i = 0; i < BANDS.length; i++) {
-                float from = 50f * (float) Math.pow(320, i / (float) BANDS.length), to = 50f * (float) Math.pow(320, (i + 1) / (float) BANDS.length);
-                float db = bandDb(fft, rate, from, to);
-                if (!seeded) DB_AVERAGE[i] = db;
-                DB_AVERAGE[i] += (db - DB_AVERAGE[i]) * (1 - (float) Math.exp(-dt / 1600f));
-                // Typical music sits within a few dB of the top of any fixed scale, which draws every bar the same
-                // height. So each band is shown mostly against its own recent average: a beat or a note stands out.
-                float absolute = Math.max(0f, Math.min(1f, (db + 46f) / 40f));
-                float relative = Math.max(0f, Math.min(1f, .45f + (db - DB_AVERAGE[i]) / 14f));
-                float target = Math.max(0f, Math.min(1f, absolute * .3f + relative * .7f - .12f));
-                BANDS[i] += (target - BANDS[i]) * (1 - (float) Math.exp(-dt / (target > BANDS[i] ? 24f : 130f)));
-                sum += db;
-                peak = Math.max(peak, BANDS[i]);
-            }
-            seeded = true;
-            if (now - loggedAt > 3000) {
-                loggedAt = now;
-                android.util.Log.i("SpatchAudio", String.format(java.util.Locale.ROOT, "bands: mean %.1f dB, tallest bar %.2f, bass %.2f", sum / BANDS.length, peak, bass));
-            }
+            analyse(rate, dt / 1000f, now);
             return true;
         } catch (RuntimeException e) {
             say("Couldn’t read the audio: " + e);
@@ -156,9 +137,53 @@ public final class Audio {
         }
     }
 
-    private static final float[] DB_AVERAGE = new float[24];
-    private static boolean seeded;
+    // The analysis is Swiftify's (spotify-core/src/spectrum.rs), on Android's FFT: band *amplitudes*, linear, not dB,
+    // divided by one slow shared reference so balance between bands survives and a hit still lands tall, then a soft
+    // shoulder. It states plainly that scaling dB flattens dynamics into a wall of equal bars.
+    private static final float MIN_REFERENCE = .05f, INITIAL_REFERENCE = .25f, KNEE = 1.8f;
+    private static float reference = INITIAL_REFERENCE;
+    private static final float[] AMPLITUDE = new float[48];
     private static long loggedAt;
+
+    private static void analyse(int rate, float seconds, long now) {
+        float strongest = 0;
+        for (int i = 0; i < BANDS.length; i++) {
+            float from = 40f * (float) Math.pow(400, i / (double) BANDS.length), to = 40f * (float) Math.pow(400, (i + 1) / (double) BANDS.length);
+            AMPLITUDE[i] = bandAmplitude(fft, rate, from, to);
+            strongest = Math.max(strongest, AMPLITUDE[i]);
+        }
+        if (strongest > .005f) {
+            float target = Math.max(strongest, MIN_REFERENCE);
+            float tc = target > reference ? .35f : 3f;
+            reference += (target - reference) * (1 - (float) Math.exp(-seconds / tc));
+        }
+        float attack = 1 - (float) Math.exp(-seconds / .008f), release = 1 - (float) Math.exp(-seconds / .065f);
+        float tallest = 0;
+        for (int i = 0; i < BANDS.length; i++) {
+            float relative = Math.max(0f, AMPLITUDE[i] - .0001f) / reference;
+            float target = 1f - (float) Math.exp(-KNEE * Math.pow(relative, .85));
+            BANDS[i] += (target - BANDS[i]) * (target > BANDS[i] ? attack : release);
+            if (BANDS[i] < .0001f) BANDS[i] = 0;
+            tallest = Math.max(tallest, BANDS[i]);
+        }
+        if (now - loggedAt > 3000) {
+            loggedAt = now;
+            android.util.Log.i("SpatchAudio", String.format(java.util.Locale.ROOT, "strongest band %.3f, reference %.3f, tallest bar %.2f", strongest, reference, tallest));
+        }
+    }
+
+    /** Amplitude of the bins between two frequencies: root of their summed power, 0..~1. */
+    private static float bandAmplitude(byte[] fft, int rateHz, float fromHz, float toHz) {
+        if (rateHz <= 0 || fft.length < 4) return 0f;
+        int n = fft.length, max = n / 2 - 1;
+        int start = Math.max(1, Math.min(max, Math.round(fromHz * n / rateHz))), end = Math.min(max, Math.max(start, Math.round(toHz * n / rateHz)));
+        double power = 0;
+        for (int k = start; k <= end; k++) {
+            double re = fft[k * 2], im = fft[k * 2 + 1];
+            power += (re * re + im * im) / (128.0 * 128.0);
+        }
+        return (float) Math.sqrt(power);
+    }
 
     /** Band energy between two frequencies (Hz) in dB (about 0 for full scale, -90 for silence). */
     static float bandDb(byte[] fft, int rateHz, float fromHz, float toHz) {
@@ -194,6 +219,6 @@ public final class Audio {
         }
         visualizer = null;
         sampled = 0;
-        seeded = false;
+        reference = INITIAL_REFERENCE;
     }
 }
