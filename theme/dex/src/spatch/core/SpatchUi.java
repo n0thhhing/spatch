@@ -573,6 +573,7 @@ public final class SpatchUi extends FrameLayout {
         if (immersiveDrift != null) immersiveDrift.cancel();
         immersiveDrift = null;
         immersiveChrome = null;
+        immersiveTop = null;
         applyPalette();
         paintSystemBars();
         if (screen == IMMERSIVE && pref("keep_on", true)) activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1049,6 +1050,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private View immersiveChrome;
+    private View immersiveTop;
     private GradientDrawable miniShape;
     private int miniColor;
 
@@ -1097,11 +1099,12 @@ public final class SpatchUi extends FrameLayout {
         top.addView(timerButton(), control(48));
         top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
         content.addView(top, match(-2));
+        immersiveTop = top;
 
         FrameLayout stage = new FrameLayout(activity);
         stage.setClipChildren(false);
         stage.setClipToPadding(false);
-        if (pref("glow", true)) stage.addView(new Glow(), new FrameLayout.LayoutParams(-1, -1));
+        if (pref("glow", true)) addView(new Glow(stage), 1, new FrameLayout.LayoutParams(-1, -1));
         trackArt = new Art(pref("spin_art", true) ? Art.DISC : Art.PLAYER_ART);
         trackArt.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         makeClickable(trackArt, "Return to player", () -> navigate(3, 0));
@@ -1221,6 +1224,12 @@ public final class SpatchUi extends FrameLayout {
         }
         ViewGroup group = (ViewGroup) chrome;
         for (int i = 0; i < group.getChildCount(); i++) group.getChildAt(i).setEnabled(!hide);
+        // Zen: the top bar leaves too; a tap anywhere on the disc brings everything back.
+        if (immersiveTop != null) {
+            immersiveTop.animate().alpha(hide ? 0f : 1f).translationY(hide ? -dp(16) : 0).setDuration(320).start();
+            ViewGroup bar = (ViewGroup) immersiveTop;
+            for (int i = 0; i < bar.getChildCount(); i++) bar.getChildAt(i).setEnabled(!hide);
+        }
     }
 
     /** Soft particles that rise through the backdrop while music plays. Drawn in one pass, no allocations. */
@@ -1274,15 +1283,24 @@ public final class SpatchUi extends FrameLayout {
         private RadialGradient gradient;
         private int gradientColor;
         private float gradientRadius;
+        private final View stage;
+        private final int[] at = new int[2], origin = new int[2];
 
-        Glow() {
+        /** Full screen behind the content, centred on the disc's stage, so only the screen edges bound the halo. */
+        Glow(View stage) {
             super(activity);
+            this.stage = stage;
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
 
         @Override protected void onDraw(Canvas c) {
-            float w = getWidth(), h = getHeight();
-            float side = Math.min(Math.min(w - dp(72), h - dp(56)), dp(344));
+            if (trackArt == null || stage.getWidth() == 0) return;
+            stage.getLocationInWindow(at);
+            getLocationInWindow(origin);
+            float sx = stage.getScaleX();
+            float cx = at[0] - origin[0] + stage.getWidth() * sx / 2f, cy = at[1] - origin[1] + stage.getHeight() * stage.getScaleY() / 2f;
+            float side = trackArt.coverSide() * sx;
+            float w = cx * 2, h = cy * 2;
             float radius = side * .5f * 1.42f;
             if (gradient == null || gradientColor != primary || gradientRadius != radius) {
                 gradientColor = primary;
