@@ -90,6 +90,15 @@ final class Releases {
 
     /** Last good reply per URL: {etag, body}. */
     private static final java.util.Map<String, String[]> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static volatile String token;
+
+    public static void setToken(String t) {
+        String trimmed = t == null || t.trim().isEmpty() ? null : t.trim();
+        if ((token == null && trimmed != null) || (token != null && !token.equals(trimmed))) {
+            token = trimmed;
+            CACHE.clear();
+        }
+    }
 
     /**
      * A GitHub API reply. Unauthenticated calls get 60 an hour per network, and the build card polls,
@@ -102,12 +111,17 @@ final class Releases {
         try {
             c.setRequestProperty("Accept", "application/vnd.github+json");
             c.setRequestProperty("User-Agent", "SpatchManager");
+            if (token != null) c.setRequestProperty("Authorization", "Bearer " + token);
             if (cached != null) c.setRequestProperty("If-None-Match", cached[0]);
             c.setConnectTimeout(15000);
             c.setReadTimeout(30000);
             int code = c.getResponseCode();
             if (code == 304 && cached != null) return cached[1];
-            if ((code == 403 || code == 429) && "0".equals(c.getHeaderField("X-RateLimit-Remaining"))) {
+            if (code == 401) {
+                throw new IOException("GitHub token was rejected (401 Unauthorized). Check the token in Settings.");
+            }
+            String remaining = c.getHeaderField("X-RateLimit-Remaining");
+            if (code == 429 || (code == 403 && ("0".equals(remaining) || remaining == null))) {
                 if (cached != null) return cached[1];
                 throw new IOException(limitMessage(c.getHeaderField("X-RateLimit-Reset")));
             }
@@ -130,7 +144,7 @@ final class Releases {
         try {
             minutes = Math.max(1, (Long.parseLong(reset) * 1000 - System.currentTimeMillis() + 59_999) / 60_000);
         } catch (NumberFormatException | NullPointerException ignored) {}
-        return "GitHub's hourly limit for this network is used up" + (minutes > 0 ? "; it resets in " + minutes + " min." : "; try again later.");
+        return "GitHub's hourly limit for this network is used up" + (minutes > 0 ? "; it resets in " + minutes + " min." : "; try again later.") + " Add a GitHub token to raise it to 5,000/hr.";
     }
 
     static Releases parse(String releasesJson, String commitsJson, String branch) throws IOException {

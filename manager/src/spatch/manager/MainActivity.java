@@ -55,6 +55,7 @@ public final class MainActivity extends Activity {
     private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates", INVITE = "source_invite", DOWNLOADED = "apkm_downloaded";
     private static final String PAGE = "page", CLONE_PKG = "clone_package", CLONE_NAME = "clone_name", CLONE_INSTALLED = "clone_installed:";
     static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", NIGHTLY = "nightly_patches", BRANCH = "nightly_branch", UPDATE = "start_update";
+    static final String TOKEN = "github_token";
     private static final String PROFILE = "patch_profile", CLONES_SET = "clones_packages";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
     private static final String[] PAGES = {"Spatch", "Clones", "Diagnostics", "Changes"};
@@ -113,7 +114,7 @@ public final class MainActivity extends Activity {
     private ScrollView scroll;
     private ProgressBar progress;
     private Switch developer, notify, nightly;
-    private android.widget.Button branchButton;
+    private android.widget.Button branchButton, tokenButton;
 
     /** The branch whose nightly to install: "" is main, anything else a branch-<name> prerelease. */
     private String branch() {
@@ -142,6 +143,58 @@ public final class MainActivity extends Activity {
             releases = null;
             checkUpdates();
         }).setNegativeButton("Cancel", null).show();
+    }
+
+    private String tokenLabel() {
+        String t = prefs.getString(TOKEN, null);
+        return t != null && !t.trim().isEmpty() ? "Token: set" : "GitHub token";
+    }
+
+    private void editToken() {
+        EditText field = new EditText(this);
+        field.setSingleLine(true);
+        field.setHint("ghp_… or github_pat_…");
+        field.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        String current = prefs.getString(TOKEN, null);
+        android.content.ClipboardManager clips = getSystemService(android.content.ClipboardManager.class);
+        android.content.ClipData clip = clips == null ? null : clips.getPrimaryClip();
+        CharSequence pasted = clip != null && clip.getItemCount() > 0 ? clip.getItemAt(0).getText() : null;
+        if (current != null && !current.isEmpty()) {
+            field.setText(current);
+        } else if (pasted != null) {
+            String p = pasted.toString().trim();
+            if (p.startsWith("ghp_") || p.startsWith("github_pat_")) field.setText(p);
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(look.dp(24), look.dp(8), look.dp(24), 0);
+        box.addView(field, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this).setTitle("GitHub personal access token")
+            .setMessage("GitHub limits anonymous requests to 60/hour per IP. Adding a token (classic or fine-grained with public repo read) raises the limit to 5,000/hour.")
+            .setView(box).setNegativeButton("Cancel", null)
+            .setPositiveButton("Save", (d, w) -> {
+                String val = field.getText().toString().trim();
+                if (val.isEmpty()) {
+                    prefs.edit().remove(TOKEN).apply();
+                    Releases.setToken(null);
+                    say("GitHub token removed.");
+                } else {
+                    prefs.edit().putString(TOKEN, val).apply();
+                    Releases.setToken(val);
+                    say("GitHub token saved. Rate limit is now 5,000 requests/hour.");
+                }
+                if (tokenButton != null) Look.label(tokenButton, tokenLabel());
+                checkUpdates();
+            });
+        if (current != null && !current.isEmpty()) {
+            dialog.setNeutralButton("Remove", (d, w) -> {
+                prefs.edit().remove(TOKEN).apply();
+                Releases.setToken(null);
+                say("GitHub token removed.");
+                if (tokenButton != null) Look.label(tokenButton, tokenLabel());
+                checkUpdates();
+            });
+        }
+        dialog.show();
     }
 
     private final BroadcastReceiver installResult = new BroadcastReceiver() {
@@ -206,6 +259,7 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE); // the page draws its own heading
         prefs = getSharedPreferences("manager", MODE_PRIVATE);
+        Releases.setToken(prefs.getString(TOKEN, null));
         look = new Look(this);
         getWindow().getDecorView().setBackgroundColor(look.surface);
         getWindow().setStatusBarColor(look.surface);
@@ -415,7 +469,8 @@ public final class MainActivity extends Activity {
         });
         profileCard.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
         branchButton = look.button(branchLabel(), "tune", Look.Kind.TONAL, v -> chooseBranch());
-        profileCard.addView(branchButton, look.spaced(6));
+        tokenButton = look.button(tokenLabel(), "key", Look.Kind.TONAL, v -> editToken());
+        profileCard.addView(look.row(branchButton, tokenButton), look.spaced(6));
 
         notify = new M3Switch(this, look);
         notify.setChecked(prefs.getBoolean(NOTIFY, true));
@@ -972,6 +1027,9 @@ public final class MainActivity extends Activity {
         if (releases == null) {
             LinearLayout card = look.card(changesBox, "Changes");
             card.addView(look.text(releaseError != null ? releaseError : "Looking for changes…", 14, look.onSurfaceVariant, false));
+            if (releaseError != null && (releaseError.contains("limit") || releaseError.contains("403") || releaseError.contains("401"))) {
+                card.addView(look.button(tokenLabel(), "key", Look.Kind.TONAL, v -> editToken()), look.spaced(8));
+            }
             return;
         }
         if (!releases.commits.isEmpty() || releases.nightly != null) {
