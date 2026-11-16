@@ -133,6 +133,8 @@ pub enum Command {
     Repeat(u8),
     /// Skips forward to a track in Up Next, as Spotify's queue does.
     SkipTo { uri: String, uid: String },
+    /// Adds a track to the end of the user's queue.
+    AddToQueue(String),
 }
 
 /// The RPC method and request bytes for a command.
@@ -153,6 +155,10 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
         Command::Pause => ("Pause", es::PauseRequest::default().encode_to_vec()),
         Command::Resume => ("Resume", es::ResumeRequest::default().encode_to_vec()),
         Command::Next => ("SkipNext", es::SkipNextRequest::default().encode_to_vec()),
+        Command::AddToQueue(uri) => (
+            "AddToQueue",
+            es::AddToQueueRequest { track: Some(es::ContextTrack { uri, ..Default::default() }), ..Default::default() }.encode_to_vec(),
+        ),
         Command::SkipTo { uri, uid } => (
             "SkipNext",
             es::SkipNextRequest { track: Some(es::ContextTrack { uri, uid, ..Default::default() }), ..Default::default() }.encode_to_vec(),
@@ -216,6 +222,9 @@ mod tests {
         assert_eq!(now.up_next.len(), 1);
         assert_eq!((now.up_next[0].title.as_str(), now.up_next[0].artist.as_str(), now.up_next[0].uri.as_str()), ("annoying", "someone", "spotify:track:2"));
         assert_eq!(now.up_next[0].image, "https://i.scdn.co/image/ab67");
+        let (method, bytes) = command(Command::AddToQueue("spotify:track:9".into()));
+        let queued = es::AddToQueueRequest::decode(bytes.as_slice()).unwrap().track.unwrap();
+        assert_eq!((method, queued.uri.as_str()), ("AddToQueue", "spotify:track:9"));
         let (method, bytes) = command(Command::SkipTo { uri: "spotify:track:2".into(), uid: "u2".into() });
         let skip = es::SkipNextRequest::decode(bytes.as_slice()).unwrap().track.unwrap();
         assert_eq!((method, skip.uri.as_str(), skip.uid.as_str()), ("SkipNext", "spotify:track:2", "u2"));

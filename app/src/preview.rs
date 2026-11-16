@@ -151,6 +151,17 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
         Command::Pause => now.playing = false,
         Command::Resume => now.playing = true,
         Command::Next => *now = track((index + 1) % TRACKS.len(), now.playing),
+        Command::AddToQueue(uri) => {
+            let at = uri.rsplit(':').next().and_then(|value| value.parse::<usize>().ok()).unwrap_or(0) % TRACKS.len();
+            now.up_next.insert(0, crate::player::NextTrack {
+                title: TRACKS[at].0.into(),
+                artist: TRACKS[at].1.into(),
+                image: format!("demo:{at}"),
+                uri: format!("spotify:preview:{at}"),
+                uid: format!("queued-{at}"),
+            });
+            return;
+        }
         Command::SkipTo { uri, .. } => {
             let to = uri.rsplit(':').next().and_then(|value| value.parse::<usize>().ok()).unwrap_or(index);
             *now = track(to % TRACKS.len(), now.playing);

@@ -219,6 +219,16 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(
             }
             Command::Play(uri)
         }
+        9 => {
+            let Ok(text) = env.get_string(&uri) else {
+                return JNI_FALSE;
+            };
+            let uri = String::from(text);
+            if !uri.starts_with("spotify:") {
+                return JNI_FALSE;
+            }
+            Command::AddToQueue(uri)
+        }
         // Jump to Up Next entry `value`, if it is still the track the UI showed there.
         8 => {
             let Ok(text) = env.get_string(&uri) else {

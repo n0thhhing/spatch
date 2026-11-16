@@ -50,7 +50,7 @@ public final class SpatchUi extends FrameLayout {
     private int secondaryContainer, onSecondaryContainer, tertiaryContainer, onTertiaryContainer;
     private boolean dark;
     private static final int HOME = 0, LIBRARY = 1, PLAYER = 2, IMMERSIVE = 3, QUEUE = 4, PLAYLIST = 5, SETTINGS = 6;
-    private static final int PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8;
+    private static final int PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
     private static final ExecutorService LIBRARY_DATA = Executors.newSingleThreadExecutor();
@@ -2269,6 +2269,15 @@ public final class SpatchUi extends FrameLayout {
 
     /** Long press: play it, shuffle it, or open it (playlists only), from a sheet. */
     private void entryActions(Entry entry) {
+        if (screen == PLAYLIST) {
+            // A song in a playlist: play it now or line it up.
+            sheet(entry.title, entry.subtitle.isEmpty() ? "Song" : entry.subtitle, new String[]{"Play", "Add to queue"}, -1, choice -> {
+                if (choice == 0) { selectEntry(entry); return; }
+                command(QUEUE_ADD, 0, entry.uri);
+                Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show();
+            });
+            return;
+        }
         boolean openable = entry.category == 0 || entry.uri.startsWith("spotify:playlist:")
             || (entry.uri.startsWith("spotify:user:") && entry.uri.contains(":playlist:"));
         String[] options = openable ? new String[]{"Play", "Shuffle play", "Open"} : new String[]{"Play", "Shuffle play"};
