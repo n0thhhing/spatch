@@ -1,17 +1,13 @@
-mod arsc;
 mod bundle;
 mod cache;
 mod dex;
 mod edits;
-mod fonts;
 mod helpers;
 mod input;
-mod lottie;
 mod names;
 mod patch;
 mod source;
 mod theme;
-mod theme_assets;
 mod tools;
 
 use std::path::PathBuf;
@@ -140,9 +136,9 @@ fn inspect(apkm: &std::path::Path) -> Result<()> {
     for (name, sha) in input::APKS {
         println!("  {name}  {sha}");
     }
-    println!("patch targets in base.apk:");
-    for t in &patch::TARGETS {
-        println!("  {}", t.entry);
+    println!("patched DEX in base.apk:");
+    for (entry, _) in &dex::DEX_TARGETS {
+        println!("  {entry}");
     }
     match tools::Tools::discover() {
         Ok(t) => println!(

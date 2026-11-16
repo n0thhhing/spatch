@@ -15,7 +15,7 @@ use std::fs;
 use std::path::Path;
 
 /// Original DEX entries that get reassembled, with their pinned SHA-256.
-pub const DEX_TARGETS: [(&str, &str); 11] = [
+pub const DEX_TARGETS: [(&str, &str); 2] = [
     (
         "classes.dex",
         "0520d0e2b66ba60593b815e71902247327da8c5a6392334219cd77d1d438ea21",
@@ -24,42 +24,6 @@ pub const DEX_TARGETS: [(&str, &str); 11] = [
         "classes2.dex",
         "6f75b6523f9c11d4de3cefa3209d9d408c61e07caaa12d42155b3c9141b0b532",
     ),
-    (
-        "classes3.dex",
-        "28b77b1cc585e4d4853a662a48144e4941e7532265f21d8b2dc598325c290da3",
-    ),
-    (
-        "classes4.dex",
-        "6c97eeef14cdcb27979633bd4d1e929156b0426e0e631a15eaf9fb67ecc32e52",
-    ),
-    (
-        "classes5.dex",
-        "d7fa0ae3238dd5a5d4c3755f7b63116c610c8e84be973871a8ef61cee05e95b5",
-    ),
-    (
-        "classes7.dex",
-        "f81bc0fa078bc2134b63e9043969060f42eb3044d29bc5d1d2d9c6f051d4f8b8",
-    ),
-    (
-        "classes8.dex",
-        "7956386cce678c2d4c0b907ef04eb9ed6aa564edefd4054067f91b2e128c8d5a",
-    ),
-    (
-        "classes9.dex",
-        "3cf0dd51390e5cfa4adc4389a90e921921656eef9178ad434d60239ff6b7cb90",
-    ),
-    (
-        "classes10.dex",
-        "0b48ba31f2c4905e0541172be072874873babc6b7322fc14238a3a9ceaa577a1",
-    ),
-    (
-        "classes11.dex",
-        "f994a60a684dd0e02567afa439a28e2717edaa372d749511c369e0431d3dac22",
-    ),
-    (
-        "classes12.dex",
-        "b51ab44ec17867799300aa46a0a46fe3eba6169ba7382a996bbb928d034ac526",
-    ),
 ];
 /// Next free multidex slot (base ships classes.dex..classes15.dex).
 pub const HELPER_DEX: &str = "classes16.dex";
@@ -67,29 +31,10 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Each is an alias (`S_...`) or a smali path.
-const RELOCATED: [&str; 16] = [
-    "smali_classes9/com/spotify/nowplaying/scroll/view/NowPlayingScrollView.smali",
-    // Typography and the Home filter row: these DEX tables are full too.
-    "S_MixFontLoaderD",
-    "S_MixFontLoaderG",
-    "S_HomeFilterRow",
-    // Compose surface and shape policy (spatch.Surfaces): both DEX tables are full.
-    "S_PageBackground",
-    "S_ComposeShapes",
-    // Encore's press spring: classes.dex has no room for the hook's reference.
-    "S_EncorePressable",
-    "smali_classes2/com/spotify/playbacknative/AudioEffectsListener.smali",
-    "S_EncoreTint",
-    // Encore Text: Now Playing's accent text follows Artwork colours (spatch.Surfaces.text).
-    "S_EncoreText",
-    "S_EncoreTrackRow",
-    // Widget hooks: Glance's RemoteViews hand-off and an outlined MediaSession constructor.
-    "S_GlanceRemoteViews",
-    "S_MediaSessionSite",
-    "S_HomeFeedModel",
-    "S_NavBarTabState",
-    // Toggle chips: since 9.2.0.26 they sit in classes7, which has no room for Pill's references.
-    "S_ToggleChip",
+const RELOCATED: [&str; 2] = [
+    // classes.dex is at the method-reference limit: the two core hooks' classes move out with their new calls.
+    "smali/com/spotify/esperanto/esperanto/ClientBase.smali",
+    "smali/com/spotify/cosmos/servicebasedrouter/RemoteNativeRxRouter.smali",
 ];
 
 /// Each relocated class as (smali folder, path in it, original DEX, descriptor).
@@ -396,69 +341,11 @@ fn rebuild(
         }
         out.push((entry, bytes));
     }
-    out.push((HELPER_DEX, input::read_entry(&built, HELPER_DEX)?));
+    // Nothing relocated means apktool builds no helper DEX of its own: d8 then takes the helpers alone.
+    out.push((HELPER_DEX, if relocated.is_empty() { Vec::new() } else { input::read_entry(&built, HELPER_DEX)? }));
     Ok(out)
 }
 
-fn helper_source(source: &str, theme: &Theme) -> String {
-    if source.contains("@PALETTES@") {
-        let rows: Vec<_> = crate::theme::THEMES
-            .iter()
-            .map(|t| {
-                format!(
-                    "{{{}}}",
-                    t.rgb
-                        .iter()
-                        .map(|c| format!("0x{c:06x}"))
-                        .collect::<Vec<_>>()
-                        .join(",")
-                )
-            })
-            .collect();
-        let light: Vec<_> = crate::theme::LIGHT
-            .iter()
-            .map(|row| {
-                format!(
-                    "{{{}}}",
-                    row.iter()
-                        .map(|c| format!("0x{c:06x}"))
-                        .collect::<Vec<_>>()
-                        .join(",")
-                )
-            })
-            .collect();
-        return theme
-            .apply(source)
-            .replace("@THEME@", theme.name)
-            .replace("@PALETTES@", &rows.join(","))
-            .replace("@LIGHT_PALETTES@", &light.join(","));
-    }
-    let mut out = String::new();
-    let mut p = 0;
-    while p < source.len() {
-        if source[p..].starts_with("0x") {
-            let end = p
-                + 2
-                + source[p + 2..]
-                    .bytes()
-                    .take_while(u8::is_ascii_hexdigit)
-                    .count();
-            if let Ok(value) = u32::from_str_radix(&source[p + 2..end], 16)
-                && crate::theme::THEMES[0].rgb.contains(&(value & 0xffffff))
-            {
-                out.push_str("Palette.color(");
-                out.push_str(&source[p..end]);
-                out.push(')');
-                p = end;
-                continue;
-            }
-        }
-        let ch = source[p..].chars().next().unwrap();
-        out.push(ch);
-        p += ch.len_utf8();
-    }
-    theme.apply(&out)
-}
 
 /// javac against compile-only stubs, then d8; the stubs are passed as a library, never packaged.
 fn compile_helper(
@@ -508,7 +395,7 @@ fn compile_helper(
         .map(|(n, _)| root.join(format!("{n}.java")))
         .collect();
     for ((_, src), p) in helpers.iter().zip(&helper_paths) {
-        let source = helper_source(src, theme)
+        let source = src
             .replace("@THEME@", theme.name)
             .replace("@VERSION@", env!("CARGO_PKG_VERSION"))
             .replace("@OBFUSCATED@", &obfuscated_classes())
@@ -542,7 +429,9 @@ fn compile_helper(
         OsStr::new("--output"),
         dex.as_os_str(),
     ];
-    d8.push(listener_dex.as_os_str());
+    if fs::metadata(listener_dex)?.len() > 0 {
+        d8.push(listener_dex.as_os_str());
+    }
     d8.extend(class_paths.iter().map(|p| p.as_os_str()));
     tools.run(&tools.d8, &d8)?;
     let out = dex.join("classes.dex");
@@ -615,8 +504,9 @@ mod tests {
     #[test]
     fn device_link_test_lists_the_hooks() {
         let hooks = hooks();
-        assert!(hooks.contains("invoke-static|spatch.Flourish|pressed|(Lkotlin/jvm/functions/Function0;I)Lkotlin/jvm/functions/Function0;"));
-        assert!(hooks.split(',').count() > 20);
+        assert!(hooks.contains("invoke-static|spatch.CoreBridge|wrap|(Ljava/lang/Object;)Lcom/spotify/esperanto/esperanto/Transport;"));
+        assert!(hooks.contains("invoke-static|spatch.SpatchApp|resumed|(Landroid/app/Activity;)V"));
+        assert_eq!(hooks.split(',').count(), EDITS.len());
     }
 
     /// Spotify's classes sit in other packages: a hook that isn't public crashes at its first call.
@@ -652,28 +542,12 @@ mod tests {
     #[test]
     fn edits_require_exactly_one_anchor() {
         let lav = crate::theme::by_name("lavender").unwrap();
-        names::load_resources(
-            "    resource 0x7f06066c color/default_seekbar_color\n    resource 0x7f0605f6 color/dark_base_essential_brightaccent\n",
-        );
-        let e = EDITS
-            .iter()
-            .find(|e| e.anchor.contains("R_color_default_seekbar_color"))
-            .unwrap();
-        assert_eq!(
-            apply("x\n    const v1, 0x7f06066c\ny", e, lav).unwrap(),
-            "x\n    const v1, 0x7f0605f6\ny"
-        );
-        assert!(apply("nothing", e, lav).is_err());
-        assert!(
-            apply(
-                "    const v1, 0x7f06066c\n    const v1, 0x7f06066c\n",
-                e,
-                lav
-            )
-            .is_err()
-        );
-        // Re-applying to patched text fails, so a mixed/already-patched tree is rejected.
-        assert!(apply(e.replacement, e, lav).is_err());
+        for e in &EDITS {
+            let patched = apply(&format!("x\n{}y", e.anchor), e, lav).unwrap();
+            assert_eq!(patched, format!("x\n{}y", e.replacement));
+            assert!(apply("nothing", e, lav).is_err(), "{} needs its anchor", e.file);
+            assert!(apply(&e.anchor.repeat(2), e, lav).is_err(), "{}: an anchor twice is ambiguous", e.file);
+        }
     }
 
     #[test]
@@ -688,41 +562,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn audio_session_hooks_reject_missing_ambiguous_and_repeated_inputs() {
-        let theme = crate::theme::by_name("gruvbox").unwrap();
-        let edits: Vec<_> = EDITS
-            .iter()
-            .filter(|e| e.file.ends_with("AudioEffectsListener.smali"))
-            .collect();
-        assert_eq!(edits.len(), 3);
-        for edit in edits {
-            assert!(apply("", edit, theme).is_err());
-            assert!(apply(&edit.anchor.repeat(2), edit, theme).is_err());
-            let patched = apply(edit.anchor, edit, theme).unwrap();
-            assert_eq!(patched, edit.replacement);
-            assert!(apply(&patched, edit, theme).is_err());
-        }
-    }
 
-    #[test]
-    fn runtime_palette_source_keeps_all_palettes_and_maps_role_literals() {
-        let theme = crate::theme::by_name("gruvbox").unwrap();
-        assert_eq!(
-            helper_source("int c=0x80d0bcff; int id=0x7f123456;", theme),
-            "int c=Palette.color(0x80fe8019); int id=0x7f123456;"
-        );
-        let source = helper_source(
-            include_str!("../theme/dex/src/spatch/look/Palette.java"),
-            theme,
-        );
-        assert!(!source.contains("@PALETTES@"));
-        assert!(!source.contains("@THEME@"));
-        assert!(source.contains("active=index(\"gruvbox\")"));
-        assert!(source.contains("{0x14121c,0x1d1a2a"));
-        assert!(source.contains("{0x282828,0x3c3836"));
-        assert!(source.contains("BASE={0x282828"));
-    }
 
     #[test]
     fn only_debug_builds_contain_developer_code() {
@@ -758,24 +598,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn custom_player_view_is_packaged_and_keeps_split_dimensions() {
-        let layout = crate::patch::TARGETS
-            .iter()
-            .find(|t| t.entry == "res/layout/square_cover_art_content.xml")
-            .unwrap()
-            .diff;
-        assert!(layout.contains("<spatch.PlayerArt "));
-        assert!(HELPERS.iter().any(|(name, _)| *name == "PlayerArt"));
-        for name in ["square_cover_art_size", "square_cover_art_top_margin"] {
-            assert!(layout.contains(&format!("@dimen/{name}")));
-            assert!(
-                crate::patch::SPLIT_REFS
-                    .iter()
-                    .any(|(ty, n)| *ty == "dimen" && *n == name)
-            );
-        }
-    }
 
     #[test]
     fn ref_limits_parse_dexdump() {
@@ -787,17 +609,4 @@ mod tests {
         assert!(check_ref_limits("c", "garbage").is_err());
     }
 
-    #[test]
-    fn lbg_branch_keeps_circle_fallback() {
-        let r = EDITS
-            .iter()
-            .find(|e| e.replacement.contains(":spatch_circle"))
-            .unwrap()
-            .replacement;
-        assert!(
-            r.contains(":spatch_circle")
-                && r.contains("drawCircle")
-                && r.trim_end().ends_with("const/4 v6, 0x0")
-        );
-    }
 }

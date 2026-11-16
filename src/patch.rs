@@ -1,15 +1,10 @@
-//! Guarded resource-entry replacement, rebuild, signing and verification.
-//!
-//! Only compiled XML entries listed in `TARGETS` and the DEX handled by `dex` change. `resources.arsc`,
-//! the manifest and every other DEX stay byte-identical: apktool's full resource round trip is lossy for this build
-//! (base references density-split-only dimens), so apktool is used only to compile the patched XML
-//! against the original resource IDs, and the compiled entries are injected into the original APK.
+//! The app rebuild: Spotify's core under Spatch's own UI. Only the core hooks in classes.dex and
+//! classes2.dex change; the helper DEX (CoreBridge, SpatchApp) and the Rust app library are added.
+//! Spotify's resources, manifest and every other DEX stay byte-identical.
 
 use crate::Result;
-use crate::arsc;
 use crate::dex;
 use crate::input::{self, APKS, PACKAGE, VERSION_CODE};
-use crate::lottie;
 use crate::theme::Theme;
 use crate::tools::Tools;
 use std::collections::HashSet;
@@ -18,406 +13,11 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions;
 
-pub struct Target {
-    /// Entry path in base.apk (also the path in the decoded tree).
-    pub entry: &'static str,
-    /// SHA-256 of the original compiled entry; anything else (other build, already patched) is rejected.
-    pub original_sha256: &'static str,
-    /// Spatch's changes to the decoded original, as an RCS diff (`diff -n`): only the added lines are
-    /// stored, so the repo holds none of Spotify's own markup.
-    pub diff: &'static str,
-}
-
-/// Applies an RCS diff: `dL N` drops N lines from original line L, `aL N` adds the next N diff lines
-/// after original line L. Commands refer to original line numbers in ascending order; the original is
-/// pinned by `original_sha256`, so a diff that does not fit is an error, never a fuzzy match.
-pub fn apply_diff(original: &str, diff: &str) -> Result<String> {
-    let old: Vec<&str> = original.split_inclusive('\n').collect();
-    let mut out = String::with_capacity(original.len() + diff.len());
-    let mut next = 0; // original lines already handled
-    let mut lines = diff.split_inclusive('\n');
-    while let Some(cmd) = lines.next() {
-        let bad = || {
-            format!(
-                "diff command {:?} does not fit the original",
-                cmd.trim_end()
-            )
-        };
-        let mut parts = cmd
-            .get(1..)
-            .unwrap_or("")
-            .trim_end()
-            .split(' ')
-            .map(str::parse::<usize>);
-        let (Some(Ok(at)), Some(Ok(n)), None) = (parts.next(), parts.next(), parts.next()) else {
-            return Err(bad().into());
-        };
-        match cmd.as_bytes()[0] {
-            b'd' if at > next && at - 1 + n <= old.len() => {
-                old[next..at - 1].iter().for_each(|l| out.push_str(l));
-                next = at - 1 + n;
-            }
-            b'a' if at >= next && at <= old.len() => {
-                old[next..at].iter().for_each(|l| out.push_str(l));
-                next = at;
-                for _ in 0..n {
-                    out.push_str(lines.next().ok_or_else(bad)?);
-                }
-            }
-            _ => return Err(bad().into()),
-        }
-    }
-    old[next..].iter().for_each(|l| out.push_str(l));
-    Ok(out)
-}
-
-macro_rules! target {
-    ($entry:literal, $sha:literal) => {
-        Target {
-            entry: $entry,
-            original_sha256: $sha,
-            diff: include_str!(concat!("../theme/player/", $entry, ".diff")),
-        }
-    };
-}
-
-/// Now Playing slice. Ownership: p.jcs inflates revised_template_page_layout (which includes
-/// revised_template_overlay); p.u1o inflates track_info_nowplaying_view; the seekbar drawables are
-/// reached only through the NowPlayingSeekBar style and p.S_SeekbarTint.
-pub const TARGETS: [Target; 22] = [
-    // Mini-player surface (also its live-room and hat variants): adds a faint outline.
-    target!(
-        "res/drawable/floating_layout_bg.xml",
-        "f90e14c0385085195ea639bdb7f157f7c5c5b387b9ba1d886a8d29432712ce82"
-    ),
-    // Encore PlayButtonView header background (albums, shows): spatch.ScallopFill.
-    target!(
-        "res/drawable/play_button_header_style_background.xml",
-        "c2205ec1f2a06c3bb3f32e4274a6bd472b5ae3bc1275710bb19bd2cd1bd4d9b6"
-    ),
-    target!(
-        "res/layout/square_cover_art_content.xml",
-        "458b7efeee492a6da6b24950b7468a81abddbcd87472e4f618c3f30cb027f9be"
-    ),
-    target!(
-        "res/layout/revised_template_page_layout.xml",
-        "e117f445f1c51e87dbaa3a8ce16ac25da49097d8f07ca7a00960c6209b74fa8a"
-    ),
-    target!(
-        "res/layout/revised_template_overlay.xml",
-        "ef8a5a337e413850b71b4b0cc40588ef562b222158d5ffbe2b397dfaaae38277"
-    ),
-    target!(
-        "res/layout/track_info_nowplaying_view.xml",
-        "810522ba98b10a4bdda974b6596dd144cc4d9438463b2da4102d75fe7dd9fbde"
-    ),
-    target!(
-        "res/drawable/nowplaying_overlay_gradient.xml",
-        "441662e890cab6c5ea08b3b302b04a405614d67b262a3418250907721b843d55"
-    ),
-    target!(
-        "res/drawable/seekbar_thumb_default.xml",
-        "77d89f8b63fed7bacef8bc2d709a854b2d185dab7f82f394b603dda66104fd75"
-    ),
-    target!(
-        "res/drawable/seekbar_progress.xml",
-        "5b47d070e7982c168d18f157bf5d8621aa99d473a0309917a73929cede19cff9"
-    ),
-    // Mini-player: p.m1p0 inflates now_playing_bar (MotionLayout driven by xml/now_playing_bar_scene);
-    // TrackInfoView inflates now_playing_bar_track_info_view. The outer bar corners are drawn by a
-    // Compose host (device check 2026-10-28), so floating_layout_bg is deliberately left alone.
-    target!(
-        "res/layout/now_playing_bar.xml",
-        "30fe15ae6d232df25871d8118eb3ee05bd6e3b27a0faa168700dab6c40068237"
-    ),
-    target!(
-        "res/xml/now_playing_bar_scene.xml",
-        "16bd1cb3f454f5104fdf3c3f811f2272733e774a0a0eb5e693f405073d80603c"
-    ),
-    target!(
-        "res/layout/now_playing_bar_track_info_view.xml",
-        "3005e9d451493def337cac2861bca9023d1c03d02693d44a305d90bb496d934a"
-    ),
-    // Library's add rows (gra0): the icon tile matched the page, so it showed on a held row.
-    target!(
-        "res/drawable/library_compose_onboarding_card_default_background.xml",
-        "435338e090e72b314587cc1ae7ad718ea09d445ee6adec8bfa4e3659af0f042f"
-    ),
-    target!(
-        "res/drawable/library_onboarding_card_circular_background.xml",
-        "0abe5c33408e437abe9d5f36c0808e069038efe408b150555173ec0258d9ee1c"
-    ),
-    // The list-view versions of those tiles (Add artists, podcasts, events, Import): Spotify's gray_15.
-    target!(
-        "res/drawable/library_onboarding_row_default_background.xml",
-        "65226115797f31bc7bed7fe58404af00f1ab62f014592c512a03003b12dc4ddd"
-    ),
-    target!(
-        "res/drawable/library_onboarding_row_circular_background.xml",
-        "0abe5c33408e437abe9d5f36c0808e069038efe408b150555173ec0258d9ee1c"
-    ),
-    // Page changes (tvn0.r): the fade Spotify already uses gains a small rise.
-    target!(
-        "res/anim/fade_in_hard.xml",
-        "ff21800118ac677bf8ad53c60bb34a3786baadd6fdfdbb7ae2ac38b371ec966b"
-    ),
-    // Phone-portrait main layout (MainLayout, app:mode="vertical"): navigation_bar container and bottom
-    // gradients. horizontal_main / large_main (landscape, tablets) are not patched.
-    target!(
-        "res/layout/vertical_main.xml",
-        "e905808d28a5081548a5417aaa73522273422970d2f782bbf7262b68819c2523"
-    ),
-    // Home shelf card (p.a2s inflates image_link_card_layout); the same Encore card appears in other shelves.
-    target!(
-        "res/layout/image_link_card_layout.xml",
-        "a2f0e0915852d33ebc5c22a5d66249f558e1585b0439f67a3adec0c0788628cb"
-    ),
-    // Player seekbar layout (p.S_SeekbarTint inflates it): taller track for the wavy progress.
-    target!(
-        "res/layout/track_seekbar.xml",
-        "302c0d8dae5138258dc6e15002134135d8897e63655d0ed44753d6115e1233b6"
-    ),
-    // MainActivity window background (Theme.Glue.Launcher windowBackground); shows behind the
-    // transparent Compose Search and Home pages.
-    target!(
-        "res/drawable/launcher_screen.xml",
-        "80beb693d332799a6250beeda1401020a1af164bc1e36a17472547e43cfe8370"
-    ),
-    // Now Playing widget's picker entry: previewLayout shows Spatch's widget instead of Spotify's
-    // stock picture, which stays as previewImage for launchers before Android 12.
-    target!(
-        "res/xml/dynamic_npv_widget_info.xml",
-        "701948cfec508dce9c647fe8489250e8f8792d183a7566a083b110a4c13b1ed2"
-    ),
-];
-
-/// Resources defined only in the density splits that a patched entry must keep referencing. apktool
-/// cannot see them from base (it writes `@null`), so the staging copy declares each with the ID the
-/// splits give it and a placeholder value; only the compiled XML is shipped, never the staging table.
-pub const SPLIT_REFS: [(&str, &str); 4] = [
-    ("drawable", "ic_spotify_icon_rgb_green"),
-    ("drawable", "npv_widget_preview"),
-    ("dimen", "square_cover_art_size"),
-    ("dimen", "square_cover_art_top_margin"),
-];
-/// The APKM's density splits, which define `SPLIT_REFS`.
-fn density_splits() -> impl Iterator<Item = &'static str> {
-    input::APKS
-        .iter()
-        .map(|(name, _)| *name)
-        .filter(|name| name.starts_with("split_config.") && name.ends_with("dpi.apk"))
-}
-
-/// Original base resources.arsc; the output must differ (colour swaps applied).
-const ORIGINAL_ARSC_SHA256: &str =
-    "cc2b8bbe9712430de766c32031ef082d4d6307f6e2f26dfc57dd9b61ff3b4eb4";
-
-/// Manifest flag values aapt2 36 rejects for recreateOnConfigChanges. Removed in the staging copy only:
-/// the shipped manifest is the original binary entry.
-const MANIFEST_WORKAROUND: &str = " android:recreateOnConfigChanges=\"0x40";
-const MANIFEST_WORKAROUND_COUNT: usize = 2;
-
 pub struct Signing {
     pub keystore: PathBuf,
     pub alias: String,
     /// Name of the environment variable holding the keystore password (passed to apksigner as env:NAME).
     pub pass_env: String,
-}
-
-/// Checks that every target entry in `base` still has its original bytes.
-/// New file resources (Spatch widget), appended to the resource table by `arsc::append_files` and
-/// compiled with the other targets. Sources live under theme/player like the targets.
-macro_rules! new_file {
-    ($ty:literal, $name:literal) => {
-        (
-            arsc::NewFile {
-                type_name: $ty,
-                name: $name,
-                path: concat!("res/", $ty, "/", $name, ".xml"),
-            },
-            include_str!(concat!("../theme/player/res/", $ty, "/", $name, ".xml")),
-        )
-    };
-}
-
-pub const NEW_RESOURCES: [(arsc::NewFile, &str); 87] = [
-    new_file!("drawable", "spatch_widget_bg"),
-    new_file!("drawable", "spatch_widget_art"),
-    new_file!("drawable", "spatch_widget_scallop"),
-    new_file!("drawable", "spatch_widget_scallop8"),
-    new_file!("drawable", "spatch_widget_to_play"),
-    new_file!("drawable", "spatch_widget_to_pause"),
-    new_file!("drawable", "spatch_widget_bar"),
-    new_file!("drawable", "spatch_widget_eq"),
-    new_file!("drawable", "spatch_widget_tri_next"),
-    new_file!("drawable", "spatch_widget_tri_prev"),
-    new_file!("drawable", "spatch_widget_tri_next_in"),
-    new_file!("drawable", "spatch_widget_tri_prev_in"),
-    new_file!("drawable", "spatch_widget_skip_next"),
-    new_file!("drawable", "spatch_widget_skip_prev"),
-    new_file!("animator", "spatch_widget_to8"),
-    new_file!("animator", "spatch_widget_to5"),
-    new_file!("animator", "spatch_widget_turn"),
-    new_file!("animator", "spatch_widget_press"),
-    new_file!("animator", "spatch_widget_nudge_next"),
-    new_file!("animator", "spatch_widget_nudge_prev"),
-    new_file!("animator", "spatch_widget_tri_grow"),
-    new_file!("animator", "spatch_widget_tri_fade"),
-    new_file!("anim", "spatch_widget_in"),
-    new_file!("anim", "spatch_widget_out"),
-    new_file!("layout", "spatch_widget"),
-    new_file!("layout", "spatch_widget_large"),
-    new_file!("layout", "spatch_widget_preview"),
-    // Material Symbols Rounded (Google, Apache 2.0) for Spatch settings' icons.
-    new_file!("drawable", "spatch_ms_album"),
-    new_file!("drawable", "spatch_ms_arrow_left"),
-    new_file!("drawable", "spatch_ms_arrow_top_left"),
-    new_file!("drawable", "spatch_ms_arrow_up"),
-    new_file!("drawable", "spatch_ms_audiobook"),
-    new_file!("drawable", "spatch_ms_check"),
-    new_file!("drawable", "spatch_ms_chevron_right"),
-    new_file!("drawable", "spatch_ms_collection_active"),
-    new_file!("drawable", "spatch_ms_device_mobile"),
-    new_file!("drawable", "spatch_ms_edit"),
-    new_file!("drawable", "spatch_ms_enhance"),
-    new_file!("drawable", "spatch_ms_external_link"),
-    new_file!("drawable", "spatch_ms_filter"),
-    new_file!("drawable", "spatch_ms_filter_active"),
-    new_file!("drawable", "spatch_ms_fullscreen"),
-    new_file!("drawable", "spatch_ms_gem"),
-    new_file!("drawable", "spatch_ms_group"),
-    new_file!("drawable", "spatch_ms_heart"),
-    new_file!("drawable", "spatch_ms_hidden"),
-    new_file!("drawable", "spatch_ms_home"),
-    new_file!("drawable", "spatch_ms_image"),
-    new_file!("drawable", "spatch_ms_information_alt"),
-    new_file!("drawable", "spatch_ms_list_view"),
-    new_file!("drawable", "spatch_ms_minimize"),
-    new_file!("drawable", "spatch_ms_notification_new"),
-    new_file!("drawable", "spatch_ms_notifications_active"),
-    new_file!("drawable", "spatch_ms_now_playing"),
-    new_file!("drawable", "spatch_ms_pause"),
-    new_file!("drawable", "spatch_ms_play"),
-    new_file!("drawable", "spatch_ms_playlist"),
-    new_file!("drawable", "spatch_ms_plus"),
-    new_file!("drawable", "spatch_ms_podcasts"),
-    new_file!("drawable", "spatch_ms_repeat"),
-    new_file!("drawable", "spatch_ms_shuffle"),
-    new_file!("drawable", "spatch_ms_skip_forward"),
-    new_file!("drawable", "spatch_ms_sort"),
-    new_file!("drawable", "spatch_ms_soundwave"),
-    new_file!("drawable", "spatch_ms_star"),
-    new_file!("drawable", "spatch_ms_t_shirt"),
-    new_file!("drawable", "spatch_ms_time"),
-    new_file!("drawable", "spatch_ms_track"),
-    new_file!("drawable", "spatch_ms_user"),
-    new_file!("drawable", "spatch_ms_close"),
-    new_file!("drawable", "spatch_ms_skip_previous"),
-    new_file!("drawable", "spatch_ms_volume"),
-    new_file!("drawable", "spatch_ms_cat_palette"),
-    new_file!("drawable", "spatch_ms_cat_play_circle"),
-    new_file!("drawable", "spatch_ms_cat_graphic_eq"),
-    new_file!("drawable", "spatch_ms_cat_dashboard"),
-    new_file!("drawable", "spatch_ms_cat_animation"),
-    new_file!("drawable", "spatch_ms_cat_visibility_off"),
-    new_file!("drawable", "spatch_ms_cat_bookmarks"),
-    new_file!("drawable", "spatch_ms_cat_text_fields"),
-    new_file!("drawable", "spatch_ms_cat_swipe"),
-    new_file!("drawable", "spatch_ms_cat_picture_in_picture"),
-    new_file!("drawable", "spatch_ms_cat_queue_music"),
-    new_file!("drawable", "spatch_ms_queue"),
-    new_file!("drawable", "spatch_ms_lyrics"),
-    new_file!("drawable", "spatch_ms_share"),
-    new_file!("drawable", "spatch_ms_search"),
-];
-
-/// New bitmap resources: the cover of the widget picker's sample song (`preview_art`).
-pub const NEW_IMAGES: [arsc::NewFile; 1] = [arsc::NewFile {
-    type_name: "drawable",
-    name: "spatch_widget_preview_art",
-    path: "res/drawable/spatch_widget_preview_art.jpg",
-}];
-
-/// The sample song in `spatch_widget_preview` (its title and artist are written in that layout).
-/// Only the link lives in the repo; the cover is fetched at build time. Empty: plain tile.
-pub const PREVIEW_TRACK: &str = "https://open.spotify.com/track/3CWhQE4dYKzAC0qpbGJANW";
-pub const PREVIEW_FALLBACK: &[u8] =
-    include_bytes!("../theme/player/res/drawable/spatch_widget_preview_fallback.jpg");
-
-/// The sample song's cover from Spotify's public oEmbed endpoint, cached in `.cache/`; with no
-/// network and no cached copy the preview shows a plain tile rather than failing the build.
-fn preview_art() -> Vec<u8> {
-    if PREVIEW_TRACK.is_empty() {
-        return PREVIEW_FALLBACK.to_vec();
-    }
-    let id = PREVIEW_TRACK
-        .rsplit('/')
-        .next()
-        .unwrap_or("")
-        .split('?')
-        .next()
-        .unwrap_or("");
-    let cached = Path::new(".cache").join(format!("widget-preview-{id}.jpg"));
-    if let Ok(bytes) = fs::read(&cached) {
-        return bytes;
-    }
-    let fetch = |url: &str| {
-        std::process::Command::new("curl")
-            .args(["-sfL", "--max-time", "20", url])
-            .output()
-            .ok()
-            .filter(|o| o.status.success() && !o.stdout.is_empty())
-            .map(|o| o.stdout)
-    };
-    let cover = fetch(&format!(
-        "https://open.spotify.com/oembed?url={PREVIEW_TRACK}"
-    ))
-    .and_then(|json| thumbnail(&String::from_utf8_lossy(&json)))
-    .and_then(|url| fetch(&url))
-    .filter(|b| b.starts_with(&[0xff, 0xd8])); // JPEG
-    match cover {
-        Some(bytes) => {
-            let _ = fs::create_dir_all(".cache").and_then(|_| fs::write(&cached, &bytes));
-            bytes
-        }
-        None => {
-            println!("widget preview cover not fetched; using the plain tile");
-            PREVIEW_FALLBACK.to_vec()
-        }
-    }
-}
-
-/// `thumbnail_url` from an oEmbed response, without a JSON dependency.
-fn thumbnail(json: &str) -> Option<String> {
-    let rest = &json[json.find("\"thumbnail_url\"")? + 15..];
-    let rest = &rest[rest.find('"')? + 1..];
-    Some(rest[..rest.find('"')?].replace("\\/", "/"))
-}
-
-/// Every new file, XML first; `append_files` hands out IDs in this order.
-fn new_files() -> Vec<arsc::NewFile> {
-    NEW_RESOURCES
-        .iter()
-        .map(|(f, _)| f)
-        .chain(NEW_IMAGES.iter())
-        .map(|f| arsc::NewFile { ..*f })
-        .collect()
-}
-
-pub fn check_targets(base: &Path) -> Result<()> {
-    let entries: Vec<_> = TARGETS.iter().map(|t| t.entry).collect();
-    for (t, bytes) in TARGETS.iter().zip(input::read_entries(base, &entries)?) {
-        let got = input::sha256_bytes(&bytes);
-        if got != t.original_sha256 {
-            return Err(format!(
-                "target {} does not match the supported original (got {got}); input is modified, \
-                 already patched or a different build",
-                t.entry
-            )
-            .into());
-        }
-    }
-    dex::check_originals(base)
 }
 
 /// What `run` makes of the patched entries.
@@ -463,7 +63,7 @@ pub fn run(
     fs::create_dir(&apks)?;
     input::extract_apks(apkm, &apks)?;
     let base = apks.join("base.apk");
-    check_targets(&base)?;
+    dex::check_originals(&base)?;
     let dump = tools.run(
         &tools.aapt2,
         &[
@@ -473,40 +73,16 @@ pub fn run(
         ],
     )?;
     crate::names::load_resources(&dump);
-    // Resource and DEX builds have separate inputs and staging paths; neither waits on the other.
-    let ((mut compiled, new_entries), mut dexes) = std::thread::scope(|scope| -> Result<_> {
-        let dex = std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                dex::build(&base, &staging.path, tools, theme, debug).map_err(|e| e.to_string())
-            })?;
-        let resources = compile_targets(&base, &staging.path, tools, theme);
-        let dexes = dex.join().map_err(|_| "DEX build thread panicked")?;
-        Ok((resources?, dexes?))
-    })?;
-    let helper = dexes.pop().expect("dex::build returns the helper last");
-    compiled.append(&mut dexes);
-    compiled.extend(lottie::patch_all(&base, theme)?);
-    let swapped = arsc::swap_colors(&input::read_entry(&base, "resources.arsc")?, theme)?;
-    compiled.push((
-        "resources.arsc",
-        arsc::append_files(&swapped, &new_files())?.0,
-    ));
+    // The app rebuild ships only what Spatch's own UI needs: the core hooks in Spotify's DEX, the helper
+    // DEX that hosts the app, and the Rust app itself. Spotify's resources stay untouched.
+    let mut compiled = dex::build(&base, &staging.path, tools, theme, debug)?;
+    let helper = compiled.pop().expect("dex::build returns the helper last");
     let mut added = vec![helper];
-    added.extend(new_entries);
-    added.extend(crate::theme_assets::build(&base, &compiled, theme)?);
-    added.extend(
-        crate::fonts::FILES
-            .iter()
-            .map(|(name, bytes)| (*name, bytes.to_vec())),
-    );
-    if let Some(app) = rust_app()? {
-        added.push((RUST_APP_ASSET, app));
-    }
+    added.push((RUST_APP_ASSET, rust_app()?.ok_or("the Rust app library is missing: build app/ (see app/README.md) or set SPATCH_APP_SO")?));
     let signing = match output {
         Output::DryRun => {
             println!(
-                "dry run: input, targets, resource compilation and DEX reassembly verified; no output written"
+                "dry run: input and DEX reassembly verified; no output written"
             );
             return Ok(());
         }
@@ -537,12 +113,6 @@ pub fn run(
         Output::Signed(s) => s,
     };
 
-    if let Some((_, bytes)) = added
-        .iter_mut()
-        .find(|(name, _)| *name == NEW_IMAGES[0].path)
-    {
-        *bytes = preview_art(); // bundles use the plain tile and let the manager fetch the cover
-    }
 
     let result = staging.path.join("result");
     fs::create_dir(&result)?;
@@ -589,11 +159,7 @@ pub fn run(
         return Err("signed APKs do not share one certificate".into());
     }
     verify_identity(&result.join("base.apk"), tools)?;
-    let originals = TARGETS
-        .iter()
-        .map(|t| (t.entry, t.original_sha256))
-        .chain(dex::DEX_TARGETS)
-        .chain([("resources.arsc", ORIGINAL_ARSC_SHA256)]);
+    let originals = dex::DEX_TARGETS;
     for (entry, sha) in originals {
         let got = input::read_entry(&result.join("base.apk"), entry)?;
         if input::sha256_bytes(&got) == sha {
@@ -614,291 +180,12 @@ pub fn run(
 pub const RUST_APP_ASSET: &str = "assets/spatch/libspatch_app.so";
 
 /// The arm64 Rust app library to ship: $SPATCH_APP_SO, else app/'s release build if one exists.
-/// Without either the patch still builds; Developer options then reports the app as missing.
 fn rust_app() -> Result<Option<Vec<u8>>> {
     if let Some(path) = std::env::var_os("SPATCH_APP_SO") {
         return Ok(Some(fs::read(&path).map_err(|e| format!("SPATCH_APP_SO {}: {e}", Path::new(&path).display()))?));
     }
     let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("app/target/aarch64-linux-android/release/libspatch_app.so");
     Ok(if built.is_file() { Some(fs::read(built)?) } else { None })
-}
-
-/// Decodes base in staging, applies the theme sources and returns the compiled replacement entries.
-fn compile_targets(base: &Path, staging: &Path, tools: &Tools, theme: &Theme) -> Result<Compiled> {
-    let apktool = tools.run(&tools.apktool, &[OsStr::new("--version")])?;
-    let aapt = tools.run(&tools.aapt2, &[OsStr::new("version")])?;
-    let mut sources: Vec<&[u8]> = vec![
-        include_bytes!("patch.rs"),
-        include_bytes!("arsc.rs"),
-        include_bytes!("theme.rs"),
-        theme.name.as_bytes(),
-        apktool.as_bytes(),
-        aapt.as_bytes(),
-    ];
-    sources.extend(TARGETS.iter().map(|t| t.diff.as_bytes()));
-    sources.extend(NEW_RESOURCES.iter().map(|(_, source)| source.as_bytes()));
-    let cache = crate::cache::path("resources", &sources);
-    let names: Vec<_> = TARGETS
-        .iter()
-        .map(|t| t.entry)
-        .chain(NEW_RESOURCES.iter().map(|(f, _)| f.path))
-        .collect();
-    if let Some(bytes) = cache
-        .as_ref()
-        .and_then(|p| crate::cache::load(p, base, &names).ok())
-    {
-        println!("Resource rebuild: verified cache hit");
-        let mut entries: Vec<_> = names.into_iter().zip(bytes).collect();
-        let mut added = entries.split_off(TARGETS.len());
-        added.push((NEW_IMAGES[0].path, PREVIEW_FALLBACK.to_vec()));
-        return Ok((entries, added));
-    }
-    let (compiled, added) = rebuild_resources(base, staging, tools, theme)?;
-    if let Some(path) = &cache {
-        let _ = crate::cache::save(path, base, &compiled, &added[..NEW_RESOURCES.len()]);
-    }
-    Ok((compiled, added))
-}
-
-fn rebuild_resources(
-    base: &Path,
-    staging: &Path,
-    tools: &Tools,
-    theme: &Theme,
-) -> Result<Compiled> {
-    let fw = staging.join("framework");
-    let decoded = staging.join("decoded");
-    let rebuilt = staging.join("rebuilt.apk");
-    let resources = staging.join("resources.apk");
-    input::select_entries(base, &resources, |name| {
-        matches!(name, "AndroidManifest.xml" | "resources.arsc") || name.starts_with("res/")
-    })?;
-    tools.run(
-        &tools.apktool,
-        &[
-            OsStr::new("d"),
-            OsStr::new("-s"),
-            OsStr::new("-p"),
-            fw.as_os_str(),
-            OsStr::new("-o"),
-            decoded.as_os_str(),
-            resources.as_os_str(),
-        ],
-    )?;
-    let manifest = decoded.join("AndroidManifest.xml");
-    fs::write(
-        &manifest,
-        strip_manifest_workaround(&fs::read_to_string(&manifest)?)?,
-    )?;
-    let dump_resources = |apk: &Path| {
-        tools.run(
-            &tools.aapt2,
-            &[OsStr::new("dump"), OsStr::new("resources"), apk.as_os_str()],
-        )
-    };
-    let mut split_dumps = Vec::new();
-    for split in density_splits() {
-        split_dumps.push(dump_resources(&base.with_file_name(split))?);
-    }
-    let public = decoded.join("res/values/public.xml");
-    // New resources get the IDs the table append will give them, so compiled references agree.
-    let new_ids = arsc::append_files(&input::read_entry(base, "resources.arsc")?, &new_files())?.1;
-    let (mut declared, split_ids) =
-        declare_split_refs(&fs::read_to_string(&public)?, &split_dumps)?;
-    let lines: String = new_files()
-        .iter()
-        .zip(&new_ids)
-        .map(|(f, id)| {
-            format!(
-                "    <public type=\"{}\" name=\"{}\" id=\"{id:#010x}\" />\n",
-                f.type_name, f.name
-            )
-        })
-        .collect();
-    declared = declared.replacen("</resources>", &format!("{lines}</resources>"), 1);
-    fs::write(&public, declared)?;
-    for (f, source) in &NEW_RESOURCES {
-        let path = decoded.join(f.path);
-        if path.exists() {
-            return Err(format!(
-                "{} already exists in the base; not the supported build",
-                f.path
-            )
-            .into());
-        }
-        fs::write(path, theme.apply(source))?;
-    }
-    let art = PREVIEW_FALLBACK.to_vec();
-    fs::write(decoded.join(NEW_IMAGES[0].path), &art)?;
-    let placeholders: String = SPLIT_REFS
-        .iter()
-        .map(|(ty, name)| {
-            let value = if *ty == "dimen" { "0dp" } else { "#00000000" };
-            format!("    <{ty} name=\"{name}\">{value}</{ty}>\n")
-        })
-        .collect();
-    fs::write(
-        decoded.join("res/values/spatch_split_refs.xml"),
-        format!(
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n{placeholders}</resources>\n"
-        ),
-    )?;
-    for t in &TARGETS {
-        let path = decoded.join(t.entry);
-        if !path.is_file() {
-            return Err(format!("decoded target {} missing", t.entry).into());
-        }
-        let patched = apply_diff(&fs::read_to_string(&path)?, t.diff)
-            .map_err(|e| format!("{}: {e}", t.entry))?;
-        fs::write(path, theme.apply(&patched))?;
-    }
-    tools.run(
-        &tools.apktool,
-        &[
-            OsStr::new("b"),
-            OsStr::new("-p"),
-            fw.as_os_str(),
-            OsStr::new("-o"),
-            rebuilt.as_os_str(),
-            decoded.as_os_str(),
-        ],
-    )?;
-    let mut known = resource_ids(&dump_resources(base)?);
-    known.extend(split_ids);
-    known.extend(new_ids.iter().map(|id| format!("{id:#010x}")));
-    let mut compiled = Vec::new();
-    for t in &TARGETS {
-        let dump = |apk: &Path| {
-            tools.run(
-                &tools.aapt2,
-                &[
-                    OsStr::new("dump"),
-                    OsStr::new("xmltree"),
-                    OsStr::new("--file"),
-                    OsStr::new(t.entry),
-                    apk.as_os_str(),
-                ],
-            )
-        };
-        check_references(t.entry, &dump(&rebuilt)?, &dump(base)?, &known)?;
-        compiled.push((t.entry, input::read_entry(&rebuilt, t.entry)?));
-    }
-    let mut added = Vec::new();
-    for (f, _) in &NEW_RESOURCES {
-        let tree = tools.run(
-            &tools.aapt2,
-            &[
-                OsStr::new("dump"),
-                OsStr::new("xmltree"),
-                OsStr::new("--file"),
-                OsStr::new(f.path),
-                rebuilt.as_os_str(),
-            ],
-        )?;
-        check_references(f.path, &tree, "", &known)?;
-        added.push((f.path, input::read_entry(&rebuilt, f.path)?));
-    }
-    added.push((NEW_IMAGES[0].path, art));
-    Ok((compiled, added))
-}
-
-/// Replaced entries, then new ones.
-type Compiled = (Vec<(&'static str, Vec<u8>)>, Vec<(&'static str, Vec<u8>)>);
-
-/// Adds `SPLIT_REFS` to the decoded public.xml, each with the ID every density split gives it, after
-/// checking it is absent from base. Returns the new public.xml and those IDs.
-pub fn declare_split_refs(public: &str, split_dumps: &[String]) -> Result<(String, Vec<String>)> {
-    let (mut decls, mut ids) = (String::new(), Vec::new());
-    for (ty, name) in SPLIT_REFS {
-        let line = |dump: &str| {
-            dump.lines().find_map(|l| {
-                let rest = l.trim().strip_prefix("resource ")?;
-                let (id, what) = rest.split_once(' ')?;
-                (what == format!("{ty}/{name}")).then(|| id.to_string())
-            })
-        };
-        let id = split_dumps
-            .first()
-            .and_then(|d| line(d))
-            .ok_or_else(|| format!("{ty}/{name} is not defined in the density splits"))?;
-        if !split_dumps.iter().all(|d| line(d).as_deref() == Some(&id)) {
-            return Err(
-                format!("{ty}/{name} ({id}) not defined alike in every density split").into(),
-            );
-        }
-        if public.contains(&format!("name=\"{name}\"")) || public.contains(&format!("id=\"{id}\""))
-        {
-            return Err(format!("{ty}/{name} ({id}) unexpectedly present in base").into());
-        }
-        decls.push_str(&format!(
-            "    <public type=\"{ty}\" name=\"{name}\" id=\"{id}\" />\n"
-        ));
-        ids.push(id);
-    }
-    let end = public
-        .rfind("</resources>")
-        .ok_or("public.xml has no </resources>")?;
-    Ok((format!("{}{decls}{}", &public[..end], &public[end..]), ids))
-}
-
-pub fn strip_manifest_workaround(manifest: &str) -> Result<String> {
-    let count = manifest.matches(MANIFEST_WORKAROUND).count();
-    if count != MANIFEST_WORKAROUND_COUNT {
-        return Err(format!(
-            "expected {MANIFEST_WORKAROUND_COUNT} recreateOnConfigChanges attributes, found {count}"
-        )
-        .into());
-    }
-    let mut out = String::with_capacity(manifest.len());
-    let mut rest = manifest;
-    while let Some(i) = rest.find(MANIFEST_WORKAROUND) {
-        out.push_str(&rest[..i]);
-        let value = i + MANIFEST_WORKAROUND.len();
-        let close = rest[value..]
-            .find('"')
-            .ok_or("unterminated manifest attribute")?;
-        rest = &rest[value + close + 1..];
-    }
-    out.push_str(rest);
-    Ok(out)
-}
-
-/// IDs (`0x7f......`) defined by the original resource table.
-pub fn resource_ids(dump: &str) -> HashSet<String> {
-    dump.lines()
-        .filter_map(|l| l.trim_start().strip_prefix("resource 0x"))
-        .filter_map(|r| r.get(..8).map(|id| format!("0x{id}")))
-        .collect()
-}
-
-/// Every app resource referenced by a compiled entry must exist in the original table, and the
-/// entry may hold no more `@null` values than the original did (extra ones are references apktool
-/// lost to density-split-only resources).
-pub fn check_references(
-    entry: &str,
-    tree: &str,
-    original: &str,
-    known: &HashSet<String>,
-) -> Result<()> {
-    let nulls = |t: &str| t.matches("=@null").count();
-    if nulls(tree) > nulls(original) {
-        return Err(format!(
-            "{entry}: {} @null values vs {} in the original; a reference was lost",
-            nulls(tree),
-            nulls(original)
-        )
-        .into());
-    }
-    for (i, _) in tree.match_indices("@0x7f") {
-        let id = &tree[i + 1..i + 11];
-        if !known.contains(id) {
-            return Err(format!(
-                "{entry}: reference {id} is not defined in the original base resource table"
-            )
-            .into());
-        }
-    }
-    Ok(())
 }
 
 pub fn is_signature_entry(name: &str) -> bool {
@@ -944,11 +231,7 @@ pub fn rewrite_apk(
         }
     }
     for (name, bytes) in add {
-        let opts = if crate::fonts::stored(name) {
-            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored)
-        } else {
-            deflated()
-        };
+        let opts = deflated();
         zout.start_file(*name, opts)?;
         std::io::Write::write_all(&mut zout, bytes)?;
     }
@@ -1059,51 +342,6 @@ mod tests {
     use crate::input::tests::{temp_dir, write_zip};
 
     #[test]
-    fn split_refs_require_every_density_split() {
-        let dump: String = SPLIT_REFS
-            .iter()
-            .enumerate()
-            .map(|(i, (ty, name))| {
-                format!("    resource 0x7f0800{i:02x} {ty}/{name}\n      (xxhdpi) placeholder\n")
-            })
-            .collect();
-        let public = "<resources>\n</resources>\n";
-        let (out, ids) = declare_split_refs(public, &[dump.clone(), dump.clone()]).unwrap();
-        assert!(out.contains(&format!("name=\"{}\" id=\"0x7f080000\"", SPLIT_REFS[0].1)));
-        assert_eq!(ids.len(), SPLIT_REFS.len());
-        assert!(out.trim_end().ends_with("</resources>"));
-        assert!(declare_split_refs(public, &[dump.clone(), String::new()]).is_err());
-        let other = dump.replace("0x7f080000", "0x7f080099");
-        assert!(declare_split_refs(public, &[dump.clone(), other]).is_err());
-        assert!(declare_split_refs(&out, &[dump.clone(), dump]).is_err());
-    }
-
-    #[test]
-    fn manifest_workaround_removes_exactly_the_two_attributes() {
-        let m = r#"<a android:x="1" android:recreateOnConfigChanges="0x4058" android:y="2"/><b android:recreateOnConfigChanges="0x4078"/>"#;
-        assert_eq!(
-            strip_manifest_workaround(m).unwrap(),
-            r#"<a android:x="1" android:y="2"/><b/>"#
-        );
-        assert!(strip_manifest_workaround("<a/>").is_err());
-    }
-
-    #[test]
-    fn references_must_exist_and_not_be_null() {
-        let known = resource_ids(
-            "    resource 0x7f080c54 drawable/seek_timestamp_background_large\n      () (file) res/x.xml",
-        );
-        assert!(known.contains("0x7f080c54"));
-        let ok = "A: background(0x010100d4)=@0x7f080c54";
-        assert!(check_references("e", ok, "", &known).is_ok());
-        assert!(check_references("e", "A: textSize(0x01010095)=@0x7f0707c5", "", &known).is_err());
-        let lost = "A: textSize(0x01010095)=@null";
-        assert!(check_references("e", lost, "A: textSize=@0x7f0707c5", &known).is_err());
-        // Deliberate @null in the original (e.g. now_playing_bar ViewStub backgrounds) stays allowed.
-        assert!(check_references("e", lost, "A: background=@null", &known).is_ok());
-    }
-
-    #[test]
     fn rewrite_keeps_stored_entries_stored() {
         let d = temp_dir("stored");
         let src = d.join("in.apk");
@@ -1166,56 +404,6 @@ mod tests {
 
         let dst2 = d.join("out2.apk");
         assert!(rewrite_apk(&src, &dst2, &[("res/missing.xml", vec![])], &[]).is_err());
-    }
-
-    #[test]
-    fn reads_the_oembed_thumbnail() {
-        let json = r#"{"html":"x","thumbnail_url":"https:\/\/i.scdn.co\/image\/ab67","thumbnail_width":300}"#;
-        assert_eq!(thumbnail(json).unwrap(), "https://i.scdn.co/image/ab67");
-        assert!(thumbnail("{}").is_none());
-    }
-
-    #[test]
-    fn diffs_apply_exactly_or_not_at_all() {
-        let original = "a\nb\nc\nd\n";
-        assert_eq!(
-            apply_diff(original, "d2 1\na3 2\nx\ny\n").unwrap(),
-            "a\nc\nx\ny\nd\n"
-        );
-        assert_eq!(
-            apply_diff(original, "a0 1\nz\nd4 1\n").unwrap(),
-            "z\na\nb\nc\n"
-        );
-        assert_eq!(apply_diff(original, "").unwrap(), original);
-        for bad in [
-            "d4 2\n",
-            "a5 1\nx\n",
-            "a2 2\nx\n",
-            "d3 1\nd2 1\n",
-            "x1 1\n",
-            "d1\n",
-        ] {
-            assert!(apply_diff(original, bad).is_err(), "{bad:?}");
-        }
-    }
-
-    #[test]
-    fn targets_reject_patched_or_foreign_base() {
-        let d = temp_dir("targets");
-        let base = d.join("base.apk");
-        let entries: Vec<(&str, &[u8])> = TARGETS
-            .iter()
-            .map(|t| (t.entry, t.diff.as_bytes()))
-            .collect();
-        write_zip(&base, &entries);
-        assert!(
-            check_targets(&base)
-                .unwrap_err()
-                .to_string()
-                .contains("already patched")
-        );
-        write_zip(&base, &[("res/other.xml", b"x")]);
-        assert!(check_targets(&base).is_err());
     }
 
     #[test]

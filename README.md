@@ -1,3 +1,23 @@
+# Spatch: app rebuild (branch `app-rebuild`)
+
+This branch drops the Spatch redesign patches and keeps only what the app rebuild needs: Spotify's
+own core (sign-in, playback, decryption, cache, Connect) under a new UI written in Rust and Slint.
+The redesign lives on `main`; features come back here as the app grows.
+
+What the patcher changes in Spotify's base APK:
+
+- **`classes.dex`:** `ClientBase` and `RemoteNativeRxRouter` move to the helper DEX with two hooks that
+  pass Spotify's Esperanto transports and Cosmos router to `CoreBridge`. They move because
+  `classes.dex` is at the method-reference limit.
+- **`classes2.dex`:** `SpotifyMainActivity.onResume` opens the app once per launch.
+- **Added:** the helper DEX (`CoreBridge`, `SpatchApp`) and `assets/spatch/libspatch_app.so`.
+
+Resources, the manifest and every other DEX stay byte-identical. Close in the app goes back to Spotify's
+own UI, which you still need for signing in and for anything not rebuilt yet. See [app/README.md](app/README.md)
+for the app itself.
+
+---
+
 # Spatch
 
 A Rust command-line patcher that gives one exact build of Spotify for Android (9.1.98.521, version

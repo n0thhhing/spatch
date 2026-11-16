@@ -22,7 +22,7 @@ import java.io.OutputStream;
  * Spotify keeps running underneath, so its core (sign-in, playback) is live for CoreBridge.
  * The library ships as an asset and is copied out once: Spotify's manifest and splits stay untouched.
  */
-final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCallback, View.OnTouchListener {
+public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCallback, View.OnTouchListener {
     private static final String ASSET = "spatch/libspatch_app.so";
     private static String loadError;
     private static boolean loaded;
@@ -93,23 +93,13 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
         }
     }
 
-    private static final String START = "spatch_app_start";
     private static boolean startHandled;
 
-    /** Developer options' "Open on start": the Rust app comes up over Spotify's main screen at launch. */
-    static boolean opensOnStart(Context c) {
-        return c.getSharedPreferences("spatch", 0).getBoolean(START, false);
-    }
-
-    static void setOpensOnStart(Context c, boolean on) {
-        c.getSharedPreferences("spatch", 0).edit().putBoolean(START, on).commit();
-    }
-
-    /** Every resumed activity: once per launch, Spotify's main screen gets the app over it when asked for. */
-    static void resumed(Activity a) {
+    /** Spotify's main screen resumed: the app comes up over it once per launch, as the UI. */
+    public static void resumed(Activity a) {
         if (startHandled || !"com.spotify.music.SpotifyMainActivity".equals(a.getClass().getName())) return;
         startHandled = true; // after Close, Spotify's own UI stays until the next launch
-        if (opensOnStart(a)) open(a);
+        open(a);
     }
 
     /** Opens the Rust app over this activity. False (see loadError) when the library can't load. */
@@ -124,15 +114,25 @@ final class SpatchApp implements SurfaceHolder.Callback, Choreographer.FrameCall
         app.spotify = decor.findViewById(0x01020002); // android.R.id.content
         if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
         else app.spotify = null;
-        nativeOpen(activity.getResources().getDisplayMetrics().density, theme(), bar(activity, "status_bar_height"), bar(activity, "navigation_bar_height"));
+        nativeOpen(activity.getResources().getDisplayMetrics().density, theme(activity), bar(activity, "status_bar_height"), bar(activity, "navigation_bar_height"));
         return true;
     }
 
-    /** The running Spatch theme's nine roles (Palette's base colours, mapped), which the app turns into Material 3 roles. */
-    private static int[] theme() {
-        int[] base = {0xff14121c, 0xff1d1a2a, 0xff2b2640, 0xfff3eeff, 0xffc6b8ff, 0xffbcb3dc, 0xffd0bcff, 0xffe0d2ff, 0xffb7a3ee};
-        int[] out = new int[base.length];
-        for (int i = 0; i < base.length; i++) out[i] = Palette.color(base[i]);
+    /**
+     * Material You's colours (Android 12+, from the wallpaper), in the nine roles the app maps to
+     * Material 3: background, surface, card, text, accent 2, secondary text, accent, light accent,
+     * accent 3. Before Android 12, or if a colour is missing, the app keeps its built-in purple.
+     */
+    private static int[] theme(Context c) {
+        String[] names = {"system_neutral1_900", "system_neutral1_800", "system_neutral2_800", "system_neutral1_50",
+            "system_accent2_200", "system_neutral2_200", "system_accent1_200", "system_accent1_100", "system_accent3_200"};
+        int[] out = new int[names.length];
+        if (android.os.Build.VERSION.SDK_INT < 31) return null;
+        for (int i = 0; i < names.length; i++) {
+            int id = c.getResources().getIdentifier(names[i], "color", "android");
+            if (id == 0) return null;
+            out[i] = c.getResources().getColor(id);
+        }
         return out;
     }
 

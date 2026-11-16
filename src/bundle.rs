@@ -24,7 +24,6 @@
 
 use crate::Result;
 use crate::input::{self, APKM_SHA256, APKS, VERSION_CODE, VERSION_NAME};
-use crate::patch::{NEW_IMAGES, PREVIEW_FALLBACK, PREVIEW_TRACK};
 use std::fmt::Write as _;
 use std::fs::File;
 use std::io::Write;
@@ -61,18 +60,9 @@ pub fn write(
         )?;
         jobs.push((old, bytes));
     }
-    let cover = NEW_IMAGES[0].path;
     for (entry, bytes) in add {
-        let bytes: &[u8] = if *entry == cover {
-            PREVIEW_FALLBACK
-        } else {
-            bytes
-        };
-        let method = if crate::fonts::stored(entry) {
-            "S"
-        } else {
-            "D"
-        };
+        let bytes: &[u8] = bytes;
+        let method = "D";
         writeln!(
             steps,
             "add {entry} {method} {} p/{}",
@@ -82,9 +72,6 @@ pub fn write(
         jobs.push((&basis, bytes));
     }
     let patches = diff_all(&jobs)?;
-    if !PREVIEW_TRACK.is_empty() && add.iter().any(|(e, _)| *e == cover) {
-        writeln!(steps, "cover {cover} {PREVIEW_TRACK}")?;
-    }
     steps.push_str(clone);
     let mut zip = zip::ZipWriter::new(File::create_new(out)?);
     let opts = SimpleFileOptions::default()
@@ -362,34 +349,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn bundle_never_carries_the_cover() {
-        let d = temp_dir("bundle-cover");
-        write_zip(&d.join("base.apk"), &[("resources.arsc", b"table")]);
-        let out = d.join("b.zip");
-        let cover = NEW_IMAGES[0].path;
-        write(
-            &d,
-            &[],
-            &[(cover, b"someone's artwork".to_vec())],
-            "",
-            &out,
-            Deflated,
-        )
-        .unwrap();
-        let mut zip = zip::ZipArchive::new(File::open(&out).unwrap()).unwrap();
-        let mut steps = String::new();
-        zip.by_name("bundle.txt")
-            .unwrap()
-            .read_to_string(&mut steps)
-            .unwrap();
-        assert!(steps.contains(&format!("cover {cover} {PREVIEW_TRACK}\n")));
-        let mut patch = Vec::new();
-        zip.by_name("p/0").unwrap().read_to_end(&mut patch).unwrap();
-        let mut back = Vec::new();
-        bsdiff::patch(b"table", &mut patch.as_slice(), &mut back).unwrap();
-        assert_eq!(back, PREVIEW_FALLBACK);
-    }
 }
 #[test]
 fn cached_diffs_are_reapplied_and_corruption_is_rebuilt() {

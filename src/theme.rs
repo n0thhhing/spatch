@@ -217,13 +217,6 @@ pub fn by_name(name: &str) -> Result<&'static Theme> {
 }
 
 impl Theme {
-    /// Maps a token RGB (alpha in the top byte is kept) to this theme; other values pass through.
-    pub fn map(&self, argb: u32) -> u32 {
-        match TOKENS.iter().position(|&t| t == argb & 0xffffff) {
-            Some(i) => (argb & 0xff00_0000) | self.rgb[i],
-            None => argb,
-        }
-    }
 
     /// Replaces every 6-hex-digit token (any case) in `text` in one pass, so replacements are never
     /// re-matched.
@@ -265,8 +258,6 @@ mod tests {
             g.apply(r##"color="#eb1d1a2a" x="#D0BCFF" keep="#ff1ed760" 0xff14121cL"##),
             r##"color="#eb3c3836" x="#fe8019" keep="#ff1ed760" 0xff282828L"##
         );
-        assert_eq!(g.map(0xffd0bcff), 0xfffe8019);
-        assert_eq!(g.map(0x12345678), 0x12345678);
         assert_eq!(by_name("lavender").unwrap().apply("#ff14121c"), "#ff14121c");
         assert!(by_name("nope").is_err());
     }
