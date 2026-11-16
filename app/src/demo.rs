@@ -76,7 +76,12 @@ pub fn library() -> Vec<Item> {
                 name: name.into(),
                 kind,
                 subtitle: subtitle.into(),
-                uri: if group == 0 && i == 0 { "spotify:preview:collection".into() } else { format!("spotify:preview:{i}") },
+                uri: match (group, i) {
+                    (0, 0) => "spotify:preview:collection".into(),
+                    (1, _) => format!("spotify:album:{i}"),
+                    (2, _) => format!("spotify:artist:{i}"),
+                    _ => format!("spotify:preview:{i}"),
+                },
                 image: format!("demo:{}", i + group * 5),
             })
         })
@@ -85,7 +90,7 @@ pub fn library() -> Vec<Item> {
 
 /// An album or artist page for the demo: its tracks, and for an artist a few releases.
 pub fn page(uri: &str) -> crate::spotify::metadata::Page {
-    let artist = uri.contains("artist") || uri.contains("preview");
+    let artist = uri.contains("artist");
     crate::spotify::metadata::Page {
         name: if artist { "Northbound".into() } else { "Between Stations".into() },
         subtitle: if artist { "Artist".into() } else { "Northbound • 2025".into() },

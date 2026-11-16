@@ -468,6 +468,10 @@ public final class SpatchUi extends FrameLayout {
         sheetClose = null;
         pageHost = new FrameLayout(activity);
         addView(pageHost, new LayoutParams(-1, -1));
+        // Lists dim as they pass under the mini player and bar instead of showing through them.
+        View fade = new View(activity);
+        fade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg}));
+        addView(fade, new LayoutParams(-1, dp(190) + inset.bottom, Gravity.BOTTOM));
         dock = column();
         dock.setPadding(dp(12), 0, dp(12), dp(10) + inset.bottom);
         addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));

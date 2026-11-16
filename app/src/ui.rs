@@ -197,7 +197,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JCla
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: JClass, uri: JString, #[allow(unused_variables)] offset: jint) -> jobjectArray {
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
-    if !library::is_playlist(&uri) {
+    if !cfg!(feature = "preview") && !library::is_playlist(&uri) {
         return std::ptr::null_mut();
     }
     #[cfg(feature = "preview")]
