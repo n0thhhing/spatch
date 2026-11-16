@@ -54,7 +54,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates", INVITE = "source_invite", DOWNLOADED = "apkm_downloaded";
     private static final String PAGE = "page", CLONE_PKG = "clone_package", CLONE_NAME = "clone_name", CLONE_INSTALLED = "clone_installed:";
-    static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", NIGHTLY = "nightly_patches", UPDATE = "start_update";
+    static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", NIGHTLY = "nightly_patches", BRANCH = "nightly_branch", UPDATE = "start_update";
     private static final String PROFILE = "patch_profile", CLONES_SET = "clones_packages";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
     private static final String[] PAGES = {"Spatch", "Clones", "Diagnostics", "Changes"};
@@ -113,6 +113,36 @@ public final class MainActivity extends Activity {
     private ScrollView scroll;
     private ProgressBar progress;
     private Switch developer, notify, nightly;
+    private android.widget.Button branchButton;
+
+    /** The branch whose nightly to install: "" is main, anything else a branch-<name> prerelease. */
+    private String branch() {
+        return prefs.getString(BRANCH, "");
+    }
+
+    private String branchLabel() {
+        return "Branch: " + (branch().isEmpty() ? "main" : branch());
+    }
+
+    /** Branches with their own nightly, from the last release check; picking one turns Nightly patches on. */
+    private void chooseBranch() {
+        java.util.List<String> names = new ArrayList<>();
+        names.add("main");
+        if (releases != null) names.addAll(releases.branches);
+        if (!branch().isEmpty() && !names.contains(branch())) names.add(branch());
+        String[] labels = names.toArray(new String[0]);
+        int selected = Math.max(0, names.indexOf(branch().isEmpty() ? "main" : branch()));
+        new AlertDialog.Builder(this).setTitle("Nightly branch").setSingleChoiceItems(labels, selected, (dialog, index) -> {
+            String picked = index == 0 ? "" : labels[index];
+            dialog.dismiss();
+            if (picked.equals(branch())) return;
+            prefs.edit().putString(BRANCH, picked).apply();
+            Look.label(branchButton, branchLabel());
+            if (!picked.isEmpty() && !nightly.isChecked()) nightly.setChecked(true);
+            releases = null;
+            checkUpdates();
+        }).setNegativeButton("Cancel", null).show();
+    }
 
     private final BroadcastReceiver installResult = new BroadcastReceiver() {
         @Override
@@ -238,7 +268,7 @@ public final class MainActivity extends Activity {
             new Thread(() -> {
                 Builds.Run run;
                 try {
-                    run = Builds.newest();
+                    run = Builds.newest(branch());
                 } catch (Exception offline) {
                     run = null; // offline or rate limited: the card just hides
                 }
@@ -384,6 +414,8 @@ public final class MainActivity extends Activity {
             refresh();
         });
         profileCard.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
+        branchButton = look.button(branchLabel(), "tune", Look.Kind.TONAL, v -> chooseBranch());
+        profileCard.addView(branchButton, look.spaced(6));
 
         notify = new M3Switch(this, look);
         notify.setChecked(prefs.getBoolean(NOTIFY, true));
@@ -1133,7 +1165,7 @@ public final class MainActivity extends Activity {
         refresh();
         new Thread(() -> {
             try {
-                Releases r = Releases.fetch();
+                Releases r = Releases.fetch(branch());
                 main.post(() -> {
                     releases = r;
                     if (r.bundle == null) releaseError = "No patches are published yet.";

@@ -53,6 +53,8 @@ final class Releases {
     Release bundle, manager, nightly, nightlyManager; // nightly*: built from the newest commit, tagged nightly-<commit>
     final List<Note> notes = new ArrayList<>();
     final List<Note> commits = new ArrayList<>();
+    /** Branches other than main with their own nightly (a branch-<name> prerelease), newest first. */
+    final List<String> branches = new ArrayList<>();
 
     /** The bundle to install: the nightly when asked for and published, the newest release otherwise. */
     Release bundle(boolean wantNightly) {
@@ -65,14 +67,23 @@ final class Releases {
     }
 
     static Releases fetch() throws IOException {
+        return fetch("");
+    }
+
+    /** With a branch, its nightly and commits stand in for main's; "" is main. */
+    static Releases fetch(String branch) throws IOException {
         String releasesJson = get("https://api.github.com/repos/" + REPO + "/releases?per_page=50");
         String commitsJson = null;
         try {
-            commitsJson = get("https://api.github.com/repos/" + REPO + "/commits?per_page=15");
+            commitsJson = get("https://api.github.com/repos/" + REPO + "/commits?per_page=15" + (branch.isEmpty() ? "" : "&sha=" + java.net.URLEncoder.encode(branch, "UTF-8")));
         } catch (IOException ignored) {
             // Release notes still show when the commit log cannot be fetched.
         }
-        return parse(releasesJson, commitsJson);
+        return parse(releasesJson, commitsJson, branch);
+    }
+
+    static Releases parse(String releasesJson, String commitsJson) throws IOException {
+        return parse(releasesJson, commitsJson, "");
     }
 
     static String get(String url) throws IOException {
@@ -86,7 +97,8 @@ final class Releases {
         }
     }
 
-    static Releases parse(String releasesJson, String commitsJson) throws IOException {
+    static Releases parse(String releasesJson, String commitsJson, String branch) throws IOException {
+        String nightlyTag = branch.isEmpty() ? "nightly" : "branch-" + branch;
         try {
             JSONArray list = new JSONArray(releasesJson);
             Releases r = new Releases();
@@ -94,7 +106,9 @@ final class Releases {
                 JSONObject release = list.getJSONObject(i);
                 String tag = release.getString("tag_name");
                 String body = cleanBody(release.optString("body", ""));
-                if (tag.equals("nightly") && release.optBoolean("prerelease") && !release.optBoolean("draft")) {
+                if (tag.startsWith("branch-") && release.optBoolean("prerelease") && !release.optBoolean("draft") && asset(release, "spatch-bundle.zip") != null)
+                    r.branches.add(tag.substring("branch-".length()));
+                if (tag.equals(nightlyTag) && release.optBoolean("prerelease") && !release.optBoolean("draft")) {
                     String commit = release.optString("target_commitish", "");
                     String url = asset(release, "spatch-bundle.zip");
                     if (commit.length() >= 7 && url != null) r.nightly = new Release(nightlyIdentity(release, "spatch-bundle.zip", commit), url, asset(release, "spatch-bundle-debug.zip"), body);
