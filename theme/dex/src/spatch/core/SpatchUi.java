@@ -321,7 +321,7 @@ public final class SpatchUi extends FrameLayout {
             FrameLayout header = new FrameLayout(activity);
             header.setBackground(background(secondaryContainer, 30));
             header.setClipToOutline(true);
-            header.addView(new WordmarkDecoration(), new FrameLayout.LayoutParams(-1, -1));
+            header.addView(new WordmarkDecoration(), new FrameLayout.LayoutParams(-1, dp(88)));
             TextView mark = text("Spatch", 38, onSecondaryContainer, true);
             mark.setGravity(Gravity.CENTER_VERTICAL);
             mark.setPadding(dp(20), dp(10), dp(24), dp(10));
