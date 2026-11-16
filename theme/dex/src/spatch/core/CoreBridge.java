@@ -74,31 +74,37 @@ public final class CoreBridge implements Transport {
     public static byte[] call(String service, String method, byte[] request) throws Exception {
         CoroutineTransport transport = playlistTransport;
         if (transport != null && service.equals("spotify.playlist_esperanto.proto.PlaylistDataService")) {
+            // Spotify's own client calls the dispatching transport's callSingle with a continuation; do the same,
+            // on a thread of our own with a bounded wait, and say exactly what came back if it isn't bytes.
             CompletableFuture<Object> reply = new CompletableFuture<>();
-            // The call itself may block before suspending, so it runs on its own thread and the wait is bounded.
-            // callSync is the transport's own blocking call: plain bytes, no hand-made coroutine whose empty
-            // context the native side may never resume. The suspending call stays as a fallback.
             Thread caller = new Thread(() -> {
                 try {
-                    reply.complete(transport.callSync(service, method, request));
-                } catch (Throwable sync) {
-                    android.util.Log.w("SpatchCore", "Playlist callSync failed, trying callSingle: " + sync);
-                    try {
-                        Object direct = transport.callSingle(service, method, request, new p.lnm() {
-                            public p.o8n getContext() { return p.o6x.a; }
-                            public void resumeWith(Object value) { reply.complete(value); }
-                        });
-                        if (direct != p.d9n.a) reply.complete(direct);
-                    } catch (Throwable e) {
-                        reply.completeExceptionally(e);
-                    }
+                    Object direct = transport.callSingle(service, method, request, new p.lnm() {
+                        public p.o8n getContext() { return p.o6x.a; }
+                        public void resumeWith(Object value) { reply.complete(value); }
+                    });
+                    if (direct != p.d9n.a) reply.complete(direct);
+                } catch (Throwable e) {
+                    reply.completeExceptionally(e);
                 }
             }, "SpatchPlaylist");
             caller.setDaemon(true);
             caller.start();
-            Object result = reply.get(10, TimeUnit.SECONDS);
-            if (result instanceof byte[]) return (byte[]) result;
-            throw new IllegalStateException("Playlist service returned no data");
+            String why;
+            try {
+                Object result = reply.get(10, TimeUnit.SECONDS);
+                if (result instanceof byte[]) return (byte[]) result;
+                why = result == null ? "null" : result.getClass().getName() + ": " + result;
+            } catch (Exception e) {
+                why = String.valueOf(e.getCause() != null ? e.getCause() : e);
+            }
+            android.util.Log.w("SpatchCore", "Playlist callSingle gave no bytes (" + why + "); trying the Rx transport");
+            try {
+                return (byte[]) transport(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
+            } catch (RuntimeException rx) {
+                android.util.Log.w("SpatchCore", "Playlist via Rx failed too: " + rx);
+                throw new IllegalStateException("Playlist service: " + why);
+            }
         }
         return (byte[]) transport(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
     }

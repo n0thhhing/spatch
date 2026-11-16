@@ -9,8 +9,14 @@ message Status {
   string reason = 2;
 }
 
+message CollectionAddRemoveItem {
+  string uri = 1;
+}
+
+// Spotify's own save fills `items` (uri plus item data), not the bare uri list.
 message CollectionAddRemoveItemsRequest {
   repeated string uri = 1;
+  repeated CollectionAddRemoveItem items = 2;
 }
 
 message CollectionAddRemoveItemsResponse {

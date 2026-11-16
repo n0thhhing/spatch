@@ -441,6 +441,8 @@ public final class SpatchUi extends FrameLayout {
         RectF from = coverTransition ? coverBounds(original) : null;
         Bitmap cover = coverTransition ? original.cachedArtwork() : null;
         float fromAngle = coverTransition ? original.outlineAngle() : 0;
+        // The immersive disc turns as a whole view; the morph starts from that turn instead of snapping upright.
+        float fromTurn = coverTransition ? original.getRotation() % 360f : 0;
         rememberScroll();
         route = next;
         screen = route & 7;
@@ -448,7 +450,7 @@ public final class SpatchUi extends FrameLayout {
         if (filter != selected) collectionRow = collectionOffset = 0;
         filter = selected;
         render();
-        if (coverTransition && trackArt != null) moveArtwork(from, cover, original.shape, trackArt, fromAngle);
+        if (coverTransition && trackArt != null) moveArtwork(from, cover, original.shape, trackArt, fromAngle, fromTurn);
         if (!coverTransition && motionEnabled() && content != null) {
             boolean sideways = previous <= LIBRARY && destination <= LIBRARY && previous != destination;
             View moving = sideways ? content.getChildAt(content.getChildCount() - 1) : content;
@@ -471,14 +473,21 @@ public final class SpatchUi extends FrameLayout {
     private RectF coverBounds(Art view) {
         int[] origin = new int[2], position = new int[2];
         getLocationInWindow(origin);
-        view.getLocationInWindow(position);
+        if (view.getRotation() != 0 && view.getParent() instanceof View) {
+            // A turning disc reports its rotated corner; measure from its parent and unrotated layout instead.
+            ((View) view.getParent()).getLocationInWindow(position);
+            position[0] += view.getLeft();
+            position[1] += view.getTop();
+        } else {
+            view.getLocationInWindow(position);
+        }
         float side = view.coverSide();
         float x = position[0] - origin[0] + (view.getWidth() - side) * .5f;
         float y = position[1] - origin[1] + (view.getHeight() - side) * .5f;
         return new RectF(x, y, x + side, y + side);
     }
 
-    private void moveArtwork(RectF from, Bitmap bitmap, int fromShape, Art target, float fromAngle) {
+    private void moveArtwork(RectF from, Bitmap bitmap, int fromShape, Art target, float fromAngle, float fromTurn) {
         target.setAlpha(0f);
         getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
             @Override public boolean onPreDraw() {
@@ -488,6 +497,7 @@ public final class SpatchUi extends FrameLayout {
                 CoverTransition moving = new CoverTransition(from, to, bitmap,
                     fromShape, target.shape);
                 moving.fromAngle = fromAngle;
+                moving.fromTurn = fromTurn > 180 ? fromTurn - 360 : fromTurn;
                 getOverlay().add(moving);
                 android.animation.ValueAnimator animation = android.animation.ValueAnimator.ofFloat(0f, 1f);
                 // Long enough to read as one shape becoming the other, eased like Material's emphasized motion.
@@ -523,7 +533,7 @@ public final class SpatchUi extends FrameLayout {
         private final Bitmap bitmap;
         private final BitmapShader shader;
         private final Matrix spin = new Matrix();
-        float progress, fromAngle;
+        float progress, fromAngle, fromTurn;
 
         CoverTransition(RectF from, RectF to, Bitmap bitmap, int firstShape, int lastShape) {
             this.from = from;
@@ -544,6 +554,11 @@ public final class SpatchUi extends FrameLayout {
                 spin.setRotate(fromAngle * (1 - progress), x + side / 2, y + side / 2);
                 path.transform(spin);
             }
+            int turned = -1;
+            if (fromTurn != 0) {
+                turned = canvas.save();
+                canvas.rotate(fromTurn * (1 - progress), x + side / 2, y + side / 2);
+            }
             paint.setColor(secondaryContainer);
             if (shader != null) {
                 float scale = Math.max(side / bitmap.getWidth(), side / bitmap.getHeight());
@@ -553,6 +568,7 @@ public final class SpatchUi extends FrameLayout {
                 paint.setShader(shader);
             }
             canvas.drawPath(path, paint);
+            if (turned >= 0) canvas.restoreToCount(turned);
         }
 
         @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
@@ -1357,7 +1373,9 @@ public final class SpatchUi extends FrameLayout {
         private float gradientRadius;
         private final View stage;
         private final int[] at = new int[2], origin = new int[2];
-        private final Path liquid = new Path();
+        private android.graphics.SweepGradient sweep;
+        private int sweepColor;
+        private float sweepX, sweepY;
 
         /** Full screen behind the content, centred on the disc's stage, so only the screen edges bound the halo. */
         Glow(View stage) {
@@ -1406,32 +1424,37 @@ public final class SpatchUi extends FrameLayout {
                 paint.setStyle(Paint.Style.FILL);
             }
             if (audio) {
-                // A liquid ring hugging the disc: its edge swells with each band, mirrored left and right.
-                int n = Audio.BANDS.length, points = n * 2;
-                float rim = side / 2f + dp(6);
-                float[] px = new float[points], py = new float[points];
-                for (int k = 0; k < points; k++) {
-                    float v = Audio.BANDS[k < n ? k : points - 1 - k];
-                    double a = -Math.PI / 2 + (k + .5) / points * Math.PI * 2;
-                    float rr = rim + dp(22) * v;
-                    px[k] = cx + (float) Math.cos(a) * rr;
-                    py[k] = cy + (float) Math.sin(a) * rr;
+                // Bars radiating from a solid ring around the art, coloured in a sweep from the accent round to
+                // the tertiary hue; bands mirror left and right so the shape stays balanced.
+                int n = Audio.BANDS.length, bars = 72;
+                float ring = side / 2f + dp(5);
+                if (sweep == null || sweepColor != primary || sweepX != cx || sweepY != cy) {
+                    sweepColor = primary;
+                    sweepX = cx;
+                    sweepY = cy;
+                    int warm = tertiaryContainer == 0 ? primary : blend(primary, onTertiaryContainer, .55f);
+                    sweep = new android.graphics.SweepGradient(cx, cy, new int[]{primary, warm, primary, warm, primary}, null);
+                    Matrix turn = new Matrix();
+                    turn.setRotate(-90, cx, cy);
+                    sweep.setLocalMatrix(turn);
                 }
-                liquid.rewind();
-                for (int k = 0; k < points; k++) {
-                    int nx = (k + 1) % points;
-                    float mx = (px[k] + px[nx]) / 2f, my = (py[k] + py[nx]) / 2f;
-                    if (k == 0) liquid.moveTo((px[points - 1] + px[0]) / 2f, (py[points - 1] + py[0]) / 2f);
-                    liquid.quadTo(px[k], py[k], mx, my);
-                }
-                liquid.close();
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor((primary & 0x00ffffff) | 0x2e000000);
-                c.drawPath(liquid, paint);
+                paint.setShader(sweep);
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(dp(1.5f));
-                paint.setColor((primary & 0x00ffffff) | 0x99000000);
-                c.drawPath(liquid, paint);
+                paint.setStrokeWidth(dp(5));
+                paint.setAlpha(255);
+                c.drawCircle(cx, cy, ring, paint);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeWidth(Math.min(dp(7), (float) (Math.PI * 2 * ring / bars) * .55f));
+                float start = ring + dp(10);
+                for (int k = 0; k < bars; k++) {
+                    int half = bars / 2, b = k < half ? k : bars - 1 - k;
+                    float v = Audio.BANDS[Math.min(n - 1, b * n / half)];
+                    double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
+                    float len = dp(3) + dp(40) * v;
+                    float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
+                    c.drawLine(cx + cos * start, cy + sin * start, cx + cos * (start + len), cy + sin * (start + len), paint);
+                }
+                paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
                 Audio.want();
             }

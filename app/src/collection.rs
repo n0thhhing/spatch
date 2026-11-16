@@ -17,7 +17,8 @@ pub fn decode_contains(bytes: &[u8]) -> Result<bool, String> {
 }
 
 pub fn change_request(uri: &str) -> Vec<u8> {
-    es::CollectionAddRemoveItemsRequest { uri: vec![uri.into()] }.encode_to_vec()
+    // Spotify's collection client sends items (uri + item data), so Spatch does the same.
+    es::CollectionAddRemoveItemsRequest { items: vec![es::CollectionAddRemoveItem { uri: uri.into() }], ..Default::default() }.encode_to_vec()
 }
 
 pub fn decode_change(bytes: &[u8]) -> Result<(), String> {
