@@ -26,7 +26,7 @@ final class PlayerCards implements ViewTreeObserver.OnPreDrawListener {
         {"artist_bio_card_header", "author_bio_card_header"},
         {"track_credits_title", "audiobook_credits_section_header"},
         {"up_next_card_title"},
-        {"show_value_song_dna_logo_title", "about_songdna_title", "song_dna_context_menu_item_label"},
+        {"show_value_song_dna_logo_title", "about_songdna_title", "song_dna_context_menu_item_label", "song_dna_npv_card_label_discover_people_behind", "song_dna_npv_card_label_discover_people_and_samples_behind"}, // its name is a logo: the line under it is the text
         {"music_quiz_header_title", "music_quiz_gameplay_title"},
         {"martini_chat_entry_card_header_generic", "martini_chat_entry_card_header_audiobook"},
         {"related_music_videos", "album_music_videos", "music_videos_section_title", "in_this_video"},
@@ -118,9 +118,9 @@ final class PlayerCards implements ViewTreeObserver.OnPreDrawListener {
 
     private static Bitmap scratch;
 
-    /** Draws the card's top into a canvas that keeps only text, and returns the section of the first title it recognises. */
+    /** Draws the card (up to 640dp of it) into a canvas that keeps only text, and returns the section of the first title it recognises. */
     private static int classify(View card) {
-        int w = card.getWidth(), h = Math.min(card.getHeight(), Math.round(220 * card.getResources().getDisplayMetrics().density));
+        int w = card.getWidth(), h = Math.min(card.getHeight(), Math.round(640 * card.getResources().getDisplayMetrics().density));
         if (w <= 0 || h <= 0) return NONE;
         if (resolved == null) resolved = resolve(card);
         try {
@@ -140,7 +140,11 @@ final class PlayerCards implements ViewTreeObserver.OnPreDrawListener {
         String pkg = v.getContext().getPackageName();
         for (int i = 0; i < TITLES.length; i++) {
             java.util.ArrayList<String> names = new java.util.ArrayList<String>();
-            for (String name : TITLES[i]) {
+            java.util.ArrayList<String> all = new java.util.ArrayList<String>(java.util.Arrays.asList(TITLES[i]));
+            if (SECTIONS[i] == Settings.HIDE_CARD_CHAT) // the chat card shows one rotating hint, no title
+                for (String kind : new String[] {"music", "podcast", "audiobook"})
+                    for (int n = 1; n <= 12; n++) { String name = "martini_chat_entry_card_" + kind + "_hint_" + (n < 10 ? "0" : "") + n; all.add(name); all.add(name + "_fallback"); }
+            for (String name : all) {
                 int id = r.getIdentifier(name, "string", pkg);
                 if (id != 0) try { names.add(r.getString(id).trim().toLowerCase()); } catch (RuntimeException ignored) {}
             }
@@ -153,9 +157,16 @@ final class PlayerCards implements ViewTreeObserver.OnPreDrawListener {
     static int match(String text, String[][] titles) {
         String t = text.trim().toLowerCase();
         if (t.isEmpty()) return NONE;
+        // Hints carry the artist's name (%1$s) and long lines are cut with an ellipsis: compare the parts that are certain.
+        String cut = t.endsWith("…") ? t.substring(0, t.length() - 1).trim() : null;
         for (int i = 0; i < titles.length; i++)
-            for (String title : titles[i])
+            for (String title : titles[i]) {
+                int arg = title.indexOf('%');
+                String fixed = arg >= 0 ? title.substring(0, arg) : title;
                 if (t.equals(title) || title.startsWith("let's talk") && t.startsWith(title)) return i;
+                if (arg >= 6 && t.startsWith(fixed)) return i;
+                if (cut != null && cut.length() >= 8 && (title.startsWith(cut) || fixed.startsWith(cut) || arg >= 6 && cut.startsWith(fixed))) return i;
+            }
         return NONE;
     }
 
