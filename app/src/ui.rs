@@ -17,6 +17,15 @@ static PLAYER: Mutex<(i64, Option<player::NowPlaying>)> = Mutex::new((0, None));
 static LIBRARY: Mutex<Option<Vec<library::Item>>> = Mutex::new(None);
 /// Your Spotify username, learned from a playlist you own; Liked Songs' link needs it.
 static USERNAME: Mutex<Option<String>> = Mutex::new(None);
+/// What the last username lookup tried, shown on the Liked Songs page when it fails.
+static LIKED_NOTE: Mutex<String> = Mutex::new(String::new());
+
+/// `spotify:user:<name>:collection` (Liked Songs playing) names the account; remember it.
+fn learn_username(context: &str) {
+    if let Some(name) = context.strip_prefix("spotify:user:").and_then(|rest| rest.strip_suffix(":collection")).filter(|n| !n.is_empty() && !n.contains(':')) {
+        *USERNAME.lock().unwrap() = Some(name.to_string());
+    }
+}
 #[cfg(feature = "preview")]
 static SAVED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
@@ -60,6 +69,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) 
         let opened = bridge::subscribe(player::SERVICE, "GetState", &player::state_request(), |reply| match reply {
             Ok(bytes) => {
                 if let Ok(now) = player::NowPlaying::decode(bytes) {
+                    learn_username(&now.context);
                     let mut state = PLAYER.lock().unwrap();
                     state.0 += 1;
                     state.1 = Some(now);
@@ -200,13 +210,34 @@ fn find_username() -> Option<String> {
         .take(8)
         .map(|i| i.uri.clone())
         .collect();
-    candidates.iter().find_map(|uri| {
-        let bytes = bridge::call(playlist::SERVICE, "Get", &playlist::request_range(uri, 0, 1)).ok()?;
-        match playlist::decode(&bytes, 0) {
-            Ok(playlist::Reply::Page { owner, .. }) => owner,
-            _ => None,
+    let mut note = format!("Looked at {} of your playlists:", candidates.len());
+    let found = candidates.iter().find_map(|uri| {
+        match bridge::call(playlist::SERVICE, "Get", &playlist::request_range(uri, 0, 1)).and_then(|bytes| playlist::decode(&bytes, 0)) {
+            Ok(playlist::Reply::Page { owner: Some(name), .. }) => Some(name),
+            Ok(playlist::Reply::Page { owner: None, .. }) => {
+                note.push_str(" not yours;");
+                None
+            }
+            Ok(playlist::Reply::Loading) => {
+                note.push_str(" still loading;");
+                None
+            }
+            Err(e) => {
+                note.push_str(&format!(" error ({e});"));
+                None
+            }
         }
-    })
+    });
+    log::warn!("Username lookup: {note}");
+    *LIKED_NOTE.lock().unwrap() = note;
+    found
+}
+
+/// What the username lookup found out, for the Liked Songs page when it can't load.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeLikedNote(mut env: JNIEnv, _: JClass) -> jstring {
+    let note = LIKED_NOTE.lock().unwrap().clone();
+    string(&mut env, &note)
 }
 
 /// The link the playlist service accepts for Liked Songs: the library's own if it lists one, else

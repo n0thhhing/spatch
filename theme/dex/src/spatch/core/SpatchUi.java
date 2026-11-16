@@ -55,6 +55,7 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativeEntries(int filter, String query, boolean alphabetical, int limit);
     private static native String[] nativeRecent();
     private static native String nativeLiked();
+    private static native String nativeLikedNote();
     private static native String[] nativePlaylist(String uri, int offset);
     private static native String[] nativePage(String uri);
     private static native String[] nativeDevices();
@@ -1029,7 +1030,8 @@ public final class SpatchUi extends FrameLayout {
         header.addView(count, fill(-2));
         if (playlistFailed && !playlistError.isEmpty()) {
             // Spotify's own reason, so a failure says what happened.
-            TextView why = text(playlistError + "\n" + playUri(), 12, inkDim, false);
+            String lookup = liked(playlist.uri) ? nativeLikedNote() : "";
+            TextView why = text(playlistError + "\n" + playUri() + (lookup.isEmpty() ? "" : "\n" + lookup), 12, inkDim, false);
             why.setGravity(Gravity.CENTER);
             why.setPadding(dp(8), dp(6), dp(8), dp(4));
             header.addView(why, fill(-2));
