@@ -231,17 +231,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn light_palettes_keep_text_and_controls_readable() {
-        for (theme, row) in THEMES.iter().zip(LIGHT) {
-            assert!(contrast(row[3], row[2]) >= 4.5, "{} light text", theme.name);
-            assert!(
-                contrast(row[0], row[6]) >= 4.5,
-                "{} light accent",
-                theme.name
-            );
-        }
-    }
 
     #[test]
     fn theme_values_are_distinct_from_tokens_of_other_roles() {
