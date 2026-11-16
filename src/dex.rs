@@ -450,31 +450,36 @@ fn compile_helper(
         })
         .collect::<Result<_>>()?;
     expected.extend(relocated()?.into_iter().map(|(_, _, _, class)| class.to_owned()));
-    let actual: std::collections::HashSet<_> = classes.lines()
-        .filter_map(|line| line.trim().strip_prefix("Class descriptor"))
-        .filter_map(|line| line.split_once(':'))
-        .map(|(_, name)| name.trim().trim_matches('\''))
-        .collect();
-    let unexpected = actual.iter().find(|&&name| {
-        if expected.contains(name) {
-            return false;
+    let mut lines = classes.lines();
+    let mut actual = std::collections::HashMap::new();
+    while let Some(line) = lines.next() {
+        if let Some((_, name)) = line.trim().strip_prefix("Class descriptor").and_then(|line| line.split_once(':')) {
+            let flags = lines.next().unwrap_or_default();
+            actual.insert(name.trim().trim_matches('\''), flags.contains("SYNTHETIC"));
         }
-        // d8 desugars UI lambdas into classes belonging to their compiled owner.
-        !name.split_once("$$ExternalSynthetic").is_some_and(|(owner, suffix)| {
-            expected.contains(&format!("{owner};"))
-                && suffix.starts_with("Lambda")
-                && suffix.strip_prefix("Lambda").and_then(|n| n.strip_suffix(';'))
-                    .is_some_and(|n| !n.is_empty() && n.bytes().all(|c| c.is_ascii_digit()))
-        })
+    }
+    let unexpected = actual.iter().find(|&(&name, &synthetic)| {
+        !expected.contains(name) && !(synthetic && generated_helper(name, &expected))
     });
-    if let Some(name) = unexpected {
+    if let Some((name, _)) = unexpected {
         return Err(format!("unexpected helper DEX class {name}").into());
     }
-    if let Some(name) = expected.iter().find(|name| !actual.contains(name.as_str())) {
+    if let Some(name) = expected.iter().find(|name| !actual.contains_key(name.as_str())) {
         return Err(format!("missing helper DEX class {name}").into());
     }
     check_ref_limits(HELPER_DEX, &classes)?;
     Ok(fs::read(out)?)
+}
+
+// Some d8 versions retain the lambda name; others emit a numbered nested class.
+fn generated_helper(name: &str, expected: &std::collections::HashSet<String>) -> bool {
+    let Some(name) = name.strip_suffix(';') else { return false };
+    let parts = name.split_once("$$ExternalSyntheticLambda").or_else(|| name.rsplit_once('$'));
+    parts.is_some_and(|(owner, number)| {
+        expected.contains(&format!("{owner};"))
+            && !number.is_empty()
+            && number.bytes().all(|c| c.is_ascii_digit())
+    })
 }
 
 fn collect_classes(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<()> {

@@ -11,6 +11,14 @@ use std::sync::{
 static CONNECTED: AtomicBool = AtomicBool::new(false);
 static STATE: Mutex<(i64, Option<player::NowPlaying>)> = Mutex::new((0, None));
 
+#[cfg(feature = "preview")]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_PreviewActivity_nativePreview(_: JNIEnv, _: JClass) {
+    CONNECTED.store(true, Ordering::Release);
+    *STATE.lock().unwrap() = (1, Some(crate::preview::player()));
+    *LIBRARY_ITEMS.lock().unwrap() = Some(crate::preview::library());
+}
+
 fn strings(
     env: &mut JNIEnv,
     values: impl IntoIterator<Item = String>,
@@ -188,6 +196,15 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(
         }
         _ => return JNI_FALSE,
     };
+    #[cfg(feature = "preview")]
+    {
+        let mut state = STATE.lock().unwrap();
+        if let Some(now) = &mut state.1 {
+            crate::preview::apply(now, command);
+            state.0 += 1;
+            return JNI_TRUE;
+        }
+    }
     let (method, request) = player::command(command);
     if core::call(player::SERVICE, method, &request).is_ok() {
         JNI_TRUE

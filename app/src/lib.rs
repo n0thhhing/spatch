@@ -13,3 +13,6 @@ pub mod protos {
 }
 
 pub use protos::com::spotify::player::esperanto::proto as es_player;
+
+#[cfg(feature = "preview")]
+mod preview;
