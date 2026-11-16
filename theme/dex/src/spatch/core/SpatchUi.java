@@ -1689,6 +1689,11 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout top = row();
         top.setPadding(dp(10), dp(6), dp(10), 0);
         top.addView(glyph("back", "Back", false, this::back), control(48));
+        TextView compact = text(playlist.title, 20, onSurface, true);
+        single(compact);
+        compact.setPadding(dp(6), 0, dp(8), 0);
+        compact.setAlpha(0f);
+        top.addView(compact, weighted());
         content.addView(top, match(-2));
         View header = playlistHeader();
         if (playlistTracks.isEmpty()) {
@@ -1698,6 +1703,18 @@ public final class SpatchUi extends FrameLayout {
         } else {
             playlistList = entryList(playlistTracks, header);
             playlistList.setSelectionFromTop(playlistRow, playlistTop);
+            // The name moves into the top bar once the big header has scrolled away.
+            playlistList.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
+                @Override public void onScrollStateChanged(android.widget.AbsListView view, int state) {}
+                @Override public void onScroll(android.widget.AbsListView view, int first, int visible, int total) {
+                    float shown = first > 0 ? 1f : Math.max(0f, Math.min(1f, -header.getTop() / (float) Math.max(1, header.getHeight() - dp(60))));
+                    shown = Math.max(0f, (shown - .55f) / .45f);
+                    if (Math.abs(compact.getAlpha() - shown) > .01f) {
+                        compact.setAlpha(shown);
+                        compact.setTranslationY(dp(8) * (1 - shown));
+                    }
+                }
+            });
         }
         if (!playlistLoading && (playlistFailed || playlistOffset > 0)) {
             content.addView(chip(playlistFailed ? "Retry" : "Load more", secondaryContainer, onSecondaryContainer, () -> {
