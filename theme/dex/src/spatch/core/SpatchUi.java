@@ -113,8 +113,8 @@ public final class SpatchUi extends FrameLayout {
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
         Audio.context = activity.getApplicationContext();
         applyPalette();
-        setClickable(true);
         setFocusableInTouchMode(true);
+        setForeground(null);
         // Content sits inside the system bars; the backdrop and motes draw under them, edge to edge.
         setOnApplyWindowInsetsListener((v, insets) -> {
             inset.set(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
@@ -370,6 +370,9 @@ public final class SpatchUi extends FrameLayout {
             });
         });
     }
+
+    /** Taps on empty space stop here so they never reach Spotify's views below, but nothing lights up. */
+    @Override public boolean onTouchEvent(MotionEvent event) { return true; }
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
