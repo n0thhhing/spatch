@@ -10,11 +10,23 @@ fn polar(angle: f32, radius: f32, center: f32) -> [f32; 2] {
 
 fn geometry(kind: &str) -> Vec<f32> {
     match kind {
-        "cover" | "button5" | "button9" | "wordmark" => (0..120)
+        "cover" | "player-cover" | "button5" | "button9" | "wordmark" => (0..120)
             .flat_map(|i| {
                 let angle = i as f32 / 120.0 * TAU;
                 let (radius, center) = if kind == "cover" {
                     (0.461 + 0.021 * (angle * 8.0).cos(), 0.5)
+                } else if kind == "player-cover" {
+                    let (x, y) = (angle.cos().abs(), angle.sin().abs());
+                    let (mut low, mut high) = (0.0, 0.71);
+                    for _ in 0..14 {
+                        let r = (low + high) * 0.5;
+                        if (x * r - 0.42).max(0.0).hypot((y * r - 0.42).max(0.0)) <= 0.08 {
+                            low = r;
+                        } else {
+                            high = r;
+                        }
+                    }
+                    (low, 0.5)
                 } else if kind == "wordmark" {
                     (0.80 + 0.19 * (angle * 5.0).cos(), 0.0)
                 } else {
@@ -32,6 +44,7 @@ fn geometry(kind: &str) -> Vec<f32> {
 // Each subpath starts with the vertex count; a negative count means a closed fill.
 fn glyph(kind: &str) -> &'static [f32] {
     match kind {
+        "down" => &[3., 5., 9., 12., 16., 19., 9.],
         "back" => &[3., 13., 5., 6., 12., 13., 19., 2., 6., 12., 20., 12.],
         "play" => &[-3., 7., 4., 20., 12., 7., 20.],
         "pause" => &[
@@ -132,6 +145,7 @@ mod tests {
     fn transport_glyphs_are_complete_paths_inside_the_icon_box() {
         for kind in [
             "back",
+            "down",
             "play",
             "pause",
             "previous",

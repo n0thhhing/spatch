@@ -3,6 +3,7 @@ fn main() {
     let protos = [
         "proto/com.spotify.player.esperanto.proto.proto",
         "proto/spotify.your_library.esperanto.proto.proto",
+        "proto/spotify.playlist.esperanto.proto.proto",
     ];
     for p in &protos {
         println!("cargo:rerun-if-changed={p}");

@@ -96,6 +96,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(
         now.repeat.to_string(),
         position.to_string(),
         now.duration_ms.to_string(),
+        now.source,
     ];
     strings(
         &mut env,
@@ -213,12 +214,143 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
+    mut env: JNIEnv,
+    _: JClass,
+    uri: JString,
+    offset: jint,
+) -> jobjectArray {
+    let Ok(uri) = env.get_string(&uri) else {
+        return std::ptr::null_mut();
+    };
+    let uri = String::from(uri);
+    #[cfg(feature = "preview")]
+    if uri.starts_with("spotify:preview:") {
+        let demo = crate::preview::player();
+        let tracks = std::iter::once((demo.title, demo.artist, demo.image)).chain(demo.up_next);
+        return strings(
+            &mut env,
+            ["".into(), "0".into()]
+                .into_iter()
+                .chain(tracks.enumerate().flat_map(|(i, (title, artist, image))| {
+                    [title, artist, format!("spotify:preview:{i}"), image]
+                })),
+        )
+        .unwrap_or(std::ptr::null_mut());
+    }
+
+    if !uri.starts_with("spotify:")
+        || (!uri.starts_with("spotify:playlist:")
+            && !uri.contains(":collection")
+            && !uri.contains(":playlist:"))
+    {
+        return std::ptr::null_mut();
+    }
+    use crate::protos::{
+        com::spotify::cosmos::util::policy::proto as metadata,
+        com::spotify::playlist::policy::proto as policy, spotify::playlist::esperanto::proto as es,
+    };
+    use prost::Message;
+    let offset = offset.max(0);
+    let request = es::PlaylistGetRequest {
+        uri,
+        query: Some(es::PlaylistQuery {
+            range: Some(es::PlaylistRange {
+                start: offset,
+                length: 100,
+            }),
+            ..Default::default()
+        }),
+        policy: Some(policy::PlaylistRequestDecorationPolicy {
+            track: Some(policy::PlaylistTrackDecorationPolicy {
+                track: Some(metadata::TrackDecorationPolicy {
+                    name: true,
+                    link: true,
+                    ..Default::default()
+                }),
+                artist: Some(metadata::ArtistDecorationPolicy {
+                    name: true,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            item: Some(policy::PlaylistItemDecorationPolicy {
+                uri: true,
+                metadata: Some(policy::ItemMetadataPolicy {
+                    name: true,
+                    image: true,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+    };
+    let result = core::call(
+        "spotify.playlist_esperanto.proto.PlaylistDataService",
+        "Get",
+        &request.encode_to_vec(),
+    )
+    .and_then(|bytes| es::PlaylistGetResponse::decode(bytes.as_slice()).map_err(|e| e.to_string()))
+    .and_then(|reply| {
+        reply.data.ok_or_else(|| {
+            reply
+                .status
+                .map_or_else(|| "No playlist data".into(), |status| status.reason)
+        })
+    });
+    let fields = match result {
+        Ok(data) => {
+            let end = offset as usize + data.item.len();
+            let more = !data.item.is_empty()
+                && end < data.unranged_length.max(data.unfiltered_length) as usize;
+            ["".into(), if more { end.to_string() } else { "0".into() }]
+                .into_iter()
+                .chain(
+                    data.item
+                        .into_iter()
+                        .map(|item| {
+                            let mut title = item
+                                .metadata
+                                .as_ref()
+                                .map_or_else(String::new, |metadata| metadata.name.clone());
+                            let image =
+                                item.metadata.as_ref().map_or_else(String::new, |metadata| {
+                                    player::image_url(&metadata.image)
+                                });
+                            let artist = item
+                                .track_metadata
+                                .as_ref()
+                                .and_then(|track| track.artist.first())
+                                .map_or_else(String::new, |artist| artist.name.clone());
+                            if title.is_empty() {
+                                title = item
+                                    .track_metadata
+                                    .map_or_else(|| "Track unavailable".into(), |track| track.name);
+                            }
+                            [title, artist, item.uri, image]
+                        })
+                        .flatten(),
+                )
+                .collect::<Vec<_>>()
+        }
+        Err(error) => vec![if error.is_empty() {
+            "Couldn’t load playlist".into()
+        } else {
+            error
+        }],
+    };
+    strings(&mut env, fields).unwrap_or(std::ptr::null_mut())
+}
+
 // Packed UI route: page, browse origin, queue origin, then the active collection filter.
 const HOME: i32 = 0;
 const LIBRARY: i32 = 1;
 const PLAYER: i32 = 2;
 const IMMERSIVE: i32 = 3;
 const QUEUE: i32 = 4;
+const PLAYLIST: i32 = 5;
 
 fn navigate(route: i32, action: i32, category: i32) -> i32 {
     let page = route & 7;
@@ -236,13 +368,18 @@ fn navigate(route: i32, action: i32, category: i32) -> i32 {
             PLAYER
         }
         3 if page == PLAYER => IMMERSIVE,
+        3 if page == IMMERSIVE => PLAYER,
+        6 if page <= LIBRARY => {
+            next = (next & !(1 << 3)) | (page << 3);
+            PLAYLIST
+        }
         4 if page == PLAYER || page == IMMERSIVE => {
             next = (next & !(7 << 4)) | (page << 4);
             QUEUE
         }
         5 => match page {
             LIBRARY => HOME,
-            PLAYER => browse,
+            PLAYER | PLAYLIST => browse,
             IMMERSIVE => PLAYER,
             QUEUE => queue_from,
             _ => HOME,
@@ -266,6 +403,16 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeNavigate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn player_art_toggles_immersive_and_playlist_back_preserves_library_filter() {
+        let library = navigate(HOME, 1, 0);
+        let player = navigate(library, 2, 0);
+        assert_eq!(navigate(navigate(player, 3, 0), 3, 0), player);
+        let playlist = navigate(library, 6, 0);
+        assert_eq!(playlist & 7, PLAYLIST);
+        assert_eq!(navigate(playlist, 5, 0), library | (1 << 3));
+    }
 
     #[test]
     fn back_returns_through_queue_immersive_player_and_filtered_library() {

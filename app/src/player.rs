@@ -12,6 +12,7 @@ pub struct NowPlaying {
     pub title: String,
     pub artist: String,
     pub album: String,
+    pub source: String,
     pub image: String,
     pub playing: bool,
     pub shuffle: bool,
@@ -54,6 +55,9 @@ impl NowPlaying {
             title: meta(&track, &["title"]).to_string(),
             artist: meta(&track, &["artist_name", "album_artist_name"]).to_string(),
             album: meta(&track, &["album_title"]).to_string(),
+            source: ["context_title", "title", "name"].into_iter()
+                .find_map(|key| state.context_metadata.get(key).filter(|value| !value.is_empty()))
+                .cloned().unwrap_or_default(),
             image: image_url(meta(&track, &["image_large_url", "image_url", "image_xlarge_url", "image_small_url"])),
             playing: state.is_playing && !state.is_paused,
             shuffle: state.options.as_ref().is_some_and(|o| o.shuffling_context),
