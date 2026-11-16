@@ -66,6 +66,10 @@ final class PlayerCards implements ViewTreeObserver.OnPreDrawListener {
 
     /** Runs before each frame: a newly bound card is collapsed before it is ever drawn. */
     public boolean onPreDraw() {
+        try { return pass(); } catch (RuntimeException e) { return true; } // every frame of the window: never crash Spotify
+    }
+
+    private boolean pass() {
         RecyclerView rv = list.get();
         if (rv == null || !rv.isAttachedToWindow()) return true;
         boolean any = false;
