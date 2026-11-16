@@ -109,7 +109,7 @@ public final class SpatchUi extends FrameLayout {
     private String detailTitle = "", detailSubtitle = "", detailImage = "";
     private List<Entry> releases = new ArrayList<>();
 
-    private static boolean isDetail(Entry e) { return e.uri.startsWith("spotify:album:") || e.uri.startsWith("spotify:artist:"); }
+    private static boolean isDetail(Entry e) { return e.uri.startsWith("spotify:album:") || e.uri.startsWith("spotify:artist:") || e.uri.startsWith("spotify:show:"); }
     private int playlistRequest;
     private String query = "";
 
