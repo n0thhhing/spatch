@@ -59,6 +59,9 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativePlaylist(String uri, int offset);
     private static native String[] nativePage(String uri);
     private static native String[] nativeDevices();
+    private static native void nativeCacheDir(String dir);
+    private static native String[] nativeCached(String key);
+    private static native void nativeRemember(String key, String[] fields);
     private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
     private static native int nativeSeed(int[] pixels);
     private static native void nativeRing(int perSide, float[] out);
@@ -152,6 +155,7 @@ public final class SpatchUi extends FrameLayout {
         covers.mkdirs();
         CoreBridge.cacheDir = covers;
         ART.execute(CoreBridge::pruneCache);
+        nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
                 "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices"}) {
             GLYPHS.put(key, nativeGeometry(key));
@@ -404,9 +408,11 @@ public final class SpatchUi extends FrameLayout {
             String status = nativeLibrary();
             post(() -> {
                 fetching = false;
-                libraryReady = status != null && status.isEmpty();
+                boolean cached = "cached".equals(status);
+                libraryReady = status != null && (status.isEmpty() || cached);
                 if (libraryReady) {
-                    libraryLoadedAt = SystemClock.uptimeMillis();
+                    // Last launch's copy shows at once; backdating it makes the next check ask Spotify again.
+                    libraryLoadedAt = SystemClock.uptimeMillis() - (cached ? 90_000 : 0);
                     libraryStatus = "Nothing saved here yet";
                 } else {
                     libraryStatus = "Couldn’t load your library";
@@ -414,6 +420,7 @@ public final class SpatchUi extends FrameLayout {
                     android.util.Log.w("SpatchUi", "Library request failed: " + (status == null ? "no response" : status));
                 }
                 if (playlist == null) showPage();
+                if (cached) refreshLibraryIfStale();
             });
         });
     }
@@ -707,12 +714,23 @@ public final class SpatchUi extends FrameLayout {
         long now = SystemClock.uptimeMillis();
         if (!libraryReady || loadingRecent || (recentAt != 0 && now - recentAt < 60_000)) return;
         loadingRecent = true;
+        boolean first = recentAt == 0 && recent.isEmpty();
         PLAYLISTS.execute(() -> {
-            List<Entry> got = entryList(nativeRecent());
+            if (first) {
+                String[] saved = nativeCached("recent");
+                if (saved != null) post(() -> {
+                    if (!recent.isEmpty()) return;
+                    recent = entryList(saved);
+                    if (tab == HOME && playlist == null && sheetClose == null) showPage();
+                });
+            }
+            String[] fresh = nativeRecent();
+            if (fresh != null && fresh.length > 0) nativeRemember("recent", fresh);
+            List<Entry> got = entryList(fresh);
             post(() -> {
                 loadingRecent = false;
                 recentAt = SystemClock.uptimeMillis();
-                if (got.equals(recent)) return;
+                if (got.isEmpty() || got.equals(recent)) return;
                 recent = got;
                 if (tab == HOME && playlist == null && sheetClose == null) showPage();
             });
@@ -921,6 +939,8 @@ public final class SpatchUi extends FrameLayout {
         playlistTracks = new ArrayList<>();
         releases = new ArrayList<>();
         liveUri = "";
+        shownReply = null;
+        shownCached = false;
         detailTitle = detailSubtitle = detailImage = "";
         playlistLoading = true;
         playlistFailed = false;
@@ -942,27 +962,49 @@ public final class SpatchUi extends FrameLayout {
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
+            String key = (isDetail(e) ? "page:" : "playlist:") + e.uri;
+            // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
+            if (attempt == 0) {
+                String[] saved = nativeCached(key);
+                if (saved != null) post(() -> { if (request == playlistRequest && playlist == e && playlistLoading) applyReply(e, saved, true); });
+            }
             // Liked Songs' link includes your username, which Spotify has to be asked for first.
             String target = liked(e.uri) ? nativeLiked() : e.uri;
             if (target == null || target.isEmpty()) target = e.uri;
             final String resolved = target;
             String[] r = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
+            boolean ok = r != null && r.length >= (isDetail(e) ? 6 : 2) && r[0].isEmpty();
+            if (ok) nativeRemember(key, r);
             post(() -> {
                 if (playlist == e) liveUri = resolved;
                 if (request != playlistRequest || playlist != e) return;
-                if (isDetail(e)) { applyDetail(r); return; }
                 if (r != null && r.length == 1 && "loading".equals(r[0]) && attempt < 10) {
                     postDelayed(() -> { if (playlist == e) loadPlaylist(e, attempt + 1); }, 700);
                     return;
                 }
-                playlistLoading = false;
-                playlistFailed = r == null || r.length < 2 || !r[0].isEmpty();
-                playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
-                if (playlistFailed) android.util.Log.w("SpatchUi", "Playlist request failed: " + playlistError);
-                else for (int i = 2; i + 3 < r.length; i += 4) playlistTracks.add(new Entry(r[i], r[i + 1], r[i + 2], r[i + 3], -1));
-                showPage();
+                if (ok && java.util.Arrays.equals(r, shownReply)) return;
+                if (!ok && shownCached) { android.util.Log.w("SpatchUi", "Kept the saved copy: " + (r == null || r.length == 0 ? "no reply" : r[0])); return; }
+                applyReply(e, r, false);
             });
         });
+    }
+
+    /** The reply this page is showing, and whether it came from the saved copy. */
+    private String[] shownReply;
+    private boolean shownCached;
+
+    private void applyReply(Entry e, String[] r, boolean cached) {
+        shownReply = r;
+        shownCached = cached;
+        playlistTracks = new ArrayList<>();
+        releases = new ArrayList<>();
+        if (isDetail(e)) { applyDetail(r); return; }
+        playlistLoading = false;
+        playlistFailed = r == null || r.length < 2 || !r[0].isEmpty();
+        playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
+        if (playlistFailed) android.util.Log.w("SpatchUi", "Playlist request failed: " + playlistError);
+        else for (int i = 2; i + 3 < r.length; i += 4) playlistTracks.add(new Entry(r[i], r[i + 1], r[i + 2], r[i + 3], -1));
+        showPage();
     }
 
     /** Reads nativePage's reply into the page state and redraws. */

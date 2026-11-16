@@ -137,14 +137,24 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JCl
 }
 
 fn fetch_library() -> Result<Vec<library::Item>, String> {
-    bridge::call(library::SERVICE, "All", &library::request(300)).and_then(|bytes| library::decode(&bytes))
+    let bytes = bridge::call(library::SERVICE, "All", &library::request(300))?;
+    let items = library::decode(&bytes)?;
+    crate::cache::put("library", &bytes);
+    Ok(items)
 }
 
-/// Loads the library once; "" on success, else Spotify's error.
+/// Loads the library once; "" on success, "cached" if it came from the last launch's copy (refresh it soon),
+/// else Spotify's error.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JClass) -> jstring {
     if LIBRARY.lock().unwrap().is_some() {
         return string(&mut env, "");
+    }
+    if !cfg!(feature = "preview") {
+        if let Some(items) = crate::cache::get("library").and_then(|bytes| library::decode(&bytes).ok()) {
+            *LIBRARY.lock().unwrap() = Some(items);
+            return string(&mut env, "cached");
+        }
     }
     let status = match fetch_library() {
         Ok(items) => {
