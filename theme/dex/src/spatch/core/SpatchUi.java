@@ -843,7 +843,13 @@ public final class SpatchUi extends FrameLayout {
 
     /** Six recent library items as compact tiles, two per row: the fastest way back into something. */
     private void addQuickGrid(LinearLayout feed) {
-        List<Entry> items = entries(-1, 7);
+        // What you opened or played here most recently first, then Spotify's own library order.
+        List<Entry> items = history();
+        for (Entry e : entries(-1, 12)) {
+            boolean seen = false;
+            for (Entry h : items) seen |= h.uri.equals(e.uri);
+            if (!seen) items.add(e);
+        }
         items.removeIf(e -> e.uri.isEmpty() || e.uri.contains("collection"));
         if (items.size() < 2) return;
         gap(feed, 18);
@@ -1653,6 +1659,7 @@ public final class SpatchUi extends FrameLayout {
             if (index >= 0) command(SKIP_TO, index, entry.uri);
             return;
         }
+        if (screen != PLAYLIST) remember(entry);
         if (entry.category == 0 || entry.uri.startsWith("spotify:playlist:")
                 || (entry.uri.startsWith("spotify:user:") && entry.uri.contains(":playlist:"))) {
             openPlaylist(entry);
@@ -2266,6 +2273,7 @@ public final class SpatchUi extends FrameLayout {
             || (entry.uri.startsWith("spotify:user:") && entry.uri.contains(":playlist:"));
         String[] options = openable ? new String[]{"Play", "Shuffle play", "Open"} : new String[]{"Play", "Shuffle play"};
         sheet(entry.title, entry.subtitle.isEmpty() ? "Choose what to do" : entry.subtitle, options, -1, choice -> {
+            remember(entry);
             if (choice == 2) { openPlaylist(entry); return; }
             command(SHUFFLE, choice == 1 ? 1 : 0, "");
             command(PLAY, 0, entry.uri);
@@ -2381,6 +2389,41 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private String libraryQuery = "";
+
+    /** Recently opened library items, kept on the phone in their own file so a settings reset leaves them. */
+    private android.content.SharedPreferences recents() {
+        return activity.getSharedPreferences("spatch_history", Context.MODE_PRIVATE);
+    }
+
+    private void remember(Entry e) {
+        if (e.uri.isEmpty() || e.uri.contains("collection") || e.category < 0) return;
+        try {
+            org.json.JSONArray old = new org.json.JSONArray(recents().getString("items", "[]"));
+            org.json.JSONArray next = new org.json.JSONArray();
+            next.put(new org.json.JSONArray().put(e.title).put(e.subtitle).put(e.uri).put(e.image).put(e.category));
+            for (int i = 0; i < old.length() && next.length() < 12; i++) {
+                org.json.JSONArray item = old.getJSONArray(i);
+                if (!item.getString(2).equals(e.uri)) next.put(item);
+            }
+            recents().edit().putString("items", next.toString()).apply();
+        } catch (org.json.JSONException ignored) {
+            recents().edit().remove("items").apply(); // unreadable history: start over rather than fail every time
+        }
+    }
+
+    private List<Entry> history() {
+        List<Entry> out = new ArrayList<>();
+        try {
+            org.json.JSONArray items = new org.json.JSONArray(recents().getString("items", "[]"));
+            for (int i = 0; i < items.length(); i++) {
+                org.json.JSONArray it = items.getJSONArray(i);
+                out.add(new Entry(it.getString(0), it.getString(1), it.getString(2), it.getString(3), it.getInt(4)));
+            }
+        } catch (org.json.JSONException ignored) {
+            out.clear();
+        }
+        return out;
+    }
 
     private static List<Entry> matching(List<Entry> all, String query) {
         List<Entry> out = new ArrayList<>();
