@@ -6,7 +6,9 @@
 #   scripts/nightly.sh [commit]                        build both bundles side by side, then publish
 #   NIGHTLY_BUILD=normal|debug|manager NIGHTLY_OUT=<dir> ...   only build that bundle into <dir>
 #   NIGHTLY_BUNDLES=<dir> ...                          only publish the bundles already in <dir>
+#   NIGHTLY_TAG=branch-<name> ...                     publish to that branch's prerelease instead of `nightly`
 set -eu
+tag=${NIGHTLY_TAG:-nightly}
 repo=$(cd "$(dirname "$0")/.." && pwd)
 export GH_REPO=n0thhhing/spatch # gh runs outside the checkout below
 sha=$(git -C "$repo" rev-parse "${1:-HEAD}")
@@ -14,7 +16,7 @@ short=$(echo "$sha" | cut -c1-7)
 # Source identities are independent of the overall release commit and of each other.
 patch_id=$(git -C "$repo" ls-tree -r "$sha" -- src theme Cargo.toml Cargo.lock scripts/port/aliases.tsv | git hash-object --stdin)
 manager_id=$(git -C "$repo" rev-parse "$sha:manager")
-labels=$(gh release view nightly --json assets -q '.assets[] | [.name, (.label // "")] | @tsv' 2>/dev/null || true)
+labels=$(gh release view "$tag" --json assets -q '.assets[] | [.name, (.label // "")] | @tsv' 2>/dev/null || true)
 changed() { ! printf '%s\n' "$labels" | awk -F '\t' -v name="$1" -v label="nightly-$2" '$1==name && $2==label {found=1} END {exit !found}'; }
 patches=false manager=false
 if changed spatch-bundle.zip "$patch_id" || changed spatch-bundle-debug.zip "$patch_id"; then patches=true; fi
@@ -78,7 +80,7 @@ for asset in spatch-bundle.zip spatch-bundle-debug.zip spatch-manager.apk; do
 done
 [ -n "$assets" ] || { echo "manager and patches are unchanged"; exit 0; }
 mkdir "$work/previous"
-gh release download nightly --pattern spatch-bundle.sha256 --dir "$work/previous" 2>/dev/null || true
+gh release download "$tag" --pattern spatch-bundle.sha256 --dir "$work/previous" 2>/dev/null || true
 : > spatch-bundle.sha256
 if [ -f "$work/previous/spatch-bundle.sha256" ]; then
     while read -r digest asset; do
@@ -96,14 +98,15 @@ for asset in $assets; do
 done
 
 notes="Spatch nightly through $short, $(git -C "$repo" log -1 --format=%s "$sha"), for Spotify $version. Not released and less tested: turn on Nightly patches in Spatch Manager 0.9.0 or later to use it."
-git -C "$repo" tag -f nightly "$sha" >/dev/null
-git -C "$repo" push -q -f origin refs/tags/nightly
-if gh release view nightly >/dev/null 2>&1; then
+git -C "$repo" tag -f "$tag" "$sha" >/dev/null
+git -C "$repo" push -q -f origin "refs/tags/$tag"
+if gh release view "$tag" >/dev/null 2>&1; then
     # Files first, then the commit: the manager names what it installs after the commit.
-    gh release upload nightly "$@" spatch-bundle.sha256 --clobber
-    gh release edit nightly --target "$sha" --prerelease --notes "$notes" >/dev/null
+    gh release upload "$tag" "$@" spatch-bundle.sha256 --clobber
+    gh release edit "$tag" --target "$sha" --prerelease --notes "$notes" >/dev/null
 else
-    gh release create nightly --prerelease --target "$sha" --title "Spatch nightly" --notes "$notes" \
+    title="Spatch nightly"; [ "$tag" = nightly ] || title="Spatch nightly (${tag#branch-})"
+    gh release create "$tag" --prerelease --target "$sha" --title "$title" --notes "$notes" \
         "$@" spatch-bundle.sha256 >/dev/null
 fi
-echo "nightly is now $short"
+echo "$tag is now $short"

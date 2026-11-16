@@ -20,8 +20,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: nightly
-  cancel-in-progress: true # a newer push makes the running build moot
+  group: nightly-${{ github.ref_name }}
+  cancel-in-progress: true # a newer push to the same branch makes the running build moot
+
+# main publishes `nightly`; any other branch its own `branch-<name>` prerelease, which the manager's Branch picker installs.
+env:
+  NIGHTLY_TAG: ${{ github.ref_name == 'main' && 'nightly' || format('branch-{0}', github.ref_name) }}
 
 jobs:
   changes:
