@@ -25,12 +25,12 @@ fn release() {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchApp_nativeOpen<'l>(env: JNIEnv<'l>, _class: JClass<'l>, density: jfloat, theme: JIntArray<'l>, inset_top: jint, inset_bottom: jint) {
+pub extern "system" fn Java_spatch_SpatchApp_nativeOpen<'l>(env: JNIEnv<'l>, _class: JClass<'l>, density: jfloat, theme: JIntArray<'l>, inset_top: jint, inset_bottom: jint, hour: jint) {
     let mut colours = [0i32; 9];
     if env.get_int_array_region(&theme, 0, &mut colours).is_err() {
         colours = [0xff14121c_u32 as i32, 0xff1d1a2a_u32 as i32, 0xff2b2640_u32 as i32, 0xfff3eeff_u32 as i32, 0xffc6b8ff_u32 as i32, 0xffbcb3dc_u32 as i32, 0xffd0bcff_u32 as i32, 0xffe0d2ff_u32 as i32, 0xffb7a3ee_u32 as i32];
     }
-    ui::open(ui::Look { density, theme: colours.map(|c| c as u32), inset_top: inset_top as f32, inset_bottom: inset_bottom as f32 });
+    ui::open(ui::Look { density, theme: colours.map(|c| c as u32), inset_top: inset_top as f32, inset_bottom: inset_bottom as f32, hour });
 }
 
 #[unsafe(no_mangle)]

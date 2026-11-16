@@ -51,9 +51,6 @@ struct App {
     scale: f32,
     now: NowPlaying,
     library: Vec<Item>,
-    library_asked: bool,
-    /// The selected chip (playlists, albums, artists, podcasts), or -1 for everything.
-    filter: i32,
     /// The wallpaper's (or built-in) colours, and the ones on screen now (the cover's when it has some).
     base_theme: [u32; 9],
     shown_theme: [u32; 9],
@@ -115,9 +112,14 @@ impl App {
             apply_roles(&self.ui, &theme);
         }
         self.ui.set_up_next(rows(self.now.up_next.iter().map(|(t, a, i)| (t.clone(), a.clone(), i.clone(), String::new(), false))));
-        let filter = self.filter;
-        let shown = self.library.iter().filter(|i| filter < 0 || i.kind.chip() == Some(filter));
-        self.ui.set_library(rows(shown.map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone(), i.kind == library::Kind::Artist))));
+        // The home page's carousels, one per kind, in Spotify's own order.
+        let of = |kind: library::Kind| {
+            rows(self.library.iter().filter(|i| i.kind == kind).map(|i| (i.name.clone(), i.subtitle.clone(), i.image.clone(), i.uri.clone(), kind == library::Kind::Artist)))
+        };
+        self.ui.set_playlists(of(library::Kind::Playlist));
+        self.ui.set_albums(of(library::Kind::Album));
+        self.ui.set_artists(of(library::Kind::Artist));
+        self.ui.set_podcasts(of(library::Kind::Podcast));
     }
 }
 
@@ -145,6 +147,18 @@ pub struct Look {
     pub theme: [u32; 9],
     pub inset_top: f32,
     pub inset_bottom: f32,
+    /// The local hour (0-23), for the greeting.
+    pub hour: i32,
+}
+
+/// The home page's greeting chip, by the hour.
+pub fn greeting(hour: i32) -> &'static str {
+    match hour {
+        0..=4 => "Up late…",
+        5..=11 => "Good morning",
+        12..=17 => "Good afternoon",
+        _ => "Good evening",
+    }
 }
 
 fn apply_roles(ui: &AppWindow, theme: &[u32; 9]) {
@@ -193,14 +207,6 @@ pub fn open(look: Look) {
     apply_roles(&ui, &look.theme);
     apply_insets(&ui, &look);
     ui.on_dismiss(core::close_app);
-    ui.on_filter_changed(|filter| {
-        APP.with(|a| {
-            if let Some(app) = a.borrow_mut().as_mut() {
-                app.filter = filter;
-                app.show_art();
-            }
-        })
-    });
     ui.on_play(|uri| send(Command::Play(uri.to_string())));
     // Shuffle flips; repeat goes off, the context, the track and back, as in Spotify's own player.
     ui.on_shuffle_clicked(|| {
@@ -222,16 +228,14 @@ pub fn open(look: Look) {
             }
         })
     });
-    ui.on_library_opened(|| {
-        APP.with(|a| {
-            if let Some(app) = a.borrow_mut().as_mut() {
-                if !app.library_asked {
-                    app.library_asked = true;
-                    load_library();
-                }
-            }
-        })
+    // Liked Songs is the library's collection entry.
+    ui.on_liked(|| {
+        let uri = APP.with(|a| a.borrow().as_ref().and_then(|app| app.library.iter().find(|i| i.uri.ends_with(":collection")).map(|i| i.uri.clone())));
+        if let Some(uri) = uri {
+            send(Command::Play(uri));
+        }
     });
+    ui.set_greeting(greeting(look.hour).into());
     ui.on_next(|| send(Command::Next));
     ui.on_previous(|| send(Command::Previous));
     let weak = ui.as_weak();
@@ -241,7 +245,8 @@ pub fn open(look: Look) {
     });
     let _ = ui.show();
     ui.set_status("Connecting to Spotify's player…".into());
-    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), library_asked: false, filter: -1, base_theme: look.theme, shown_theme: look.theme, shown_second: -1 }));
+    load_library();
+    APP.with(|a| *a.borrow_mut() = Some(App { window, ui, scale: density, now: NowPlaying::default(), library: Vec::new(), base_theme: look.theme, shown_theme: look.theme, shown_second: -1 }));
     std::thread::spawn(|| {
         match when_ready(subscribe_player) {
             Ok(id) => STREAM.lock().unwrap().replace(id),
@@ -301,12 +306,11 @@ pub fn frame() -> i64 {
         let Some(app) = a.as_mut() else { return -1 };
         if DIRTY.swap(false, Ordering::AcqRel) {
             if let Some(now) = LATEST.lock().unwrap().take() {
-                app.ui.set_track(if now.title.is_empty() { "Nothing playing".into() } else { SharedString::from(now.title.as_str()) });
+                app.ui.set_track(SharedString::from(now.title.as_str()));
                 app.ui.set_artist(now.artist.as_str().into());
                 app.ui.set_playing(now.playing);
                 app.ui.set_shuffle(now.shuffle);
                 app.ui.set_repeat(now.repeat as i32);
-                app.ui.set_duration(clock(now.duration_ms).into());
                 app.now = now;
                 app.shown_second = -1;
                 app.show_art();
@@ -314,6 +318,7 @@ pub fn frame() -> i64 {
             match LIBRARY.lock().unwrap().take() {
                 Some(Ok(items)) => {
                     app.ui.set_library_status(if items.is_empty() { "Nothing in your library yet.".into() } else { SharedString::new() });
+                    app.ui.set_library_count(format!("{} saved", items.len()).into());
                     app.library = items;
                     app.show_art();
                 }
@@ -331,6 +336,7 @@ pub fn frame() -> i64 {
         if at / 1000 != app.shown_second {
             app.shown_second = at / 1000;
             app.ui.set_position(clock(at).into());
+            app.ui.set_remaining(format!("-{}", clock(app.now.duration_ms - at)).into());
             app.ui.set_progress(if app.now.duration_ms > 0 { at as f32 / app.now.duration_ms as f32 } else { 0.0 });
         }
         if app.now.playing { 1000 - at % 1000 } else { -1 }

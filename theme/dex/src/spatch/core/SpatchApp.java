@@ -114,7 +114,7 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
         app.spotify = decor.findViewById(0x01020002); // android.R.id.content
         if (app.spotify != null && app.spotify.getVisibility() == View.VISIBLE) app.spotify.setVisibility(View.INVISIBLE);
         else app.spotify = null;
-        nativeOpen(activity.getResources().getDisplayMetrics().density, theme(activity), bar(activity, "status_bar_height"), bar(activity, "navigation_bar_height"));
+        nativeOpen(activity.getResources().getDisplayMetrics().density, theme(activity), bar(activity, "status_bar_height"), bar(activity, "navigation_bar_height"), java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY));
         return true;
     }
 
@@ -215,7 +215,7 @@ public final class SpatchApp implements SurfaceHolder.Callback, Choreographer.Fr
         return true;
     }
 
-    static native void nativeOpen(float density, int[] theme, int insetTop, int insetBottom);
+    static native void nativeOpen(float density, int[] theme, int insetTop, int insetBottom, int hour);
 
     static native void nativeClose();
 
