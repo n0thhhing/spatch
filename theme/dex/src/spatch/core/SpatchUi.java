@@ -355,6 +355,15 @@ public final class SpatchUi extends FrameLayout {
         filter = selected;
         render();
         if (coverTransition && trackArt != null) moveArtwork(from, cover, original.shape, trackArt);
+        if (!coverTransition && motionEnabled() && content != null) {
+            boolean sideways = previous <= LIBRARY && destination <= LIBRARY && previous != destination;
+            View moving = sideways ? content.getChildAt(content.getChildCount() - 1) : content;
+            moving.setAlpha(0f);
+            if (sideways) moving.setTranslationX((destination > previous ? 1 : -1) * dp(36));
+            else moving.setTranslationY(dp(destination == SETTINGS || destination == PLAYLIST || destination == QUEUE ? 18 : -10));
+            moving.animate().alpha(1f).translationX(0).translationY(0).setDuration(280)
+                .setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
+        }
         if (coverTransition) {
             content.setAlpha(0f);
             content.animate().alpha(1f).setDuration(220).start();
@@ -561,6 +570,7 @@ public final class SpatchUi extends FrameLayout {
             feed.addView(hero, match(-2));
             gap(feed, 12);
             feed.addView(likedCard(), match(-2));
+            addQuickGrid(feed);
             boolean any = false;
             for (int category = 0; category < SECTIONS.length; category++) any |= addShelf(feed, category);
             if (!any) libraryMessage(feed);
@@ -659,6 +669,42 @@ public final class SpatchUi extends FrameLayout {
         return button;
     }
 
+    /** Six recent library items as compact tiles, two per row: the fastest way back into something. */
+    private void addQuickGrid(LinearLayout feed) {
+        List<Entry> items = entries(-1, 7);
+        items.removeIf(e -> e.uri.isEmpty() || e.uri.contains("collection"));
+        if (items.size() < 2) return;
+        gap(feed, 18);
+        feed.addView(text("Jump back in", 22, onSurface, true), match(-2));
+        gap(feed, 10);
+        for (int i = 0; i + 1 < Math.min(items.size(), 6); i += 2) {
+            LinearLayout line = row();
+            for (int j = 0; j < 2; j++) {
+                Entry entry = items.get(i + j);
+                LinearLayout tile = row();
+                tile.setBackground(background(container, 16));
+                tile.setPadding(dp(6), dp(6), dp(10), dp(6));
+                Art art = new Art(entry.category == 2 ? Art.ROUND : Art.SQUARE);
+                art.small = true;
+                art.bind(entry.image);
+                tile.addView(art, control(44));
+                TextView name = text(entry.title, 14, onSurface, true);
+                name.setMaxLines(2);
+                name.setEllipsize(TextUtils.TruncateAt.END);
+                name.setPadding(dp(10), 0, 0, 0);
+                tile.addView(name, weighted());
+                makeClickable(tile, (entry.category == 0 ? "Open " : "Play ") + entry.title, () -> selectEntry(entry));
+                springPress(tile);
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(56), 1);
+                if (j == 1) p.leftMargin = dp(8);
+                line.addView(tile, p);
+            }
+            LinearLayout.LayoutParams lp = match(-2);
+            lp.bottomMargin = dp(8);
+            feed.addView(line, lp);
+        }
+    }
+
     private View likedCard() {
         LinearLayout card = row();
         card.setPadding(dp(14), dp(10), dp(16), dp(10));
@@ -751,7 +797,8 @@ public final class SpatchUi extends FrameLayout {
         mini.setBackground(background(high, 28));
         mini.setElevation(dp(4));
         trackArt = new Art(pref("round_mini", true) ? Art.ROUND : Art.SQUARE);
-        mini.addView(trackArt, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        trackArt.ring = true;
+        mini.addView(trackArt, new LinearLayout.LayoutParams(dp(46), dp(46)));
         trackArt.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         makeClickable(trackArt, "Open player", this::openPlayer);
         artworkGestures(trackArt, true);
@@ -1145,7 +1192,7 @@ public final class SpatchUi extends FrameLayout {
                     if (mini && dy < 0) openPlayer();
                     else if (!mini && dy > 0) back();
                     else return false;
-                } else if (!mini && !uri.isEmpty()) {
+                } else if (!uri.isEmpty()) {
                     command(dx < 0 ? NEXT : PREVIOUS, 0, "");
                 } else return false;
                 if (pref("haptics", true)) view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
@@ -1210,16 +1257,14 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout top = row();
         top.setPadding(dp(10), dp(6), dp(10), 0);
         top.addView(glyph("back", "Back", false, this::back), control(48));
-        TextView heading = text(playlist.title, 26, onSurface, true);
-        single(heading);
-        top.addView(heading, weighted());
-        top.addView(chip("Play", primary, onPrimary, () -> command(PLAY, 0, playlist.uri)));
         content.addView(top, match(-2));
+        View header = playlistHeader();
         if (playlistTracks.isEmpty()) {
             LinearLayout body = feed();
+            body.addView(header, match(-2));
             message(body, playlistLoading ? "Loading playlist…" : playlistFailed ? "Couldn’t load playlist" : "This playlist is empty");
         } else {
-            playlistList = entryList(playlistTracks);
+            playlistList = entryList(playlistTracks, header);
             playlistList.setSelectionFromTop(playlistRow, playlistTop);
         }
         if (!playlistLoading && (playlistFailed || playlistOffset > 0)) {
@@ -1387,6 +1432,58 @@ public final class SpatchUi extends FrameLayout {
             | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t);
     }
 
+    /** Cover, name and the two ways to start it: in order or shuffled. */
+    private View playlistHeader() {
+        LinearLayout header = column();
+        header.setGravity(Gravity.CENTER_HORIZONTAL);
+        header.setPadding(0, dp(4), 0, dp(14));
+        boolean liked = playlist.image.isEmpty();
+        if (liked) {
+            Glyph heart = new Glyph("heart", false);
+            heart.ink = onTertiaryContainer;
+            heart.iconSize = 76;
+            heart.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{tertiaryContainer, secondaryContainer});
+            g.setCornerRadius(dp(32));
+            heart.setBackground(g);
+            header.addView(heart, control(176));
+        } else {
+            Art art = new Art(Art.SQUARE);
+            art.bind(playlist.image);
+            header.addView(art, control(196));
+        }
+        gap(header, 14);
+        TextView name = text(playlist.title, 28, onSurface, true);
+        name.setGravity(Gravity.CENTER);
+        name.setMaxLines(2);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        header.addView(name, match(-2));
+        String count = playlistTracks.isEmpty() ? (playlist.subtitle.isEmpty() ? "Playlist" : playlist.subtitle)
+            : playlistTracks.size() + (playlistOffset > 0 ? "+ songs" : playlistTracks.size() == 1 ? " song" : " songs");
+        TextView meta = text(count, 14, onVariant, false);
+        meta.setGravity(Gravity.CENTER);
+        meta.setPadding(0, dp(4), 0, dp(14));
+        header.addView(meta, match(-2));
+        LinearLayout actions = row();
+        actions.setGravity(Gravity.CENTER);
+        TextView shuffleAll = chip("Shuffle", secondaryContainer, onSecondaryContainer, () -> {
+            command(SHUFFLE, 1, "");
+            command(PLAY, 0, playlist.uri);
+        });
+        shuffleAll.setBackground(segment(secondaryContainer, 24, 8, 8, 24));
+        actions.addView(shuffleAll, new LinearLayout.LayoutParams(dp(128), dp(52)));
+        View space = new View(activity);
+        actions.addView(space, new LinearLayout.LayoutParams(dp(4), 1));
+        TextView play = chip("Play", primary, onPrimary, () -> {
+            if (shuffle) command(SHUFFLE, 0, "");
+            command(PLAY, 0, playlist.uri);
+        });
+        play.setBackground(segment(primary, 8, 24, 24, 8));
+        actions.addView(play, new LinearLayout.LayoutParams(dp(128), dp(52)));
+        header.addView(actions, match(-2));
+        return header;
+    }
+
     private void addTransport(LinearLayout row, Glyph glyph, int size, boolean first, boolean last) {
         glyph.connected = !glyph.primary;
         glyph.first = first;
@@ -1407,8 +1504,11 @@ public final class SpatchUi extends FrameLayout {
         else entryList(upcoming);
     }
 
-    private ListView entryList(List<Entry> entries) {
+    private ListView entryList(List<Entry> entries) { return entryList(entries, null); }
+
+    private ListView entryList(List<Entry> entries, View header) {
         ListView list = new ListView(activity);
+        if (header != null) list.addHeaderView(header, null, false);
         list.setDivider(new android.graphics.drawable.ColorDrawable(surface));
         list.setDividerHeight(dp(3));
         list.setPadding(dp(16), 0, dp(16), 0);
@@ -1428,8 +1528,8 @@ public final class SpatchUi extends FrameLayout {
             }
         });
         list.setOnItemClickListener((parent, row, index, id) -> {
-            Entry entry = entries.get(index);
-            if (!entry.uri.isEmpty()) selectEntry(entry);
+            Object item = parent.getItemAtPosition(index);
+            if (item instanceof Entry && !((Entry) item).uri.isEmpty()) selectEntry((Entry) item);
         });
         content.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         return list;
@@ -1747,6 +1847,8 @@ public final class SpatchUi extends FrameLayout {
         private Bitmap previousBitmap, revealedBitmap;
         private long revealStart;
         private int previousWidth, previousHeight;
+        /** Mini player: a progress ring hugs the artwork. */
+        boolean ring, small;
 
         Art(int shape) {
             super(activity);
@@ -1885,7 +1987,13 @@ public final class SpatchUi extends FrameLayout {
                         paint.setShader(new LinearGradient(0, 0, w, h, high, container, Shader.TileMode.CLAMP));
                     }
                 }
-                float r = shape == ROUND ? Math.min(w, h) / 2 : dp(shape == WIDE ? 0 : 18);
+                if (ring) {
+                    float inset = dp(4);
+                    c.translate(inset, inset);
+                    w -= 2 * inset;
+                    h -= 2 * inset;
+                }
+                float r = shape == ROUND ? Math.min(w, h) / 2 : dp(shape == WIDE ? 0 : ring || small ? 11 : 18);
                 if (bitmap == null || alpha < 255) {
                     c.drawRoundRect(0, 0, w, h, r, r, paint);
                     paint.setShader(null);
@@ -1902,6 +2010,27 @@ public final class SpatchUi extends FrameLayout {
                 }
             }
             c.restoreToCount(save);
+            if (ring) drawRing(c);
+        }
+
+        private final RectF ringBounds = new RectF();
+
+        private void drawRing(Canvas c) {
+            float stroke = dp(2.5f), inset = stroke / 2f;
+            ringBounds.set(inset, inset, getWidth() - inset, getHeight() - inset);
+            float fraction = duration <= 0 ? 0 : Math.min(1f, playhead() / (float) duration);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(stroke);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setColor((onSurface & 0x00ffffff) | 0x26000000);
+            float corner = shape == ROUND ? ringBounds.width() / 2 : dp(13);
+            c.drawRoundRect(ringBounds, corner, corner, paint);
+            paint.setColor(primary);
+            c.drawArc(ringBounds, -90, 360 * fraction, false, paint);
+            paint.setStyle(Paint.Style.FILL);
+            // A second's worth of arc is under a pixel: once a second is plenty.
+            if (playing && isShown()) postInvalidateDelayed(1000);
         }
 
         private void setBitmap(Bitmap bitmap, float w, float h) {
@@ -1946,6 +2075,7 @@ public final class SpatchUi extends FrameLayout {
         private String symbol;
         private final boolean primary;
         private boolean connected, first, last, glass;
+        private int iconSize = 23;
         private Integer ink;
 
         void updateContainer() {
@@ -2040,7 +2170,7 @@ public final class SpatchUi extends FrameLayout {
         @Override protected void onDraw(Canvas canvas) {
             int save = canvas.save();
             float available = Math.min(getWidth(), getHeight());
-            float size = Math.min(dp(primary ? 62 : 23), available - dp(4));
+            float size = Math.min(dp(primary ? 62 : iconSize), available - dp(4));
             canvas.translate(getWidth() / 2f, getHeight() / 2f);
             if (primary) {
                 float r = size * .5f;
