@@ -17,6 +17,8 @@ pub struct NowPlaying {
     pub source: String,
     pub context: String,
     pub explicit: bool,
+    /// Whether the song is in Liked Songs, as the player state says (`collection.in_collection`); None if it doesn't.
+    pub liked: Option<bool>,
     pub image: String,
     pub playing: bool,
     pub shuffle: bool,
@@ -62,6 +64,7 @@ impl NowPlaying {
                 .unwrap_or_default(),
             context: state.context_uri.clone(),
             explicit: matches!(meta(&track, &["is_explicit", "explicit"]), "true" | "1"),
+            liked: match meta(&track, &["collection.in_collection"]) { "true" => Some(true), "false" => Some(false), _ => None },
             image: image_url(meta(&track, &["image_large_url", "image_url", "image_xlarge_url", "image_small_url"])),
             playing: state.is_playing && !state.is_paused,
             shuffle: options.is_some_and(|o| o.shuffling_context),
@@ -180,6 +183,7 @@ mod tests {
     fn decodes_the_track_and_the_queue() {
         let mut current = provided("spotify:track:1", "city", "jack");
         current.context_track.as_mut().unwrap().metadata.insert("is_explicit".into(), "true".into());
+        current.context_track.as_mut().unwrap().metadata.insert("collection.in_collection".into(), "true".into());
         let state = es::ContextPlayerState {
             track: Some(current),
             next_tracks: vec![provided("spotify:track:2", "annoying", "someone"), provided("spotify:delimiter", "", "")],
@@ -193,6 +197,8 @@ mod tests {
         let now = NowPlaying::decode(&state.encode_to_vec()).unwrap();
         assert_eq!((now.title.as_str(), now.artist.as_str(), now.context.as_str()), ("city", "jack", "spotify:playlist:9"));
         assert!(now.explicit && now.playing);
+        assert_eq!(now.liked, Some(true));
+        assert_eq!(now.up_next.len(), 1);
         assert_eq!(now.image, "https://i.scdn.co/image/ab67");
         assert_eq!(now.up_next.len(), 1);
         assert_eq!((now.up_next[0].uri.as_str(), now.up_next[0].uid.as_str()), ("spotify:track:2", "uid-annoying"));

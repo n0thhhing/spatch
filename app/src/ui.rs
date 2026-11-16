@@ -478,6 +478,11 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSaved(mut env: JNIEnv, _: JCla
     let Some(uri) = read(&mut env, &uri).filter(|u| u.starts_with("spotify:")) else { return -1 };
     #[cfg(feature = "preview")]
     return SAVED.lock().unwrap().contains(&uri) as jint;
+    // The playing song's state already says whether it's liked; only other songs need a lookup.
+    #[cfg(not(feature = "preview"))]
+    if let Some(liked) = PLAYER.lock().unwrap().1.as_ref().filter(|now| now.uri == uri).and_then(|now| now.liked) {
+        return liked as jint;
+    }
     #[cfg(not(feature = "preview"))]
     match bridge::call(collection::SERVICE, "Contains", &collection::contains_request(&uri)).and_then(|b| collection::decode_contains(&b)) {
         Ok(saved) => saved as jint,
