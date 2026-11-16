@@ -2044,7 +2044,7 @@ public final class SpatchUi extends FrameLayout {
             }
             if (pref("haptics", true)) v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
         });
-        line.setForeground(new RippleDrawable(ColorStateList.valueOf((onSurface & 0x00ffffff) | 0x1f000000), null, null));
+        line.setForeground(new RippleDrawable(ColorStateList.valueOf((onSurface & 0x00ffffff) | 0x1f000000), null, background(Color.WHITE, 20)));
         line.setAccessibilityDelegate(new View.AccessibilityDelegate() {
             @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo node) {
                 super.onInitializeAccessibilityNodeInfo(host, node);
