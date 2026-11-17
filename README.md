@@ -1,86 +1,19 @@
-# Spatch: app rebuild
-
-This branch drops the Spatch redesign patches and keeps only what the app rebuild needs: Spotify's
-own core (playback, decryption, cache, Connect) behind Spatch’s Rust-driven Android UI.
-The redesign lives on `main`; features come back here as the app grows.
-
-What the patcher changes in Spotify's base APK:
-
-- **`classes.dex`:** `ClientBase` and `RemoteNativeRxRouter` move to the helper DEX with two hooks that
-  pass Spotify's Esperanto transports and Cosmos router to `CoreBridge`. They move because
-  `classes.dex` is at the method-reference limit.
-- **`classes2.dex`:** `SpotifyMainActivity.onResume` mounts Spatch and hides Spotify’s Android views.
-- **Added:** the helper DEX (`CoreBridge`, `SpatchApp`, `SpatchUi`) and `assets/spatch/libspatch_app.so`.
-
-Resources, the manifest and every other DEX stay byte-identical. Spatch handles app navigation and uses an
-existing Spotify session for playback. See [app/README.md](app/README.md) for the app and build instructions.
-
----
-
 # Spatch
 
-A Rust command-line patcher that gives one exact build of Spotify for Android (9.1.98.521, version
-code 148115007) a Material You redesign. It takes the APKM, applies guarded edits and writes a signed
-split-APK set. It never modifies the input.
+Spatch runs a Rust-driven Android UI over Spotify's existing playback, cache and Connect services.
+This branch supports Spotify **9.2.0.26** (version code **148373686**) and expects an existing
+Spotify session. APKM and split hashes are pinned in [src/input.rs](src/input.rs).
 
-**Website:** [n0thhhing.github.io/spatch](https://n0thhhing.github.io/spatch/), with features, themes, an install guide and screenshots.
-
-[Spatch Manager](manager/README.md) does the same on the phone: it applies a published patch bundle
-to your own APKM and signs it with a key that never leaves the phone.
-
-This is a personal project. It supports only the build pinned in `src/input.rs`: any other input is
-refused rather than patched blindly.
-
-## What it changes
-
-- **Themes:** Matugen / wallpaper, Default, Spotify, Catppuccin Mocha / Macchiato / Frappé,
-  Rosé Pine / Moon, Gruvbox, Nord, Tokyo Night / Storm, Dracula, Everforest, Kanagawa, Solarized,
-  One, Lavender and Gruvbox Material. System, Light and Dark modes apply across the interface.
-  Import JSON or TOML in **Appearance → Themes & display**; fonts have their own page.
-  Matugen / wallpaper uses Android's wallpaper colours; Matugen JSON schemes can also be imported.
-- **Player:** circular artwork, a wavy or audio-reactive ring, a configurable glow, record-style skip
-  animations, wavy progress, shaped controls and an immersive full-screen player with a real spectrum
-  of Spotify's own audio. Artwork comes in several shapes with drifting dust or stars behind it, leans
-  under your finger, pulses with the bass, and can be held and spun like a record to seek.
-- **Controls:** hold Next or Previous to run through a song, a time bubble while seeking, seek bar
-  styles, a player colour that can follow the album, and responsive swipe to skip across the cover area
-  with outer pull-down protection and direct MediaSession fallback.
-- **Screens:** a floating navigation bar that can hide while you scroll, sliding filter pills, a
-  redesigned side panel, cards on Library, playlist, search and album rows, softened page headers, and
-  a local-only profile banner.
-- **Feel:** bouncy press on tiles, tap ripples, a spinning mini player cover, an album-tinted mini
-  bar, and bursts on the play button.
-- **Audio visuals:** artwork spectra follow circles, squircles, scallops and rounded corners, with
-  a fluid Ribbon style. Scope adds an FFT-driven looping trace to the full visualizer and seekbar;
-  it is a musical decoration rather than a stereo phase recording. Visualizer bars feature independent
-  centre dynamics (avoiding duplicate middle bars), zero-flicker low-level rendering, and background
-  audio session warm-up so returning to any visualizer view catches up instantly without lag.
-  Seek releases and committed record scratches can splash droplets, and bass transients send fading
-  rings through the backdrop. Seek splash is on the Wavy progress page; Bass shockwaves is on Album
-  art backdrop. Both respect reduced motion, page resets and presets.
-  Bass rings follow the measured artwork position as lyrics appear or the player animates. Player
-  settings can hide just the inline lyric preview; the backdrop and seek pages include shockwave
-  strength and splash-size sliders.
-- **Widgets:** Android glance home widget with seamless flip transitions, flicker-free equaliser
-  drawables, and background pre-warming for instant song updates.
-- **Immersive player:** optional current-line lyrics (tap to expand the nearby lines), automatic
-  landscape layout, and separate blur, colour intensity, darkness and flow-speed sliders. Find them
-  under Player → Double-tap for immersive. Lyrics use Spotify's existing data and follow seeks. The overlay reopens after a rotation recreates the activity.
-- **Settings:** Gestures & touch groups swipe, tilt, scratch and hold controls. Search also finds
-  sliders, colours, display modes and palettes, with the destination page shown under each result.
-- **Content:** hide podcasts, audiobooks, Home sections and side menu rows.
-
-Everything is configured in the app: open the side panel and choose **Spatch**. Each feature has a
-main switch and a page of finer options, and settings carry over between updates. Search finds any
-setting by name, Calm and Everything turn the playful extras off or on together, and your own named
-presets save toggles, choices and strengths. Sliders adjust artwork tilt, ripple size and the scroll
-distance before the bars hide. Copy and Paste move those settings between installs.
+See [the app README](app/README.md) for UI features and the standalone preview, and
+[Spatch Manager](manager/README.md) for applying and signing bundles on Android.
+The earlier redesign lives on the `main` branch.
 
 ## Requirements
 
-- Rust (2024 edition), Java, and Android build-tools (`aapt2`, `zipalign`, `apksigner`)
-- The matching APKM, which is not included here
-- Your own signing key
+- Rust with 2024 edition support, a JDK, apktool, Android SDK platform 35 or later, and Android SDK build tools
+- The matching Spotify APKM
+- The [ARM64 Rust library build](app/README.md#build) for signed patches and bundles
+- Your signing key for signed patches
 
 ## Usage
 
@@ -94,34 +27,32 @@ Check an APKM:
 ./target/release/spatch inspect <input.apkm>
 ```
 
-Preview a patch without writing a signed set:
+Verify the APKM and rebuild the DEX with the JDK, apktool, Android platform JAR, `d8` and
+`dexdump`:
 
 ```bash
-./target/release/spatch patch <input.apkm> --out <new-dir> --theme gruvbox --dry-run
+./target/release/spatch patch <input.apkm> --out <new-dir> --dry-run
 ```
 
 Build a signed set. The password is read by `apksigner` from the environment variable you name, and
 `spatch` never reads or prints it:
 
 ```bash
-./target/release/spatch patch <input.apkm> --out <new-dir> --theme gruvbox --keystore <file> --alias <name> --ks-pass-env SPATCH_KS_PASS
+./target/release/spatch patch <input.apkm> --out <new-dir> --keystore <file> --alias <name> --ks-pass-env SPATCH_KS_PASS
 ```
 
-Write a patch bundle for Spatch Manager instead (no signing; see [the manager](manager/README.md)):
+Write a patch bundle for [Spatch Manager](manager/README.md). Bundle creation also uses `aapt2`:
 
 ```bash
 ./target/release/spatch bundle <input.apkm> --out <new-file.zip>
 ```
 
-Prepare a private source that invited phones download the APKM from (see
-[docs/private-source.md](docs/private-source.md)):
+Prepare a [private source](docs/private-source.md) for invited phones. This command only needs
+`aapt2` from the Android SDK:
 
 ```bash
 ./target/release/spatch source <input.apkm> --out <dir>
 ```
-
-Add `--debug` for a Developer options page in Spatch settings: on-device self tests, a frame monitor,
-a touch inspector, a crash record and log reading. Other builds contain none of that code.
 
 Install every split together. Update in place: uninstalling loses the app's data, and the signer must
 match any Spatch build already on the phone.
@@ -132,79 +63,45 @@ adb install-multiple -r base.apk split_config.*.apk
 
 ## How it works
 
-| Path | What lives there |
+The patcher checks the input hashes, applies five guarded smali edits, then builds the Java helper
+DEX. Signed patches and Manager bundles also include the ARM64 Rust library. See the
+[hook map](docs/spotify-map.md) and [porting notes](docs/targets.md).
+
+| Path | Role |
 | --- | --- |
-| `src/edits.rs` | Guarded smali edits. Each must match its anchor exactly once. |
-| `src/helpers.rs` | The helper Java and stub file lists. |
-| `src/dex.rs` | The helper DEX build and reassembly. |
-| `src/bundle.rs` | Patch bundles for Spatch Manager. |
-| `src/source.rs` | Files for a private source: the checked APKM and its `index.json`. |
-| `source/cloudflare/` | A free private source: a Cloudflare Worker in front of a private GitHub release. |
-| `manager/` | Spatch Manager, the Android app that patches, signs and installs on the phone. |
-| `src/theme.rs` | Theme colour roles. |
-| `java/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |
-| `java/dex/stubs/` | Compile-only stubs. `p/` holds Spotify's obfuscated classes; see [its README](java/dex/stubs/p/README.md). |
-| `theme/player/` | Spatch's own resources, and diffs (`*.diff`) applied to the decoded originals. The diffs hold only Spatch's added lines. |
-| `docs/targets.md` | Which app code owns each screen and why each target was chosen. |
+| `src/input.rs` | Supported input and split hashes |
+| `src/edits.rs` | Smali edits and their required anchors |
+| `src/dex.rs` | DEX reassembly, relocation and helper compilation |
+| `src/bundle.rs` | Manager bundle creation and clone metadata |
+| `java/dex/stubs/` | Compile-only Spotify Transport and RxJava stubs |
+| `src/source.rs` | APKM and index staging for private sources |
 
 ## Checks
 
 ```bash
-cargo fmt --check
+cargo test --locked
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --manifest-path app/Cargo.toml --locked
+cargo test --manifest-path app/Cargo.toml --features preview --locked
+python3 tests/nightly-inputs.py
 ```
+
+Run the real-APKM smoke test with the pinned archive and Android tools installed:
 
 ```bash
-cargo test --release
+SPATCH_APKM=/path/to/spotify.apkm cargo test --locked dry_run_on_supplied_apkm -- --ignored
 ```
+
+For a local nightly bundle without publishing, use the [ARM64 build prerequisites](app/README.md#build).
+The script builds the library from the selected Git commit. Set `SPATCH_APP_SO` to use a prebuilt library.
 
 ```bash
-cargo clippy --release -- -D warnings
+SPATCH_APKM=/path/to/spotify.apkm NIGHTLY_BUILD=normal NIGHTLY_OUT=/absolute/output/dir scripts/nightly.sh
 ```
 
-```bash
-python3 tests/player-runtime.py
-```
+See [Manager checks](manager/README.md#checking) for comparing a Manager-applied bundle with the
+desktop patcher output.
 
-The runtime tests run helper logic on JVM doubles. They do not replace testing on a device.
+## License
 
-Resource compilation and DEX rebuilding run side by side, each with only the APK entries its tools
-need. Validated results are cached separately by their sources, input build, theme and tool versions,
-so Java-only changes rebuild the helper without decoding and assembling Spotify again. The original
-input is checked every time; cached outputs are reconstructed and checked against their result hashes.
-Reference checks run when those outputs are compiled, and the new helper is checked on every build.
-Nightly CI skips pushes that only change docs, tests or the manager, reuses Rust and apktool caches,
-and uploads the already compressed bundles without compressing them again.
-Verified binary diffs are cached under `$XDG_CACHE_HOME/spatch/diffs-v1` (or
-`~/.cache/spatch/diffs-v1`) and reapplied before reuse. Clearing that directory only makes the next
-bundle build slower; original APKs are never cached there.
-The resource and DEX stage patches live alongside them in `spatch/build-v1`; deleting either cache
-falls back to a full rebuild. Normal and debug builds share those stages, while compiling their own
-helper code each time.
-Bundle and dry-run builds use the plain widget preview tile and make no artwork download; the
-manager fetches the cover when applying the bundle. Signed desktop builds still include the cover.
-Published bundles use fast compression; their patch bytes and integrity checks stay the same.
-
-With a phone connected and Spotify open on Home, this checks every icon name against the APK, then
-flips every switch and option on the settings pages and restores each one:
-
-```bash
-python3 tests/device-settings.py <base.apk>
-```
-
-Add `--static-only` to run just the icon check without a phone.
-
-## License and disclaimer
-
-MIT; see [LICENSE](LICENSE). Bundled fonts keep their own licences in `theme/fonts/licenses/`. The icons in
-Spatch settings are [Material Symbols](https://github.com/google/material-design-icons) (Google, Apache 2.0).
-
-Spatch is unofficial and not affiliated with or endorsed by Spotify AB; Spotify is its trademark. No
-Spotify code or assets are stored in this repository, and no Spotify APKs are distributed here: you
-supply your own APKM. The patch bundles on the releases page are binary diffs against that APKM;
-because Spatch rebuilds Spotify's DEX files, those diffs include parts of Spotify's code in
-re-encoded form. Spatch changes only how the app looks and moves. Modified clients are against
-Spotify's terms of use, so use it at your own risk.
-
-## Importing a theme
-
-Use the [JSON](theme/examples/custom-theme.json) or [TOML](theme/examples/custom-theme.toml) example in Appearance → Themes & display. Both dark and light sections are required; colours use `#RRGGBB`. Material role names and Matugen JSON wrappers are accepted. Files are capped at 256 KiB and checked for text/accent contrast before saving. Import replaces the Imported theme slot. Live palette changes require Android 11+.
+[MIT](LICENSE). Spatch is unofficial and unaffiliated with Spotify AB.

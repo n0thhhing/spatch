@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import org.json.JSONArray;
@@ -15,7 +16,7 @@ import org.json.JSONObject;
 
 /**
  * Spatch's public GitHub releases and recent commits: patch bundles are tagged patches-v<version>
- * (bundle-* before; spatch-bundle.zip, plus spatch-bundle-debug.zip with Developer options), manager
+ * (bundle-* before; spatch-bundle.zip), manager
  * builds manager-v<version>. The newest published release of each kind wins.
  */
 final class Releases {
@@ -24,18 +25,13 @@ final class Releases {
 
     /** A release's tag, the download URL of its asset, and its release notes. */
     static final class Release {
-        final String tag, url, debugUrl, notes; // debugUrl: the developer bundle, or null
+        final String tag, url, notes;
         /** A nightly's commit (seven digits); its tag is a fingerprint of the patch sources, which users read as a commit. */
         String commit;
 
-        Release(String tag, String url, String debugUrl) {
-            this(tag, url, debugUrl, "");
-        }
-
-        Release(String tag, String url, String debugUrl, String notes) {
+        Release(String tag, String url, String notes) {
             this.tag = tag;
             this.url = url;
-            this.debugUrl = debugUrl;
             this.notes = notes == null ? "" : notes;
         }
     }
@@ -162,16 +158,16 @@ final class Releases {
                     String commit = release.optString("target_commitish", "");
                     String url = asset(release, "spatch-bundle.zip");
                     if (commit.length() >= 7 && url != null) {
-                        r.nightly = new Release(nightlyIdentity(release, "spatch-bundle.zip", commit), url, asset(release, "spatch-bundle-debug.zip"), body);
+                        r.nightly = new Release(nightlyIdentity(release, "spatch-bundle.zip", commit), url, body);
                         r.nightly.commit = commit.substring(0, 7);
                     }
                     String mgr = asset(release, "spatch-manager.apk");
-                    if (commit.length() >= 7 && mgr != null) r.nightlyManager = new Release(nightlyIdentity(release, "spatch-manager.apk", commit), mgr, null, body);
+                    if (commit.length() >= 7 && mgr != null) r.nightlyManager = new Release(nightlyIdentity(release, "spatch-manager.apk", commit), mgr, body);
                     continue;
                 }
                 if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
-                if (r.bundle == null && (tag.startsWith("patches-v") || tag.startsWith("bundle-"))) r.bundle = new Release(tag, asset(release, "spatch-bundle.zip"), asset(release, "spatch-bundle-debug.zip"), body);
-                if (r.manager == null && tag.startsWith("manager-v")) r.manager = new Release(tag, asset(release, "spatch-manager.apk"), null, body);
+                if (r.bundle == null && (tag.startsWith("patches-v") || tag.startsWith("bundle-"))) r.bundle = new Release(tag, asset(release, "spatch-bundle.zip"), body);
+                if (r.manager == null && tag.startsWith("manager-v")) r.manager = new Release(tag, asset(release, "spatch-manager.apk"), body);
                 if (r.bundle != null && r.bundle.url == null) r.bundle = null;
                 if (r.manager != null && r.manager.url == null) r.manager = null;
                 if (!body.isEmpty() && r.notes.size() < 12) {
@@ -273,21 +269,46 @@ final class Releases {
         return null;
     }
 
+    static Bundle openBundle(String url, File cached, Bundle.Progress progress) throws IOException {
+        if (cached.isFile()) {
+            try {
+                return new Bundle(cached);
+            } catch (IOException damaged) {
+                Files.delete(cached.toPath());
+            }
+        }
+        download(url, cached, progress, "Downloading the patches");
+        try {
+            return new Bundle(cached);
+        } catch (IOException damaged) {
+            try {
+                Files.deleteIfExists(cached.toPath());
+            } catch (IOException cleanupError) {
+                damaged.addSuppressed(cleanupError);
+            }
+            throw damaged;
+        }
+    }
+
     static void download(String url, File to, Bundle.Progress progress, String what) throws IOException {
         HttpURLConnection c = open(url, "application/octet-stream");
         File tmp = new File(to.getPath() + ".part");
-        try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(tmp)) {
-            long total = c.getContentLengthLong(), done = 0;
-            byte[] buf = new byte[1 << 16];
-            for (int n; (n = in.read(buf)) > 0;) {
-                out.write(buf, 0, n);
-                done += n;
-                if (total > 0) progress.step(what, (int) (done * 100 / total), 100);
+        try {
+            try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(tmp)) {
+                long total = c.getContentLengthLong(), done = 0;
+                byte[] buf = new byte[1 << 16];
+                for (int n; (n = in.read(buf)) > 0;) {
+                    out.write(buf, 0, n);
+                    done += n;
+                    if (total > 0) progress.step(what, (int) (done * 100 / total), 100);
+                }
+                if (total >= 0 && done != total) throw new IOException("The download has the wrong size.");
             }
+            if (!tmp.renameTo(to)) throw new IOException("Couldn't save " + to.getName() + ".");
         } finally {
             c.disconnect();
+            tmp.delete();
         }
-        if (!tmp.renameTo(to)) throw new IOException("Couldn't save " + to.getName() + ".");
     }
 
     private static HttpURLConnection open(String url, String accept) throws IOException {

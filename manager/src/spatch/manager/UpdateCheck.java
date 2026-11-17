@@ -67,7 +67,7 @@ public final class UpdateCheck extends JobService {
         Releases.setToken(prefs.getString(MainActivity.TOKEN, null));
         Releases.Release bundle = Releases.fetch(prefs.getString(MainActivity.BRANCH, "")).bundle(prefs.getBoolean(MainActivity.NIGHTLY, false));
         if (bundle == null) return;
-        String wanted = MainActivity.variant(bundle.tag, prefs.getBoolean(MainActivity.DEBUG, false));
+        String wanted = bundle.tag;
         if (wanted.equals(installed) || wanted.equals(prefs.getString(NOTIFIED, null))) return;
         prefs.edit().putString(NOTIFIED, wanted).apply();
         NotificationManager notes = getSystemService(NotificationManager.class);

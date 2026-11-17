@@ -40,10 +40,6 @@ openssl pkcs12 -export -legacy -in key.pem -out spatch-key.p12
 
 Delete `key.pem` afterwards: it holds the key unencrypted.
 
-**Developer build** installs the variant with Developer options in Spatch settings (self tests, a
-frame monitor, a touch inspector, logs). Switching it and tapping **Switch build** reinstalls in
-place; settings stay.
-
 Updates replace only `base.apk` (the other APKs never change) and, on Android 12 and newer, install
 without the confirmation screen once the manager has installed Spotify. **Tell me about new patches**
 checks twice a day and posts a notification; tapping it opens the manager straight into the update.
@@ -66,7 +62,7 @@ Two kinds of release, both found by tag:
 
 | Tag | Asset | Made with |
 | --- | --- | --- |
-| `patches-v<version>` | `spatch-bundle.zip` and `spatch-bundle-debug.zip` | `spatch bundle <input.apkm> --out <file.zip>`, adding `--debug` for the second |
+| `patches-v<version>` | `spatch-bundle.zip` | `spatch bundle <input.apkm> --out <file.zip>` |
 | `manager-v<version>` | `spatch-manager.apk` | `manager/build.sh <version> <out.apk> --keystore ... --alias ... --ks-pass-env ...` |
 
 Versions are `major.minor.patch`, `0.x` until 1.0. The manager's version code is derived from its
@@ -84,7 +80,7 @@ signing library the app uses on the phone, apksig, is taken from the SDK's own `
 compares every entry with a set the desktop patcher signed from the same commit:
 
 ```bash
-javac -d /tmp/rt -cp <apksig classes> manager/src/spatch/manager/Bundle.java manager/src/spatch/manager/Keys.java manager/test/spatch/manager/RoundTrip.java
+javac -d /tmp/rt -cp <apksig classes> manager/src/spatch/manager/Bundle.java manager/src/spatch/manager/Clone.java manager/src/spatch/manager/Keys.java manager/test/spatch/manager/RoundTrip.java
 ```
 
 ```bash

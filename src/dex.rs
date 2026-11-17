@@ -1,14 +1,9 @@
-//! Guarded smali edits for the Now Playing controls plus the spatch.Scallop helper DEX.
-//!
-//! Only DEX_TARGETS are decoded and reassembled; the helper ships as a new classes16.dex.
-//! classes9.dex is at the 65,536 method-reference limit, so its edits add field refs and constants only.
+//! Guarded edits to Spotify's core hooks and the build for the helper DEX (classes16.dex).
 
 use crate::Result;
 use crate::edits::{EDITS, Edit};
-use crate::helpers::{STUBS, helpers};
+use crate::helpers::{HELPERS, STUBS};
 use crate::input;
-use crate::names;
-use crate::theme::Theme;
 use crate::tools::Tools;
 use std::ffi::OsStr;
 use std::fs;
@@ -30,7 +25,7 @@ pub const HELPER_DEX: &str = "classes16.dex";
 const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
-/// their edits add; behaviour and names are unchanged. Each is an alias (`S_...`) or a smali path.
+/// their edits add; behaviour and names are unchanged. Paths are relative to the decoded APK.
 const RELOCATED: [&str; 2] = [
     // classes.dex is at the method-reference limit: the core hooks' classes move out with their new calls.
     "smali/com/spotify/esperanto/esperanto/ClientBase.smali",
@@ -43,8 +38,7 @@ fn relocated() -> Result<Vec<(String, String, String, String)>> {
     RELOCATED
         .iter()
         .map(|r| {
-            let file = names::smali_file(r)?;
-            let (folder, path) = file.split_once('/').ok_or("bad relocated path")?;
+            let (folder, path) = r.split_once('/').ok_or("bad relocated path")?;
             let dex = format!(
                 "classes{}.dex",
                 folder.strip_prefix("smali_classes").unwrap_or("")
@@ -55,119 +49,7 @@ fn relocated() -> Result<Vec<(String, String, String, String)>> {
         .collect()
 }
 
-/// Every Spatch method the edits call, as `invoke kind|class|method|descriptor`, for the on-device link test.
-fn hooks() -> String {
-    let mut hooks: Vec<String> = EDITS
-        .iter()
-        .flat_map(|edit| edit.replacement.lines())
-        .filter_map(|line| {
-            let (kind, target) = line.trim().split_once(" {")?;
-            let (_, target) = target.split_once("}, Lspatch/")?;
-            let (class, target) = target.split_once(";->")?;
-            let (method, shape) = target.split_once('(')?;
-            let kind = kind.trim_end_matches("/range");
-            Some(format!("{kind}|spatch.{class}|{method}|({shape}"))
-        })
-        .collect();
-    hooks.sort();
-    hooks.dedup();
-    hooks.join(",")
-}
-
-/// What each obfuscated stub declares, as `class|member|parameter types`, for the on-device binding
-/// test: `=` marks a field and `<init>` a constructor. A stub that drifts from the app only fails when
-/// that call first runs, so nothing else catches it.
-fn stub_members() -> String {
-    let mut members = Vec::new();
-    for (file, source) in STUBS.iter().filter(|(_, s)| s.contains("package p;")) {
-        let class = file.trim_end_matches(".java");
-        let code: String = source
-            .lines()
-            .map(|line| line.split("//").next().unwrap())
-            .collect::<Vec<_>>()
-            .join(" ");
-        let (mut depth, mut statement) = (0, String::new());
-        for c in code.chars() {
-            match c {
-                '{' | ';' if depth == 1 => {
-                    for member in stub_member(&statement) {
-                        // Many stub constructors and fields exist only for javac or the stub's own
-                        // body: list what a helper uses.
-                        let used = |text: &str| helpers(true).iter().any(|(_, h)| h.contains(text));
-                        let made = used(&format!("new {class}("));
-                        let field = member.strip_suffix("|=").map(|name| format!(".{name}"));
-                        if field.is_some_and(|name| !used(&name)) || statement.contains("private ")
-                        {
-                            continue;
-                        }
-                        if !member.starts_with(&format!("{class}|")) {
-                            members.push(format!("p.{class}|{member}"));
-                        } else if made {
-                            members.push(
-                                format!("p.{class}|{member}")
-                                    .replace(&format!("|{class}|"), "|<init>|"),
-                            );
-                        }
-                    }
-                    statement.clear();
-                }
-                _ if depth == 1 => statement.push(c),
-                _ => {}
-            }
-            match c {
-                '{' => depth += 1,
-                '}' => depth -= 1,
-                _ => {}
-            }
-        }
-    }
-    members.join(",")
-}
-
-/// One class-body statement as `name|parameter types`; a field line can name several, a nested type none.
-fn stub_member(statement: &str) -> Vec<String> {
-    let simple = |text: &str| {
-        let text = text.replace("...", "[] ");
-        let text = text.trim().split('<').next().unwrap().trim();
-        let mut words: Vec<_> = text.split_whitespace().filter(|w| *w != "final").collect();
-        words.pop();
-        words.join(" ").rsplit('.').next().unwrap().to_string()
-    };
-    if let Some((head, rest)) = statement.split_once('(') {
-        let name = head.split_whitespace().last().unwrap_or_default();
-        let params = rest.split(')').next().unwrap_or_default();
-        let types: Vec<_> = params
-            .split(',')
-            .filter(|p| !p.trim().is_empty())
-            .map(simple)
-            .collect();
-        return vec![format!("{name}|{}", types.join(";"))];
-    }
-    let words: Vec<_> = statement.split_whitespace().collect();
-    if words.is_empty()
-        || words
-            .iter()
-            .any(|w| matches!(*w, "class" | "interface" | "enum"))
-    {
-        return Vec::new();
-    }
-    statement
-        .split(',')
-        .filter_map(|field| field.split('=').next()?.split_whitespace().last())
-        .map(|name| format!("{name}|="))
-        .collect()
-}
-
-/// Every obfuscated class the helpers compile against, for the on-device binding test.
-fn obfuscated_classes() -> String {
-    let names: Vec<_> = STUBS
-        .iter()
-        .filter(|(_, source)| source.contains("package p;"))
-        .map(|(name, _)| format!("p.{}", name.trim_end_matches(".java")))
-        .collect();
-    names.join(",")
-}
-
+/// Verifies each DEX to be edited matches the pinned original.
 pub fn check_originals(base: &Path) -> Result<()> {
     let entries: Vec<_> = DEX_TARGETS.iter().map(|(entry, _)| *entry).collect();
     for ((entry, sha), bytes) in DEX_TARGETS
@@ -188,10 +70,10 @@ pub fn check_originals(base: &Path) -> Result<()> {
 }
 
 /// Replaces the single occurrence of `anchor`; zero or several occurrences is a hard error.
-pub fn apply(text: &str, edit: &Edit, theme: &Theme) -> Result<String> {
-    let anchor = names::rewrite(edit.anchor)?;
-    match text.matches(&anchor).count() {
-        1 => Ok(text.replacen(&anchor, &names::rewrite(&theme.apply(edit.replacement))?, 1)),
+pub fn apply(text: &str, edit: &Edit) -> Result<String> {
+    let anchor = edit.anchor;
+    match text.matches(anchor).count() {
+        1 => Ok(text.replacen(anchor, edit.replacement, 1)),
         n => Err(format!(
             "{}: expected 1 anchor, found {n}: {:?}",
             edit.file,
@@ -206,8 +88,6 @@ pub fn build(
     base: &Path,
     staging: &Path,
     tools: &Tools,
-    theme: &Theme,
-    debug: bool,
 ) -> Result<Vec<(&'static str, Vec<u8>)>> {
     let version = tools.run(&tools.apktool, &[OsStr::new("--version")])?;
     let cache = crate::cache::path(
@@ -215,10 +95,6 @@ pub fn build(
         &[
             include_bytes!("dex.rs"),
             include_bytes!("edits.rs"),
-            include_bytes!("names.rs"),
-            include_bytes!("theme.rs"),
-            include_bytes!("../scripts/port/aliases.tsv"),
-            theme.name.as_bytes(),
             version.as_bytes(),
         ],
     );
@@ -234,7 +110,7 @@ pub fn build(
         println!("DEX rebuild: verified cache hit");
         names.into_iter().zip(bytes).collect()
     } else {
-        let entries = rebuild(base, staging, tools, theme)?;
+        let entries = rebuild(base, staging, tools)?;
         if let Some(path) = &cache {
             let _ = crate::cache::save(
                 path,
@@ -250,7 +126,7 @@ pub fn build(
     fs::write(&path, listener)?;
     entries.push((
         HELPER_DEX,
-        compile_helper(staging, tools, theme, &path, debug)?,
+        compile_helper(staging, tools, &path)?,
     ));
     Ok(entries)
 }
@@ -259,7 +135,6 @@ fn rebuild(
     base: &Path,
     staging: &Path,
     tools: &Tools,
-    theme: &Theme,
 ) -> Result<Vec<(&'static str, Vec<u8>)>> {
     let fw = staging.join("dex-framework");
     let smali = staging.join("smali");
@@ -282,8 +157,8 @@ fn rebuild(
         ],
     )?;
     for e in &EDITS {
-        let path = smali.join(names::smali_file(e.file)?);
-        fs::write(&path, apply(&fs::read_to_string(&path)?, e, theme)?)?;
+        let path = smali.join(e.file);
+        fs::write(&path, apply(&fs::read_to_string(&path)?, e)?)?;
     }
     // Their original DEX tables are full. Keep these classes' names and behavior in
     // the helper DEX so the new references they gain do not overflow them.
@@ -352,12 +227,9 @@ fn rebuild(
 fn compile_helper(
     staging: &Path,
     tools: &Tools,
-    theme: &Theme,
     listener_dex: &Path,
-    debug: bool,
 ) -> Result<Vec<u8>> {
     let root = staging.join("helper");
-    let helpers = helpers(debug);
     let (stub_src, stub_cls, cls, dex) = (
         root.join("stubs-src"),
         root.join("stubs"),
@@ -375,10 +247,10 @@ fn compile_helper(
     ];
     let stub_paths: Vec<_> = STUBS
         .iter()
-        .map(|(n, _)| Ok(stub_src.join(names::rewrite(n)?)))
-        .collect::<Result<_>>()?;
+        .map(|(n, _)| stub_src.join(n))
+        .collect();
     for ((_, src), p) in STUBS.iter().zip(&stub_paths) {
-        fs::write(p, names::rewrite(src)?)?;
+        fs::write(p, src)?;
         javac_stubs.push(p.as_os_str());
     }
     let javac = tools.java_home.join("bin/javac");
@@ -393,21 +265,15 @@ fn compile_helper(
         OsStr::new("-d"),
         cls.as_os_str(),
     ];
-    let helper_paths: Vec<_> = helpers
+    let helper_paths: Vec<_> = HELPERS
         .iter()
         .map(|(n, _)| root.join(format!("{n}.java")))
         .collect();
-    for ((_, src), p) in helpers.iter().zip(&helper_paths) {
+    for ((_, src), p) in HELPERS.iter().zip(&helper_paths) {
         if let Some(parent) = p.parent() {
             fs::create_dir_all(parent)?;
         }
-        let source = src
-            .replace("@THEME@", theme.name)
-            .replace("@VERSION@", env!("CARGO_PKG_VERSION"))
-            .replace("@OBFUSCATED@", &obfuscated_classes())
-            .replace("@HOOKS@", &hooks())
-            .replace("@MEMBERS@", &stub_members());
-        fs::write(p, names::rewrite(&source)?)?;
+        fs::write(p, src)?;
         javac_helpers.push(p.as_os_str());
     }
     tools.run(&javac, &javac_helpers)?;
@@ -520,43 +386,17 @@ pub fn check_ref_limits(entry: &str, dexdump: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::helpers::{DEBUG_HELPERS, HELPERS};
-
-    #[test]
-    fn device_binding_test_lists_stub_members() {
-        let members = names::rewrite(&stub_members()).unwrap();
-        if let Ok(path) = std::env::var("SPATCH_DUMP_MEMBERS") {
-            std::fs::write(path, members.replace(',', "\n")).unwrap();
-        }
-        let has = |m: &str| members.contains(&names::rewrite(m).unwrap());
-        assert!(has("p.S_ComposeMutableState|getValue|"));
-        assert!(has("p.S_NavBarTabState|b|="));
-        assert!(has("p.S_KotlinCollections|s|Object[]"));
-        assert!(!has("p.S_SettingsRowModel|mask|=") && !has("p.S_KotlinMutableStateFlow|value|="));
-        assert!(has(
-            "p.S_ComposeGraphicsLayer|D|S_ComposeModifier;float;float;float;float;float;float;float;long;S_ComposeShape;boolean;long;long;int;"
-        ));
-    }
-
-    #[test]
-    fn device_link_test_lists_the_hooks() {
-        let hooks = hooks();
-        assert!(hooks.contains("invoke-static|spatch.CoreBridge|wrap|(Ljava/lang/Object;)Lcom/spotify/esperanto/esperanto/Transport;"));
-        assert!(hooks.contains("invoke-static|spatch.SpatchApp|resumed|(Landroid/app/Activity;)V"));
-        assert_eq!(hooks.split(',').count(), EDITS.len());
-    }
 
     /// Spotify's classes sit in other packages: a hook that isn't public crashes at its first call.
     #[test]
     fn every_hook_spotify_calls_is_public() {
-        let sources = helpers(false);
         for edit in EDITS {
             for call in edit.replacement.split("Lspatch/").skip(1) {
                 let Some((class, rest)) = call.split_once(";->") else {
                     continue;
                 };
                 let method = rest.split(['(', ':']).next().unwrap();
-                let source = sources.iter().find(|(name, _)| *name == class).unwrap().1;
+                let source = HELPERS.iter().find(|(name, _)| *name == class).unwrap().1;
                 let public_class = source
                     .lines()
                     .any(|l| l.starts_with("public ") && l.contains(&format!("class {class} ")));
@@ -578,48 +418,25 @@ mod tests {
 
     #[test]
     fn edits_require_exactly_one_anchor() {
-        let lav = crate::theme::by_name("lavender").unwrap();
         for e in &EDITS {
-            let patched = apply(&format!("x\n{}y", e.anchor), e, lav).unwrap();
+            let patched = apply(&format!("x\n{}y", e.anchor), e).unwrap();
             assert_eq!(patched, format!("x\n{}y", e.replacement));
-            assert!(apply("nothing", e, lav).is_err(), "{} needs its anchor", e.file);
-            assert!(apply(&e.anchor.repeat(2), e, lav).is_err(), "{}: an anchor twice is ambiguous", e.file);
+            assert!(apply("nothing", e).is_err(), "{} needs its anchor", e.file);
+            assert!(apply(&e.anchor.repeat(2), e).is_err(), "{}: an anchor twice is ambiguous", e.file);
         }
     }
 
     #[test]
     fn artwork_shape_edits_reject_missing_ambiguous_and_repeated_inputs() {
-        let theme = crate::theme::by_name("gruvbox").unwrap();
         for edit in EDITS.iter().filter(|e| e.file == "smali/p/kvx.smali") {
-            assert!(apply("", edit, theme).is_err());
-            assert!(apply(&edit.anchor.repeat(2), edit, theme).is_err());
-            let patched = apply(edit.anchor, edit, theme).unwrap();
+            assert!(apply("", edit).is_err());
+            assert!(apply(&edit.anchor.repeat(2), edit).is_err());
+            let patched = apply(edit.anchor, edit).unwrap();
             assert_eq!(patched, edit.replacement);
-            assert!(apply(&patched, edit, theme).is_err());
+            assert!(apply(&patched, edit).is_err());
         }
     }
 
-
-
-    #[test]
-    fn only_debug_builds_contain_developer_code() {
-        let names = |debug| -> Vec<&str> { helpers(debug).iter().map(|(n, _)| *n).collect() };
-        assert!(!names(false).iter().any(|n| n.starts_with("Dev")));
-        for (name, _) in DEBUG_HELPERS {
-            assert!(names(true).contains(&name));
-        }
-        // Normal helpers may only reach it by name: a compile-time reference would fail without --debug.
-        for (name, source) in HELPERS {
-            for class in ["DevOptions.", "DevTests.", "DevOverlay.", "DevSampler."] {
-                assert!(!source.contains(class), "{name} refers to {class}");
-            }
-        }
-        assert!(
-            names::rewrite(&obfuscated_classes())
-                .unwrap()
-                .contains(&names::rewrite("p.S_DrawerLayout").unwrap())
-        );
-    }
 
     #[test]
     fn every_helper_class_called_by_an_edit_is_built() {

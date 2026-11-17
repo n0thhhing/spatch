@@ -52,7 +52,7 @@ covers it (100,000 requests a day, no card), and an install costs two requests.
 
 1. Make a free Cloudflare account at dash.cloudflare.com.
 2. Put each APKM in its own release of a private repository: tag `apkm-<versionName>`, asset
-   `spotify-<versionName>.apkm`, as in `apkm-9.1.98.521` / `spotify-9.1.98.521.apkm`.
+   `spotify-<versionName>.apkm`, as in `apkm-9.2.0.26` / `spotify-9.2.0.26.apkm`.
    `wrangler.toml` names the repository (`n0thhhing/spatch-builds`). The Worker refuses an asset
    whose size doesn't match `index.json`.
 3. Log in and deploy; wrangler prints the Worker's address, `https://spatch-source.<you>.workers.dev`:
@@ -88,11 +88,9 @@ source/cloudflare/worker.test.mjs` checks the Worker against a fake GitHub.
 
 Patches are made per Spotify build, never for "any version":
 
-1. Get the new APKM. Port the patches: the pinned hashes in `src/input.rs`, then every edit in
-   `src/edits.rs` and target in `src/patch.rs` whose anchor moved. Each one is guarded, so the build
-   names whatever no longer matches instead of producing a broken Spotify.
-2. Build the debug variant, install it on a phone, and run Spatch settings, Developer options, Run
-   all tests, then look over the screens the patches change.
+1. Get the new APKM. Follow the [version porting steps](targets.md#porting-a-new-spotify-build) to update the pinned
+   hashes and guarded edits.
+2. Build and install Spatch on a test phone, then check the screens and behavior the patches change.
 3. Add the APKM to the source **before** releasing patches for it, so no phone gets a bundle it can't
    download for: upload release `apkm-<versionName>` to the private repository, run `spatch source
    ... --index-only` into `source/cloudflare/`, and `npx wrangler deploy`.

@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn the_play_button_has_five_and_nine_lobes() {
         for (name, lobes) in [("button5", 5), ("button9", 9)] {
-            let radii: Vec<f32> = geometry(name).chunks_exact(2).map(|p| p[0].hypot(p[1])).collect();
+            let radii: Vec<f32> = geometry(name).as_chunks::<2>().0.iter().map(|[x, y]| x.hypot(*y)).collect();
             let n = radii.len();
             let peaks = (0..n).filter(|&i| radii[i] > radii[(i + n - 1) % n] && radii[i] >= radii[(i + 1) % n]).count();
             assert_eq!(peaks, lobes);

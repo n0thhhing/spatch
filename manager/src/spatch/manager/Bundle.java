@@ -45,28 +45,66 @@ final class Bundle implements AutoCloseable {
 
     Bundle(File file) throws IOException {
         zip = new ZipFile(file);
-        String spotify = null, apkm = null;
-        long code = 0;
-        String[] lines = new String(read(zip, zip.getEntry("bundle.txt")), StandardCharsets.UTF_8).split("\n");
-        if (lines.length == 0 || !lines[0].equals("spatch-bundle 1")) throw new IOException("This patch bundle needs a newer Spatch Manager.");
-        for (String line : lines) {
-            String[] f = line.split(" ");
-            switch (f[0]) {
-                case "spotify": spotify = f[1]; code = Long.parseLong(f[2]); break;
-                case "apkm": apkm = f[1]; break;
-                case "apk": apks.add(new String[] {f[1], f[2]}); break;
-                case "replace": replace.put(f[1], f); break;
-                case "add": add.add(new String[] {f[1], f[2], f[3], f[4]}); break;
-                case "cover": coverEntry = f[1]; coverTrack = f[2]; break;
-                case "clone-authority": cloneAuthorities.add(f[1]); break;
-                case "clone-icon": cloneIcons.add(f[1]); break;
-                default: break;
+        try {
+            validateZip();
+            String spotify = null, apkm = null;
+            long code = 0;
+            String[] lines = new String(read(zip, zip.getEntry("bundle.txt")), StandardCharsets.UTF_8).split("\n");
+            if (lines.length == 0 || !lines[0].equals("spatch-bundle 1")) throw new IOException("This patch bundle needs a newer Spatch Manager.");
+            for (String line : lines) {
+                String[] f = line.split(" ");
+                switch (f[0]) {
+                    case "spotify": spotify = f[1]; code = Long.parseLong(f[2]); break;
+                    case "apkm": apkm = f[1]; break;
+                    case "apk": apks.add(new String[] {f[1], f[2]}); break;
+                    case "replace": replace.put(f[1], f); break;
+                    case "add": add.add(new String[] {f[1], f[2], f[3], f[4]}); break;
+                    case "cover": coverEntry = f[1]; coverTrack = f[2]; break;
+                    case "clone-authority": cloneAuthorities.add(f[1]); break;
+                    case "clone-icon": cloneIcons.add(f[1]); break;
+                    default: break;
+                }
+            }
+            if (spotify == null || apkm == null || apks.isEmpty()) throw new IOException("The patch bundle is incomplete.");
+            baseSha();
+            for (String[] step : replace.values()) requirePatch(step[4]);
+            for (String[] step : add) requirePatch(step[3]);
+            this.spotify = spotify;
+            this.apkmSha = apkm;
+            this.spotifyCode = code;
+        } catch (IOException | RuntimeException e) {
+            try {
+                zip.close();
+            } catch (IOException closeError) {
+                e.addSuppressed(closeError);
+            }
+            if (e instanceof IndexOutOfBoundsException || e instanceof NumberFormatException) {
+                throw new IOException("The patch bundle is damaged.", e);
+            }
+            throw e;
+        }
+    }
+
+    private void requirePatch(String name) throws IOException {
+        if (zip.getEntry(name) == null) throw new IOException("The patch bundle is missing " + name + ".");
+    }
+
+    private void validateZip() throws IOException {
+        byte[] buffer = new byte[1 << 16];
+        for (Enumeration<? extends ZipEntry> entries = zip.entries(); entries.hasMoreElements();) {
+            ZipEntry entry = entries.nextElement();
+            CRC32 crc = new CRC32();
+            long size = 0;
+            try (InputStream input = zip.getInputStream(entry)) {
+                for (int n; (n = input.read(buffer)) != -1;) {
+                    crc.update(buffer, 0, n);
+                    size += n;
+                }
+            }
+            if (crc.getValue() != entry.getCrc() || size != entry.getSize()) {
+                throw new IOException("The patch bundle is damaged: " + entry.getName() + ".");
             }
         }
-        if (spotify == null || apkm == null || apks.isEmpty()) throw new IOException("The patch bundle is incomplete.");
-        this.spotify = spotify;
-        this.apkmSha = apkm;
-        this.spotifyCode = code;
     }
 
     /** The original base.apk's SHA-256: any copy with it can stand in for the APKM. */

@@ -4,10 +4,8 @@ mod dex;
 mod edits;
 mod helpers;
 mod input;
-mod names;
 mod patch;
 mod source;
-mod theme;
 mod tools;
 
 use std::path::PathBuf;
@@ -18,17 +16,10 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const USAGE: &str = "\
 usage:
   spatch inspect <input.apkm>
-  spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --dry-run
-  spatch patch <input.apkm> --out <new-dir> [--theme <name>] [--debug] --keystore <file> --alias <name> --ks-pass-env <VAR>
-  spatch bundle <input.apkm> --out <new-file.zip> [--theme <name>] [--debug]
+  spatch patch <input.apkm> --out <new-dir> --dry-run
+  spatch patch <input.apkm> --out <new-dir> --keystore <file> --alias <name> --ks-pass-env <VAR>
+  spatch bundle <input.apkm> --out <new-file.zip>
   spatch source <input.apkm> --out <dir> [--index-only]
-
-Themes: lavender (default), gruvbox, catppuccin-mocha, rose-pine, nord, tokyo-night, dracula,
-gruvbox-material-dark, default, spotify, catppuccin-macchiato, catppuccin-frappe,
-rose-pine-moon, tokyo-night-storm, everforest, kanagawa, solarized, one.
-
---debug adds Developer options to Spatch settings: on-device tests, logs and inspection tools.
-Other builds contain none of that code.
 
 A bundle holds Spatch's changes as diffs against the APKM, for Spatch Manager to apply and sign on
 the phone; it contains none of Spotify's own files.
@@ -66,15 +57,13 @@ fn run(args: Vec<String>) -> Result<()> {
                 &PathBuf::from(&args[1]),
                 &out,
                 index_only,
-                &tools::Tools::discover()?,
+                &tools::sdk_tool("aapt2")?,
             )
         }
         Some(cmd @ ("patch" | "bundle")) if args.len() >= 2 => {
             let bundle = cmd == "bundle";
             let mut out = None;
             let (mut keystore, mut alias, mut pass_env, mut dry_run) = (None, None, None, false);
-            let mut debug = false;
-            let mut theme = theme::by_name("lavender")?;
             let mut it = args[2..].iter();
             while let Some(flag) = it.next() {
                 let mut value = || it.next().cloned().ok_or(format!("{flag} needs a value"));
@@ -84,8 +73,6 @@ fn run(args: Vec<String>) -> Result<()> {
                     "--alias" => alias = Some(value()?),
                     "--ks-pass-env" => pass_env = Some(value()?),
                     "--dry-run" => dry_run = true,
-                    "--debug" => debug = true,
-                    "--theme" => theme = theme::by_name(&value()?)?,
                     _ => return Err(format!("unknown argument {flag}\n{USAGE}").into()),
                 }
             }
@@ -118,7 +105,7 @@ fn run(args: Vec<String>) -> Result<()> {
                 None => patch::Output::DryRun,
             };
             let tools = tools::Tools::discover()?;
-            patch::run(&PathBuf::from(&args[1]), &out, output, &tools, theme, debug)
+            patch::run(&PathBuf::from(&args[1]), &out, output, &tools)
         }
         _ => Err(USAGE.into()),
     }
@@ -142,24 +129,19 @@ fn inspect(apkm: &std::path::Path) -> Result<()> {
     }
     match tools::Tools::discover() {
         Ok(t) => println!(
-            "tools: java={} apktool={} aapt2={} zipalign={} apksigner={}",
+            "DEX tools: java={} apktool={} d8={} dexdump={}",
             t.java_home.display(),
             t.apktool.display(),
-            t.aapt2.display(),
-            t.zipalign.display(),
-            t.apksigner.display()
+            t.d8.display(),
+            t.dexdump.display()
         ),
-        Err(e) => println!("tools: {e}"),
+        Err(e) => println!("DEX tools: {e}"),
     }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn usage_lists_every_theme() {
-        for t in &crate::theme::THEMES {
-            assert!(super::USAGE.contains(t.name), "{}", t.name);
+    for name in ["aapt2", "zipalign", "apksigner"] {
+        match tools::sdk_tool(name) {
+            Ok(path) => println!("{name}: {}", path.display()),
+            Err(e) => println!("{e}"),
         }
     }
+    Ok(())
 }

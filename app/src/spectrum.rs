@@ -25,6 +25,12 @@ pub struct Analyzer {
     kick_at: i64,
 }
 
+impl Default for Analyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Analyzer {
     pub const fn new() -> Self {
         Analyzer { bands: [0.0; BANDS], bass: 0.0, level: 0.0, kick: 0.0, strongest: 0.0, reference: INITIAL_REFERENCE, average: 0.0, kick_at: 0 }

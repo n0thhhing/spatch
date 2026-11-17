@@ -33,7 +33,7 @@ public final class RoundTrip {
 
         List<File> unsigned;
         try (Bundle bundle = new Bundle(new File(a[1]))) {
-            unsigned = bundle.apply(apkm, work, false, (what, done, total) -> System.out.println(done + "/" + total + " " + what));
+            unsigned = bundle.apply(apkm, work, false, null, (what, done, total) -> System.out.println(done + "/" + total + " " + what));
         }
         for (File apk : unsigned) {
             File signed = new File(work, "signed-" + apk.getName());
@@ -60,18 +60,18 @@ public final class RoundTrip {
             }
         }
         try (Bundle bundle = new Bundle(new File(a[1]))) {
-            check(bundle.spotifyCode == 148115007L, "bundle names the Spotify version code");
-            unsigned = bundle.apply(new File(loose, "base.apk"), splits, out, (what, done, total) -> {});
+            check(bundle.spotifyCode == 148373686L, "bundle names the Spotify version code");
+            unsigned = bundle.apply(new File(loose, "base.apk"), splits, out, null, (what, done, total) -> {});
             File patchedBase = new File(loose, "patched-base.apk");
             java.nio.file.Files.copy(unsigned.get(0).toPath(), patchedBase.toPath());
             try {
-                bundle.apply(patchedBase, splits, new File(work, "refused"), (what, done, total) -> {});
+                bundle.apply(patchedBase, splits, new File(work, "refused"), null, (what, done, total) -> {});
                 check(false, "an already patched base.apk must be refused");
             } catch (java.io.IOException expected) {
                 // patched base: no original to work from
             }
         }
-        check(unsigned.size() == 5, "base and four splits");
+        check(unsigned.size() == 1 + splits.size(), "base and all original splits");
         for (File apk : unsigned) {
             File signed = new File(out, "signed-" + apk.getName());
             keys.sign(apk, signed);
@@ -83,7 +83,7 @@ public final class RoundTrip {
         File only = new File(work, "base-only");
         only.mkdirs();
         try (Bundle bundle = new Bundle(new File(a[1]))) {
-            unsigned = bundle.apply(apkm, only, true, (what, done, total) -> {});
+            unsigned = bundle.apply(apkm, only, true, null, (what, done, total) -> {});
         }
         check(unsigned.size() == 1 && unsigned.get(0).getName().equals("base.apk"), "base-only writes just base.apk");
         File signedBase = new File(only, "signed-base.apk");

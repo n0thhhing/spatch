@@ -218,7 +218,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSetShuffleMode(mut env: JNIEnv
         let mut kept = PREVIEW_SHUFFLE.lock().unwrap();
         kept.retain(|(u, _)| *u != uri);
         kept.push((uri, mode));
-        return string(&mut env, "");
+        string(&mut env, "")
     }
     #[cfg(not(feature = "preview"))]
     {
@@ -521,7 +521,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayFrom(mut env: JNIEnv, _: J
             crate::demo::apply(now, command);
             state.0 += 1;
         }
-        return JNI_TRUE;
+        JNI_TRUE
     }
     #[cfg(not(feature = "preview"))]
     {
@@ -771,7 +771,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSave(mut env: JNIEnv, _: JClas
         if save != JNI_FALSE {
             saved.push(uri);
         }
-        return JNI_TRUE;
+        JNI_TRUE
     }
     #[cfg(not(feature = "preview"))]
     {

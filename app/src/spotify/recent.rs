@@ -24,7 +24,7 @@ pub fn request(limit: u32) -> Vec<u8> {
         limit,
         exclude_track_contexts: true,
         include_collection_songs: true,
-        album_policy: Some(es::RecentlyPlayedAlbumDecorationPolicy { album_policy: Some(album), artists_policy: Some(artist.clone()), ..Default::default() }),
+        album_policy: Some(es::RecentlyPlayedAlbumDecorationPolicy { album_policy: Some(album), artists_policy: Some(artist), ..Default::default() }),
         artist_policy: Some(es::RecentlyPlayedArtistDecorationPolicy { artist_policy: Some(artist), ..Default::default() }),
         show_policy: Some(es::RecentlyPlayedShowDecorationPolicy { show_policy: Some(show), ..Default::default() }),
         playlist_policy: Some(es::RecentlyPlayedPlaylistDecorationPolicy {

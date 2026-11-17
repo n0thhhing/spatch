@@ -5,7 +5,7 @@
 
 use crate::Result;
 use crate::input::{self, APKM_SHA256, APKS, PACKAGE, VERSION_CODE, VERSION_NAME};
-use crate::tools::Tools;
+use crate::tools;
 use std::fs;
 use std::path::Path;
 
@@ -16,7 +16,7 @@ const ABIS: [&str; 4] = ["arm64_v8a", "armeabi_v7a", "x86_64", "x86"];
 /// `<out>/index.json` listing every entry there, newest first, so older versions stay downloadable.
 /// Each file is written beside its final name and renamed into place, the APKM before the index, so
 /// a reader never sees an index naming a file that isn't complete.
-pub fn stage(apkm: &Path, out: &Path, index_only: bool, tools: &Tools) -> Result<()> {
+pub fn stage(apkm: &Path, out: &Path, index_only: bool, aapt2: &Path) -> Result<()> {
     input::check_identity(apkm)?;
     let work = out.join(".staging");
     if work.exists() {
@@ -24,8 +24,8 @@ pub fn stage(apkm: &Path, out: &Path, index_only: bool, tools: &Tools) -> Result
     }
     fs::create_dir_all(&work)?;
     input::extract_apks(apkm, &work)?;
-    let badging = tools.run(
-        &tools.aapt2,
+    let badging = tools::run(
+        aapt2,
         &[
             "dump".as_ref(),
             "badging".as_ref(),

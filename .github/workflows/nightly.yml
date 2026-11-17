@@ -1,7 +1,7 @@
 # Publishes nightly patches when patch sources change. The Spotify APKM comes from the
 # private Spatch source, with its own invite in the SOURCE_INVITE secret (made with
 # source/cloudflare/add-friend.sh nightly-ci; revoke with `npx wrangler secret delete CODE_nightly-ci`).
-# The two bundles build side by side on their own runners; a last job publishes both.
+# Patches and Manager build independently before the publish job.
 name: nightly
 
 on:
@@ -16,7 +16,6 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "scripts/nightly.sh"
-      - "scripts/port/aliases.tsv"
       - ".github/workflows/nightly.yml"
   workflow_dispatch:
 
@@ -51,9 +50,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    strategy:
-      matrix:
-        bundle: [normal, debug]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -65,15 +61,15 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.spatch/nightly-target
-          key: ${{ runner.os }}-nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('Cargo.toml', 'src/**', 'java/**', 'scripts/port/aliases.tsv') }}
+          key: ${{ runner.os }}-nightly-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('Cargo.toml', 'src/**', 'java/**') }}
           restore-keys: |
-            ${{ runner.os }}-nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}-
-            ${{ runner.os }}-nightly-${{ matrix.bundle }}-
-            nightly-${{ matrix.bundle }}-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-nightly-${{ hashFiles('Cargo.lock') }}-
+            ${{ runner.os }}-nightly-
+            nightly-${{ hashFiles('Cargo.lock') }}
       - uses: actions/cache@v4
         with:
           path: ~/.cache/spatch/diffs-v1
-          key: ${{ runner.os }}-spatch-diffs-v1-${{ github.sha }}-${{ matrix.bundle }}
+          key: ${{ runner.os }}-spatch-diffs-v1-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-spatch-diffs-v1-
       - uses: actions/cache@v4
@@ -83,7 +79,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/spatch/build-v1
-          key: ${{ runner.os }}-spatch-build-v1-${{ github.sha }}-${{ matrix.bundle }}
+          key: ${{ runner.os }}-spatch-build-v1-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-spatch-build-v1-
       - name: Android build-tools and apktool
@@ -134,20 +130,20 @@ jobs:
           curl -fsSL -u "$auth" -o "$apkm" "${index%/*}/$(echo "$entry" | jq -r '.urls[0]')"
           echo "$(echo "$entry" | jq -r .sha256)  $apkm" | sha256sum -c -
           echo "SPATCH_APKM=$apkm" >> "$GITHUB_ENV"
-      - name: Build the ${{ matrix.bundle }} bundle
+      - name: Build the patch bundle
         env:
           GH_TOKEN: ${{ github.token }}
-          NIGHTLY_BUILD: ${{ matrix.bundle }}
+          NIGHTLY_BUILD: normal
           NIGHTLY_OUT: ${{ runner.temp }}/bundle
         run: |
           scripts/nightly.sh "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         with:
-          name: bundle-${{ matrix.bundle }}
+          name: bundle
           path: ${{ runner.temp }}/bundle
           if-no-files-found: ignore # nightly was already this commit
           retention-days: 1
-          compression-level: 0 # the bundles are already compressed ZIPs
+          compression-level: 0 # the bundle is already compressed
 
   manager:
     needs: changes

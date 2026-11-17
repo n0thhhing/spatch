@@ -5,8 +5,7 @@
 use crate::Result;
 use crate::dex;
 use crate::input::{self, APKS, PACKAGE, VERSION_CODE};
-use crate::theme::Theme;
-use crate::tools::Tools;
+use crate::tools::{self, Tools};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
@@ -22,7 +21,7 @@ pub struct Signing {
 
 /// What `run` makes of the patched entries.
 pub enum Output<'a> {
-    /// Verify everything, write nothing.
+    /// Verify the input and rebuild the DEX without writing an output.
     DryRun,
     /// A signed split-APK set in the output directory.
     Signed(&'a Signing),
@@ -35,8 +34,6 @@ pub fn run(
     out: &Path,
     output: Output,
     tools: &Tools,
-    theme: &Theme,
-    debug: bool,
 ) -> Result<()> {
     if out.exists() {
         return Err(format!(
@@ -64,32 +61,31 @@ pub fn run(
     input::extract_apks(apkm, &apks)?;
     let base = apks.join("base.apk");
     dex::check_originals(&base)?;
-    let dump = tools.run(
-        &tools.aapt2,
-        &[
-            OsStr::new("dump"),
-            OsStr::new("resources"),
-            base.as_os_str(),
-        ],
-    )?;
-    crate::names::load_resources(&dump);
     // The app rebuild ships only what Spatch's own UI needs: the core hooks in Spotify's DEX, the helper
     // DEX that hosts the app, and the Rust app itself. Spotify's resources stay untouched.
-    let mut compiled = dex::build(&base, &staging.path, tools, theme, debug)?;
+    let mut compiled = dex::build(&base, &staging.path, tools)?;
+    if let Output::DryRun = output {
+        println!("dry run: input and DEX reassembly verified; no output written");
+        return Ok(());
+    }
     let helper = compiled.pop().expect("dex::build returns the helper last");
     let mut added = vec![helper];
     added.push((RUST_APP_ASSET, rust_app()?.ok_or("the Rust app library is missing: build app/ (see app/README.md) or set SPATCH_APP_SO")?));
     let signing = match output {
-        Output::DryRun => {
-            println!(
-                "dry run: input and DEX reassembly verified; no output written"
-            );
-            return Ok(());
-        }
+        Output::DryRun => unreachable!(),
         Output::Bundle => {
+            let aapt2 = tools::sdk_tool("aapt2")?;
+            let dump = tools.run(
+                &aapt2,
+                &[
+                    OsStr::new("dump"),
+                    OsStr::new("resources"),
+                    base.as_os_str(),
+                ],
+            )?;
             let clone = crate::bundle::clone_lines(&dump, |entry| {
                 tools.run(
-                    &tools.aapt2,
+                    &aapt2,
                     &[
                         OsStr::new("dump"),
                         OsStr::new("xmltree"),
@@ -99,14 +95,17 @@ pub fn run(
                     ],
                 )
             })?;
+            let bundle = staging.path.join("bundle.zip");
             crate::bundle::write(
                 &apks,
                 &compiled,
                 &added,
                 &clone,
-                out,
+                &bundle,
                 zip::CompressionMethod::Deflated,
             )?;
+            // Publish the finished ZIP without overwriting a competing output.
+            fs::hard_link(&bundle, out)?;
             println!("wrote {}", out.display());
             return Ok(());
         }
@@ -114,6 +113,9 @@ pub fn run(
     };
 
 
+    let aapt2 = tools::sdk_tool("aapt2")?;
+    let zipalign = tools::sdk_tool("zipalign")?;
+    let apksigner = tools::sdk_tool("apksigner")?;
     let result = staging.path.join("result");
     fs::create_dir(&result)?;
     let mut certs = HashSet::new();
@@ -128,7 +130,7 @@ pub fn run(
         };
         rewrite_apk(&apks.join(name), &unsigned, replace, add)?;
         tools.run(
-            &tools.zipalign,
+            &zipalign,
             &[
                 OsStr::new("-p"),
                 OsStr::new("-f"),
@@ -139,7 +141,7 @@ pub fn run(
         )?;
         let pass = format!("env:{}", signing.pass_env);
         tools.run(
-            &tools.apksigner,
+            &apksigner,
             &[
                 OsStr::new("sign"),
                 OsStr::new("--ks"),
@@ -153,12 +155,12 @@ pub fn run(
                 aligned.as_os_str(),
             ],
         )?;
-        certs.insert(verify_apk(&signed, tools)?);
+        certs.insert(verify_apk(&signed, tools, &zipalign, &apksigner)?);
     }
     if certs.len() != 1 {
         return Err("signed APKs do not share one certificate".into());
     }
-    verify_identity(&result.join("base.apk"), tools)?;
+    verify_identity(&result.join("base.apk"), &aapt2)?;
     let originals = dex::DEX_TARGETS;
     for (entry, sha) in originals {
         let got = input::read_entry(&result.join("base.apk"), entry)?;
@@ -169,7 +171,7 @@ pub fn run(
     input::read_entry(&result.join("base.apk"), dex::HELPER_DEX)?;
     fs::write(
         result.join("install-manifest.json"),
-        install_manifest(certs.iter().next().unwrap(), theme.name),
+        install_manifest(certs.iter().next().unwrap()),
     )?;
     fs::rename(&result, out)?;
     println!("wrote {}", out.display());
@@ -252,9 +254,9 @@ fn deflated() -> SimpleFileOptions {
 }
 
 /// Verifies alignment and signature; returns the signer certificate SHA-256.
-fn verify_apk(apk: &Path, tools: &Tools) -> Result<String> {
+fn verify_apk(apk: &Path, tools: &Tools, zipalign: &Path, apksigner: &Path) -> Result<String> {
     tools.run(
-        &tools.zipalign,
+        zipalign,
         &[
             OsStr::new("-c"),
             OsStr::new("-p"),
@@ -263,7 +265,7 @@ fn verify_apk(apk: &Path, tools: &Tools) -> Result<String> {
         ],
     )?;
     let out = tools.run(
-        &tools.apksigner,
+        apksigner,
         &[
             OsStr::new("verify"),
             OsStr::new("--print-certs"),
@@ -276,9 +278,9 @@ fn verify_apk(apk: &Path, tools: &Tools) -> Result<String> {
         .ok_or_else(|| format!("{}: no signer certificate reported", apk.display()).into())
 }
 
-fn verify_identity(base: &Path, tools: &Tools) -> Result<()> {
-    let badging = tools.run(
-        &tools.aapt2,
+fn verify_identity(base: &Path, aapt2: &Path) -> Result<()> {
+    let badging = tools::run(
+        aapt2,
         &[OsStr::new("dump"), OsStr::new("badging"), base.as_os_str()],
     )?;
     let want = format!("package: name='{PACKAGE}' versionCode='{VERSION_CODE}'");
@@ -292,12 +294,11 @@ fn verify_identity(base: &Path, tools: &Tools) -> Result<()> {
     Ok(())
 }
 
-fn install_manifest(cert: &str, theme: &str) -> String {
+fn install_manifest(cert: &str) -> String {
     format!(
         r#"{{
   "package": "{PACKAGE}",
   "versionCode": {VERSION_CODE},
-  "theme": "{theme}",
   "signerCertificateSha256": "{cert}",
   "required": ["base.apk", "split_config.arm64_v8a.apk"],
   "language": ["split_config.en.apk"],
@@ -414,9 +415,6 @@ mod tests {
         let tools = Tools {
             java_home: d.clone(),
             apktool: d.clone(),
-            aapt2: d.clone(),
-            zipalign: d.clone(),
-            apksigner: d.clone(),
             d8: d.clone(),
             dexdump: d.clone(),
         };
@@ -425,8 +423,6 @@ mod tests {
             &out,
             Output::DryRun,
             &tools,
-            &crate::theme::THEMES[0],
-            false,
         )
         .unwrap_err()
         .to_string();
@@ -437,11 +433,9 @@ mod tests {
     #[test]
     #[ignore]
     fn dry_run_on_supplied_apkm() {
-        let apkm = std::fs::read_dir(env!("CARGO_MANIFEST_DIR"))
-            .unwrap()
-            .map(|e| e.unwrap().path())
-            .find(|p| p.extension().is_some_and(|x| x == "apkm"))
-            .expect("supplied .apkm in the project root");
+        let apkm = PathBuf::from(
+            std::env::var_os("SPATCH_APKM").expect("set SPATCH_APKM to the supported .apkm"),
+        );
         let before = input::sha256_file(&apkm).unwrap();
         let out = temp_dir("dry").join("out");
         run(
@@ -449,8 +443,6 @@ mod tests {
             &out,
             Output::DryRun,
             &Tools::discover().unwrap(),
-            crate::theme::by_name("gruvbox").unwrap(),
-            false,
         )
         .unwrap();
         assert!(!out.exists());

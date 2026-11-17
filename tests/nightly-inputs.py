@@ -35,10 +35,10 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
         assert actual == f"patches={str(patches).lower()}\nmanager={str(manager).lower()}\n", actual
     def published():
         tree = subprocess.check_output(["git", "-C", str(repo), "ls-tree", "-r", "HEAD", "--",
-                                        "src", "java", "Cargo.toml", "Cargo.lock", "scripts/port/aliases.tsv"])
+                                        "src", "java", "app", "Cargo.toml", "Cargo.lock"])
         patch = subprocess.check_output(["git", "hash-object", "--stdin"], input=tree).decode().strip()
         manager = git("rev-parse", "HEAD:manager")
-        labels.write_text(f"spatch-bundle.zip\tnightly-{patch}\nspatch-bundle-debug.zip\tnightly-{patch}\n"
+        labels.write_text(f"spatch-bundle.zip\tnightly-{patch}\n"
                           f"spatch-manager.apk\tnightly-{manager}\n")
     check(True, True)
     published()
@@ -53,10 +53,13 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
     git("commit", "-qm", "patches only")
     check(True, False)
     published()
-    (repo / "README.md").write_text("documentation\n")
-    git("add", "README.md")
-    git("commit", "-qm", "documentation only")
+    (repo / "scripts/port/aliases.tsv").write_text("manual port mapping\n")
+    git("add", "scripts/port/aliases.tsv")
+    git("commit", "-qm", "porting aliases only")
     check(False, False)
-    labels.write_text(labels.read_text().splitlines()[0] + "\n")
-    check(True, True)  # missing debug or manager assets must be repaired
+    patch_label, manager_label = labels.read_text().splitlines()
+    labels.write_text(patch_label + "\n")
+    check(False, True)
+    labels.write_text(manager_label + "\n")
+    check(True, False)
 print("PASS independent nightly identities, unchanged inputs and missing-asset repair")

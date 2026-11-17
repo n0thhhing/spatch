@@ -120,7 +120,6 @@ pub fn request_range(uri: &str, offset: i32, length: i32) -> Vec<u8> {
                 metadata: Some(policy::ItemMetadataPolicy { name: true, image: true, is_explicit: true }),
                 ..Default::default()
             }),
-            ..Default::default()
         }),
     }
     .encode_to_vec()

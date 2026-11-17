@@ -135,7 +135,6 @@ def referenced():
     for f in ['src/edits.rs', 'src/dex.rs', 'src/helpers.rs', 'src/patch.rs']:
         t = Path(ROOT, f).read_text(encoding='utf-8')
         names |= set(re.findall(r'Lp/([\w$]+);', t)) | set(re.findall(r'smali\w*/p/([\w$]+)\.smali', t))
-    names |= {os.path.basename(p)[:-5] for p in glob.glob(os.path.join(ROOT, 'java/dex/stubs/p/*.java'))}
     for p in glob.glob(os.path.join(ROOT, 'java/dex/src/**/*.java'), recursive=True):
         names |= set(re.findall(r'\bp\.([a-z][\w]*)\b', Path(p).read_text(encoding='utf-8')))
     return sorted(names)

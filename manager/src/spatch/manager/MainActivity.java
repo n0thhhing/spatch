@@ -47,38 +47,21 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Four pages under a navigation bar: Spatch (Spotify install, patch profiles, build options, invites),
+ * Four pages under a navigation bar: Spatch (Spotify install, build options, invites),
  * Clones (multi-instance clone manager), Diagnostics (self-test dashboard & crash log inspect),
  * and Changes (releases, display modes, and phone signing key).
  */
 public final class MainActivity extends Activity {
     private static final String SPOTIFY = "com.spotify.music", NOTIFY = "notify_updates", INVITE = "source_invite", DOWNLOADED = "apkm_downloaded";
     private static final String PAGE = "page", CLONE_PKG = "clone_package", CLONE_NAME = "clone_name", CLONE_INSTALLED = "clone_installed:";
-    static final String INSTALLED = "installed_bundle", DEBUG = "developer_build", NIGHTLY = "nightly_patches", BRANCH = "nightly_branch", UPDATE = "start_update";
+    static final String INSTALLED = "installed_bundle", NIGHTLY = "nightly_patches", BRANCH = "nightly_branch", UPDATE = "start_update";
     static final String TOKEN = "github_token";
-    private static final String PROFILE = "patch_profile", CLONES_SET = "clones_packages";
+    private static final String CLONES_SET = "clones_packages";
     private static final int PICK_APKM = 1, EXPORT_KEY = 2, IMPORT_KEY = 3, PICK_ICON = 4;
     private static final String[] PAGES = {"Spatch", "Clones", "Diagnostics", "Changes"};
     private static final String[] PAGE_ICONS = {"music_note", "content_copy", "stethoscope", "system_update"};
     private static final String[] HEADINGS = {"Spatch Manager", "Clones", "Diagnostics", "Changes"};
     private static final String[] LINES = {"Patched here, signed with this phone's key", "Second Spotifys with their own names", "What the phone and Spatch report", "What's new in each release"};
-
-    enum PresetProfile {
-        STANDARD("Standard (Full)", "Dynamic UI, living controls, lyrics, spectrum visualizers, gestures, ad-free experience.", false, false),
-        MINIMAL("Minimal (Clean)", "Lightweight & battery friendly. Reduced motion, essential music playback, no visual clutter.", false, false),
-        PLAYFUL("Playful (Dynamic)", "Maximum flair: living controls, reactive particle bursts, wave reflections, newest UI commits.", false, true),
-        DEV("Developer & Diagnostics", "Developer options enabled in Spotify: runtime self-tests, frame monitor, crash inspect.", true, false);
-
-        final String label, description;
-        final boolean debug, nightly;
-
-        PresetProfile(String label, String description, boolean debug, boolean nightly) {
-            this.label = label;
-            this.description = description;
-            this.debug = debug;
-            this.nightly = nightly;
-        }
-    }
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -102,9 +85,9 @@ public final class MainActivity extends Activity {
     private TextView stateBadge;
     private TextView spotifyStatus, apkmStatus, patchStatus, whatsNew, keyStatus, managerStatus, status, cloneStatus;
     private Hero heading;
-    private TextView profileBadge, profileDesc, diagnosticsText, exitsText;
+    private TextView diagnosticsText, exitsText;
     private Button displayMode, choose, seeChanges, patch, uninstall, managerUpdate, check, refreshChanges, exportKey, importKey, invite;
-    private Button chooseProfile, cloneInstall, cloneIconPick, cloneIconReset;
+    private Button cloneInstall, cloneIconPick, cloneIconReset;
     private Button runDiagnosticsBtn, copyDiagnosticsBtn, refreshExitsBtn;
     private Button openBatterySettingsBtn, openAppDetailsBtn, launchSpotifyBtn;
     private EditText clonePkg, cloneName;
@@ -113,7 +96,7 @@ public final class MainActivity extends Activity {
     private LinearLayout nav;
     private ScrollView scroll;
     private ProgressBar progress;
-    private Switch developer, notify, nightly;
+    private Switch notify, nightly;
     private android.widget.Button branchButton, tokenButton;
 
     /** The branch whose nightly to install: "" is main, anything else a branch-<name> prerelease. */
@@ -430,10 +413,6 @@ public final class MainActivity extends Activity {
         spotify.addView(apkmStatus, look.spaced(6));
         patchStatus = look.text("", 14, look.onSurfaceVariant, false);
         spotify.addView(patchStatus, look.spaced(2));
-        profileBadge = look.badge("Profile: Standard", look.onPrimaryContainer, look.primaryContainer);
-        LinearLayout.LayoutParams hug = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        hug.topMargin = look.dp(6);
-        spotify.addView(profileBadge, hug); // a chip, as wide as its words
         whatsNew = look.text("", 13, look.primary, false);
         whatsNew.setVisibility(View.GONE);
         spotify.addView(whatsNew, look.spaced(4));
@@ -447,30 +426,17 @@ public final class MainActivity extends Activity {
         uninstall = look.button("Uninstall Spotify", "delete", Look.Kind.TONAL, v -> startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + SPOTIFY))));
         spotify.addView(uninstall, look.spaced(8));
 
-        LinearLayout profileCard = look.card(pages[0], "Patch profile & options");
-        profileDesc = look.text("Dynamic UI, living controls, lyrics, spectrum visualizers, gestures, ad-free experience.", 14, look.onSurfaceVariant, false);
-        profileCard.addView(profileDesc);
-        chooseProfile = look.button("Patch preset: Standard", "tune", Look.Kind.TONAL, v -> pickProfile());
-        profileCard.addView(chooseProfile, look.spaced(10));
-
-        developer = new M3Switch(this, look);
-        developer.setChecked(prefs.getBoolean(DEBUG, false));
-        developer.setOnCheckedChangeListener((v, on) -> {
-            prefs.edit().putBoolean(DEBUG, on).apply();
-            refresh();
-        });
-        profileCard.addView(look.switchRow("Developer build", "Adds Developer options: self tests, frame monitor, logs", developer));
-
+        LinearLayout patchOptions = look.card(pages[0], "Patch options");
         nightly = new M3Switch(this, look);
         nightly.setChecked(prefs.getBoolean(NIGHTLY, false));
         nightly.setOnCheckedChangeListener((v, on) -> {
             prefs.edit().putBoolean(NIGHTLY, on).apply();
             refresh();
         });
-        profileCard.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
+        patchOptions.addView(look.switchRow("Nightly patches", "Built from every change before it's released; less tested", nightly));
         branchButton = look.button(branchLabel(), "tune", Look.Kind.TONAL, v -> chooseBranch());
         tokenButton = look.button(tokenLabel(), "key", Look.Kind.TONAL, v -> editToken());
-        profileCard.addView(look.row(branchButton, tokenButton), look.spaced(6));
+        patchOptions.addView(look.row(branchButton, tokenButton), look.spaced(6));
 
         notify = new M3Switch(this, look);
         notify.setChecked(prefs.getBoolean(NOTIFY, true));
@@ -479,12 +445,12 @@ public final class MainActivity extends Activity {
             UpdateCheck.schedule(this, on);
             if (on && Build.VERSION.SDK_INT >= 33) requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 0);
         });
-        profileCard.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
+        patchOptions.addView(look.switchRow("Tell me about new patches", "Checks twice a day; tap the notification to update", notify));
 
         Switch playful = new M3Switch(this, look);
         playful.setChecked(prefs.getBoolean(Look.MOTION, true));
         playful.setOnCheckedChangeListener((v, on) -> prefs.edit().putBoolean(Look.MOTION, on).apply());
-        profileCard.addView(look.switchRow("Playful motion", "Jelly navigation, springy pages and pops; Android's animation setting still applies", playful));
+        patchOptions.addView(look.switchRow("Playful motion", "Jelly navigation, springy pages and pops; Android's animation setting still applies", playful));
 
         // --- Page 1: Clones ---
         cloneLayout(pages[1]);
@@ -539,29 +505,6 @@ public final class MainActivity extends Activity {
         look.select(nav, index);
         scroll.scrollTo(0, 0);
         prefs.edit().putInt(PAGE, index).apply();
-    }
-
-    private void pickProfile() {
-        PresetProfile[] profiles = PresetProfile.values();
-        String[] titles = new String[profiles.length];
-        String cur = prefs.getString(PROFILE, "standard");
-        int sel = 0;
-        for (int i = 0; i < profiles.length; i++) {
-            titles[i] = profiles[i].label + "\n" + profiles[i].description;
-            if (profiles[i].name().equalsIgnoreCase(cur)) sel = i;
-        }
-        new AlertDialog.Builder(this)
-            .setTitle("Patch preset profile")
-            .setSingleChoiceItems(titles, sel, (dialog, which) -> {
-                PresetProfile p = profiles[which];
-                prefs.edit().putString(PROFILE, p.name().toLowerCase()).apply();
-                developer.setChecked(p.debug);
-                nightly.setChecked(p.nightly);
-                dialog.dismiss();
-                refresh();
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
     }
 
     static final class CloneInfo {
@@ -954,9 +897,7 @@ public final class MainActivity extends Activity {
             if (exitsText != null) {
                 exitsText.setText("Cross-app exit history requires android.permission.DUMP.\n\n"
                     + "To grant via ADB:\n"
-                    + "adb shell pm grant spatch.manager android.permission.DUMP\n\n"
-                    + "Or view Spotify's last crash directly in:\n"
-                    + "Spotify -> Settings -> Spatch -> Developer options -> Last crash");
+                    + "adb shell pm grant spatch.manager android.permission.DUMP");
             }
         } catch (Exception e) {
             if (exitsText != null) exitsText.setText("Couldn't read exit history: " + e.getMessage());
@@ -1127,7 +1068,6 @@ public final class MainActivity extends Activity {
         PackageInfo info = spotify();
         boolean ours = info != null && keys != null && signedByUs(info);
         String installed = prefs.getString(INSTALLED, null);
-        boolean debug = developer.isChecked();
         spotifyStatus.setText(info == null ? "Spotify isn't installed."
             : ours ? "Spatch is installed" + (installed != null ? ": patches " + shownPatches(installed) : "") + ". Spotify " + info.versionName + "."
             : "Spotify " + info.versionName + " is installed with another key. To install over it, import the key it was signed with (Signing key, Import key); otherwise it has to be uninstalled first.");
@@ -1139,27 +1079,11 @@ public final class MainActivity extends Activity {
             : info != null && !ours ? "No APKM needed if the installed Spotify is the unmodified version Spatch supports."
             : "Choose the Spotify APKM that Spatch supports, or add an invite to a Spatch source.");
         Releases.Release bundle = releases == null ? null : releases.bundle(nightly.isChecked());
-        patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + (debug && bundle.debugUrl == null ? ", which has no developer build." : ".")
+        patchStatus.setText(bundle != null ? "Newest patches: " + Releases.version(bundle) + "."
             : releaseError != null ? releaseError : "Looking for patches…");
 
-        // Profile display
-        String profName = prefs.getString(PROFILE, "standard");
-        PresetProfile matched = null;
-        for (PresetProfile p : PresetProfile.values()) {
-            if (p.name().equalsIgnoreCase(profName)) { matched = p; break; }
-        }
-        boolean isDev = developer.isChecked();
-        boolean isNight = nightly.isChecked();
-        if (matched != null && (matched.debug != isDev || matched.nightly != isNight)) {
-            profName = "custom";
-        }
-        String pLabel = (matched != null && !profName.equals("custom")) ? matched.label : "Custom";
-        if (profileBadge != null) profileBadge.setText("Profile: " + pLabel);
-        if (chooseProfile != null) chooseProfile.setText("Patch preset: " + pLabel);
-        if (profileDesc != null) profileDesc.setText(matched != null && !profName.equals("custom") ? matched.description : "Custom configuration toggled below.");
-
         showHeadline(bundle);
-        String wanted = bundle == null ? null : variant(bundle.tag, debug);
+        String wanted = bundle == null ? null : bundle.tag;
         boolean current = ours && (wanted == null || wanted.equals(installed));
         spotifyIcon.setImageDrawable(info != null ? info.applicationInfo.loadIcon(getPackageManager()) : getApplicationInfo().loadIcon(getPackageManager()));
         spotifyIcon.setAlpha(info == null ? 0.4f : 1f);
@@ -1170,11 +1094,10 @@ public final class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable bd = look.shape(badgeBg, 10);
         bd.setStroke(look.dp(1), Look.blend(badgeBg, badgeFg, 0.25f));
         stateBadge.setBackground(bd);
-        Look.label(patch, !ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? (installed != null && installed.startsWith(bundle.tag) ? "Switch build" : "Update Spatch") : "Reinstall Spatch");
+        Look.label(patch, !ours ? "Install Spatch" : wanted != null && !wanted.equals(installed) ? "Update Spatch" : "Reinstall Spatch");
         Look.label(choose, apkm.isFile() ? "Another APKM" : "Choose APKM");
-        look.enable(patch, !busy && keys != null && bundle != null && (!debug || bundle.debugUrl != null) && (apkm.isFile() || info != null || source != null));
+        look.enable(patch, !busy && keys != null && bundle != null && (apkm.isFile() || info != null || source != null));
         Look.label(invite, source == null ? "Add an invite" : "Invite for " + source.host());
-        developer.setEnabled(!busy);
         nightly.setEnabled(!busy);
         uninstall.setVisibility(conflict && info != null && !ours ? View.VISIBLE : View.GONE);
         try {
@@ -1187,7 +1110,7 @@ public final class MainActivity extends Activity {
             ? " (" + (mgrUpdate.tag.startsWith("nightly-") ? Releases.version(mgrUpdate) : "version " + Releases.version(mgrUpdate)) + " is available)."
             : " is up to date."));
         managerUpdate.setVisibility(mgrUpdate != null ? View.VISIBLE : View.GONE);
-        for (Button b : Arrays.asList(displayMode, choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset, chooseProfile, runDiagnosticsBtn, copyDiagnosticsBtn, refreshExitsBtn)) {
+        for (Button b : Arrays.asList(displayMode, choose, seeChanges, managerUpdate, check, refreshChanges, importKey, invite, cloneIconPick, cloneIconReset, runDiagnosticsBtn, copyDiagnosticsBtn, refreshExitsBtn)) {
             if (b != null) look.enable(b, !busy);
         }
         look.enable(exportKey, !busy && keys != null);
@@ -1315,21 +1238,17 @@ public final class MainActivity extends Activity {
             return;
         }
         final Releases.Release release = releases.bundle(nightly.isChecked());
-        final boolean debug = developer.isChecked();
-        final String tag = variant(release.tag, debug);
+        final String tag = release.tag;
         conflict = false;
         work("Getting the patches", () -> {
-            File bundle = new File(getCacheDir(), release.tag + (debug ? "-debug" : "") + ".zip");
-            if (!bundle.isFile()) {
-                File[] old = getCacheDir().listFiles((dir, name) -> name.endsWith(".zip"));
-                if (old != null) for (File f : old) f.delete();
-                Releases.download(debug ? release.debugUrl : release.url, bundle, this::step, "Downloading the patches");
-            }
+            File bundle = new File(getCacheDir(), tag + ".zip");
             File dir = new File(getCacheDir(), "build"), signedDir = new File(dir, "signed");
-            delete(dir);
-            signedDir.mkdirs();
             List<File> unsigned;
-            try (Bundle b = new Bundle(bundle)) {
+            try (Bundle b = Releases.openBundle(release.url, bundle, this::step)) {
+                File[] old = getCacheDir().listFiles((parent, name) -> name.endsWith(".zip") && !name.equals(bundle.getName()));
+                if (old != null) for (File f : old) f.delete();
+                delete(dir);
+                signedDir.mkdirs();
                 if (clone != null && !b.clonable()) throw new java.io.IOException("These patches can't make a clone yet; clones need patches from Spatch 0.8.1 or later.");
                 inheriting = clone == null && keepsSplits(b);
                 File input = input(b);
@@ -1611,16 +1530,11 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** What is installed: the bundle's tag, marked when it is the developer build. */
     /** An installed tag as read: the newest nightly's commit instead of its patch fingerprint. */
     private String shownPatches(String installed) {
         Releases.Release n = releases == null ? null : releases.nightly;
         if (n != null && n.commit != null && installed.startsWith(n.tag)) return "nightly " + n.commit + installed.substring(n.tag.length());
         return installed.replaceFirst("^(patches-v|bundle-)", "");
-    }
-
-    static String variant(String tag, boolean debug) {
-        return debug ? tag + " (developer)" : tag;
     }
 
     private File apkm() {
