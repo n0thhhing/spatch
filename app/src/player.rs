@@ -30,6 +30,7 @@ pub struct NowPlaying {
     pub timestamp: u64,
     /// The next tracks, in order.
     pub up_next: Vec<NextTrack>,
+    pub queue_revision: u64,
 }
 
 /// A queued track: what to show, and the uri/uid SkipNext needs to jump straight to it.
@@ -40,6 +41,7 @@ pub struct NextTrack {
     pub image: String,
     pub uri: String,
     pub uid: String,
+    pub queued: bool,
 }
 
 /// Spotify's image URIs (spotify:image:<id>) as their public CDN URL; anything else unchanged.
@@ -54,24 +56,67 @@ fn meta<'a>(track: &'a es::ContextTrack, keys: &[&str]) -> &'a str {
     keys.iter().find_map(|k| track.metadata.get(*k).filter(|v| !v.is_empty())).map(String::as_str).unwrap_or("")
 }
 
+pub fn visible_track(track: &es::ProvidedTrack) -> bool {
+    track.context_track.as_ref().is_some_and(|t| !t.uri.is_empty() && !t.uri.starts_with("spotify:delimiter"))
+}
+
+pub fn next_tracks(tracks: &[es::ProvidedTrack]) -> impl Iterator<Item = NextTrack> + '_ {
+    tracks.iter().filter(|t| visible_track(t)).filter_map(|track| {
+        let t = track.context_track.as_ref()?;
+        Some(NextTrack {
+            title: meta(t, &["title"]).to_string(),
+            artist: meta(t, &["artist_name"]).to_string(),
+            image: image_url(meta(t, &["image_url", "image_large_url", "image_small_url"])),
+            uri: t.uri.clone(),
+            uid: t.uid.clone(),
+            queued: track.provider == "queue",
+        })
+    })
+}
+
+pub fn edit_queue<T>(tracks: &mut Vec<T>, index: usize, action: i32, editable: impl Fn(&T) -> bool) -> bool {
+    if !tracks.get(index).is_some_and(&editable) {
+        return false;
+    }
+    if action == 10 {
+        tracks.remove(index);
+        return true;
+    }
+    let destination = match action {
+        11 => index.checked_sub(1),
+        12 => Some(index + 1),
+        _ => None,
+    }.filter(|&i| tracks.get(i).is_some_and(editable));
+    if let Some(destination) = destination {
+        let track = tracks.remove(index);
+        tracks.insert(destination, track);
+        true
+    } else {
+        false
+    }
+}
+
+#[cfg(not(feature = "preview"))]
+pub fn queue_edit_request(queue: &es::Queue, index: usize, action: i32) -> Option<es::SetQueueRequest> {
+    let mut next_tracks = queue.next_tracks.clone();
+    let (raw_index, _) = next_tracks.iter().enumerate()
+        .filter(|(_, track)| visible_track(track)).nth(index)?;
+    if !edit_queue(&mut next_tracks, raw_index, action, |track| track.provider == "queue" && visible_track(track)) {
+        return None;
+    }
+    Some(es::SetQueueRequest {
+        next_tracks,
+        prev_tracks: queue.prev_tracks.clone(),
+        queue_revision: queue.queue_revision,
+        ..Default::default()
+    })
+}
+
 impl NowPlaying {
     pub fn decode(bytes: &[u8]) -> Result<NowPlaying, prost::DecodeError> {
         let state = es::ContextPlayerState::decode(bytes)?;
         let track = state.track.as_ref().and_then(|t| t.context_track.clone()).unwrap_or_default();
-        let up_next = state
-            .next_tracks
-            .iter()
-            .filter_map(|t| t.context_track.as_ref())
-            .filter(|t| !t.uri.starts_with("spotify:delimiter"))
-            .take(10)
-            .map(|t| NextTrack {
-                title: meta(t, &["title"]).to_string(),
-                artist: meta(t, &["artist_name"]).to_string(),
-                image: image_url(meta(t, &["image_url", "image_large_url", "image_small_url"])),
-                uri: t.uri.clone(),
-                uid: t.uid.clone(),
-            })
-            .collect();
+        let up_next = next_tracks(&state.next_tracks).collect();
         let track_number = meta(&track, &["track_number"]);
         let disc_number = meta(&track, &["disc_number"]);
         let album_position = match (track_number, disc_number) {
@@ -100,6 +145,7 @@ impl NowPlaying {
             duration_ms: state.duration.map(|d| d.value).unwrap_or(0),
             timestamp: state.timestamp,
             up_next,
+            queue_revision: state.queue_revision,
         })
     }
 
@@ -230,6 +276,37 @@ mod tests {
         assert_eq!((method, skip.uri.as_str(), skip.uid.as_str()), ("SkipNext", "spotify:track:2", "u2"));
         assert_eq!(now.position_at(7000), 3000);
         assert_eq!(now.position_at(999_999), 85000); // clamped to the end
+    }
+
+    #[test]
+    fn edits_only_manually_queued_tracks() {
+        let mut queue = vec!["first", "second", "context"];
+        let queued = |track: &&str| *track != "context";
+        assert!(edit_queue(&mut queue, 0, 12, queued));
+        assert_eq!(queue, ["second", "first", "context"]);
+        assert!(!edit_queue(&mut queue, 1, 12, queued));
+        assert!(!edit_queue(&mut queue, 2, 10, queued));
+        assert!(edit_queue(&mut queue, 0, 10, queued));
+        assert_eq!(queue, ["first", "context"]);
+    }
+
+    #[cfg(not(feature = "preview"))]
+    #[test]
+    fn queue_edit_preserves_revision_history_and_delimiters() {
+        let delimiter = track("spotify:delimiter", "", "");
+        let manual = es::ProvidedTrack { provider: "queue".into(), ..track("spotify:track:2", "Next", "") };
+        let context = track("spotify:track:3", "Context", "");
+        let queue = es::Queue {
+            queue_revision: 42,
+            next_tracks: vec![manual, delimiter.clone(), context.clone()],
+            prev_tracks: vec![track("spotify:track:1", "Previous", "")],
+            ..Default::default()
+        };
+        let request = queue_edit_request(&queue, 0, 10).unwrap();
+        assert_eq!(request.queue_revision, 42);
+        assert_eq!(request.prev_tracks, queue.prev_tracks);
+        assert_eq!(request.next_tracks, [delimiter, context]);
+        assert!(queue_edit_request(&queue, 1, 10).is_none());
     }
 
     #[test]

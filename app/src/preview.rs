@@ -29,6 +29,7 @@ fn track(index: usize, playing: bool) -> NowPlaying {
                 image: format!("demo:{next}"),
                 uri: format!("spotify:preview:{next}"),
                 uid: format!("preview-{next}"),
+                queued: false,
             }
         })
         .collect();
@@ -150,21 +151,38 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
         }
         Command::Pause => now.playing = false,
         Command::Resume => now.playing = true,
-        Command::Next => *now = track((index + 1) % TRACKS.len(), now.playing),
+        Command::Next => {
+            if let Some(next) = now.up_next.first().cloned() {
+                return apply(now, Command::SkipTo { uri: next.uri, uid: next.uid });
+            }
+            *now = track((index + 1) % TRACKS.len(), now.playing);
+        }
         Command::AddToQueue(uri) => {
             let at = uri.rsplit(':').next().and_then(|value| value.parse::<usize>().ok()).unwrap_or(0) % TRACKS.len();
-            now.up_next.insert(0, crate::player::NextTrack {
+            now.queue_revision += 1;
+            let index = now.up_next.iter().position(|t| !t.queued).unwrap_or(now.up_next.len());
+            now.up_next.insert(index, crate::player::NextTrack {
                 title: TRACKS[at].0.into(),
                 artist: TRACKS[at].1.into(),
                 image: format!("demo:{at}"),
                 uri: format!("spotify:preview:{at}"),
-                uid: format!("queued-{at}"),
+                uid: format!("queued-{}", now.queue_revision),
+                queued: true,
             });
             return;
         }
-        Command::SkipTo { uri, .. } => {
+        Command::SkipTo { uri, uid } => {
             let to = uri.rsplit(':').next().and_then(|value| value.parse::<usize>().ok()).unwrap_or(index);
-            *now = track(to % TRACKS.len(), now.playing);
+            let tail = now.up_next.iter().position(|t| t.uid == uid && t.uri == uri)
+                .map(|at| now.up_next[at + 1..].to_vec());
+            let queued = now.up_next.iter().any(|t| t.uid == uid && t.queued);
+            let revision = now.queue_revision + 1;
+            let next = track(to % TRACKS.len(), now.playing);
+            *now = if queued {
+                NowPlaying { up_next: tail.unwrap_or_default(), queue_revision: revision, ..next }
+            } else {
+                NowPlaying { queue_revision: revision, ..next }
+            };
         }
         Command::Previous => *now = track((index + TRACKS.len() - 1) % TRACKS.len(), now.playing),
         Command::SeekTo(position) => now.position_ms = position.clamp(0, now.duration_ms),

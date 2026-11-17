@@ -1,5 +1,6 @@
 //! JNI boundary for Spatch's Android views. Network calls run on the Java worker.
-use crate::{core, library, player};
+use crate::{core, es_player as es, library, player};
+use prost::Message;
 use jni::JNIEnv;
 use jni::objects::{JClass, JObjectArray, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong, jobjectArray, jstring};
@@ -9,7 +10,44 @@ use std::sync::{
 };
 
 static CONNECTED: AtomicBool = AtomicBool::new(false);
+static QUEUE_CONNECTED: AtomicBool = AtomicBool::new(false);
+static QUEUE_STATE: Mutex<Option<es::Queue>> = Mutex::new(None);
 static STATE: Mutex<(i64, Option<player::NowPlaying>)> = Mutex::new((0, None));
+
+fn current_queue(now: &player::NowPlaying, queue: &es::Queue) -> bool {
+    queue.queue_revision == now.queue_revision &&
+        queue.track.as_ref().and_then(|t| t.context_track.as_ref())
+            .map_or(now.uri.is_empty(), |t| t.uri == now.uri)
+}
+
+fn queue_key(track: &player::NextTrack, revision: u64) -> String {
+    format!("{revision}:{}:{}", track.uid, track.uri)
+}
+
+fn connect_queue() {
+    if QUEUE_CONNECTED.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    if core::subscribe(player::SERVICE, "GetQueue", &es::GetQueueRequest::default().encode_to_vec(), |reply| {
+        let mut state = STATE.lock().unwrap();
+        let mut queue = QUEUE_STATE.lock().unwrap();
+        match reply {
+            Ok(bytes) => {
+                if let Ok(next) = es::Queue::decode(bytes) {
+                    *queue = Some(next);
+                    state.0 += 1;
+                }
+            }
+            Err(_) => {
+                *queue = None;
+                state.0 += 1;
+                QUEUE_CONNECTED.store(false, Ordering::Release);
+            }
+        }
+    }).is_err() {
+        QUEUE_CONNECTED.store(false, Ordering::Release);
+    }
+}
 
 #[cfg(feature = "preview")]
 #[unsafe(no_mangle)]
@@ -37,6 +75,8 @@ fn strings(
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) -> jboolean {
     if CONNECTED.swap(true, Ordering::AcqRel) {
+        #[cfg(not(feature = "preview"))]
+        connect_queue();
         return JNI_TRUE;
     }
     let result = core::subscribe(
@@ -58,6 +98,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) 
         CONNECTED.store(false, Ordering::Release);
     }
     if CONNECTED.load(Ordering::Acquire) {
+        connect_queue();
         JNI_TRUE
     } else {
         JNI_FALSE
@@ -70,12 +111,17 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(
     _: JClass,
     revision: jlong,
 ) -> jobjectArray {
-    let (serial, state) = {
+    let (serial, state, full_queue) = {
         let guard = STATE.lock().unwrap();
         if guard.0 == revision {
             return std::ptr::null_mut();
         }
-        (guard.0, guard.1.clone())
+        let queue = QUEUE_STATE.lock().unwrap();
+        let full_queue = guard.1.as_ref().and_then(|now| {
+            queue.as_ref().filter(|q| current_queue(now, q))
+                .map(|q| player::next_tracks(&q.next_tracks).collect::<Vec<_>>())
+        });
+        (guard.0, guard.1.clone(), full_queue)
     };
     let Some(now) = state else {
         return std::ptr::null_mut();
@@ -84,6 +130,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |time| time.as_millis() as u64);
     let position = now.position_at(now_ms);
+    let editable = full_queue.is_some() || cfg!(feature = "preview");
+    let tracks = full_queue.unwrap_or(now.up_next);
     let fields = [
         serial.to_string(),
         now.uri,
@@ -106,9 +154,10 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(
     strings(
         &mut env,
         fields.into_iter().chain(
-            now.up_next
-                .into_iter()
-                .flat_map(|t| [t.title, t.artist, t.image, t.uri]),
+            tracks.into_iter().flat_map(|t| {
+                let key = queue_key(&t, now.queue_revision);
+                [t.title, t.artist, t.image, t.uri, key, (editable && t.queued).to_string()]
+            }),
         ),
     )
     .unwrap_or(std::ptr::null_mut())
@@ -229,17 +278,42 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(
             }
             Command::AddToQueue(uri)
         }
-        // Jump to Up Next entry `value`, if it is still the track the UI showed there.
-        8 => {
-            let Ok(text) = env.get_string(&uri) else {
-                return JNI_FALSE;
+        8 | 10..=12 => {
+            let Ok(text) = env.get_string(&uri) else { return JNI_FALSE };
+            let key = String::from(text);
+            let Ok(index) = usize::try_from(value) else { return JNI_FALSE };
+            let mut state = STATE.lock().unwrap();
+            let Some(now) = state.1.as_mut() else { return JNI_FALSE };
+            let queue = QUEUE_STATE.lock().unwrap();
+            let full_queue = queue.as_ref().filter(|q| current_queue(now, q));
+            let next = match full_queue {
+                Some(q) => player::next_tracks(&q.next_tracks).nth(index),
+                None => now.up_next.get(index).cloned(),
             };
-            let uri = String::from(text);
-            let state = STATE.lock().unwrap();
-            let Some(next) = state.1.as_ref().and_then(|now| now.up_next.get(value.max(0) as usize)).filter(|t| t.uri == uri) else {
-                return JNI_FALSE;
-            };
-            Command::SkipTo { uri, uid: next.uid.clone() }
+            let Some(next) = next.filter(|t| queue_key(t, now.queue_revision) == key) else { return JNI_FALSE };
+            if action == 8 {
+                Command::SkipTo { uri: next.uri, uid: next.uid }
+            } else {
+                #[cfg(feature = "preview")]
+                {
+                    if !player::edit_queue(&mut now.up_next, index, action, |t| t.queued) {
+                        return JNI_FALSE;
+                    }
+                    now.queue_revision += 1;
+                    state.0 += 1;
+                    return JNI_TRUE;
+                }
+                #[cfg(not(feature = "preview"))]
+                {
+                    let Some(request) = full_queue.and_then(|q| player::queue_edit_request(q, index, action)) else {
+                        return JNI_FALSE;
+                    };
+                    let request = request.encode_to_vec();
+                    drop(queue);
+                    drop(state);
+                    return command_succeeded("SetQueue", &request);
+                }
+            }
         }
         _ => return JNI_FALSE,
     };
@@ -253,7 +327,13 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(
         }
     }
     let (method, request) = player::command(command);
-    if core::call(player::SERVICE, method, &request).is_ok() {
+    command_succeeded(method, &request)
+}
+
+fn command_succeeded(method: &str, request: &[u8]) -> jboolean {
+    if core::call(player::SERVICE, method, request).ok()
+        .and_then(|bytes| es::ResponseWithReasons::decode(bytes.as_slice()).ok())
+        .is_some_and(|response| response.error == 0) {
         JNI_TRUE
     } else {
         JNI_FALSE
@@ -450,6 +530,7 @@ const IMMERSIVE: i32 = 3;
 const QUEUE: i32 = 4;
 const PLAYLIST: i32 = 5;
 const SETTINGS: i32 = 6;
+const EQUALIZER: i32 = 7;
 
 fn navigate(route: i32, action: i32, category: i32) -> i32 {
     let page = route & 7;
@@ -480,11 +561,15 @@ fn navigate(route: i32, action: i32, category: i32) -> i32 {
             next = (next & !(7 << 4)) | (page << 4);
             QUEUE
         }
+        8 if matches!(page, PLAYER | IMMERSIVE | SETTINGS) => {
+            next = (next & !(7 << 4)) | (page << 4);
+            EQUALIZER
+        }
         5 => match page {
             LIBRARY => HOME,
             PLAYER | PLAYLIST | SETTINGS => browse,
             IMMERSIVE => PLAYER,
-            QUEUE => queue_from,
+            QUEUE | EQUALIZER => queue_from,
             _ => HOME,
         },
         _ => page,
@@ -506,6 +591,16 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeNavigate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn equalizer_back_preserves_its_origin() {
+        for origin in [PLAYER, IMMERSIVE, SETTINGS] {
+            let route = origin | (1 << 3) | (3 << 7);
+            let equalizer = navigate(route, 8, 0);
+            assert_eq!(equalizer & 7, EQUALIZER);
+            assert_eq!(navigate(equalizer, 5, 0) & !(7 << 4), route);
+        }
+    }
 
     #[test]
     fn player_art_toggles_immersive_and_playlist_back_preserves_library_filter() {

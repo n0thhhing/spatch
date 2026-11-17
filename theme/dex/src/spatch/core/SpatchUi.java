@@ -49,8 +49,9 @@ public final class SpatchUi extends FrameLayout {
     private int surface, container, high, onSurface, onVariant, primary, onPrimary;
     private int secondaryContainer, onSecondaryContainer, tertiaryContainer, onTertiaryContainer;
     private boolean dark;
-    private static final int HOME = 0, LIBRARY = 1, PLAYER = 2, IMMERSIVE = 3, QUEUE = 4, PLAYLIST = 5, SETTINGS = 6;
+    private static final int HOME = 0, LIBRARY = 1, PLAYER = 2, IMMERSIVE = 3, QUEUE = 4, PLAYLIST = 5, SETTINGS = 6, EQUALIZER = 7;
     private static final int PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
+    private static final int QUEUE_REMOVE = 10, QUEUE_MOVE_UP = 11, QUEUE_MOVE_DOWN = 12;
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
     private static final ExecutorService LIBRARY_DATA = Executors.newSingleThreadExecutor();
@@ -89,6 +90,8 @@ public final class SpatchUi extends FrameLayout {
     private int playbackAttempt;
     private int repeat;
     private long position, duration, stamp;
+    private ListView queueList;
+    private TextView equalizerStatus;
     private List<Entry> upcoming = new ArrayList<>();
     private final List<Art> visibleArt = new ArrayList<>();
     private LinearLayout content;
@@ -113,7 +116,7 @@ public final class SpatchUi extends FrameLayout {
         this.activity = activity;
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
-        Audio.context = activity.getApplicationContext();
+        Audio.initialize(activity.getApplicationContext(), prefs);
         applyPalette();
         setFocusableInTouchMode(true);
         setForeground(null);
@@ -269,6 +272,7 @@ public final class SpatchUi extends FrameLayout {
             if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
             String[] state = nativePlayer(revision);
             if (state != null) applyPlayer(state);
+            if (equalizerStatus != null) equalizerStatus.setText(Audio.eqStatus);
             long now = SystemClock.uptimeMillis();
             if (!polling && now - lastConnect > 2000) {
                 polling = true;
@@ -337,6 +341,8 @@ public final class SpatchUi extends FrameLayout {
     private void applyPlayer(String[] state) {
         revision = Long.parseLong(state[0]);
         boolean trackChanged = !uri.equals(state[1]);
+        boolean queueHeaderChanged = trackChanged || !title.equals(state[2]) || !artist.equals(state[3])
+            || !image.equals(state[5]) || !source.equals(state[11]);
         if (trackChanged) checkSaved(state[1]);
         uri = state[1]; title = state[2]; artist = state[3]; album = state[4]; image = state[5];
         playing = Boolean.parseBoolean(state[6]);
@@ -355,20 +361,31 @@ public final class SpatchUi extends FrameLayout {
         boolean contextChanged = !context.equals(contextUri);
         contextUri = context;
         if (contextChanged && (screen == HOME || screen == LIBRARY) && sheetClose == null && revision > 1) post(this::redrawPage);
-        for (int i = 17; i + 3 < state.length; i += 4) {
-            next.add(new Entry(state[i], state[i + 1], state[i + 3], state[i + 2], -1));
+        for (int i = 17; i + 5 < state.length; i += 6) {
+            next.add(new Entry(state[i].isEmpty() ? "Unknown track" : state[i], state[i + 1],
+                state[i + 3], state[i + 2], -1, state[i + 4], Boolean.parseBoolean(state[i + 5])));
         }
         boolean queueChanged = !upcoming.equals(next);
         if (queueChanged) upcoming = next;
-        if (screen == QUEUE && queueChanged) redrawPage();
+        if (screen == QUEUE && (queueChanged || queueHeaderChanged)) {
+            int first = queueList == null ? 0 : queueList.getFirstVisiblePosition();
+            View row = queueList == null ? null : queueList.getChildAt(0);
+            int offset = row == null ? 0 : row.getTop() - queueList.getPaddingTop();
+            redrawPage();
+            if (queueList != null) queueList.setSelectionFromTop(Math.min(first, queueList.getCount() - 1), offset);
+        }
         else refreshPlayer();
     }
 
     private void command(int action, long value, String target) {
         if (pref("haptics", true) && (action == PREVIOUS || action == NEXT)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
         COMMANDS.execute(() -> {
-            if (!nativeCommand(action, value, target)) post(() -> {
-                if (isAttachedToWindow()) Toast.makeText(activity, "Playback command unavailable", Toast.LENGTH_SHORT).show();
+            boolean success = nativeCommand(action, value, target);
+            if (!success || action == QUEUE_ADD) post(() -> {
+                if (!isAttachedToWindow()) return;
+                String message = success ? "Added to queue"
+                    : action >= QUEUE_ADD ? "Couldn’t update the queue" : "Playback command unavailable";
+                Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
             });
         });
     }
@@ -628,7 +645,8 @@ public final class SpatchUi extends FrameLayout {
         removeAllViews();
         visibleArt.clear();
         scroll = null;
-        libraryList = playlistList = null;
+        libraryList = playlistList = queueList = null;
+        equalizerStatus = null;
         libraryGrid = null;
         miniShape = null;
         miniColor = 0;
@@ -668,6 +686,7 @@ public final class SpatchUi extends FrameLayout {
         else if (screen == QUEUE) buildQueue();
         else if (screen == PLAYLIST) buildPlaylist();
         else if (screen == SETTINGS) buildSettings();
+        else if (screen == EQUALIZER) buildEqualizer();
         else buildPlayer();
         refreshPlayer();
         int restore = screen == HOME ? homeScroll : 0;
@@ -1058,7 +1077,11 @@ public final class SpatchUi extends FrameLayout {
             from.addView(playbackSource, match(-2));
             top.addView(from, weighted());
             top.addView(glyph("immersive", "Open immersive mode", false, () -> navigate(3, 0)), control(48));
-            top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
+            TextView eq = chip("EQ", high, primary, () -> navigate(8, 0));
+            eq.setContentDescription("Equalizer");
+            eq.setPadding(0, 0, 0, 0);
+            top.addView(eq, control(48));
+            top.addView(glyph("queue", "Queue", false, () -> navigate(4, 0)), control(48));
             content.addView(top, match(-2));
         }
 
@@ -1159,7 +1182,7 @@ public final class SpatchUi extends FrameLayout {
         top.addView(from, weighted());
         top.addView(likeButton(), control(48));
         top.addView(timerButton(), control(48));
-        top.addView(glyph("queue", "Up next", false, () -> navigate(4, 0)), control(48));
+        top.addView(glyph("queue", "Queue", false, () -> navigate(4, 0)), control(48));
         content.addView(top, match(-2));
         immersiveTop = top;
 
@@ -1542,7 +1565,7 @@ public final class SpatchUi extends FrameLayout {
             row.bind(queued);
             row.setBackground(background(container, 18));
             final int index = i;
-            if (!queued.uri.isEmpty()) makeClickable(row, "Play " + queued.title, () -> command(SKIP_TO, index, queued.uri));
+            if (!queued.uri.isEmpty()) makeClickable(row, "Play " + queued.title, () -> command(SKIP_TO, index, queued.queueKey));
             infoNext.addView(row, match(-2));
             gap(infoNext, 4);
         }
@@ -1560,7 +1583,14 @@ public final class SpatchUi extends FrameLayout {
         VolumeSlider slider = new VolumeSlider(audio);
         LinearLayout.LayoutParams p = match(dp(36));
         p.setMargins(0, dp(6), 0, 0);
-        details.addView(slider, p);
+        LinearLayout line = row();
+        line.addView(slider, new LinearLayout.LayoutParams(0, dp(36), 1));
+        TextView eq = chip("EQ", high, primary, () -> navigate(8, 0));
+        eq.setContentDescription("Equalizer");
+        eq.setPadding(0, 0, 0, 0);
+        line.addView(eq, control(48));
+        p.height = -2;
+        details.addView(line, p);
     }
 
     /** Expressive slider: a thick pill track that fills with the accent, the speaker riding inside it. */
@@ -1737,11 +1767,6 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void selectEntry(Entry entry) {
-        if (screen == QUEUE) {
-            int index = upcoming.indexOf(entry);
-            if (index >= 0) command(SKIP_TO, index, entry.uri);
-            return;
-        }
         if (screen != PLAYLIST) remember(entry);
         if (entry.category == 0 || entry.uri.startsWith("spotify:playlist:")
                 || (entry.uri.startsWith("spotify:user:") && entry.uri.contains(":playlist:"))) {
@@ -1850,6 +1875,82 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
+    private void buildEqualizer() {
+        LinearLayout header = row();
+        header.setPadding(dp(10), dp(8), dp(14), 0);
+        header.addView(glyph("back", "Back", false, this::back), control(48));
+        header.addView(text("Equalizer", 30, onSurface, true), weighted());
+        content.addView(header, match(-2));
+        LinearLayout page = feed();
+
+        LinearLayout controls = settingsGroup(page, "Playback");
+        toggle(controls, "Enable equalizer", "Automatically lowers the input level when bands are boosted", "equalizer", false);
+        equalizerStatus = text(Audio.eqStatus, 13, onVariant, false);
+        equalizerStatus.setPadding(dp(16), 0, dp(16), dp(12));
+        controls.addView(equalizerStatus, match(-2));
+
+        String[] presets = {"Flat", "Bass boost", "Vocals", "Treble boost", "Loudness"};
+        int[][] curves = {
+            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            {6, 6, 4, 2, 0, 0, 0, 0, 0, 0},
+            {-4, -3, -2, 0, 2, 4, 4, 2, 0, -1},
+            {0, 0, 0, 0, 0, 0, 2, 4, 5, 5},
+            {5, 4, 2, 0, -1, -1, 0, 2, 4, 5}
+        };
+        android.widget.SeekBar[] sliders = new android.widget.SeekBar[Audio.EQ_HZ.length];
+        controls.addView(chip("Presets", secondaryContainer, onSecondaryContainer, () -> {
+            int selected = -1;
+            int[] gains = new int[sliders.length];
+            for (int i = 0; i < gains.length; i++) gains[i] = Audio.gain(prefs, i);
+            for (int i = 0; i < curves.length; i++) if (java.util.Arrays.equals(gains, curves[i])) selected = i;
+            sheet("Presets", "Choose a starting curve", presets, selected, choice -> {
+                android.content.SharedPreferences.Editor editor = prefs.edit();
+                for (int i = 0; i < sliders.length; i++) editor.putInt("eq_band_" + i, curves[choice][i]);
+                editor.apply();
+                for (int i = 0; i < sliders.length; i++) sliders[i].setProgress(curves[choice][i] + Audio.EQ_RANGE);
+                Audio.refreshEqualizer();
+            });
+        }), match(-2));
+
+        LinearLayout bands = settingsGroup(page, "Frequency bands");
+        for (int i = 0; i < sliders.length; i++) {
+            final int band = i;
+            int hz = Audio.EQ_HZ[i];
+            String frequency = hz < 1000 ? hz + " Hz" : (hz / 1000) + " kHz";
+            LinearLayout line = row();
+            line.setPadding(dp(16), 0, dp(16), 0);
+            line.addView(text(frequency, 14, onSurface, true), new LinearLayout.LayoutParams(dp(62), -2));
+            TextView level = text(db(Audio.gain(prefs, i)), 13, onVariant, false);
+            level.setGravity(Gravity.END);
+            android.widget.SeekBar slider = new android.widget.SeekBar(activity);
+            sliders[i] = slider;
+            slider.setMax(Audio.EQ_RANGE * 2);
+            slider.setProgress(Audio.gain(prefs, i) + Audio.EQ_RANGE);
+            slider.setContentDescription(frequency);
+            if (android.os.Build.VERSION.SDK_INT >= 30) slider.setStateDescription(level.getText());
+            slider.setProgressTintList(ColorStateList.valueOf(primary));
+            slider.setThumbTintList(ColorStateList.valueOf(primary));
+            slider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean user) {
+                    int gain = progress - Audio.EQ_RANGE;
+                    level.setText(db(gain));
+                    if (android.os.Build.VERSION.SDK_INT >= 30) bar.setStateDescription(level.getText());
+                    if (user) {
+                        prefs.edit().putInt("eq_band_" + band, gain).apply();
+                        Audio.refreshEqualizer();
+                    }
+                }
+                @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+                @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+            });
+            line.addView(slider, new LinearLayout.LayoutParams(0, dp(48), 1));
+            line.addView(level, new LinearLayout.LayoutParams(dp(52), -2));
+            bands.addView(line, match(-2));
+        }
+    }
+
+    private static String db(int gain) { return (gain > 0 ? "+" : "") + gain + " dB"; }
+
     private void buildSettings() {
         LinearLayout top = row();
         top.setPadding(dp(10), dp(6), dp(10), dp(4));
@@ -1926,6 +2027,7 @@ public final class SpatchUi extends FrameLayout {
         }
 
         LinearLayout playback = settingsGroup(page, "Player");
+        playback.addView(chip("Equalizer", secondaryContainer, onSecondaryContainer, () -> navigate(8, 0)), match(-2));
         toggle(playback, "Keep screen on", "While the immersive player is open", "keep_on", true);
         toggle(playback, "Track details", "Show the details card under the player", "details", true);
         toggle(playback, "Haptics", "Little taps when you skip or change shapes", "haptics", true);
@@ -1941,6 +2043,7 @@ public final class SpatchUi extends FrameLayout {
                 new String[]{"Reset", "Keep my settings"}, -1, choice -> {
                     if (choice != 0) return;
                     prefs.edit().clear().apply();
+                    Audio.refreshEqualizer();
                     render();
                     Toast.makeText(activity, "Settings reset", Toast.LENGTH_SHORT).show();
                 }));
@@ -2071,6 +2174,7 @@ public final class SpatchUi extends FrameLayout {
         line.setOnClickListener(v -> {
             toggle.set(!toggle.on);
             prefs.edit().putBoolean(key, toggle.on).apply();
+            if (key.equals("equalizer")) Audio.refreshEqualizer();
             if (key.equals("audio") && toggle.on && !Audio.permitted(activity)) {
                 activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             }
@@ -2401,7 +2505,6 @@ public final class SpatchUi extends FrameLayout {
             sheet(entry.title, entry.subtitle.isEmpty() ? "Song" : entry.subtitle, new String[]{"Play", "Add to queue"}, -1, choice -> {
                 if (choice == 0) { selectEntry(entry); return; }
                 command(QUEUE_ADD, 0, entry.uri);
-                Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show();
             });
             return;
         }
@@ -2694,14 +2797,33 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout header = row();
         header.setPadding(dp(10), dp(8), dp(14), 0);
         header.addView(glyph("back", "Back", false, this::back), control(48));
-        header.addView(text("Up next", 30, onSurface, true), weighted());
+        header.addView(text("Queue", 30, onSurface, true), weighted());
         content.addView(header, match(-2));
         View now = nowPlayingCard();
         if (upcoming.isEmpty()) {
             LinearLayout page = feed();
             page.addView(now, match(-2));
             message(page, "Nothing queued after this");
-        } else entryList(upcoming, now);
+        } else queueList = entryList(upcoming, now);
+    }
+
+    private void queueActions(List<Entry> entries, int index) {
+        Entry entry = entries.get(index);
+        if (!entry.editable) return;
+        List<String> options = new ArrayList<>();
+        List<Integer> actions = new ArrayList<>();
+        if (index > 0 && entries.get(index - 1).editable) {
+            options.add("Move up");
+            actions.add(QUEUE_MOVE_UP);
+        }
+        if (index + 1 < entries.size() && entries.get(index + 1).editable) {
+            options.add("Move down");
+            actions.add(QUEUE_MOVE_DOWN);
+        }
+        options.add("Remove from queue");
+        actions.add(QUEUE_REMOVE);
+        sheet(entry.title, entry.subtitle, options.toArray(new String[0]), -1,
+            choice -> command(actions.get(choice), index, entry.queueKey));
     }
 
     private ListView entryList(List<Entry> entries) { return entryList(entries, null); }
@@ -2713,7 +2835,7 @@ public final class SpatchUi extends FrameLayout {
         list.setDividerHeight(dp(3));
         list.setPadding(dp(16), 0, dp(16), 0);
         list.setClipToPadding(false);
-        if (motionEnabled()) {
+        if (screen != QUEUE && motionEnabled()) {
             // Rows arrive in a quick cascade when a page opens.
             android.view.animation.AnimationSet arrive = new android.view.animation.AnimationSet(true);
             arrive.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
@@ -2731,7 +2853,11 @@ public final class SpatchUi extends FrameLayout {
             @Override public boolean isEnabled(int position) { return !getItem(position).uri.isEmpty(); }
             @Override public View getView(int position, View previous, ViewGroup parent) {
                 EntryRow row = previous instanceof EntryRow ? (EntryRow) previous : new EntryRow();
-                row.bind(getItem(position));
+                Entry entry = getItem(position);
+                row.bind(entry);
+                row.queueMenu.setVisibility(entry.editable ? VISIBLE : GONE);
+                row.queueMenu.setOnClickListener(entry.editable ? v -> queueActions(entries, position) : null);
+                row.queueMenu.setContentDescription("Queue options for " + entry.title);
                 row.setBackground(segment(container, position == 0 ? 20 : 5, position == 0 ? 20 : 5,
                     position == getCount() - 1 ? 20 : 5, position == getCount() - 1 ? 20 : 5));
                 return row;
@@ -2739,14 +2865,22 @@ public final class SpatchUi extends FrameLayout {
         });
         list.setOnItemLongClickListener((parent, row, index, id) -> {
             Object item = parent.getItemAtPosition(index);
-            if (!(item instanceof Entry) || ((Entry) item).uri.isEmpty() || screen == QUEUE) return false;
+            if (!(item instanceof Entry) || ((Entry) item).uri.isEmpty()) return false;
+            if (screen == QUEUE) {
+                if (!((Entry) item).editable) return false;
+                queueActions(entries, index - list.getHeaderViewsCount());
+                return true;
+            }
             row.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
             entryActions((Entry) item);
             return true;
         });
         list.setOnItemClickListener((parent, row, index, id) -> {
             Object item = parent.getItemAtPosition(index);
-            if (item instanceof Entry && !((Entry) item).uri.isEmpty()) selectEntry((Entry) item);
+            if (!(item instanceof Entry) || ((Entry) item).uri.isEmpty()) return;
+            Entry entry = (Entry) item;
+            if (screen == QUEUE) command(SKIP_TO, index - list.getHeaderViewsCount(), entry.queueKey);
+            else selectEntry(entry);
         });
         content.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         return list;
@@ -2817,7 +2951,7 @@ public final class SpatchUi extends FrameLayout {
 
     private final class EntryRow extends LinearLayout {
         private final Art imageView;
-        private final TextView name, subtitle;
+        private final TextView name, subtitle, queueMenu;
         EntryRow() {
             super(activity);
             setGravity(Gravity.CENTER_VERTICAL);
@@ -2831,6 +2965,11 @@ public final class SpatchUi extends FrameLayout {
             single(name); single(subtitle);
             info.addView(name); info.addView(subtitle);
             addView(info, weighted());
+            queueMenu = text("⋮", 24, primary, true);
+            queueMenu.setGravity(Gravity.CENTER);
+            queueMenu.setFocusable(false);
+            queueMenu.setVisibility(GONE);
+            addView(queueMenu, control(48));
             bars = new Bars(primary);
             addView(bars, new LinearLayout.LayoutParams(dp(18), dp(16)));
         }
@@ -2844,7 +2983,8 @@ public final class SpatchUi extends FrameLayout {
             imageView.bind(entry.image);
             imageView.invalidate();
             name.setText(entry.title);
-            subtitle.setText(entry.subtitle);
+            subtitle.setText(entry.editable
+                ? (entry.subtitle.isEmpty() ? "In queue" : entry.subtitle + " · In queue") : entry.subtitle);
             boolean current = screen == PLAYLIST ? !title.isEmpty() && entry.title.equals(title) && entry.subtitle.equals(artist)
                 : screen == LIBRARY && playingFrom(entry.uri);
             name.setTextColor(current ? primary : onSurface);
@@ -3161,17 +3301,23 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private static final class Entry {
-        final String title, subtitle, uri, image;
+        final String title, subtitle, uri, image, queueKey;
         final int category;
+        final boolean editable;
         Entry(String title, String subtitle, String uri, String image, int category) {
+            this(title, subtitle, uri, image, category, "", false);
+        }
+        Entry(String title, String subtitle, String uri, String image, int category, String queueKey, boolean editable) {
             this.title = title; this.subtitle = subtitle; this.uri = uri; this.image = image; this.category = category;
+            this.queueKey = queueKey; this.editable = editable;
         }
         @Override public boolean equals(Object other) {
             if (!(other instanceof Entry)) return false;
             Entry e = (Entry) other;
-            return title.equals(e.title) && subtitle.equals(e.subtitle) && uri.equals(e.uri) && image.equals(e.image) && category == e.category;
+            return title.equals(e.title) && subtitle.equals(e.subtitle) && uri.equals(e.uri) && image.equals(e.image) && category == e.category
+                && queueKey.equals(e.queueKey) && editable == e.editable;
         }
-        @Override public int hashCode() { return java.util.Objects.hash(title, subtitle, uri, image, category); }
+        @Override public int hashCode() { return java.util.Objects.hash(title, subtitle, uri, image, category, queueKey, editable); }
     }
 
     private final class Art extends View {
