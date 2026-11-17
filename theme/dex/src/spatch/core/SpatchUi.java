@@ -662,6 +662,7 @@ public final class SpatchUi extends FrameLayout {
         mini.addView(mPlay, lp(dp(50), dp(50)));
         mini.addView(iconButton(icon("next", () -> ink), "Next", () -> command(NEXT, 0, "")), lp(dp(44), dp(44)));
         tappable(mini, "Open player", () -> openPlayer(true));
+        miniGestures(mini);
         LinearLayout.LayoutParams mp = fill(-2);
         mp.bottomMargin = dp(8);
         dock.addView(mini, mp);
@@ -1279,6 +1280,46 @@ public final class SpatchUi extends FrameLayout {
             names[i] = s.title + (s.subtitle.isEmpty() ? "" : " · " + s.subtitle);
         }
         sheet("Similar songs", "Recommended based on this playlist", names, i -> command(PLAY, 0, recommendedSongs.get(i).uri));
+    }
+
+    /** The mini player follows a sideways drag; a flick left or right skips, a flick up opens the player. */
+    private void miniGestures(View mini) {
+        final float[] down = new float[2];
+        final boolean[] flung = new boolean[1];
+        android.view.GestureDetector detector = new android.view.GestureDetector(activity, new android.view.GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
+                if (a == null) return false;
+                float dx = b.getX() - a.getX(), dy = b.getY() - a.getY();
+                if (dy < -dp(28) && Math.abs(dy) > Math.abs(dx)) { flung[0] = true; openPlayer(true); }
+                else if (Math.abs(dx) > dp(48) && Math.abs(dx) > Math.abs(dy)) {
+                    flung[0] = true;
+                    command(dx < 0 ? NEXT : PREVIOUS, 0, "");
+                    tick(mini);
+                }
+                return flung[0];
+            }
+        });
+        mini.setOnTouchListener((v, e) -> {
+            detector.onTouchEvent(e);
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    down[0] = e.getRawX(); down[1] = e.getRawY(); flung[0] = false;
+                    if (motion()) v.animate().scaleX(.97f).scaleY(.97f).setDuration(90).start();
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = e.getRawX() - down[0];
+                    if (motion() && Math.abs(dx) > Math.abs(e.getRawY() - down[1])) v.setTranslationX(dx * .35f);
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (motion()) v.animate().translationX(0).scaleX(1f).scaleY(1f).setDuration(320)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
+                    else v.setTranslationX(0);
+                    if (flung[0]) { v.setPressed(false); return true; } // a flick isn't also a tap
+                    break;
+            }
+            return false;
+        });
     }
 
     /** Long-press on a playlist song: play from it, queue it, go to its album or artist, like or unlike it. */
