@@ -116,6 +116,10 @@ pub fn geometry(kind: &str) -> Vec<f32> {
         "heart-outline" => heart(false),
         "search" => [ring(10.5, 10.5, 6.5, 24), stroke(&[(15.5, 15.5), (20.5, 20.5)])].concat(),
         "timer" => [ring(12.0, 13.5, 8.0, 32), stroke(&[(12., 9.), (12., 13.5), (15., 15.5)]), stroke(&[(10., 2.5), (14., 2.5)])].concat(),
+        // A record: the disc and its centre.
+        "album" => [ring(12.0, 12.0, 9.0, 36), ring(12.0, 12.0, 2.5, 16)].concat(),
+        // A head and shoulders.
+        "artist" => [ring(12.0, 8.0, 4.0, 24), stroke(&[(4., 21.), (5., 17.5), (8., 15.), (12., 14.2), (16., 15.), (19., 17.5), (20., 21.)])].concat(),
         _ => Vec::new(),
     }
 }
@@ -135,9 +139,9 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeGeometry(mut env: JNIEnv, _: J
 mod tests {
     use super::*;
 
-    const ICONS: [&str; 22] = [
+    const ICONS: [&str; 24] = [
         "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "shuffle", "repeat", "repeat-one", "volume", "queue",
-        "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices",
+        "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices", "album", "artist",
     ];
 
     #[test]

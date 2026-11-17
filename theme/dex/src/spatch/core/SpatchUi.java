@@ -174,7 +174,7 @@ public final class SpatchUi extends FrameLayout {
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices"}) {
+                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null);
@@ -1372,13 +1372,13 @@ public final class SpatchUi extends FrameLayout {
 
     /** Long-press on a playlist song: play from it, queue it, go to its album or artist, like or unlike it. */
     private void songActions(Song song) {
-        List<String> names = new ArrayList<>();
+        List<Option> names = new ArrayList<>();
         List<Runnable> runs = new ArrayList<>();
-        names.add("Play from here"); runs.add(() -> open(song));
-        names.add("Add to queue"); runs.add(() -> { command(QUEUE_ADD, 0, song.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
-        if (!song.albumUri.isEmpty()) { names.add("Go to album"); runs.add(() -> openPlaylist(new Entry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
-        if (!song.artistUri.isEmpty()) { names.add("Go to artist"); runs.add(() -> openPlaylist(new Entry(song.subtitle, "Artist", song.artistUri, "", -1))); }
-        names.add(song.liked ? "Remove from Liked Songs" : "Add to Liked Songs");
+        names.add(new Option("Play from here", "", "", "play", false)); runs.add(() -> open(song));
+        names.add(new Option("Add to queue", "", "", "queue", false)); runs.add(() -> { command(QUEUE_ADD, 0, song.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
+        if (!song.albumUri.isEmpty()) { names.add(new Option("Go to album", song.album, "", "album", false)); runs.add(() -> openPlaylist(new Entry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
+        if (!song.artistUri.isEmpty()) { names.add(new Option("Go to artist", song.subtitle, "", "artist", false)); runs.add(() -> openPlaylist(new Entry(song.subtitle, "Artist", song.artistUri, "", -1))); }
+        names.add(new Option(song.liked ? "Remove from Liked Songs" : "Add to Liked Songs", "", "", song.liked ? "heart" : "heart-outline", false));
         runs.add(() -> {
             boolean want = !song.liked;
             song.liked = want;
@@ -1391,7 +1391,7 @@ public final class SpatchUi extends FrameLayout {
             });
         });
         String note = song.album.isEmpty() ? song.subtitle : song.subtitle + " • " + song.album;
-        sheet(song.title, note, names.toArray(new String[0]), choice -> runs.get(choice).run());
+        sheet(song.title, note, names.toArray(new Option[0]), choice -> runs.get(choice).run());
     }
 
     private View playlistPage() {

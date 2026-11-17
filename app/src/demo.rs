@@ -58,7 +58,8 @@ pub fn playlist() -> Vec<Track> {
     (0..40)
         .map(|n| {
             let i = n % TRACKS.len();
-            Track { title: TRACKS[i].0.into(), artist: TRACKS[i].1.into(), uri: format!("spotify:preview:{i}"), image: format!("demo:{i}"), duration_ms: TRACKS[i].3 as u32, added: 40 - n as u32, ..Default::default() }
+            Track { title: TRACKS[i].0.into(), artist: TRACKS[i].1.into(), uri: format!("spotify:preview:{i}"), image: format!("demo:{i}"), duration_ms: TRACKS[i].3 as u32, added: 40 - n as u32,
+                album: TRACKS[i].2.into(), album_uri: format!("spotify:album:{i}"), artist_uri: format!("spotify:artist:{i}"), explicit: i % 3 == 1, ..Default::default() }
         })
         .collect()
 }
