@@ -1856,7 +1856,8 @@ public final class SpatchUi extends FrameLayout {
         qp.topMargin = dp(6);
         words.addView(pQuality, qp);
         titleRow.addView(words, weight());
-        pLike = colored(new Icon("heart-outline", ink), () -> {
+        pLike = new Icon("heart-outline", ink);
+        colored(pLike, () -> {
             boolean isLiked = Boolean.TRUE.equals(saved);
             pLike.symbol = isLiked ? "heart" : "heart-outline";
             pLike.color = isLiked ? accent : ink;
@@ -1871,8 +1872,10 @@ public final class SpatchUi extends FrameLayout {
         col.addView(wave, wp);
         LinearLayout controls = row();
         controls.setGravity(Gravity.CENTER);
-        pShuffle = colored(new Icon("shuffle", inkDim), () -> { pShuffle.color = shuffle ? accent : inkDim; pShuffle.invalidate(); });
-        pRepeat = colored(new Icon("repeat", inkDim), () -> { pRepeat.symbol = repeat == 2 ? "repeat-one" : "repeat"; pRepeat.color = repeat != 0 ? accent : inkDim; pRepeat.invalidate(); });
+        pShuffle = new Icon("shuffle", inkDim);
+        colored(pShuffle, () -> { pShuffle.color = shuffle ? accent : inkDim; pShuffle.invalidate(); });
+        pRepeat = new Icon("repeat", inkDim);
+        colored(pRepeat, () -> { pRepeat.symbol = repeat == 2 ? "repeat-one" : "repeat"; pRepeat.color = repeat != 0 ? accent : inkDim; pRepeat.invalidate(); });
         controls.addView(iconButton(pShuffle, "Shuffle", this::toggleShuffle), lp(dp(52), dp(52)));
         controls.addView(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", () -> command(PREVIOUS, 0, "")), false), lp(dp(60), dp(60)));
         pPlay = new PlayButton();
