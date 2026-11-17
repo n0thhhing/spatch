@@ -2889,15 +2889,19 @@ public final class SpatchUi extends FrameLayout {
     private final class Wave extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
-        private float preview = -1, amp = -1;
+        private float preview = -1, amp = -1, grow = 0;
+        private int lastTenth = -1;
         Wave() { super(activity); setContentDescription("Playback position"); }
 
         @Override protected void onDraw(Canvas c) {
             long el = playhead();
             float f = preview >= 0 ? preview : duration <= 0 ? 0 : el / (float) duration;
             float x0 = dp(6), x1 = getWidth() - dp(6), y = dp(20), tip = x0 + (x1 - x0) * f;
+            // Scrubbing thickens the line; it eases back when you let go.
+            float wantGrow = preview >= 0 ? 1f : 0f;
+            grow = !motion() ? wantGrow : grow + (wantGrow - grow) * .25f;
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(4));
+            paint.setStrokeWidth(dp(4 + 3 * grow));
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setColor((ink & 0x00ffffff) | 0x2a000000);
             if (tip + dp(8) < x1) c.drawLine(tip + dp(8), y, x1, y, paint);
@@ -2922,7 +2926,8 @@ public final class SpatchUi extends FrameLayout {
             paint.setColor(inkDim);
             paint.setTextAlign(Paint.Align.RIGHT);
             c.drawText("−" + time(Math.max(0, duration - el)), x1, dp(50), paint);
-            if ((playing || Math.abs(target - amp) > .05f) && isShown()) { if (motion()) postInvalidateOnAnimation(); else postInvalidateDelayed(500); }
+            boolean settling = Math.abs(target - amp) > .05f || Math.abs(wantGrow - grow) > .01f;
+            if ((playing || settling) && isShown()) { if (motion()) postInvalidateOnAnimation(); else postInvalidateDelayed(500); }
         }
 
         @Override public boolean onTouchEvent(MotionEvent e) {
@@ -2932,6 +2937,13 @@ public final class SpatchUi extends FrameLayout {
                 case MotionEvent.ACTION_MOVE:
                 case MotionEvent.ACTION_UP:
                     preview = Math.max(0, Math.min(1, (e.getX() - dp(6)) / Math.max(1, getWidth() - dp(12))));
+                    // A light tick each time the drag crosses a tenth of the song.
+                    int tenth = (int) (preview * 10);
+                    if (e.getActionMasked() == MotionEvent.ACTION_DOWN) lastTenth = tenth;
+                    else if (tenth != lastTenth) {
+                        lastTenth = tenth;
+                        if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+                    }
                     if (e.getActionMasked() == MotionEvent.ACTION_UP) {
                         long target = Math.round(duration * (double) preview);
                         command(SEEK, target, "");
