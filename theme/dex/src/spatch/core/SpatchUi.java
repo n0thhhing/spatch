@@ -1261,6 +1261,8 @@ public final class SpatchUi extends FrameLayout {
     private void open(Entry e) {
         // A song on a playlist or album page plays that list from the song, as Spotify does.
         if (playlist != null && (e.uri.startsWith("spotify:track:") || e.uri.startsWith("spotify:episode:") || e.uri.startsWith("spotify:preview:"))) {
+            // The song that's already playing opens the player rather than starting over.
+            if (e.uri.equals(uri) && listIsPlaying()) { openPlayer(true); return; }
             int index = e instanceof Song ? ((Song) e).index : Math.max(0, playlistTracks.indexOf(e));
             String context = playUri();
             COMMANDS.execute(() -> {
