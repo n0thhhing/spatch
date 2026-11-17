@@ -1005,8 +1005,9 @@ public final class SpatchUi extends FrameLayout {
 
     private final class Row extends LinearLayout {
         private final Art art = new Art(Art.ROUNDED, false);
-        private final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false);
+        private final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
         private final Bars bars = new Bars();
+        private final GradientDrawable pressedBg = round(surfHi, 16);
         private boolean current;
         Row() {
             super(activity);
@@ -1019,12 +1020,30 @@ public final class SpatchUi extends FrameLayout {
             words.addView(name);
             words.addView(sub);
             addView(words, weight());
+            length.setPadding(0, 0, dp(10), 0);
+            addView(length, lp(-2, -2));
             addView(bars, lp(dp(18), dp(16)));
+            pressedBg.setAlpha(0);
+            setBackground(pressedBg);
             colored(this, this::tint);
         }
         private void tint() {
             name.setTextColor(current ? accent : ink);
             sub.setTextColor(inkDim);
+            length.setTextColor(inkDim);
+            pressedBg.setColor(surfHi);
+        }
+        /** A press sinks the row a little and fades a soft highlight in under it. */
+        @Override public void setPressed(boolean pressed) {
+            boolean was = isPressed();
+            super.setPressed(pressed);
+            if (was == pressed || !motion()) return;
+            animate().scaleX(pressed ? .975f : 1f).scaleY(pressed ? .975f : 1f).setDuration(pressed ? 90 : 260)
+                .setInterpolator(pressed ? new android.view.animation.DecelerateInterpolator() : new android.view.animation.OvershootInterpolator(2f)).start();
+            android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(pressedBg.getAlpha(), pressed ? 255 : 0);
+            fade.setDuration(pressed ? 90 : 320);
+            fade.addUpdateListener(a -> pressedBg.setAlpha((int) a.getAnimatedValue()));
+            fade.start();
         }
         void bind(Entry e) {
             art.shapeKind = e.category == 2 ? Art.CIRCLE : Art.ROUNDED;
@@ -1032,6 +1051,9 @@ public final class SpatchUi extends FrameLayout {
             art.bind(e.image);
             name.setText(e.title);
             sub.setText(e.subtitle);
+            long ms = e instanceof Song ? ((Song) e).duration : 0;
+            length.setText(ms > 0 ? time(ms) : "");
+            length.setVisibility(ms > 0 ? VISIBLE : GONE);
             current = playlist != null ? !title.isEmpty() && e.title.equals(title) && e.subtitle.equals(artist) : playingFrom(e.uri);
             tint();
             bars.setVisibility(current ? VISIBLE : GONE);
