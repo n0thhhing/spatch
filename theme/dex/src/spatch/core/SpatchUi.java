@@ -2287,6 +2287,45 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
+    /** A like's little burst: a ring pops outward and six dots fly off it, fading, over the heart. */
+    private void burst(View host) {
+        final float[] t = {0f};
+        final int ringColour = accent, dotColour = accent2;
+        android.graphics.drawable.Drawable pop = new android.graphics.drawable.Drawable() {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override public void draw(Canvas c) {
+                float f = t[0], cx = host.getWidth() / 2f, cy = host.getHeight() / 2f, max = Math.min(cx, cy);
+                int alpha = Math.round(255 * (1f - f));
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(2.5f) * (1f - f) + 1);
+                paint.setColor(ringColour);
+                paint.setAlpha(alpha);
+                c.drawCircle(cx, cy, max * (.35f + .6f * f), paint);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(dotColour);
+                paint.setAlpha(alpha);
+                for (int i = 0; i < 6; i++) {
+                    double a = Math.PI * 2 * i / 6 - Math.PI / 2;
+                    float d = max * (.45f + .5f * f);
+                    c.drawCircle(cx + (float) Math.cos(a) * d, cy + (float) Math.sin(a) * d, dp(2.6f) * (1f - f * .6f), paint);
+                }
+            }
+            @Override public void setAlpha(int alpha) {}
+            @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
+            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        };
+        pop.setBounds(0, 0, host.getWidth(), host.getHeight());
+        host.getOverlay().add(pop);
+        android.animation.ValueAnimator run = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        run.setDuration(520);
+        run.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
+        run.addUpdateListener(a -> { t[0] = (float) a.getAnimatedValue(); pop.invalidateSelf(); host.invalidate(); });
+        run.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) { host.getOverlay().remove(pop); }
+        });
+        run.start();
+    }
+
     private void toggleSaved() {
         if (uri.isEmpty()) return;
         Boolean before = saved;
@@ -2298,6 +2337,7 @@ public final class SpatchUi extends FrameLayout {
             pLike.setScaleX(.5f);
             pLike.setScaleY(.5f);
             pLike.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(3.2f)).start();
+            if (pLike.getParent() instanceof View) burst((View) pLike.getParent());
         }
         COMMANDS.execute(() -> {
             boolean ok = nativeSave(track, want);
