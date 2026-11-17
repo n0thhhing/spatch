@@ -1517,12 +1517,12 @@ public final class SpatchUi extends FrameLayout {
 
     private void openRecommended() {
         if (recommendedSongs.isEmpty()) return;
-        String[] names = new String[recommendedSongs.size()];
-        for (int i = 0; i < names.length; i++) {
+        Option[] options = new Option[recommendedSongs.size()];
+        for (int i = 0; i < options.length; i++) {
             Song s = recommendedSongs.get(i);
-            names[i] = s.title + (s.subtitle.isEmpty() ? "" : " · " + s.subtitle);
+            options[i] = new Option(s.title, s.subtitle, s.image, "play", false);
         }
-        sheet("Similar songs", "Recommended based on this playlist", names, i -> command(PLAY, 0, recommendedSongs.get(i).uri));
+        sheet("Similar songs", "Recommended based on this playlist", options, i -> command(PLAY, 0, recommendedSongs.get(i).uri));
     }
 
     /** The mini player follows a sideways drag; a flick left or right skips, a flick up opens the player. */
@@ -1590,40 +1590,70 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private View playlistPage() {
-        LinearLayout page = column();
-        page.setPadding(0, inset.top, 0, 0);
-        FrameLayout backBox = new FrameLayout(activity);
-        backBox.addView(icon("back", () -> ink), new LayoutParams(dp(24), dp(24), Gravity.CENTER));
-        tappable(backBox, "Back", this::back);
-        LinearLayout.LayoutParams bp = lp(dp(48), dp(48));
-        bp.setMargins(dp(8), dp(8), 0, 0);
-        page.addView(backBox, bp);
-
-        LinearLayout header = column();
-        header.setGravity(Gravity.CENTER_HORIZONTAL);
-        header.setPadding(dp(18), dp(4), dp(18), dp(16));
+        FrameLayout page = new FrameLayout(activity);
         boolean detail = isDetail(playlist);
         String headImage = detail && !detailImage.isEmpty() ? detailImage : playlist.image;
         String headTitle = detail && !detailTitle.isEmpty() ? detailTitle : playlist.title;
+
+        // Atmospheric gradient wash behind the header, tinted from the page cover once known (else the active accent).
+        View wash = new View(activity);
+        GradientDrawable washBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{surfHi, surf, bg});
+        wash.setBackground(washBg);
+        final Integer[] lastSeed = {null};
+        final boolean[] lastDark = {dark};
+        final int[] headPal = {0, 0};
+        colored(wash, () -> {
+            Integer seed = headImage.isEmpty() ? null : SEEDS.get(headImage);
+            int top, mid;
+            if (seed != null) {
+                if (!seed.equals(lastSeed[0]) || lastDark[0] != dark || headPal[0] == 0) {
+                    int[] p = nativePalette(seed, true, dark);
+                    headPal[0] = p[5];
+                    headPal[1] = p[6];
+                    lastSeed[0] = seed;
+                    lastDark[0] = dark;
+                }
+                top = blend(surfHi, headPal[0], dark ? .38f : .26f);
+                mid = blend(surf, headPal[1], dark ? .20f : .14f);
+            } else {
+                top = blend(surfHi, accent2, dark ? .34f : .22f);
+                mid = blend(surf, accent, dark ? .18f : .12f);
+            }
+            washBg.setColors(new int[]{top, mid, bg});
+        });
+        page.addView(wash, new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP));
+
+        LinearLayout header = column();
+        header.setPadding(dp(2), inset.top + dp(56), dp(2), dp(14));
+
+        // Centered Material 3 Expressive hero cover with a soft shadow.
+        FrameLayout coverWrap = new FrameLayout(activity);
+        boolean artistPage = playlist.uri.startsWith("spotify:artist:");
+        GradientDrawable coverShape = round(surfHi, artistPage ? 104 : 26);
+        coverWrap.setBackground(coverShape);
+        colored(coverWrap, () -> coverShape.setColor(surfHi));
+        coverWrap.setClipToOutline(true);
+        coverWrap.setElevation(dp(8));
         if (headImage.isEmpty() && !detail) {
-            FrameLayout cover = new FrameLayout(activity);
             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)});
-            g.setCornerRadius(dp(30));
-            cover.setBackground(g);
-            colored(cover, () -> g.setColors(new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)}));
-            cover.addView(icon("heart", () -> ink), new LayoutParams(dp(70), dp(70), Gravity.CENTER));
-            header.addView(cover, lp(dp(180), dp(180)));
-            headCover = cover;
+            g.setCornerRadius(dp(26));
+            coverWrap.setBackground(g);
+            colored(coverWrap, () -> g.setColors(new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)}));
+            coverWrap.addView(icon("heart", () -> ink), new LayoutParams(dp(76), dp(76), Gravity.CENTER));
         } else {
-            Art art = new Art(playlist.uri.startsWith("spotify:artist:") ? Art.CIRCLE : Art.ROUNDED, false);
+            Art art = new Art(Art.WIDE, false);
             art.letter = initial(headTitle);
             art.bind(headImage);
-            header.addView(art, lp(dp(200), dp(200)));
-            headCover = art;
+            coverWrap.addView(art, new LayoutParams(-1, -1));
         }
-        TextView name = text(headTitle, 28, () -> ink, true);
-        name.setGravity(Gravity.CENTER);
-        name.setPadding(0, dp(14), 0, dp(4));
+        LinearLayout.LayoutParams covP = lp(dp(208), dp(208));
+        covP.gravity = Gravity.CENTER_HORIZONTAL;
+        header.addView(coverWrap, covP);
+        headCover = coverWrap;
+
+        // Left-aligned Spotify-style editorial title and stats block.
+        TextView name = text(headTitle, 26, () -> ink, true);
+        name.setPadding(0, dp(18), 0, dp(4));
         name.setMaxLines(2);
         name.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(name, fill(-2));
@@ -1631,7 +1661,6 @@ public final class SpatchUi extends FrameLayout {
         String time = detail ? "" : totalTime();
         String songs = total + (total == 1 ? " song" : " songs") + (time.isEmpty() ? "" : " • " + time);
         TextView count = text(playlistLoading ? "Loading…" : playlistFailed ? "Couldn’t load" : detail && !detailSubtitle.isEmpty() ? detailSubtitle + " • " + songs : songs, 14, () -> inkDim, false);
-        count.setGravity(Gravity.CENTER);
         header.addView(count, fill(-2));
         songCount = count;
         songCountText = count.getText().toString();
@@ -1639,36 +1668,37 @@ public final class SpatchUi extends FrameLayout {
             // Spotify's own reason, so a failure says what happened.
             String lookup = liked(playlist.uri) ? nativeLikedNote() : "";
             TextView why = text(playlistError + "\n" + playUri() + (lookup.isEmpty() ? "" : "\n" + lookup), 12, () -> inkDim, false);
-            why.setGravity(Gravity.CENTER);
-            why.setPadding(dp(8), dp(6), dp(8), dp(4));
+            why.setPadding(0, dp(6), 0, dp(4));
             header.addView(why, fill(-2));
         }
-        // Spotify's header: the shuffle mode, share and Similar on the left, a big round play button on the right.
+
+        // Spotify-like action row: icon-only shuffle mode, share, Similar on the left; big scalloped play button on the right.
         LinearLayout actions = row();
         actions.setGravity(Gravity.CENTER_VERTICAL);
         String listUri = playUri();
         boolean smartAllowed = !detail && !liked(playlist.uri);
-        LinearLayout mode = row();
-        mode.setGravity(Gravity.CENTER);
-        mode.setPadding(dp(14), 0, dp(16), 0);
-        GradientDrawable modeBg = round(surfHi, 22);
-        mode.setBackground(modeBg);
-        Icon modeIcon = new Icon("shuffle", ink);
-        mode.addView(modeIcon, lp(dp(20), dp(20)));
-        TextView modeName = text("Shuffle", 14, ink, true);
-        modeName.setPadding(dp(8), 0, 0, 0);
-        oneLine(modeName);
-        mode.addView(modeName);
+
+        FrameLayout shuffleBox = new FrameLayout(activity);
+        GradientDrawable shufRing = round(surfHi, 23);
+        shuffleBox.setBackground(shufRing);
+        Icon modeIcon = new Icon("shuffle", inkDim);
+        Icon modeSparkle = new Icon("sparkle", accent);
+        shuffleBox.addView(modeIcon, new LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        LayoutParams sp = new LayoutParams(dp(11), dp(11), Gravity.TOP | Gravity.END);
+        sp.setMargins(0, dp(8), dp(7), 0);
+        shuffleBox.addView(modeSparkle, sp);
         Runnable paintMode = () -> {
             boolean on = listShuffle > 0;
-            modeBg.setColor(on ? blend(surfHi, accent, .25f) : surfHi);
-            modeIcon.color = on ? accent : ink;
+            shufRing.setColor(on ? blend(surfHi, accent, .24f) : surfHi);
+            shufRing.setStroke(Math.max(1, dp(.8f)), on ? (accent & 0x00ffffff) | 0x48000000 : (ink & 0x00ffffff) | 0x14000000);
+            modeIcon.color = on ? accent : inkDim;
             modeIcon.invalidate();
-            modeName.setTextColor(on ? accent : ink);
-            modeName.setText(listShuffle == 2 ? "Smart shuffle" : listShuffle == 1 ? "Shuffle on" : "Shuffle off");
+            modeSparkle.color = accent;
+            modeSparkle.setVisibility(listShuffle == 2 ? VISIBLE : GONE);
+            modeSparkle.invalidate();
         };
-        colored(mode, paintMode);
-        tappable(mode, "Shuffle mode", () -> {
+        colored(shuffleBox, paintMode);
+        tappable(shuffleBox, "Shuffle: off, on or Smart Shuffle", () -> {
             // Off → Shuffle → Smart Shuffle (playlists only) → Off, stored with Spotify for this list.
             int next = listShuffle <= 0 ? 1 : listShuffle == 1 && smartAllowed ? 2 : 0;
             int before = listShuffle;
@@ -1684,21 +1714,37 @@ public final class SpatchUi extends FrameLayout {
                 });
             });
         });
-        actions.addView(mode, lp(-2, dp(44)));
+        actions.addView(shuffleBox, lp(dp(46), dp(46)));
+
         listShuffle = -1;
         paintMode.run();
         PLAYLISTS.execute(() -> {
             int known = nativeShuffleMode(listUri);
             post(() -> { if (playlist != null && listUri.equals(playUri()) && known >= 0) { listShuffle = known; paintMode.run(); } });
         });
+
         String link = shareLink(playlist.uri);
         if (!link.isEmpty()) {
-            actions.addView(space(dp(6), 1));
-            actions.addView(iconButton(icon("share", () -> ink), "Share", () -> shareLinkSheet(headTitle, link)), lp(dp(44), dp(44)));
+            actions.addView(space(dp(10), 1));
+            View shareBtn = iconButton(icon("share", () -> ink), "Share", () -> shareLinkSheet(headTitle, link));
+            GradientDrawable shareBg = round(surfHi, 23);
+            shareBtn.setBackground(shareBg);
+            colored(shareBtn, () -> {
+                shareBg.setColor(surfHi);
+                shareBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
+            });
+            actions.addView(shareBtn, lp(dp(46), dp(46)));
         }
         if (!recommendedSongs.isEmpty()) {
-            actions.addView(space(dp(6), 1));
-            actions.addView(iconButton(icon("sparkle", () -> ink), "Similar songs", this::openRecommended), lp(dp(44), dp(44)));
+            actions.addView(space(dp(10), 1));
+            View simBtn = iconButton(icon("sparkle", () -> accent), "Similar songs", this::openRecommended);
+            GradientDrawable simBg = round(surfHi, 23);
+            simBtn.setBackground(simBg);
+            colored(simBtn, () -> {
+                simBg.setColor(surfHi);
+                simBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
+            });
+            actions.addView(simBtn, lp(dp(46), dp(46)));
         }
         actions.addView(space(0, 1), weight());
         // While this list is the one playing, the button pauses and resumes it instead of starting it over.
@@ -1709,8 +1755,9 @@ public final class SpatchUi extends FrameLayout {
         listFab = fab;
         actions.addView(fab, lp(dp(62), dp(62)));
         LinearLayout.LayoutParams ap = fill(-2);
-        ap.topMargin = dp(10);
+        ap.topMargin = dp(12);
         header.addView(actions, ap);
+
         if (playlistFailed) header.addView(pill("Retry", () -> { playlistLoading = true; playlistFailed = false; showPage(); loadPlaylist(playlist, 0); }));
         android.widget.EditText songSearch = null;
         TextView sortPill = null;
@@ -1719,8 +1766,13 @@ public final class SpatchUi extends FrameLayout {
             LinearLayout tools = row();
             LinearLayout search = row();
             search.setPadding(dp(14), 0, dp(6), 0);
-            bgRound(search, 22, () -> surf);
-            search.addView(icon("search", () -> inkDim), lp(dp(20), dp(20)));
+            GradientDrawable searchBg = round(surfHi, 23);
+            search.setBackground(searchBg);
+            colored(search, () -> {
+                searchBg.setColor(surfHi);
+                searchBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x12000000);
+            });
+            search.addView(icon("search", () -> inkDim), lp(dp(19), dp(19)));
             songSearch = new android.widget.EditText(activity);
             songSearch.setBackground(null);
             songSearch.setHint("Find in playlist");
@@ -1734,14 +1786,20 @@ public final class SpatchUi extends FrameLayout {
             clearButton(search, songSearch);
             tools.addView(search, new LinearLayout.LayoutParams(0, dp(44), 1));
             tools.addView(space(dp(8), 1));
-            sortPill = text(SONG_SORTS[Math.max(0, Math.min(SONG_SORTS.length - 1, prefs.getInt("song_sort", 0)))], 14, ink, true);
+            int sortChoice = Math.max(0, Math.min(SONG_SORTS.length - 1, prefs.getInt("song_sort", 0)));
+            sortPill = text(SONG_SORTS[sortChoice], 14, sortChoice > 0 ? accent : ink, true);
             sortPill.setGravity(Gravity.CENTER);
-            sortPill.setPadding(dp(14), 0, dp(14), 0);
+            sortPill.setPadding(dp(15), 0, dp(15), 0);
             sortPill.setSingleLine(true);
-            GradientDrawable sortBg = round(surfHi, 22);
+            GradientDrawable sortBg = round(surfHi, 23);
             sortPill.setBackground(sortBg);
             TextView pill = sortPill;
-            colored(pill, () -> { pill.setTextColor(ink); sortBg.setColor(surfHi); });
+            colored(pill, () -> {
+                boolean active = prefs.getInt("song_sort", 0) > 0;
+                pill.setTextColor(active ? accent : ink);
+                sortBg.setColor(active ? blend(surfHi, accent, .20f) : surfHi);
+                sortBg.setStroke(Math.max(1, dp(.8f)), active ? (accent & 0x00ffffff) | 0x40000000 : (ink & 0x00ffffff) | 0x12000000);
+            });
             tools.addView(sortPill, lp(-2, dp(44)));
             LinearLayout.LayoutParams tp = fill(-2);
             tp.topMargin = dp(14);
@@ -1765,16 +1823,48 @@ public final class SpatchUi extends FrameLayout {
                 nowPlayingChip.setPadding(dp(16), 0, dp(16), 0);
                 bgRound(nowPlayingChip, 18, () -> accent);
                 nowPlayingChip.setTag(R_JUMP, playingAt);
-                LinearLayout.LayoutParams cp = lp(-2, dp(36));
+                LinearLayout.LayoutParams cp = lp(-2, dp(34));
                 cp.topMargin = dp(10);
                 header.addView(nowPlayingChip, cp);
             } else nowPlayingChip = null;
         }
 
+        // Collapsing floating top bar: tonal back circle + page title that fades in as the hero scrolls off.
+        LinearLayout topBar = row();
+        topBar.setGravity(Gravity.CENTER_VERTICAL);
+        topBar.setPadding(dp(14), inset.top + dp(6), dp(18), dp(8));
+        GradientDrawable barBg = new GradientDrawable();
+        barBg.setColor(bg);
+        topBar.setBackground(barBg);
+        barBg.setAlpha(0);
+        colored(topBar, () -> barBg.setColor(bg));
+        View barFade = new View(activity);
+        GradientDrawable barFadeBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, bg & 0x00ffffff});
+        barFade.setBackground(barFadeBg);
+        colored(barFade, () -> barFadeBg.setColors(new int[]{bg, bg & 0x00ffffff}));
+        barFade.setAlpha(0f);
+        FrameLayout backBox = new FrameLayout(activity);
+        GradientDrawable backShape = round(surf, 21);
+        backBox.setBackground(backShape);
+        colored(backBox, () -> {
+            backShape.setColor((surf & 0x00ffffff) | 0xc8000000);
+            backShape.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+        });
+        backBox.addView(icon("back", () -> ink), new LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        tappable(backBox, "Back", this::back);
+        topBar.addView(backBox, lp(dp(42), dp(42)));
+        TextView collapsed = text(headTitle, 18, () -> ink, true);
+        oneLine(collapsed);
+        collapsed.setPadding(dp(12), 0, 0, 0);
+        collapsed.setAlpha(0f);
+        topBar.addView(collapsed, weight());
+
         if (playlistTracks.isEmpty() && releases.isEmpty()) {
             ScrollView s = new ScrollView(activity);
+            s.setVerticalScrollBarEnabled(false);
+            header.setPadding(dp(20), inset.top + dp(56), dp(20), dp(170) + inset.bottom);
             s.addView(header);
-            page.addView(s, new LinearLayout.LayoutParams(-1, 0, 1));
+            page.addView(s, new LayoutParams(-1, -1));
         } else {
             ListView list = entryList(playlistTracks, header);
             list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
@@ -1807,6 +1897,7 @@ public final class SpatchUi extends FrameLayout {
                 tappable(sortPill, "Sort songs", () -> sheet("Sort songs", "Only changes how Spatch shows this playlist", SONG_SORTS, choice -> {
                     prefs.edit().putInt("song_sort", choice).apply();
                     pillView.setText(SONG_SORTS[choice]);
+                    if (pillView.getTag() instanceof Runnable) ((Runnable) pillView.getTag()).run();
                     arrangeSongs();
                     notifyList(list);
                 }));
@@ -1817,26 +1908,35 @@ public final class SpatchUi extends FrameLayout {
                 list.addFooterView(footer, null, false);
             }
             list.setPadding(dp(18), 0, dp(18), dp(170) + inset.bottom);
-            // The cover shrinks up toward its top edge and fades as you scroll into the songs (moving it down instead
-            // slid it over the title).
+            // The cover shrinks up and fades, the atmospheric wash recedes, and the floating bar brings in the title.
             View coverView = headCover;
-            if (coverView != null && motion()) {
-                coverView.setPivotY(0);
-                list.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
-                    @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {}
-                    @Override public void onScroll(android.widget.AbsListView v, int first, int visible, int total) {
-                        float scrolled = first == 0 && v.getChildCount() > 0 ? -v.getChildAt(0).getTop() : dp(400);
-                        float f = Math.max(0f, Math.min(1f, scrolled / dp(260)));
+            if (coverView != null) coverView.setPivotY(0);
+            list.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
+                @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {}
+                @Override public void onScroll(android.widget.AbsListView v, int first, int visible, int totalItems) {
+                    float scrolled = first == 0 && v.getChildCount() > 0 ? Math.max(0, -v.getChildAt(0).getTop()) : dp(400);
+                    float f = Math.max(0f, Math.min(1f, scrolled / dp(240)));
+                    if (coverView != null && motion()) {
                         coverView.setScaleX(1f - .3f * f);
                         coverView.setScaleY(1f - .3f * f);
-                        coverView.setAlpha(1f - .85f * f);
+                        coverView.setAlpha(1f - .9f * f);
                     }
-                });
-            }
+                    wash.setTranslationY(-scrolled * .35f);
+                    wash.setAlpha(1f - .9f * f);
+                    float barT = Math.max(0f, Math.min(1f, (scrolled - dp(190)) / dp(60)));
+                    barBg.setAlpha(Math.round(255 * barT));
+                    barFade.setAlpha(barT);
+                    collapsed.setAlpha(barT);
+                }
+            });
             list.setClipToPadding(false);
-            page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+            page.addView(list, new LayoutParams(-1, -1));
             pageList = list;
         }
+        page.addView(topBar, new LayoutParams(-1, dp(56) + inset.top, Gravity.TOP));
+        LayoutParams bf = new LayoutParams(-1, dp(16), Gravity.TOP);
+        bf.topMargin = dp(56) + inset.top;
+        page.addView(barFade, bf);
         return page;
     }
 
@@ -3013,6 +3113,7 @@ public final class SpatchUi extends FrameLayout {
                     loading.remove(key);
                     if (result == null) failed.add(key);
                     if (url.equals(image)) refreshPalette();
+                    if (playlist != null && (url.equals(playlist.image) || url.equals(detailImage))) applyColors();
                     invalidateArt(SpatchUi.this);
                 });
             });
