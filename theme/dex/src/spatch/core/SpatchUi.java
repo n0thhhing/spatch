@@ -674,6 +674,18 @@ public final class SpatchUi extends FrameLayout {
         return android.os.Build.VERSION.SDK_INT >= 30 ? open : focused instanceof android.widget.EditText;
     }
 
+    /** An × at the end of a search box, shown once there's text, that empties it. */
+    private void clearButton(LinearLayout box, android.widget.EditText field) {
+        View clear = iconButton(icon("close", () -> inkDim), "Clear search", () -> field.setText(""));
+        clear.setVisibility(field.length() > 0 ? VISIBLE : GONE);
+        field.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable e) { clear.setVisibility(e.length() > 0 ? VISIBLE : GONE); }
+        });
+        box.addView(clear, lp(dp(40), dp(40)));
+    }
+
     private void go(int next) {
         hideKeyboard();
         if (next == tab && playlist == null) return;
@@ -1009,6 +1021,7 @@ public final class SpatchUi extends FrameLayout {
         field.setPadding(dp(12), 0, dp(4), 0);
         field.setText(query);
         search.addView(field, new LinearLayout.LayoutParams(0, dp(50), 1));
+        clearButton(search, field);
         LinearLayout.LayoutParams sp = fill(dp(50));
         sp.setMargins(dp(18), 0, dp(18), dp(10));
         page.addView(search, sp);
@@ -1646,6 +1659,7 @@ public final class SpatchUi extends FrameLayout {
             songSearch.setPadding(dp(10), 0, dp(4), 0);
             songSearch.setText(songQuery);
             search.addView(songSearch, new LinearLayout.LayoutParams(0, dp(44), 1));
+            clearButton(search, songSearch);
             tools.addView(search, new LinearLayout.LayoutParams(0, dp(44), 1));
             tools.addView(space(dp(8), 1));
             sortPill = text(SONG_SORTS[Math.max(0, Math.min(SONG_SORTS.length - 1, prefs.getInt("song_sort", 0)))], 14, ink, true);
