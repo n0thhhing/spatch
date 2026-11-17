@@ -547,6 +547,8 @@ public final class SpatchUi extends FrameLayout {
 
     /** Redraws the page for new data without losing your place in the Library list or Home's scroll. */
     private void showPageKeepingPlace() {
+        // Only for Home and Library: by the time a posted redraw runs, a playlist or the player may have opened.
+        if (playlist != null || playerOpen || sheetClose != null || tab == SETTINGS) return;
         android.widget.AbsListView list = tab == LIBRARY ? libraryList : null;
         int first = list != null ? list.getFirstVisiblePosition() : 0;
         int top = list != null && list.getChildCount() > 0 ? list.getChildAt(0).getTop() : 0;
