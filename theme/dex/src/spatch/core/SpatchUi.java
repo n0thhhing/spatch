@@ -1088,6 +1088,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Pages opened from another page (an album from a playlist...), so back retraces them. */
+    private View headCover;
     private final java.util.ArrayDeque<Entry> pageStack = new java.util.ArrayDeque<>();
 
     private void openPlaylist(Entry e) { openPlaylist(e, true); }
@@ -1316,11 +1317,13 @@ public final class SpatchUi extends FrameLayout {
             colored(cover, () -> g.setColors(new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)}));
             cover.addView(icon("heart", () -> ink), new LayoutParams(dp(70), dp(70), Gravity.CENTER));
             header.addView(cover, lp(dp(180), dp(180)));
+            headCover = cover;
         } else {
             Art art = new Art(playlist.uri.startsWith("spotify:artist:") ? Art.CIRCLE : Art.ROUNDED, false);
             art.letter = initial(headTitle);
             art.bind(headImage);
             header.addView(art, lp(dp(200), dp(200)));
+            headCover = art;
         }
         TextView name = text(headTitle, 28, () -> ink, true);
         name.setGravity(Gravity.CENTER);
@@ -1433,6 +1436,22 @@ public final class SpatchUi extends FrameLayout {
                 list.addFooterView(footer, null, false);
             }
             list.setPadding(dp(18), 0, dp(18), dp(170) + inset.bottom);
+            // The cover rides up slower than the list, shrinking and fading as you scroll into the songs.
+            View coverView = headCover;
+            if (coverView != null && motion()) {
+                coverView.setPivotY(coverView.getLayoutParams().height);
+                list.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
+                    @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {}
+                    @Override public void onScroll(android.widget.AbsListView v, int first, int visible, int total) {
+                        float scrolled = first == 0 && v.getChildCount() > 0 ? -v.getChildAt(0).getTop() : dp(400);
+                        float f = Math.max(0f, Math.min(1f, scrolled / dp(260)));
+                        coverView.setTranslationY(scrolled * .45f);
+                        coverView.setScaleX(1f - .22f * f);
+                        coverView.setScaleY(1f - .22f * f);
+                        coverView.setAlpha(1f - .85f * f);
+                    }
+                });
+            }
             list.setClipToPadding(false);
             page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
             pageList = list;
