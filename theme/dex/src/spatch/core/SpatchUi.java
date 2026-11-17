@@ -1827,6 +1827,7 @@ public final class SpatchUi extends FrameLayout {
 
         LinearLayout library = card(page, "Library");
         toggle(library, "Sort A to Z", "Alphabetical, with Liked Songs first; off shows Spotify’s recent order", "library_az", false, false);
+        toggle(library, "Show as a grid", "Big covers two to a row instead of a list", "library_grid", false, false);
 
         LinearLayout storage = card(page, "Storage");
         cacheRow(storage);
