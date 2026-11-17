@@ -629,12 +629,18 @@ public final class SpatchUi extends FrameLayout {
         fade.setBackground(fadeBg);
         colored(fade, () -> fadeBg.setColors(new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg}));
         addView(fade, new LayoutParams(-1, dp(190) + inset.bottom, Gravity.BOTTOM));
-        // And under the status bar, so scrolled content doesn't collide with the clock and icons.
+        // And under the status bar, so scrolled content doesn't collide with the clock and icons: solid behind
+        // the bar itself, then a short fade below it.
+        View topSolid = new View(activity);
+        colored(topSolid, () -> topSolid.setBackgroundColor(bg));
+        addView(topSolid, new LayoutParams(-1, inset.top, Gravity.TOP));
         View topFade = new View(activity);
-        GradientDrawable topBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, bg, (bg & 0x00ffffff) | 0xb0000000, bg & 0x00ffffff});
+        GradientDrawable topBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, bg & 0x00ffffff});
         topFade.setBackground(topBg);
-        colored(topFade, () -> topBg.setColors(new int[]{bg, bg, (bg & 0x00ffffff) | 0xb0000000, bg & 0x00ffffff}));
-        addView(topFade, new LayoutParams(-1, inset.top + dp(30), Gravity.TOP));
+        colored(topFade, () -> topBg.setColors(new int[]{bg, bg & 0x00ffffff}));
+        LayoutParams tf = new LayoutParams(-1, dp(22), Gravity.TOP);
+        tf.topMargin = inset.top;
+        addView(topFade, tf);
         dock = column();
         dock.setPadding(dp(12), 0, dp(12), dp(10) + inset.bottom);
         addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
