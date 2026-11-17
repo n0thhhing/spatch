@@ -1036,7 +1036,8 @@ public final class SpatchUi extends FrameLayout {
         private final Art art = new Art(Art.ROUNDED, false);
         private final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
         private final Bars bars = new Bars();
-        private final GradientDrawable pressedBg = round(surfHi, 16);
+        private final GradientDrawable pressedBg = round(surfHi, 16), badgeBg = round(inkDim, 3);
+        private final TextView explicitBadge = text("E", 10, bg, true);
         private boolean current;
         Row() {
             super(activity);
@@ -1047,7 +1048,14 @@ public final class SpatchUi extends FrameLayout {
             words.setPadding(dp(14), 0, dp(8), 0);
             oneLine(name); oneLine(sub);
             words.addView(name);
-            words.addView(sub);
+            // Explicit songs get Spotify's small E before the artist.
+            LinearLayout byline = row();
+            explicitBadge.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams ep = lp(dp(15), dp(15));
+            ep.rightMargin = dp(6);
+            byline.addView(explicitBadge, ep);
+            byline.addView(sub, weight());
+            words.addView(byline);
             addView(words, weight());
             length.setPadding(0, 0, dp(10), 0);
             addView(length, lp(-2, -2));
@@ -1061,6 +1069,9 @@ public final class SpatchUi extends FrameLayout {
             sub.setTextColor(inkDim);
             length.setTextColor(inkDim);
             pressedBg.setColor(surfHi);
+            badgeBg.setColor(inkDim);
+            explicitBadge.setTextColor(bg);
+            explicitBadge.setBackground(badgeBg);
         }
         /** A press sinks the row a little and fades a soft highlight in under it. */
         @Override public void setPressed(boolean pressed) {
@@ -1083,6 +1094,7 @@ public final class SpatchUi extends FrameLayout {
             long ms = e instanceof Song ? ((Song) e).duration : 0;
             length.setText(ms > 0 ? time(ms) : "");
             length.setVisibility(ms > 0 ? VISIBLE : GONE);
+            explicitBadge.setVisibility(e instanceof Song && ((Song) e).explicit ? VISIBLE : GONE);
             current = playlist != null ? !title.isEmpty() && e.title.equals(title) && e.subtitle.equals(artist) : playingFrom(e.uri);
             tint();
             bars.setVisibility(current ? VISIBLE : GONE);
@@ -1155,7 +1167,7 @@ public final class SpatchUi extends FrameLayout {
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
-            String key = (isDetail(e) ? "page:" : "playlist3:") + e.uri;
+            String key = (isDetail(e) ? "page:" : "playlist4:") + e.uri;
             // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
             if (attempt == 0) {
                 String[] saved = nativeCached(key);
@@ -1196,7 +1208,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Rust's playlist fields: SONG_FIELDS strings per song. */
-    private static final int SONG_FIELDS = 11;
+    private static final int SONG_FIELDS = 12;
     /** Every song of the open playlist, in its order; playlistTracks is what the search and sort leave of it. */
     private String[] songFields = new String[0];
     private final List<Song> allSongs = new ArrayList<>();
@@ -2912,7 +2924,7 @@ public final class SpatchUi extends FrameLayout {
         final String album, albumUri, artistUri;
         final long duration;
         final int index;
-        final boolean recommended;
+        final boolean recommended, explicit;
         boolean liked;
         Song(String[] f, int at, int index) {
             super(f[at], f[at + 1], f[at + 2], f[at + 3], -1);
@@ -2922,6 +2934,7 @@ public final class SpatchUi extends FrameLayout {
             duration = ms;
             liked = !f[at + 9].isEmpty();
             recommended = !f[at + 10].isEmpty();
+            explicit = !f[at + 11].isEmpty();
             this.index = index;
         }
     }

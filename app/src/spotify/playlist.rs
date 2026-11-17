@@ -26,18 +26,21 @@ pub struct Track {
     pub liked: bool,
     /// True when Spotify attached this track as a recommendation rather than a playlist entry.
     pub recommended: bool,
+    pub explicit: bool,
 }
 
 /// How many strings each song takes in the UI's arrays (`fields`).
-pub const FIELDS: usize = 11;
+pub const FIELDS: usize = 12;
 
 impl Track {
-    /// title, artist, uri, image, album, album uri, artist uri, length ms, added, liked ("1" or ""), recommended ("1" or "").
+    /// title, artist, uri, image, album, album uri, artist uri, length ms, added, liked ("1" or ""), recommended ("1" or ""),
+    /// explicit ("1" or "").
     pub fn fields(self) -> [String; FIELDS] {
         [self.title, self.artist, self.uri, self.image, self.album, self.album_uri, self.artist_uri,
          self.duration_ms.to_string(), self.added.to_string(),
          if self.liked { "1".into() } else { String::new() },
-         if self.recommended { "1".into() } else { String::new() }]
+         if self.recommended { "1".into() } else { String::new() },
+         if self.explicit { "1".into() } else { String::new() }]
     }
 }
 
@@ -95,7 +98,7 @@ pub fn request_range(uri: &str, offset: i32, length: i32) -> Vec<u8> {
                 ..Default::default()
             }),
             track: Some(policy::PlaylistTrackDecorationPolicy {
-                track: Some(metadata::TrackDecorationPolicy { name: true, link: true, length: true, ..Default::default() }),
+                track: Some(metadata::TrackDecorationPolicy { name: true, link: true, length: true, is_explicit: true, ..Default::default() }),
                 artist: Some(metadata::ArtistDecorationPolicy { name: true, link: true, ..Default::default() }),
                 album: Some(policy::PlaylistAlbumDecorationPolicy {
                     album: Some(metadata::AlbumDecorationPolicy { name: true, link: true, ..Default::default() }),
@@ -114,7 +117,7 @@ pub fn request_range(uri: &str, offset: i32, length: i32) -> Vec<u8> {
                 uri: true,
                 add_time: true,
                 collection_state: true,
-                metadata: Some(policy::ItemMetadataPolicy { name: true, image: true, ..Default::default() }),
+                metadata: Some(policy::ItemMetadataPolicy { name: true, image: true, is_explicit: true }),
                 ..Default::default()
             }),
             ..Default::default()
@@ -166,6 +169,7 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
                 added: item.add_time,
                 liked: item.track_collection_state.as_ref().is_some_and(|c| c.is_in_collection),
                 recommended: item.is_recommendation,
+                explicit: item.metadata.as_ref().is_some_and(|m| m.is_explicit) || track.is_some_and(|t| t.is_explicit),
             }
         })
         .collect();
