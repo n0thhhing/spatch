@@ -473,6 +473,7 @@ public final class SpatchUi extends FrameLayout {
         if (hideKeyboard()) return;
         if (sheetClose != null) sheetClose.run();
         else if (playerOpen) closePlayer();
+        else if (!pageStack.isEmpty()) openPlaylist(pageStack.pop(), false);
         else if (playlist != null) { playlist = null; showPage(); updateDock(); enter(-dp(44), 0); }
         else if (tab != HOME) go(HOME);
         else activity.moveTaskToBack(true);
@@ -625,6 +626,7 @@ public final class SpatchUi extends FrameLayout {
         if (next == tab && playlist == null) return;
         boolean forward = next > tab;
         playlist = null;
+        pageStack.clear();
         tab = next;
         showPage();
         updateDock();
@@ -1058,7 +1060,13 @@ public final class SpatchUi extends FrameLayout {
         else command(PLAY, 0, e.uri);
     }
 
-    private void openPlaylist(Entry e) {
+    /** Pages opened from another page (an album from a playlist...), so back retraces them. */
+    private final java.util.ArrayDeque<Entry> pageStack = new java.util.ArrayDeque<>();
+
+    private void openPlaylist(Entry e) { openPlaylist(e, true); }
+
+    private void openPlaylist(Entry e, boolean forward) {
+        if (forward && playlist != null && playlist != e) pageStack.push(playlist);
         playlist = e;
         playlistTracks = new ArrayList<>();
         releases = new ArrayList<>();
@@ -1074,7 +1082,7 @@ public final class SpatchUi extends FrameLayout {
         playlistFailed = false;
         showPage();
         updateDock();
-        enter(dp(44), 0);
+        enter((forward ? 1 : -1) * dp(44), 0);
         loadPlaylist(e, 0);
     }
 
