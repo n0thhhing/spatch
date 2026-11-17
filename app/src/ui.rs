@@ -103,7 +103,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) 
 
 /// The player as strings, or null if nothing changed since `revision`:
 /// revision, uri, title, artist, album, image, playing, shuffle, repeat, position, duration, source,
-/// "Explicit" or "", context uri, the quality label or "", buffering, can skip next, can skip previous; then four strings (title, artist, image, uri) per queued track.
+/// "Explicit" or "", context uri, the quality label or "", buffering, can skip next, can skip previous, album uri, artist uri; then four strings (title, artist, image, uri) per queued track.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JClass, revision: jlong) -> jobjectArray {
     let (serial, now) = {
@@ -133,6 +133,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JCl
         now.buffering.to_string(),
         now.can_next.to_string(),
         now.can_previous.to_string(),
+        now.album_uri.clone(),
+        now.artist_uri.clone(),
     ];
     for next in &now.up_next {
         fields.extend([next.title.clone(), next.artist.clone(), next.image.clone(), next.uri.clone()]);

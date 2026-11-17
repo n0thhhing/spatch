@@ -46,6 +46,8 @@ fn track(i: usize, playing: bool) -> NowPlaying {
         up_next: (1..TRACKS.len()).map(|o| next_track((i + o) % TRACKS.len())).collect(),
         can_next: true,
         can_previous: true,
+        album_uri: format!("spotify:album:{i}"),
+        artist_uri: format!("spotify:artist:{i}"),
         ..Default::default()
     }
 }

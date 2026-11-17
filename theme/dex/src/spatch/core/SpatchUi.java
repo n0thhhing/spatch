@@ -138,6 +138,7 @@ public final class SpatchUi extends FrameLayout {
     private String savedUri = "";
     private String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
     private boolean buffering, canNext = true, canPrevious = true;
+    private String albumUri = "", artistUri = "";
     /** Skip buttons (true for next), dimmed and disabled while Spotify doesn't allow that skip. */
     private final java.util.Map<View, Boolean> skipButtons = new java.util.WeakHashMap<>();
     private final java.util.Set<PlayButton> playButtons = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
@@ -574,6 +575,8 @@ public final class SpatchUi extends FrameLayout {
         buffering = Boolean.parseBoolean(s[15]);
         canNext = Boolean.parseBoolean(s[16]);
         canPrevious = Boolean.parseBoolean(s[17]);
+        albumUri = s[18];
+        artistUri = s[19];
         for (View b : skipButtons.keySet()) {
             boolean allowed = skipButtons.get(b) ? canNext : canPrevious;
             b.setEnabled(allowed);
@@ -582,7 +585,7 @@ public final class SpatchUi extends FrameLayout {
         if (buffering != wasBuffering) for (PlayButton b : playButtons) b.invalidate();
         stamp = SystemClock.uptimeMillis();
         List<Entry> next = new ArrayList<>();
-        for (int i = 18; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
+        for (int i = 20; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
         upcoming = next;
         if (changed) checkSaved(uri);
         refreshPalette();
@@ -2133,6 +2136,8 @@ public final class SpatchUi extends FrameLayout {
         pTitle = text("", 28, () -> ink, true);
         marquee(pTitle);
         pTitle.setOnLongClickListener(v -> share());
+        // The title opens the song's album, the artist line its artist, as in Spotify's player.
+        pTitle.setOnClickListener(v -> openFromPlayer(albumUri, album, artist));
         words.addView(pTitle, fill(-2));
         LinearLayout byline = row();
         pBadge = text("E", 11, bg, true);
@@ -2144,6 +2149,7 @@ public final class SpatchUi extends FrameLayout {
         bp.rightMargin = dp(7);
         byline.addView(pBadge, bp);
         pArtist = text("", 17, () -> inkDim, false);
+        pArtist.setOnClickListener(v -> openFromPlayer(artistUri, artist, "Artist"));
         oneLine(pArtist);
         byline.addView(pArtist, weight());
         LinearLayout.LayoutParams byp = fill(-2);
@@ -2452,6 +2458,13 @@ public final class SpatchUi extends FrameLayout {
             @Override public void onAnimationEnd(android.animation.Animator a) { host.getOverlay().remove(pop); }
         });
         run.start();
+    }
+
+    private void openFromPlayer(String link, String name, String detail) {
+        if (link.isEmpty()) return;
+        tick(player);
+        closePlayer();
+        openPlaylist(new Entry(name, detail, link, link.startsWith("spotify:album:") ? image : "", -1));
     }
 
     private void toggleSaved() {
