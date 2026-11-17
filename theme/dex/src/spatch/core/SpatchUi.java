@@ -1105,6 +1105,7 @@ public final class SpatchUi extends FrameLayout {
         void bind(Entry e) {
             art.shapeKind = e.category == 2 ? Art.CIRCLE : Art.ROUNDED;
             art.letter = initial(e.title);
+            art.heart = liked(e.uri) && e.image.isEmpty();
             art.bind(e.image);
             name.setText(e.title);
             name.setTextColor(playingFrom(e.uri) ? accent : ink);
@@ -1220,6 +1221,7 @@ public final class SpatchUi extends FrameLayout {
             trackNumber.setText(String.valueOf(number));
             art.shapeKind = e.category == 2 ? Art.CIRCLE : Art.ROUNDED;
             art.letter = initial(e.title);
+            art.heart = liked(e.uri) && e.image.isEmpty();
             art.bind(e.image);
             name.setText(e.title);
             sub.setText(e.subtitle);
@@ -2827,6 +2829,9 @@ public final class SpatchUi extends FrameLayout {
         static final int CIRCLE = 0, ROUNDED = 1, WIDE = 2;
         int shapeKind;
         String letter = "";
+        /** Liked Songs, which has no cover: a gradient tile with a heart instead. */
+        boolean heart;
+        private final Path heartPath = new Path();
         private String url = "";
         private final boolean ring;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -2900,7 +2905,16 @@ public final class SpatchUi extends FrameLayout {
                 c.drawRoundRect(box, r, r, paint);
                 paint.setShader(null);
             }
-            if (b == null) {
+            if (b == null && heart) {
+                paint.setShader(new LinearGradient(0, 0, w, h, blend(surfHi, accent2, .55f), blend(surfHi, accent, .45f), Shader.TileMode.CLAMP));
+                c.drawRoundRect(box, r, r, paint);
+                paint.setShader(null);
+                float size = Math.min(w, h) * .42f;
+                c.save();
+                c.translate(w / 2 - size / 2, h / 2 - size / 2);
+                drawGlyph(c, paint, heartPath, "heart", ink, size);
+                c.restore();
+            } else if (b == null) {
                 waiting = true;
                 // Still loading: a soft band of light sweeps across the placeholder until the cover arrives.
                 if (!url.isEmpty() && !failed.contains(url + ":180") && motion() && isShown()) {

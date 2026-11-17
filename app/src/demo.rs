@@ -88,7 +88,8 @@ pub fn library() -> Vec<Item> {
                     (3, _) => format!("spotify:show:{i}"),
                     _ => format!("spotify:preview:{i}"),
                 },
-                image: format!("demo:{}", i + group * 5),
+                // Liked Songs has no cover in Spotify's library either.
+                image: if (group, i) == (0, 0) { String::new() } else { format!("demo:{}", i + group * 5) },
             })
         })
         .collect()
