@@ -44,6 +44,8 @@ fn track(i: usize, playing: bool) -> NowPlaying {
         duration_ms,
         timestamp: now_ms(),
         up_next: (1..TRACKS.len()).map(|o| next_track((i + o) % TRACKS.len())).collect(),
+        can_next: true,
+        can_previous: true,
         ..Default::default()
     }
 }
