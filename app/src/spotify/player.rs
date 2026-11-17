@@ -19,6 +19,8 @@ pub struct NowPlaying {
     pub explicit: bool,
     /// What's playing: "Lossless · 24-bit · 44.1 kHz", "Very high · 320 kbps"..., or "" if Spotify hasn't said.
     pub quality: String,
+    /// Spotify is fetching audio and can't play yet.
+    pub buffering: bool,
     /// Whether the song is in Liked Songs, as the player state says (`collection.in_collection`); None if it doesn't.
     pub liked: Option<bool>,
     pub image: String,
@@ -107,6 +109,7 @@ impl NowPlaying {
             context: state.context_uri.clone(),
             explicit: matches!(meta(&track, &["is_explicit", "explicit"]), "true" | "1"),
             quality: quality_label(state.playback_quality.as_ref()),
+            buffering: state.is_buffering,
             liked: match meta(&track, &["collection.in_collection"]) { "true" => Some(true), "false" => Some(false), _ => None },
             image: image_url(meta(&track, &["image_large_url", "image_url", "image_xlarge_url", "image_small_url"])),
             playing: state.is_playing && !state.is_paused,

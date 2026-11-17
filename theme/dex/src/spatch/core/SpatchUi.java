@@ -136,6 +136,8 @@ public final class SpatchUi extends FrameLayout {
     private Boolean pending, saved;
     private String savedUri = "";
     private String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
+    private boolean buffering;
+    private final java.util.Set<PlayButton> playButtons = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private List<Entry> upcoming = new ArrayList<>();
     private String libraryStatus = "Connecting to your library…";
 
@@ -563,9 +565,12 @@ public final class SpatchUi extends FrameLayout {
         rating = s[12];
         context = s[13];
         quality = s[14];
+        boolean wasBuffering = buffering;
+        buffering = Boolean.parseBoolean(s[15]);
+        if (buffering != wasBuffering) for (PlayButton b : playButtons) b.invalidate();
         stamp = SystemClock.uptimeMillis();
         List<Entry> next = new ArrayList<>();
-        for (int i = 15; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
+        for (int i = 16; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
         upcoming = next;
         if (changed) checkSaved(uri);
         refreshPalette();
@@ -2287,7 +2292,7 @@ public final class SpatchUi extends FrameLayout {
         private boolean on, started;
         private android.animation.ValueAnimator morph;
 
-        PlayButton() { super(activity); tappable(this, "Play or pause", SpatchUi.this::togglePlay); }
+        PlayButton() { super(activity); playButtons.add(this); tappable(this, "Play or pause", SpatchUi.this::togglePlay); }
 
         void set(boolean playingNow) {
             if (started && playingNow == on) return;
@@ -2312,16 +2317,26 @@ public final class SpatchUi extends FrameLayout {
                 if (i == 0) scallop.moveTo(x, y); else scallop.lineTo(x, y);
             }
             scallop.close();
-            if (on && motion()) { angle = (angle + .35f) % 360f; c.rotate(angle); }
+            // Buffering: the scallop spins faster and a bright arc chases round inside it until the audio arrives.
+            if ((on || buffering) && motion()) { angle = (angle + (buffering ? 2.2f : .35f)) % 360f; c.rotate(angle); }
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(accent);
             c.drawPath(scallop, paint);
+            if (buffering) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeWidth(r * .09f);
+                paint.setColor((onAccent & 0x00ffffff) | 0x99000000);
+                float ring = r * .72f;
+                c.drawArc(-ring, -ring, ring, ring, angle * 2.5f, 100, false, paint);
+                paint.setStyle(Paint.Style.FILL);
+            }
             c.restore();
             c.save();
             c.translate(getWidth() / 2f - r * .5f, getHeight() / 2f - r * .5f);
             drawGlyph(c, paint, glyph, on ? "pause" : "play", onAccent, r);
             c.restore();
-            if (on && motion() && isShown()) postInvalidateOnAnimation();
+            if ((on || buffering) && motion() && isShown()) postInvalidateOnAnimation();
         }
     }
 
