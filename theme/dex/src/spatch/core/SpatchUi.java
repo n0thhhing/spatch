@@ -511,7 +511,7 @@ public final class SpatchUi extends FrameLayout {
             if (libRevision != libraryRevision) {
                 libraryRevision = libRevision;
                 // Not while you're typing in a search box: the rebuild would throw the text and keyboard away.
-                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS && !(findFocus() instanceof android.widget.EditText)) showPage();
+                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS && !(findFocus() instanceof android.widget.EditText)) showPageKeepingPlace();
                 else if (findFocus() instanceof android.widget.EditText) libraryRevision--;
             }
             postDelayed(this, 350);
@@ -542,6 +542,21 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private long libraryRevision, playlistRevision;
+    private android.widget.AbsListView libraryList;
+
+    /** Redraws the page for new data without losing your place in the Library list or Home's scroll. */
+    private void showPageKeepingPlace() {
+        android.widget.AbsListView list = tab == LIBRARY ? libraryList : null;
+        int first = list != null ? list.getFirstVisiblePosition() : 0;
+        int top = list != null && list.getChildCount() > 0 ? list.getChildAt(0).getTop() : 0;
+        int y = pageScroll != null ? pageScroll.getScrollY() : 0;
+        showPage();
+        android.widget.AbsListView again = tab == LIBRARY ? libraryList : null;
+        if (again instanceof ListView) ((ListView) again).setSelectionFromTop(first, top);
+        else if (again != null) again.setSelection(first);
+        else keepScroll(pageScroll, y);
+        if (again != null) again.setLayoutAnimation(null); // no cascade for a quiet refresh
+    }
     private boolean watchingPlaylist;
 
     private void refreshLibraryIfStale() {
@@ -738,6 +753,7 @@ public final class SpatchUi extends FrameLayout {
         pageHost.removeAllViews();
         pageScroll = null;
         pageList = null;
+        libraryList = null;
         heroArt = null; heroTitle = heroArtist = null;
         View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == LIBRARY ? libraryPage() : settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
@@ -1013,6 +1029,7 @@ public final class SpatchUi extends FrameLayout {
             list.setClipToPadding(false);
             page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
             if (list instanceof ListView) pageList = (ListView) list;
+            libraryList = list;
             field.addTextChangedListener(new android.text.TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
                 @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
