@@ -100,8 +100,8 @@ def hint(cls, name, shape, is_field):
     return f' ({"; ".join(parts)})' if parts else ''
 
 
-helpers = '\n'.join(Path(p).read_text(encoding='utf-8') for p in glob.glob(os.path.join(ROOT, 'theme/dex/src/**/*.java'), recursive=True))
-stubs_all = '\n'.join(Path(p).read_text(encoding='utf-8') for p in glob.glob(os.path.join(ROOT, 'theme/dex/stubs/p/S_*.java')))
+helpers = '\n'.join(Path(p).read_text(encoding='utf-8') for p in glob.glob(os.path.join(ROOT, 'java/dex/src/**/*.java'), recursive=True))
+stubs_all = '\n'.join(Path(p).read_text(encoding='utf-8') for p in glob.glob(os.path.join(ROOT, 'java/dex/stubs/p/S_*.java')))
 edits_src = Path(ROOT, 'src/edits.rs').read_text(encoding='utf-8')
 swap = lambda text: re.sub(r'\bS_([A-Z]\w*)', lambda a: new[a.group(1)], text)
 edits, added = [], set()
@@ -133,7 +133,7 @@ def check(where, cls, sig, is_field, direct=False):
         print(f'{where}: {label} missing {readable(sig)}{hint(cls, name, sep + rest, is_field)}')
 
 
-for path in sorted(glob.glob(os.path.join(ROOT, 'theme/dex/stubs/p/S_*.java'))):
+for path in sorted(glob.glob(os.path.join(ROOT, 'java/dex/stubs/p/S_*.java'))):
     cls_name = os.path.basename(path)[:-5]
     target = new[cls_name[2:]]
     raw = Path(path).read_text(encoding='utf-8')

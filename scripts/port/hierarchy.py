@@ -28,7 +28,7 @@ def parents(cls):
 
 
 bad = 0
-sources = glob.glob('theme/dex/stubs/p/S_*.java') + glob.glob('theme/dex/src/**/*.java', recursive=True)
+sources = glob.glob('java/dex/stubs/p/S_*.java') + glob.glob('java/dex/src/**/*.java', recursive=True)
 for path in sources:
     code = re.sub(r'//.*', '', Path(path).read_text(encoding='utf-8'))
     for m in re.finditer(r'class\s+(\w+)\s*(?:extends\s+(?:p\.)?(S_\w+))?\s*(?:implements\s+([^{]+))?\{', code):

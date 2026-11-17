@@ -1,4 +1,4 @@
-//! Patch-time palettes. Every colour the patch writes is one of 9 roles; the sources under `theme/`
+//! Patch-time palettes. Every colour the patch writes is one of 9 roles; the Java sources under `java/`
 //! and the colour edits in `dex`/`arsc` are written with the lavender values, which act as role tokens
 //! and are substituted with the selected theme's values.
 
@@ -11,7 +11,7 @@ pub struct Theme {
     pub rgb: [u32; 9],
 }
 
-/// The role tokens: the lavender theme, as written in `theme/` and the edit tables.
+/// The role tokens: the lavender theme, as written in `java/` and the edit tables.
 const TOKENS: [u32; 9] = THEMES[0].rgb;
 
 /// Public palette values; secondary/subdued text pairs are checked for >= 4.5:1 contrast

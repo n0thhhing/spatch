@@ -14,7 +14,7 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
     git("init", "-q")
     git("config", "user.email", "test@example.invalid")
     git("config", "user.name", "Test")
-    for name in ["src/input.rs", "theme/test", "manager/test", "scripts/port/aliases.tsv", "Cargo.toml"]:
+    for name in ["src/input.rs", "java/test", "manager/test", "scripts/port/aliases.tsv", "Cargo.toml"]:
         path = repo / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("original\n")
@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
         assert actual == f"patches={str(patches).lower()}\nmanager={str(manager).lower()}\n", actual
     def published():
         tree = subprocess.check_output(["git", "-C", str(repo), "ls-tree", "-r", "HEAD", "--",
-                                        "src", "theme", "Cargo.toml", "Cargo.lock", "scripts/port/aliases.tsv"])
+                                        "src", "java", "Cargo.toml", "Cargo.lock", "scripts/port/aliases.tsv"])
         patch = subprocess.check_output(["git", "hash-object", "--stdin"], input=tree).decode().strip()
         manager = git("rev-parse", "HEAD:manager")
         labels.write_text(f"spatch-bundle.zip\tnightly-{patch}\nspatch-bundle-debug.zip\tnightly-{patch}\n"
@@ -48,8 +48,8 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
     git("commit", "-qm", "manager only")
     check(False, True)
     published()
-    (repo / "theme/test").write_text("patch changed\n")
-    git("add", "theme")
+    (repo / "java/test").write_text("patch changed\n")
+    git("add", "java")
     git("commit", "-qm", "patches only")
     check(True, False)
     published()

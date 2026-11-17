@@ -366,92 +366,92 @@ flowchart LR
 
 ## 11. Complete `spatch.*` Helper Directory (`classes16.dex`)
 
-All 59 runtime helper classes (plus 4 `--debug` classes) live under `theme/dex/src/spatch/` and compile into `classes16.dex`:
+All 59 runtime helper classes (plus 4 `--debug` classes) live under `java/dex/src/spatch/` and compile into `classes16.dex`:
 
 ### `spatch/player/` — Full Player, Artwork, Transport, Seekbar & Lyrics
 | Helper Class | Hooked Entry / Caller | Responsibility |
 | --- | --- | --- |
-| [`PlayerArt`](../theme/dex/src/spatch/player/PlayerArt.java) | `res/layout/square_cover_art_content.xml` | Custom cover art view: squircle/circle clip, radial audio contour, double-tap detector, hero handoff to `Immersive`. |
-| [`Atmosphere`](../theme/dex/src/spatch/player/Atmosphere.java) | `PlayerArt` | 12×12 bilinear artwork color sampler, 900ms smoothstep backdrop gradient crossfade, and bass FFT shockwaves. |
-| [`ArtContour`](../theme/dex/src/spatch/player/ArtContour.java) | `PlayerArt` | Animated contour ribbon outline around the player cover art. |
-| [`ArtMotion`](../theme/dex/src/spatch/player/ArtMotion.java) | `PlayerArt` | 3D touch perspective tilt and vinyl record spin/scratch scrubbing. |
-| [`Scallop`](../theme/dex/src/spatch/player/Scallop.java) | `S_PlayButtonShape.draw()` | Morphs Play/Pause button background between 5 lobes (paused) and 9 rotating lobes (playing). |
-| [`ScallopShape`](../theme/dex/src/spatch/player/ScallopShape.java) | `S_MixPlayButton` | Compose `Shape` wrapper bringing the live scalloped outline to playlist header play buttons. |
-| [`ScallopFill`](../theme/dex/src/spatch/player/ScallopFill.java) | `res/drawable/play_button_header_style_background.xml` | Custom XML `Drawable` rendering scalloped backgrounds in album/show headers. |
-| [`Transport`](../theme/dex/src/spatch/player/Transport.java) | `PlayerArt` / NPV tree | Wraps shuffle, repeat, previous, and next buttons with 3/4/6-lobe press surfaces and ±4dp directional skip nudges. |
-| [`Wave`](../theme/dex/src/spatch/player/Wave.java) | `res/drawable/seekbar_progress.xml` | Custom seekbar progress drawable rendering an animated sine wave while playing and flat line while paused/dragging. |
-| [`SeekBubble`](../theme/dex/src/spatch/player/SeekBubble.java) | Seekbar touch hook | Floating timestamp pill above the seekbar thumb during scrubbing. |
-| [`SeekSplash`](../theme/dex/src/spatch/player/SeekSplash.java) | Seekbar release / vinyl commit | Emits particle droplet physics across the seekbar when a seek is committed. |
-| [`HoldSeek`](../theme/dex/src/spatch/player/HoldSeek.java) | Player gesture hook | Press-and-hold fast-forward / rewind scrubbing gesture. |
-| [`SaveBurst`](../theme/dex/src/spatch/player/SaveBurst.java) | `AddToButtonView.a(S_SaveButtonState)` | Celebratory particle burst when saving/liking a track. |
-| [`TextSlide`](../theme/dex/src/spatch/player/TextSlide.java) | Now Playing track info | Directional slide and crossfade animation when track title or artist text changes. |
-| [`PlayerLyrics`](../theme/dex/src/spatch/player/PlayerLyrics.java) | NPV view tree (`R_id_lyrics_element`) | Collapses or restores the bottom inline lyrics preview card slot cleanly without breaking Spotify's state updates. |
-| [`Immersive`](../theme/dex/src/spatch/player/Immersive.java) | `PlayerArt` double-tap, `SpotifyMainActivity.r(I)` | Full-screen portrait & landscape player overlay with hero fly-in, Spoticon transport controls, and touch replay. |
-| [`ImmersiveButton`](../theme/dex/src/spatch/player/ImmersiveButton.java) | NPV header / toolbar | Entry button and chrome toggle for launching `Immersive` mode. |
-| [`ImmersiveLyrics`](../theme/dex/src/spatch/player/ImmersiveLyrics.java) | `S_LyricPositionMapper`, `S_LyricStateMapper` | Receives native `S_PlayerClock` and `S_LyricState` via static fields to render time-synced lyrics inside `Immersive`. |
-| [`Expansion`](../theme/dex/src/spatch/player/Expansion.java) | Player sheet transition | Coordinates smooth morphing between the mini-player bar and the full Now Playing view. |
-| [`SpatchWidget`](../theme/dex/src/spatch/player/SpatchWidget.java) | `S_GlanceRemoteViews`, `S_MediaSessionSite` | Replaces Spotify's Glance Now Playing app widget with a themed `RemoteViews` widget fed by `MediaSession`. |
+| [`PlayerArt`](../java/dex/src/spatch/player/PlayerArt.java) | `res/layout/square_cover_art_content.xml` | Custom cover art view: squircle/circle clip, radial audio contour, double-tap detector, hero handoff to `Immersive`. |
+| [`Atmosphere`](../java/dex/src/spatch/player/Atmosphere.java) | `PlayerArt` | 12×12 bilinear artwork color sampler, 900ms smoothstep backdrop gradient crossfade, and bass FFT shockwaves. |
+| [`ArtContour`](../java/dex/src/spatch/player/ArtContour.java) | `PlayerArt` | Animated contour ribbon outline around the player cover art. |
+| [`ArtMotion`](../java/dex/src/spatch/player/ArtMotion.java) | `PlayerArt` | 3D touch perspective tilt and vinyl record spin/scratch scrubbing. |
+| [`Scallop`](../java/dex/src/spatch/player/Scallop.java) | `S_PlayButtonShape.draw()` | Morphs Play/Pause button background between 5 lobes (paused) and 9 rotating lobes (playing). |
+| [`ScallopShape`](../java/dex/src/spatch/player/ScallopShape.java) | `S_MixPlayButton` | Compose `Shape` wrapper bringing the live scalloped outline to playlist header play buttons. |
+| [`ScallopFill`](../java/dex/src/spatch/player/ScallopFill.java) | `res/drawable/play_button_header_style_background.xml` | Custom XML `Drawable` rendering scalloped backgrounds in album/show headers. |
+| [`Transport`](../java/dex/src/spatch/player/Transport.java) | `PlayerArt` / NPV tree | Wraps shuffle, repeat, previous, and next buttons with 3/4/6-lobe press surfaces and ±4dp directional skip nudges. |
+| [`Wave`](../java/dex/src/spatch/player/Wave.java) | `res/drawable/seekbar_progress.xml` | Custom seekbar progress drawable rendering an animated sine wave while playing and flat line while paused/dragging. |
+| [`SeekBubble`](../java/dex/src/spatch/player/SeekBubble.java) | Seekbar touch hook | Floating timestamp pill above the seekbar thumb during scrubbing. |
+| [`SeekSplash`](../java/dex/src/spatch/player/SeekSplash.java) | Seekbar release / vinyl commit | Emits particle droplet physics across the seekbar when a seek is committed. |
+| [`HoldSeek`](../java/dex/src/spatch/player/HoldSeek.java) | Player gesture hook | Press-and-hold fast-forward / rewind scrubbing gesture. |
+| [`SaveBurst`](../java/dex/src/spatch/player/SaveBurst.java) | `AddToButtonView.a(S_SaveButtonState)` | Celebratory particle burst when saving/liking a track. |
+| [`TextSlide`](../java/dex/src/spatch/player/TextSlide.java) | Now Playing track info | Directional slide and crossfade animation when track title or artist text changes. |
+| [`PlayerLyrics`](../java/dex/src/spatch/player/PlayerLyrics.java) | NPV view tree (`R_id_lyrics_element`) | Collapses or restores the bottom inline lyrics preview card slot cleanly without breaking Spotify's state updates. |
+| [`Immersive`](../java/dex/src/spatch/player/Immersive.java) | `PlayerArt` double-tap, `SpotifyMainActivity.r(I)` | Full-screen portrait & landscape player overlay with hero fly-in, Spoticon transport controls, and touch replay. |
+| [`ImmersiveButton`](../java/dex/src/spatch/player/ImmersiveButton.java) | NPV header / toolbar | Entry button and chrome toggle for launching `Immersive` mode. |
+| [`ImmersiveLyrics`](../java/dex/src/spatch/player/ImmersiveLyrics.java) | `S_LyricPositionMapper`, `S_LyricStateMapper` | Receives native `S_PlayerClock` and `S_LyricState` via static fields to render time-synced lyrics inside `Immersive`. |
+| [`Expansion`](../java/dex/src/spatch/player/Expansion.java) | Player sheet transition | Coordinates smooth morphing between the mini-player bar and the full Now Playing view. |
+| [`SpatchWidget`](../java/dex/src/spatch/player/SpatchWidget.java) | `S_GlanceRemoteViews`, `S_MediaSessionSite` | Replaces Spotify's Glance Now Playing app widget with a themed `RemoteViews` widget fed by `MediaSession`. |
 
 ### `spatch/mini/` — Mini-Player (`NowPlayingBar`)
 | Helper Class | Hooked Entry / Caller | Responsibility |
 | --- | --- | --- |
-| [`MiniBar`](../theme/dex/src/spatch/mini/MiniBar.java) | `res/layout/now_playing_bar.xml` | `MotionLayout` subclass hosting the floating mini-player pill and coordinating child hooks. |
-| [`MiniSurface`](../theme/dex/src/spatch/mini/MiniSurface.java) | `MiniBar` | Locks the mini-player's corner radius and tonal border against Spotify's runtime corner overrides. |
-| [`MiniRing`](../theme/dex/src/spatch/mini/MiniRing.java) | `MiniBar` | Wraps the mini-player play/pause button in a 48dp circular track progress indicator. |
-| [`MiniArt`](../theme/dex/src/spatch/mini/MiniArt.java) | `MiniBar` | Handles cover rounding and `MiniArt.Fling` horizontal fling-to-skip gestures on the mini-player artwork. |
-| [`MiniEq`](../theme/dex/src/spatch/mini/MiniEq.java) | `MiniBar` | Renders reactive mini equalizer bars inside the mini-player driven by `AudioSpectrum`. |
-| [`MiniSkip`](../theme/dex/src/spatch/mini/MiniSkip.java) | `MiniBar` | Optional previous/next skip controls integrated into the mini-player layout. |
+| [`MiniBar`](../java/dex/src/spatch/mini/MiniBar.java) | `res/layout/now_playing_bar.xml` | `MotionLayout` subclass hosting the floating mini-player pill and coordinating child hooks. |
+| [`MiniSurface`](../java/dex/src/spatch/mini/MiniSurface.java) | `MiniBar` | Locks the mini-player's corner radius and tonal border against Spotify's runtime corner overrides. |
+| [`MiniRing`](../java/dex/src/spatch/mini/MiniRing.java) | `MiniBar` | Wraps the mini-player play/pause button in a 48dp circular track progress indicator. |
+| [`MiniArt`](../java/dex/src/spatch/mini/MiniArt.java) | `MiniBar` | Handles cover rounding and `MiniArt.Fling` horizontal fling-to-skip gestures on the mini-player artwork. |
+| [`MiniEq`](../java/dex/src/spatch/mini/MiniEq.java) | `MiniBar` | Renders reactive mini equalizer bars inside the mini-player driven by `AudioSpectrum`. |
+| [`MiniSkip`](../java/dex/src/spatch/mini/MiniSkip.java) | `MiniBar` | Optional previous/next skip controls integrated into the mini-player layout. |
 
 ### `spatch/audio/` — Native FFT & Spectrum Analysis
 | Helper Class | Hooked Entry / Caller | Responsibility |
 | --- | --- | --- |
-| [`AudioSpectrum`](../theme/dex/src/spatch/audio/AudioSpectrum.java) | `AudioEffectsListener` | Attaches `android.media.audiofx.Visualizer` to Spotify's internal `audioSessionId` and polls 1024-pt FFT at ~30Hz. |
-| [`Spectrum`](../theme/dex/src/spatch/audio/Spectrum.java) | `AudioSpectrum` | Bins raw FFT magnitudes into 24/42 logarithmic bands with `PRIOR` calibration seeding and temporal smoothing. |
-| [`AudioScope`](../theme/dex/src/spatch/audio/AudioScope.java) | `PlayerArt`, `Immersive` | Waveform and oscilloscope ring path generator from live audio frames. |
-| [`SpectrumPreview`](../theme/dex/src/spatch/audio/SpectrumPreview.java) | `SpatchSettings` | Live interactive visualizer preview inside the Spatch Settings sheet. |
+| [`AudioSpectrum`](../java/dex/src/spatch/audio/AudioSpectrum.java) | `AudioEffectsListener` | Attaches `android.media.audiofx.Visualizer` to Spotify's internal `audioSessionId` and polls 1024-pt FFT at ~30Hz. |
+| [`Spectrum`](../java/dex/src/spatch/audio/Spectrum.java) | `AudioSpectrum` | Bins raw FFT magnitudes into 24/42 logarithmic bands with `PRIOR` calibration seeding and temporal smoothing. |
+| [`AudioScope`](../java/dex/src/spatch/audio/AudioScope.java) | `PlayerArt`, `Immersive` | Waveform and oscilloscope ring path generator from live audio frames. |
+| [`SpectrumPreview`](../java/dex/src/spatch/audio/SpectrumPreview.java) | `SpatchSettings` | Live interactive visualizer preview inside the Spatch Settings sheet. |
 
 ### `spatch/lists/` — Feeds, Navigation, Cards & Content Filtering
 | Helper Class | Hooked Entry / Caller | Responsibility |
 | --- | --- | --- |
-| [`Content`](../theme/dex/src/spatch/lists/Content.java) | `S_HomeFeedModel`, `S_NavBar`, `S_SearchTiles`, `S_LibraryItemsSource` | Central content redaction engine for Home sections/chips, Search tiles, Library items/chips, and bottom NavBar tabs. |
-| [`HomeReview`](../theme/dex/src/spatch/lists/HomeReview.java) | `Content`, `SpatchSettings` | Allows reviewing hidden Home sections and immediately re-submitting `S_HomeFeedModel` to `S_HomeList`. |
-| [`FilterRow`](../theme/dex/src/spatch/lists/FilterRow.java) | `S_HomeFilterRow` | Preserves parent filter chip context when toggling sub-filter chips on Home. |
-| [`Surfaces`](../theme/dex/src/spatch/lists/Surfaces.java) | `S_LibraryRow`, `S_PlaylistTrackRow`, `S_ToggleChip`, `S_PageBackground`, `S_DrawerLinkRows` | Wraps Compose rows, chips, headers, search tiles, and drawer items in tonal Material 3 card modifiers and springs. |
-| [`RowCards`](../theme/dex/src/spatch/lists/RowCards.java) | `StickyHeaderLinearLayoutManager`, `image_link_card_layout.xml` | Applies rounded card clipping and 3D press tilt to View-based shelf cards and the Queue bottom sheet. |
-| [`Flourish`](../theme/dex/src/spatch/lists/Flourish.java) | `MainLayout`, `S_MixPlayButton`, scroll hooks | Hides/shows floating bottom bars on scroll (`barsGone`) and triggers header play-button press bursts. |
-| [`NavIndicator`](../theme/dex/src/spatch/lists/NavIndicator.java) | `navigation_bar` | Interactive horizontal drag-to-switch pill overlay on the bottom navigation bar. |
-| [`ProfileBanner`](../theme/dex/src/spatch/lists/ProfileBanner.java) | `S_OwnProfileTopBar` | Custom `ShaderBrush` and top-bar tint for the user's own profile header. |
+| [`Content`](../java/dex/src/spatch/lists/Content.java) | `S_HomeFeedModel`, `S_NavBar`, `S_SearchTiles`, `S_LibraryItemsSource` | Central content redaction engine for Home sections/chips, Search tiles, Library items/chips, and bottom NavBar tabs. |
+| [`HomeReview`](../java/dex/src/spatch/lists/HomeReview.java) | `Content`, `SpatchSettings` | Allows reviewing hidden Home sections and immediately re-submitting `S_HomeFeedModel` to `S_HomeList`. |
+| [`FilterRow`](../java/dex/src/spatch/lists/FilterRow.java) | `S_HomeFilterRow` | Preserves parent filter chip context when toggling sub-filter chips on Home. |
+| [`Surfaces`](../java/dex/src/spatch/lists/Surfaces.java) | `S_LibraryRow`, `S_PlaylistTrackRow`, `S_ToggleChip`, `S_PageBackground`, `S_DrawerLinkRows` | Wraps Compose rows, chips, headers, search tiles, and drawer items in tonal Material 3 card modifiers and springs. |
+| [`RowCards`](../java/dex/src/spatch/lists/RowCards.java) | `StickyHeaderLinearLayoutManager`, `image_link_card_layout.xml` | Applies rounded card clipping and 3D press tilt to View-based shelf cards and the Queue bottom sheet. |
+| [`Flourish`](../java/dex/src/spatch/lists/Flourish.java) | `MainLayout`, `S_MixPlayButton`, scroll hooks | Hides/shows floating bottom bars on scroll (`barsGone`) and triggers header play-button press bursts. |
+| [`NavIndicator`](../java/dex/src/spatch/lists/NavIndicator.java) | `navigation_bar` | Interactive horizontal drag-to-switch pill overlay on the bottom navigation bar. |
+| [`ProfileBanner`](../java/dex/src/spatch/lists/ProfileBanner.java) | `S_OwnProfileTopBar` | Custom `ShaderBrush` and top-bar tint for the user's own profile header. |
 
 ### `spatch/look/` — Theme Palette, Recoloring & Typography
 | Helper Class | Hooked Entry / Caller | Responsibility |
 | --- | --- | --- |
-| [`Palette`](../theme/dex/src/spatch/look/Palette.java) | `S_EncoreColorTokens`, `S_EncoreTint`, `Settings` | Stores active theme color tokens, maps Encore ARGB/Compose colors, and triggers live `rebuild()` calls. |
-| [`PaletteResources`](../theme/dex/src/spatch/look/PaletteResources.java) | `Tint`, `Settings` | Intercepts Android `Resources` color lookups at runtime to reflect live theme switches without APK rebuilds. |
-| [`Tint`](../theme/dex/src/spatch/look/Tint.java) | Activity window trees, `S_LyricLineStyle` | Walks View hierarchies to recolor backgrounds/icons and provides `Tint.lyricGlow` shadow for active lyrics. |
-| [`Fonts`](../theme/dex/src/spatch/look/Fonts.java) | `S_MixFontLoaderA..G` | Redirects Spotify Mix font resource IDs and Compose font weights to custom or bundled typefaces while sparing `spoticon`. |
-| [`FontFile`](../theme/dex/src/spatch/look/FontFile.java) | `Fonts` | Validates and loads custom TTF/OTF typeface files from disk. |
-| [`FontImport`](../theme/dex/src/spatch/look/FontImport.java) | `SpatchSettings` | Activity result document picker flow for importing user font files. |
-| [`Typography`](../theme/dex/src/spatch/look/Typography.java) | `Fonts`, `Tint` | Applies font scale, weight, and letter-spacing adjustments across text views. |
+| [`Palette`](../java/dex/src/spatch/look/Palette.java) | `S_EncoreColorTokens`, `S_EncoreTint`, `Settings` | Stores active theme color tokens, maps Encore ARGB/Compose colors, and triggers live `rebuild()` calls. |
+| [`PaletteResources`](../java/dex/src/spatch/look/PaletteResources.java) | `Tint`, `Settings` | Intercepts Android `Resources` color lookups at runtime to reflect live theme switches without APK rebuilds. |
+| [`Tint`](../java/dex/src/spatch/look/Tint.java) | Activity window trees, `S_LyricLineStyle` | Walks View hierarchies to recolor backgrounds/icons and provides `Tint.lyricGlow` shadow for active lyrics. |
+| [`Fonts`](../java/dex/src/spatch/look/Fonts.java) | `S_MixFontLoaderA..G` | Redirects Spotify Mix font resource IDs and Compose font weights to custom or bundled typefaces while sparing `spoticon`. |
+| [`FontFile`](../java/dex/src/spatch/look/FontFile.java) | `Fonts` | Validates and loads custom TTF/OTF typeface files from disk. |
+| [`FontImport`](../java/dex/src/spatch/look/FontImport.java) | `SpatchSettings` | Activity result document picker flow for importing user font files. |
+| [`Typography`](../java/dex/src/spatch/look/Typography.java) | `Fonts`, `Tint` | Applies font scale, weight, and letter-spacing adjustments across text views. |
 
 ### `spatch/motion/` — Springs, Haptics & Gestures
 | Helper Class | Hooked Entry / Caller | Responsibility |
 | --- | --- | --- |
-| [`Pill`](../theme/dex/src/spatch/motion/Pill.java) | `S_NavBarTabState`, `S_CreateTab` | Material 3 overshooting selection capsule and `+` rotation animation for the bottom navigation bar. |
-| [`TapBounce`](../theme/dex/src/spatch/motion/TapBounce.java) | Window tree touch hook | Samples pressed state across native buttons, compressing to 90% and rebounding on a 500ms damped spring. |
-| [`Springy`](../theme/dex/src/spatch/motion/Springy.java) | Shared motion helper | Analytical damped harmonic oscillator and cubic-bezier evaluators used across player and UI animations. |
-| [`Back`](../theme/dex/src/spatch/motion/Back.java) | Activity window hook | Predictive back gesture scale/translation preview on Android 13+. |
-| [`Haptics`](../theme/dex/src/spatch/motion/Haptics.java) | Seekbar, buttons, switches | Tactile `VibrationEffect` primitives (detent ticks, clicks, heavy thuds) respecting system haptics settings. |
-| [`ClickHaptic`](../theme/dex/src/spatch/motion/ClickHaptic.java) | View touch/click hooks | Attaches subtle haptic feedback to interactive controls. |
-| [`Confetti`](../theme/dex/src/spatch/motion/Confetti.java) | `SpatchSettings` | Celebratory physics confetti overlay when applying themes or hitting easter eggs. |
+| [`Pill`](../java/dex/src/spatch/motion/Pill.java) | `S_NavBarTabState`, `S_CreateTab` | Material 3 overshooting selection capsule and `+` rotation animation for the bottom navigation bar. |
+| [`TapBounce`](../java/dex/src/spatch/motion/TapBounce.java) | Window tree touch hook | Samples pressed state across native buttons, compressing to 90% and rebounding on a 500ms damped spring. |
+| [`Springy`](../java/dex/src/spatch/motion/Springy.java) | Shared motion helper | Analytical damped harmonic oscillator and cubic-bezier evaluators used across player and UI animations. |
+| [`Back`](../java/dex/src/spatch/motion/Back.java) | Activity window hook | Predictive back gesture scale/translation preview on Android 13+. |
+| [`Haptics`](../java/dex/src/spatch/motion/Haptics.java) | Seekbar, buttons, switches | Tactile `VibrationEffect` primitives (detent ticks, clicks, heavy thuds) respecting system haptics settings. |
+| [`ClickHaptic`](../java/dex/src/spatch/motion/ClickHaptic.java) | View touch/click hooks | Attaches subtle haptic feedback to interactive controls. |
+| [`Confetti`](../java/dex/src/spatch/motion/Confetti.java) | `SpatchSettings` | Celebratory physics confetti overlay when applying themes or hitting easter eggs. |
 
 ### `spatch/settings/` & `spatch/dev/` — Settings UI & Diagnostics
 | Helper Class | Hooked Entry / Caller | Responsibility |
 | --- | --- | --- |
-| [`Settings`](../theme/dex/src/spatch/settings/Settings.java) | `S_EncoreSurfaces`, `S_Drawer`, `S_CardSection`, `src/edits.rs` | Global state store (`Settings.on[]`), `SharedPreferences` persistence, drawer row injection, and `"spatch:settings"` URI router. |
-| [`SpatchSettings`](../theme/dex/src/spatch/settings/SpatchSettings.java) | `Settings.open()` | Full Material 3 settings sheet with categorized feature toggles, presets, backup/restore, and live previews. |
-| [`SettingsHero`](../theme/dex/src/spatch/settings/SettingsHero.java) | `SpatchSettings` | Animated header banner inside the Spatch Settings sheet. |
-| [`ThemeSwatch`](../theme/dex/src/spatch/settings/ThemeSwatch.java) | `SpatchSettings` | Interactive palette swatch cards and custom color pickers. |
-| [`ThemeReveal`](../theme/dex/src/spatch/settings/ThemeReveal.java) | `SpatchSettings` | Screenshot + circular clip reveal animation when switching themes live. |
-| [`M3Switch`](../theme/dex/src/spatch/settings/M3Switch.java) | `SpatchSettings` | Custom Material 3 thumb-morphing toggle switch widget. |
-| [`BannerImport`](../theme/dex/src/spatch/settings/BannerImport.java) | `SpatchSettings` | Image picker and crop/persistence handler for custom profile banners. |
-| [`DevOverlay`](../theme/dex/src/spatch/dev/DevOverlay.java), [`DevOptions`](../theme/dex/src/spatch/dev/DevOptions.java), [`DevSampler`](../theme/dex/src/spatch/dev/DevSampler.java), [`DevTests`](../theme/dex/src/spatch/dev/DevTests.java) | `--debug` builds only | On-device frame timing HUD, pixel/view inspector, and runtime self-test suite. |
+| [`Settings`](../java/dex/src/spatch/settings/Settings.java) | `S_EncoreSurfaces`, `S_Drawer`, `S_CardSection`, `src/edits.rs` | Global state store (`Settings.on[]`), `SharedPreferences` persistence, drawer row injection, and `"spatch:settings"` URI router. |
+| [`SpatchSettings`](../java/dex/src/spatch/settings/SpatchSettings.java) | `Settings.open()` | Full Material 3 settings sheet with categorized feature toggles, presets, backup/restore, and live previews. |
+| [`SettingsHero`](../java/dex/src/spatch/settings/SettingsHero.java) | `SpatchSettings` | Animated header banner inside the Spatch Settings sheet. |
+| [`ThemeSwatch`](../java/dex/src/spatch/settings/ThemeSwatch.java) | `SpatchSettings` | Interactive palette swatch cards and custom color pickers. |
+| [`ThemeReveal`](../java/dex/src/spatch/settings/ThemeReveal.java) | `SpatchSettings` | Screenshot + circular clip reveal animation when switching themes live. |
+| [`M3Switch`](../java/dex/src/spatch/settings/M3Switch.java) | `SpatchSettings` | Custom Material 3 thumb-morphing toggle switch widget. |
+| [`BannerImport`](../java/dex/src/spatch/settings/BannerImport.java) | `SpatchSettings` | Image picker and crop/persistence handler for custom profile banners. |
+| [`DevOverlay`](../java/dex/src/spatch/dev/DevOverlay.java), [`DevOptions`](../java/dex/src/spatch/dev/DevOptions.java), [`DevSampler`](../java/dex/src/spatch/dev/DevSampler.java), [`DevTests`](../java/dex/src/spatch/dev/DevTests.java) | `--debug` builds only | On-device frame timing HUD, pixel/view inspector, and runtime self-test suite. |

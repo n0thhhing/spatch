@@ -142,8 +142,8 @@ adb install-multiple -r base.apk split_config.*.apk
 | `source/cloudflare/` | A free private source: a Cloudflare Worker in front of a private GitHub release. |
 | `manager/` | Spatch Manager, the Android app that patches, signs and installs on the phone. |
 | `src/theme.rs` | Theme colour roles. |
-| `theme/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |
-| `theme/dex/stubs/` | Compile-only stubs. `p/` holds Spotify's obfuscated classes; see [its README](theme/dex/stubs/p/README.md). |
+| `java/dex/src/spatch/` | The Java helper classes added to the app, by area: `player`, `mini`, `lists`, `audio`, `settings`, `look` (themes, fonts), `motion` and `dev`. All are one Java package. |
+| `java/dex/stubs/` | Compile-only stubs. `p/` holds Spotify's obfuscated classes; see [its README](java/dex/stubs/p/README.md). |
 | `theme/player/` | Spatch's own resources, and diffs (`*.diff`) applied to the decoded originals. The diffs hold only Spatch's added lines. |
 | `docs/targets.md` | Which app code owns each screen and why each target was chosen. |
 
