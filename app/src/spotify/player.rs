@@ -21,6 +21,9 @@ pub struct NowPlaying {
     pub quality: String,
     /// Spotify is fetching audio and can't play yet.
     pub buffering: bool,
+    /// Whether Spotify allows skipping forward / back right now (not during an ad, for instance).
+    pub can_next: bool,
+    pub can_previous: bool,
     /// Whether the song is in Liked Songs, as the player state says (`collection.in_collection`); None if it doesn't.
     pub liked: Option<bool>,
     pub image: String,
@@ -110,6 +113,8 @@ impl NowPlaying {
             explicit: matches!(meta(&track, &["is_explicit", "explicit"]), "true" | "1"),
             quality: quality_label(state.playback_quality.as_ref()),
             buffering: state.is_buffering,
+            can_next: state.restrictions.as_ref().is_none_or(|r| r.disallow_skipping_next_reasons.is_empty()),
+            can_previous: state.restrictions.as_ref().is_none_or(|r| r.disallow_skipping_prev_reasons.is_empty()),
             liked: match meta(&track, &["collection.in_collection"]) { "true" => Some(true), "false" => Some(false), _ => None },
             image: image_url(meta(&track, &["image_large_url", "image_url", "image_xlarge_url", "image_small_url"])),
             playing: state.is_playing && !state.is_paused,

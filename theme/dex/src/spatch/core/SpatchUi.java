@@ -137,7 +137,9 @@ public final class SpatchUi extends FrameLayout {
     private Boolean pending, saved;
     private String savedUri = "";
     private String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
-    private boolean buffering;
+    private boolean buffering, canNext = true, canPrevious = true;
+    /** Skip buttons (true for next), dimmed and disabled while Spotify doesn't allow that skip. */
+    private final java.util.Map<View, Boolean> skipButtons = new java.util.WeakHashMap<>();
     private final java.util.Set<PlayButton> playButtons = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private List<Entry> upcoming = new ArrayList<>();
     private String libraryStatus = "Connecting to your library…";
@@ -570,10 +572,17 @@ public final class SpatchUi extends FrameLayout {
         quality = s[14];
         boolean wasBuffering = buffering;
         buffering = Boolean.parseBoolean(s[15]);
+        canNext = Boolean.parseBoolean(s[16]);
+        canPrevious = Boolean.parseBoolean(s[17]);
+        for (View b : skipButtons.keySet()) {
+            boolean allowed = skipButtons.get(b) ? canNext : canPrevious;
+            b.setEnabled(allowed);
+            b.animate().alpha(allowed ? 1f : .35f).setDuration(200).start();
+        }
         if (buffering != wasBuffering) for (PlayButton b : playButtons) b.invalidate();
         stamp = SystemClock.uptimeMillis();
         List<Entry> next = new ArrayList<>();
-        for (int i = 16; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
+        for (int i = 18; i + 3 < s.length; i += 4) next.add(new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1));
         upcoming = next;
         if (changed) checkSaved(uri);
         refreshPalette();
@@ -658,10 +667,10 @@ public final class SpatchUi extends FrameLayout {
         words.addView(mTitle);
         words.addView(mArtist);
         mini.addView(words, weight());
-        mini.addView(iconButton(icon("previous", () -> ink), "Previous", () -> command(PREVIOUS, 0, "")), lp(dp(44), dp(44)));
+        mini.addView(skip(iconButton(icon("previous", () -> ink), "Previous", () -> command(PREVIOUS, 0, "")), false), lp(dp(44), dp(44)));
         mPlay = new PlayButton();
         mini.addView(mPlay, lp(dp(50), dp(50)));
-        mini.addView(iconButton(icon("next", () -> ink), "Next", () -> command(NEXT, 0, "")), lp(dp(44), dp(44)));
+        mini.addView(skip(iconButton(icon("next", () -> ink), "Next", () -> command(NEXT, 0, "")), true), lp(dp(44), dp(44)));
         tappable(mini, "Open player", () -> openPlayer(true));
         miniGestures(mini);
         LinearLayout.LayoutParams mp = fill(-2);
@@ -2070,10 +2079,10 @@ public final class SpatchUi extends FrameLayout {
         pRepeat = new Icon("repeat", inkDim);
         colored(pRepeat, () -> { pRepeat.symbol = repeat == 2 ? "repeat-one" : "repeat"; pRepeat.color = repeat != 0 ? accent : inkDim; pRepeat.invalidate(); });
         controls.addView(iconButton(pShuffle, "Shuffle", this::toggleShuffle), lp(dp(52), dp(52)));
-        controls.addView(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", () -> command(PREVIOUS, 0, "")), false), lp(dp(60), dp(60)));
+        controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", () -> command(PREVIOUS, 0, "")), false), false), lp(dp(60), dp(60)));
         pPlay = new PlayButton();
         controls.addView(pPlay, lp(dp(86), dp(86)));
-        controls.addView(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), lp(dp(60), dp(60)));
+        controls.addView(skip(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), true), lp(dp(60), dp(60)));
         controls.addView(iconButton(pRepeat, "Repeat", this::cycleRepeat), lp(dp(52), dp(52)));
         col.addView(controls, fill(-2));
 
@@ -2087,6 +2096,16 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Tap skips; holding the button jumps ten seconds at a time until it is released. */
+    private View skip(View button, boolean next) {
+        // Previous also restarts the song, which Spotify allows even when skipping back isn't, so only Next dims.
+        if (!next) return button;
+        skipButtons.put(button, true);
+        boolean allowed = next ? canNext : canPrevious;
+        button.setEnabled(allowed);
+        button.setAlpha(allowed ? 1f : .35f);
+        return button;
+    }
+
     private View holdToSeek(View button, boolean forward) {
         boolean[] held = new boolean[1];
         Runnable[] step = new Runnable[1];
