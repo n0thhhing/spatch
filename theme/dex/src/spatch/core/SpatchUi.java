@@ -1747,13 +1747,9 @@ public final class SpatchUi extends FrameLayout {
             actions.addView(simBtn, lp(dp(46), dp(46)));
         }
         actions.addView(space(0, 1), weight());
-        // While this list is the one playing, the button pauses and resumes it instead of starting it over.
-        PlayButton fab = new PlayButton();
-        playButtons.remove(fab);
-        fab.set(listIsPlaying() && playing);
-        tappable(fab, "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, listShuffle > 0 ? 1 : 2, playUri()); });
-        listFab = fab;
-        actions.addView(fab, lp(dp(62), dp(62)));
+        // Placeholder inside the header row; the real PlayButton floats in `page` so it sticks at the top on scroll.
+        View fabSlot = space(dp(62), dp(62));
+        actions.addView(fabSlot);
         LinearLayout.LayoutParams ap = fill(-2);
         ap.topMargin = dp(12);
         header.addView(actions, ap);
@@ -1855,15 +1851,34 @@ public final class SpatchUi extends FrameLayout {
         topBar.addView(backBox, lp(dp(42), dp(42)));
         TextView collapsed = text(headTitle, 18, () -> ink, true);
         oneLine(collapsed);
-        collapsed.setPadding(dp(12), 0, 0, 0);
+        collapsed.setPadding(dp(12), 0, dp(74), 0);
         collapsed.setAlpha(0f);
         topBar.addView(collapsed, weight());
+
+        // Floating scalloped PlayButton that tracks the header's action row down to the top bar, then stays pinned.
+        PlayButton fab = new PlayButton();
+        playButtons.remove(fab);
+        fab.set(listIsPlaying() && playing);
+        tappable(fab, "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, listShuffle > 0 ? 1 : 2, playUri()); });
+        listFab = fab;
+        fab.setVisibility(INVISIBLE);
+        final float pinY = inset.top + dp(25);
+        Runnable syncFab = () -> {
+            if (fabSlot.getHeight() == 0) return;
+            boolean headerVisible = header.getParent() != null;
+            float scrollY = header.getParent() instanceof ScrollView ? ((ScrollView) header.getParent()).getScrollY() : 0f;
+            float naturalY = headerVisible ? header.getTop() + actions.getTop() + fabSlot.getTop() - scrollY : -dp(200);
+            fab.setTranslationY(Math.max(pinY, naturalY));
+            if (fab.getVisibility() != VISIBLE) fab.setVisibility(VISIBLE);
+        };
+        header.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> syncFab.run());
 
         if (playlistTracks.isEmpty() && releases.isEmpty()) {
             ScrollView s = new ScrollView(activity);
             s.setVerticalScrollBarEnabled(false);
             header.setPadding(dp(20), inset.top + dp(56), dp(20), dp(170) + inset.bottom);
             s.addView(header);
+            s.setOnScrollChangeListener((v, sx, sy, osx, osy) -> syncFab.run());
             page.addView(s, new LayoutParams(-1, -1));
         } else {
             ListView list = entryList(playlistTracks, header);
@@ -1927,6 +1942,7 @@ public final class SpatchUi extends FrameLayout {
                     barBg.setAlpha(Math.round(255 * barT));
                     barFade.setAlpha(barT);
                     collapsed.setAlpha(barT);
+                    syncFab.run();
                 }
             });
             list.setClipToPadding(false);
@@ -1937,6 +1953,9 @@ public final class SpatchUi extends FrameLayout {
         LayoutParams bf = new LayoutParams(-1, dp(16), Gravity.TOP);
         bf.topMargin = dp(56) + inset.top;
         page.addView(barFade, bf);
+        LayoutParams fp = new LayoutParams(dp(62), dp(62), Gravity.TOP | Gravity.END);
+        fp.rightMargin = dp(20);
+        page.addView(fab, fp);
         return page;
     }
 
