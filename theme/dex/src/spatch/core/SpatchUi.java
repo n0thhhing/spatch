@@ -174,6 +174,9 @@ public final class SpatchUi extends FrameLayout {
         }
         applyPalette(null);
         setFocusableInTouchMode(true);
+        // Android otherwise lays a 12% white "focus highlight" over this focused view, washing out the whole app,
+        // and it vanished whenever a search box took focus. The dark palette carries that lift instead.
+        if (android.os.Build.VERSION.SDK_INT >= 26) setDefaultFocusHighlightEnabled(false);
         setOnApplyWindowInsetsListener((v, insets) -> {
             android.graphics.Rect next = new android.graphics.Rect();
             if (android.os.Build.VERSION.SDK_INT >= 30) {

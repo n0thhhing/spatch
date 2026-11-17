@@ -12,8 +12,11 @@ pub fn palette(seed: Option<u32>, dark: bool) -> [u32; 8] {
     });
     if dark {
         let a = (c + 0.1).min(0.9);
+        // Mixed 12% toward white: Android's default focus highlight used to lay exactly that over the whole app,
+        // and the app is known by that look; the highlight is now off, so the lift lives here instead.
         [hsl(h, 0.28 * c, 0.06), hsl(h, 0.22 * c, 0.115), hsl(h, 0.22 * c, 0.17), hsl(h, 0.2 * c, 0.94),
          hsl(h, 0.18 * c, 0.72), hsl(h, a, 0.74), hsl((h + 42.0) % 360.0, a, 0.70), hsl(h, 0.5, 0.13)]
+            .map(|colour| toward_white(colour, 0.12))
     } else {
         let a = (c + 0.05).min(0.85);
         [hsl(h, 0.3 * c, 0.965), hsl(h, 0.3 * c, 0.925), hsl(h, 0.3 * c, 0.875), hsl(h, 0.25 * c, 0.10),
@@ -45,6 +48,14 @@ fn hsv(argb: u32) -> (f32, f32, f32) {
         60.0 * ((r - g) / d + 4.0)
     };
     (h, if max == 0.0 { 0.0 } else { d / max }, max)
+}
+
+fn toward_white(argb: u32, amount: f32) -> u32 {
+    let channel = |shift: u32| {
+        let v = ((argb >> shift) & 0xff) as f32;
+        ((v + (255.0 - v) * amount).round() as u32) << shift
+    };
+    0xff00_0000 | channel(16) | channel(8) | channel(0)
 }
 
 fn hsl(h: f32, s: f32, l: f32) -> u32 {
@@ -101,7 +112,12 @@ mod tests {
         let dark = palette(Some(red), true);
         let light = palette(Some(red), false);
         let lum = |c: u32| ((c >> 16 & 0xff) + (c >> 8 & 0xff) + (c & 0xff)) / 3;
-        assert!(lum(dark[0]) < 30 && lum(dark[3]) > 220, "dark bg / ink");
+        assert!((35..60).contains(&lum(dark[0])) && lum(dark[3]) > 220, "dark bg (with the 12% lift) / ink: {}", lum(dark[0]));
+        // The true background measured from a screenshot (#120d0e) lifts to the familiar one (#2f2a2b), within rounding.
+        let lifted = toward_white(0xff120d0e, 0.12);
+        for (shift, want) in [(16, 0x2f), (8, 0x2a), (0, 0x2b)] {
+            assert!(((lifted >> shift & 0xff) as i32 - want).abs() <= 1, "{lifted:x}");
+        }
         assert!(lum(light[0]) > 230 && lum(light[3]) < 40, "light bg / ink");
         let (h, _, _) = hsv(dark[5]);
         assert!((h - hsv(red).0).abs() < 4.0, "accent keeps the hue: {h}");
