@@ -1180,6 +1180,7 @@ public final class SpatchUi extends FrameLayout {
             String[] first = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
             boolean ok = first != null && first.length >= (isDetail(e) ? 6 : 2) && first[0].isEmpty();
             int more = ok && !isDetail(e) ? parseInt(first[1]) : 0;
+            String[] full;
             if (more > 0) {
                 // Long playlist: show the first page now if nothing is on screen, then fetch the rest and show it all.
                 post(() -> { if (request == playlistRequest && playlist == e && shownReply == null) applyReply(e, first, false); });
@@ -1187,9 +1188,9 @@ public final class SpatchUi extends FrameLayout {
                 String[] all = java.util.Arrays.copyOf(first, first.length + rest.length);
                 System.arraycopy(rest, 0, all, first.length, rest.length);
                 all[1] = "0";
-                lastFull = all;
-            } else lastFull = first;
-            String[] r = lastFull;
+                full = all;
+            } else full = first;
+            final String[] r = full;
             if (ok) nativeRemember(key, r);
             // From here on Spotify pushes this playlist whenever it changes; the poll reloads it.
             if (ok && !isDetail(e) && playlist == e) { nativeWatchPlaylist(resolved, "push:" + e.uri); watchingPlaylist = true; }
@@ -1217,7 +1218,6 @@ public final class SpatchUi extends FrameLayout {
 
     /** The reply this page is showing, and whether it came from the saved copy. */
     private String[] shownReply;
-    private volatile String[] lastFull;
     private boolean shownCached;
 
     private void applyReply(Entry e, String[] r, boolean cached) {
