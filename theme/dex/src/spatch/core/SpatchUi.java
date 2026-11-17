@@ -1322,7 +1322,8 @@ public final class SpatchUi extends FrameLayout {
     /** Pages opened from another page (an album from a playlist...), so back retraces them. */
     private static boolean greeted;
     private View headCover;
-    private TextView nowPlayingChip, songsNoMatch;
+    private TextView nowPlayingChip, songsNoMatch, songCount;
+    private String songCountText = "";
     /** View tag key for the now-playing chip's position (any id unique to this file). */
     private static final int R_JUMP = 0x7f5a0001;
     private final java.util.ArrayDeque<Entry> pageStack = new java.util.ArrayDeque<>();
@@ -1614,6 +1615,8 @@ public final class SpatchUi extends FrameLayout {
         TextView count = text(playlistLoading ? "Loading…" : playlistFailed ? "Couldn’t load" : detail && !detailSubtitle.isEmpty() ? detailSubtitle + " • " + songs : songs, 14, () -> inkDim, false);
         count.setGravity(Gravity.CENTER);
         header.addView(count, fill(-2));
+        songCount = count;
+        songCountText = count.getText().toString();
         if (playlistFailed && !playlistError.isEmpty()) {
             // Spotify's own reason, so a failure says what happened.
             String lookup = liked(playlist.uri) ? nativeLikedNote() : "";
@@ -1721,6 +1724,10 @@ public final class SpatchUi extends FrameLayout {
                         songQuery = e.toString();
                         arrangeSongs();
                         notifyList(list);
+                        if (songCount != null) {
+                            String q = songQuery.trim();
+                            songCount.setText(q.isEmpty() ? songCountText : playlistTracks.size() + " of " + allSongs.size() + " songs");
+                        }
                         if (songsNoMatch != null) {
                             songsNoMatch.setText("No songs match “" + songQuery.trim() + "”");
                             songsNoMatch.setVisibility(playlistTracks.isEmpty() && !songQuery.trim().isEmpty() ? VISIBLE : GONE);
