@@ -585,7 +585,10 @@ public final class SpatchUi extends FrameLayout {
         duration = Long.parseLong(s[10]);
         source = s[11];
         rating = s[12];
+        boolean contextChanged = !context.isEmpty() && !context.equals(s[13]);
         context = s[13];
+        // Home and Library mark what's playing; redraw them in place when that changes.
+        if (contextChanged && playlist == null && sheetClose == null && !playerOpen && tab != SETTINGS && !(findFocus() instanceof android.widget.EditText)) post(this::showPageKeepingPlace);
         quality = s[14];
         boolean wasBuffering = buffering;
         buffering = Boolean.parseBoolean(s[15]);
