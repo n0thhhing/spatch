@@ -679,22 +679,38 @@ public final class SpatchUi extends FrameLayout {
 
     private void updateDock() {
         if (dockBar == null) return;
-        dockBar.removeAllViews();
         String[] names = {"Home", "Library", "Settings"}, glyphs = {"home", "library", "settings"};
-        for (int i = 0; i < 3; i++) {
-            final int index = i;
-            boolean on = tab == i && playlist == null;
-            LinearLayout item = row();
-            item.setGravity(Gravity.CENTER);
-            bgRound(item, 22, () -> on ? accent : Color.TRANSPARENT);
-            item.addView(icon(glyphs[i], () -> on ? onAccent : inkDim), lp(dp(24), dp(24)));
-            if (on) {
+        boolean fresh = dockBar.getChildCount() != 3;
+        if (!fresh && motion()) {
+            // The selected pill stretches across to the new tab and its label fades in, instead of jumping.
+            android.transition.AutoTransition morph = new android.transition.AutoTransition();
+            morph.setDuration(340);
+            morph.setInterpolator(EMPHASIZED);
+            android.transition.TransitionManager.beginDelayedTransition(dockBar, morph);
+        }
+        if (fresh) {
+            dockBar.removeAllViews();
+            for (int i = 0; i < 3; i++) {
+                final int index = i;
+                LinearLayout item = row();
+                item.setGravity(Gravity.CENTER);
+                bgRound(item, 22, () -> tab == index && playlist == null ? accent : Color.TRANSPARENT);
+                item.addView(icon(glyphs[i], () -> tab == index && playlist == null ? onAccent : inkDim), lp(dp(24), dp(24)));
                 TextView label = text(names[i], 14, () -> onAccent, true);
                 label.setPadding(dp(7), 0, dp(2), 0);
                 item.addView(label);
+                tappable(item, names[i], () -> go(index));
+                dockBar.addView(item, new LinearLayout.LayoutParams(0, dp(46), 1f));
             }
-            tappable(item, names[i], () -> go(index));
-            dockBar.addView(item, new LinearLayout.LayoutParams(0, dp(46), on ? 1.6f : 1f));
+        }
+        for (int i = 0; i < 3; i++) {
+            boolean on = tab == i && playlist == null;
+            ViewGroup item = (ViewGroup) dockBar.getChildAt(i);
+            item.getChildAt(1).setVisibility(on ? VISIBLE : GONE);
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) item.getLayoutParams();
+            lp.weight = on ? 1.6f : 1f;
+            item.setLayoutParams(lp);
+            recolorView(item);
         }
     }
 
