@@ -1301,6 +1301,7 @@ public final class SpatchUi extends FrameLayout {
     // ---------- Playlist ----------
 
     private void open(Entry e) {
+        hideKeyboard(); // a search result shouldn't open under the keyboard
         // A song on a playlist or album page plays that list from the song, as Spotify does.
         if (playlist != null && (e.uri.startsWith("spotify:track:") || e.uri.startsWith("spotify:episode:") || e.uri.startsWith("spotify:preview:"))) {
             // The song that's already playing opens the player rather than starting over.
