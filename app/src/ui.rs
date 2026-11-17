@@ -409,6 +409,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, 
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
     let mut fields = Vec::new();
     let mut next = Some(offset);
+    let mut waits = 0;
     while let Some(at) = next.filter(|&at| at > 0 && at < 10_000) {
         if cfg!(feature = "preview") {
             break;
@@ -418,7 +419,15 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, 
                 fields.extend(tracks.into_iter().flat_map(playlist::Track::fields));
                 next = more;
             }
-            Ok(playlist::Reply::Loading) => std::thread::sleep(std::time::Duration::from_millis(500)),
+            // Spotify is still fetching this page: wait, but not forever.
+            Ok(playlist::Reply::Loading) if waits < 20 => {
+                waits += 1;
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+            Ok(playlist::Reply::Loading) => {
+                log::warn!("Playlist page at {at} still loading after 10 s");
+                break;
+            }
             Err(error) => {
                 log::warn!("Playlist page at {at}: {error}");
                 break;
