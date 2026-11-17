@@ -17,7 +17,7 @@ pub struct NowPlaying {
     pub source: String,
     pub context: String,
     pub explicit: bool,
-    /// "Lossless · 24-bit · 44.1 kHz" while a lossless file plays, else "".
+    /// What's playing: "Lossless · 24-bit · 44.1 kHz", "Very high · 320 kbps"..., or "" if Spotify hasn't said.
     pub quality: String,
     /// Whether the song is in Liked Songs, as the player state says (`collection.in_collection`); None if it doesn't.
     pub liked: Option<bool>,
@@ -63,9 +63,20 @@ fn log_keys(track: &es::ContextTrack) {
     log::info!("Track metadata keys: {}", keys.join(" "));
 }
 
-/// What the player says is playing, when it's lossless (BitrateLevel 5 HIFI, 6 HIFI24, or a lossless source).
+/// What the player says is playing, from its BitrateLevel (1 Low … 4 Very high are Ogg Vorbis at 24, 96, 160
+/// and 320 kbps; 5 HIFI and 6 HIFI24 are lossless).
 fn quality_label(q: Option<&es::PlaybackQuality>) -> String {
-    let Some(q) = q.filter(|q| q.source_is_lossless || matches!(q.bitrate_level, 5 | 6)) else { return String::new() };
+    let Some(q) = q else { return String::new() };
+    if !q.source_is_lossless && !matches!(q.bitrate_level, 5 | 6) {
+        return match q.bitrate_level {
+            1 => "Low · 24 kbps",
+            2 => "Normal · 96 kbps",
+            3 => "High · 160 kbps",
+            4 => "Very high · 320 kbps",
+            _ => "",
+        }
+        .into();
+    }
     let mut label = "Lossless".to_string();
     if q.playing_bit_depth > 0 {
         label += &format!(" · {}-bit", q.playing_bit_depth);
@@ -283,6 +294,8 @@ mod tests {
         assert!(now.explicit && now.playing);
         assert_eq!(now.liked, Some(true));
         assert_eq!(now.quality, "");
+        let very_high = es::ContextPlayerState { playback_quality: Some(es::PlaybackQuality { bitrate_level: 4, ..Default::default() }), ..Default::default() };
+        assert_eq!(NowPlaying::decode(&very_high.encode_to_vec()).unwrap().quality, "Very high · 320 kbps");
         let lossless = es::ContextPlayerState {
             playback_quality: Some(es::PlaybackQuality { bitrate_level: 6, playing_bit_depth: 24, playing_sample_rate_hz: 44_100, ..Default::default() }),
             ..Default::default()

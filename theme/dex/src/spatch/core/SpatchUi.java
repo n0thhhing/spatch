@@ -1880,10 +1880,12 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout.LayoutParams byp = fill(-2);
         byp.topMargin = dp(4);
         words.addView(byline, byp);
-        // What Spotify says is playing, when it's lossless.
+        // What Spotify says is playing. The line always keeps its space, so the layout never shifts when it arrives.
         pQuality = text("", 12, () -> accent, true);
         pQuality.setLetterSpacing(.04f);
-        pQuality.setVisibility(GONE);
+        pQuality.setSingleLine(true);
+        pQuality.setText(" ");
+        pQuality.setVisibility(INVISIBLE);
         LinearLayout.LayoutParams qp = lp(-2, -2);
         qp.topMargin = dp(6);
         words.addView(pQuality, qp);
@@ -2170,7 +2172,14 @@ public final class SpatchUi extends FrameLayout {
         if (pArtist != null) pArtist.setText(artist);
         if (pSource != null) pSource.setText(source.isEmpty() ? album : source);
         if (pBadge != null) pBadge.setVisibility(rating.isEmpty() ? GONE : VISIBLE);
-        if (pQuality != null) { pQuality.setText(quality.toUpperCase(java.util.Locale.ROOT)); pQuality.setVisibility(quality.isEmpty() ? GONE : VISIBLE); }
+        if (pQuality != null) {
+            String label = quality.toUpperCase(java.util.Locale.ROOT);
+            if (!(label.isEmpty() ? " " : label).contentEquals(pQuality.getText())) {
+                pQuality.setText(label.isEmpty() ? " " : label);
+                pQuality.setVisibility(label.isEmpty() ? INVISIBLE : VISIBLE);
+                if (!label.isEmpty() && motion()) { pQuality.setAlpha(0f); pQuality.animate().alpha(1f).setDuration(260).start(); }
+            }
+        }
         if (pPlay != null) pPlay.set(on);
         if (pLike != null) { ((Runnable) pLike.getTag()).run(); pLike.setAlpha(saved == null ? .4f : 1f); }
         if (pShuffle != null) ((Runnable) pShuffle.getTag()).run();
