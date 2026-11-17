@@ -610,10 +610,10 @@ public final class SpatchUi extends FrameLayout {
         addView(fade, new LayoutParams(-1, dp(190) + inset.bottom, Gravity.BOTTOM));
         // And under the status bar, so scrolled content doesn't collide with the clock and icons.
         View topFade = new View(activity);
-        GradientDrawable topBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, (bg & 0x00ffffff) | 0xcc000000, bg & 0x00ffffff});
+        GradientDrawable topBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, bg, (bg & 0x00ffffff) | 0xb0000000, bg & 0x00ffffff});
         topFade.setBackground(topBg);
-        colored(topFade, () -> topBg.setColors(new int[]{bg, (bg & 0x00ffffff) | 0xcc000000, bg & 0x00ffffff}));
-        addView(topFade, new LayoutParams(-1, inset.top + dp(18), Gravity.TOP));
+        colored(topFade, () -> topBg.setColors(new int[]{bg, bg, (bg & 0x00ffffff) | 0xb0000000, bg & 0x00ffffff}));
+        addView(topFade, new LayoutParams(-1, inset.top + dp(30), Gravity.TOP));
         dock = column();
         dock.setPadding(dp(12), 0, dp(12), dp(10) + inset.bottom);
         addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
@@ -752,6 +752,7 @@ public final class SpatchUi extends FrameLayout {
         s.setClipToPadding(false);
         s.setPadding(0, inset.top, 0, 0);
         content.setPadding(dp(18), dp(10), dp(18), dp(170) + inset.bottom);
+        content.setClipToPadding(false); // edge-to-edge shelves draw into the side padding
         s.addView(content, new ScrollView.LayoutParams(-1, -2));
         pageScroll = s;
         return s;
@@ -925,7 +926,13 @@ public final class SpatchUi extends FrameLayout {
             tiles.addView(tile, p);
         }
         scroller.addView(tiles);
-        page.addView(scroller, fill(-2));
+        // Shelves run edge to edge, so cards scroll off the screen rather than being cut at the page margin.
+        scroller.setClipToPadding(false);
+        scroller.setPadding(dp(18), 0, dp(18), 0);
+        LinearLayout.LayoutParams sp = fill(-2);
+        sp.leftMargin = -dp(18);
+        sp.rightMargin = -dp(18);
+        page.addView(scroller, sp);
         return true;
     }
 
