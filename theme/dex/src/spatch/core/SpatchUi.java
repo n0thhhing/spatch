@@ -924,6 +924,7 @@ public final class SpatchUi extends FrameLayout {
             LinearLayout tile = column();
             Art art = new Art(e.category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
             art.letter = initial(e.title);
+            art.heart = liked(e.uri) && e.image.isEmpty();
             art.bind(e.image);
             tile.addView(art, lp(dp(width), dp(width)));
             TextView name = text(e.title, 14, () -> ink, true);
