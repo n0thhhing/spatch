@@ -1583,7 +1583,9 @@ public final class SpatchUi extends FrameLayout {
         GradientDrawable shufBg = round(surfHi, 22);
         shuf.setBackground(shufBg);
         colored(shuf, () -> { shuf.setTextColor(ink); shufBg.setColor(surfHi); });
-        TextView play = pill("Play", () -> command(PLAY, 2, playUri()));
+        // While this list is the one playing, the big button pauses and resumes it instead of starting it over.
+        TextView play = pill(listIsPlaying() && playing ? "Pause" : "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, 2, playUri()); });
+        listPlay = play;
         // Buttons share the row's width, so two or three always fit the screen.
         actions.addView(shuf, new LinearLayout.LayoutParams(0, dp(50), 1));
         actions.addView(space(dp(8), 1));
@@ -2633,7 +2635,17 @@ public final class SpatchUi extends FrameLayout {
     // ---------- refresh ----------
 
     /** Pushes the current state into whichever views exist. */
+    private TextView listPlay;
+
+    /** Whether the open playlist or page is what's playing. */
+    private boolean listIsPlaying() {
+        if (playlist == null || context.isEmpty()) return false;
+        String list = playUri();
+        return context.equals(list) || context.equals(playlist.uri) || (liked(context) && liked(playlist.uri));
+    }
+
     private void refresh() {
+        if (listPlay != null && listPlay.isAttachedToWindow()) listPlay.setText(listIsPlaying() && playing ? "Pause" : "Play");
         String shown = title.isEmpty() ? "Nothing playing" : title;
         boolean on = pending == null ? playing : pending;
         if (mTitle != null) mTitle.setText(shown);
