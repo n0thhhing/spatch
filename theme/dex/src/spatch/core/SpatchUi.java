@@ -506,7 +506,9 @@ public final class SpatchUi extends FrameLayout {
             long libRevision = nativeLibraryRevision();
             if (libRevision != libraryRevision) {
                 libraryRevision = libRevision;
-                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS) showPage();
+                // Not while you're typing in a search box: the rebuild would throw the text and keyboard away.
+                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS && !(findFocus() instanceof android.widget.EditText)) showPage();
+                else if (findFocus() instanceof android.widget.EditText) libraryRevision--;
             }
             postDelayed(this, 350);
         }
@@ -979,6 +981,16 @@ public final class SpatchUi extends FrameLayout {
         list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         list.setOverScrollMode(OVER_SCROLL_NEVER);
         if (header != null) list.addHeaderView(header, null, false);
+        if (motion()) {
+            // Rows cascade in when a page opens: each rises and fades in a beat after the one above.
+            android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
+            rise.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
+            rise.addAnimation(new android.view.animation.TranslateAnimation(0, 0, dp(18), 0));
+            rise.setDuration(320);
+            rise.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+            android.view.animation.LayoutAnimationController cascade = new android.view.animation.LayoutAnimationController(rise, .07f);
+            list.setLayoutAnimation(cascade);
+        }
         list.setAdapter(new BaseAdapter() {
             @Override public int getCount() { return items.size(); }
             @Override public Entry getItem(int i) { return items.get(i); }
