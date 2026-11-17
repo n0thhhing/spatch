@@ -2580,6 +2580,15 @@ public final class SpatchUi extends FrameLayout {
             }
             if (b == null) {
                 waiting = true;
+                // Still loading: a soft band of light sweeps across the placeholder until the cover arrives.
+                if (!url.isEmpty() && !failed.contains(url + ":180") && motion() && isShown()) {
+                    float t = (SystemClock.uptimeMillis() % 1400) / 1400f, x = -w + t * w * 3;
+                    int glow = (ink & 0x00ffffff) | 0x14000000, clear = ink & 0x00ffffff;
+                    paint.setShader(new LinearGradient(x, 0, x + w, h, new int[]{clear, glow, clear}, null, Shader.TileMode.CLAMP));
+                    c.drawRoundRect(box, r, r, paint);
+                    paint.setShader(null);
+                    postInvalidateOnAnimation();
+                }
                 if (!letter.isEmpty() && (url.isEmpty() || failed.contains(url + ":180"))) {
                     paint.setColor(inkDim);
                     paint.setTextAlign(Paint.Align.CENTER);
