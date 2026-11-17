@@ -161,7 +161,9 @@ public final class SpatchUi extends FrameLayout {
     private Bitmap lastBlur, lastCover;
     private String lastCoverUrl = "", nextKey = "";
     private TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
-    private Icon pLike, pShuffle, pRepeat;
+    private Icon pLike, pShuffle, pRepeat, pSparkle;
+    /** Whether the playing playlist is in Smart Shuffle, as Spotify keeps it (read when the context changes). */
+    private boolean smartShuffle;
     private PlayButton pPlay, mPlay;
     private Art mArt, heroArt;
     private Runnable sheetClose;
@@ -178,7 +180,7 @@ public final class SpatchUi extends FrameLayout {
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share"}) {
+                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null);
@@ -590,6 +592,15 @@ public final class SpatchUi extends FrameLayout {
         source = s[11];
         rating = s[12];
         boolean contextChanged = !context.isEmpty() && !context.equals(s[13]);
+        if (!context.equals(s[13])) {
+            // Learn whether the new context is in Smart Shuffle.
+            String next = s[13];
+            smartShuffle = false;
+            if (isPlaylistLink(next)) PLAYLISTS.execute(() -> {
+                int m = nativeShuffleMode(next);
+                post(() -> { if (next.equals(context)) { smartShuffle = m == 2; refresh(); } });
+            });
+        }
         context = s[13];
         // Home and Library mark what's playing; redraw them in place when that changes.
         if (contextChanged && playlist == null && sheetClose == null && !playerOpen && tab != SETTINGS && !(findFocus() instanceof android.widget.EditText)) post(this::showPageKeepingPlace);
@@ -2330,7 +2341,7 @@ public final class SpatchUi extends FrameLayout {
         player = null;
         disc = null; wave = null; backdrop = null; nextPill = null;
         pTitle = pArtist = pSource = pBadge = pQuality = null;
-        pLike = pShuffle = pRepeat = null;
+        pLike = pShuffle = pRepeat = pSparkle = null;
         pPlay = null;
         nextKey = "";
     }
@@ -2441,7 +2452,15 @@ public final class SpatchUi extends FrameLayout {
         colored(pShuffle, () -> { pShuffle.color = shuffle ? accent : inkDim; pShuffle.invalidate(); });
         pRepeat = new Icon("repeat", inkDim);
         colored(pRepeat, () -> { pRepeat.symbol = repeat == 2 ? "repeat-one" : "repeat"; pRepeat.color = repeat != 0 ? accent : inkDim; pRepeat.invalidate(); });
-        controls.addView(iconButton(pShuffle, "Shuffle", this::toggleShuffle), lp(dp(52), dp(52)));
+        // Smart Shuffle shows as a small sparkle on the shuffle icon.
+        FrameLayout shuffleBox = new FrameLayout(activity);
+        shuffleBox.addView(iconButton(pShuffle, "Shuffle: off, on or Smart Shuffle", this::toggleShuffle), new LayoutParams(-1, -1));
+        pSparkle = new Icon("sparkle", accent);
+        colored(pSparkle, () -> { pSparkle.color = accent; pSparkle.setVisibility(shuffle && smartShuffle ? VISIBLE : GONE); pSparkle.invalidate(); });
+        LayoutParams sp = new LayoutParams(dp(11), dp(11), Gravity.TOP | Gravity.END);
+        sp.setMargins(0, dp(11), dp(9), 0);
+        shuffleBox.addView(pSparkle, sp);
+        controls.addView(shuffleBox, lp(dp(52), dp(52)));
         controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", () -> command(PREVIOUS, 0, "")), false), false), lp(dp(60), dp(60)));
         pPlay = new PlayButton();
         controls.addView(pPlay, lp(dp(86), dp(86)));
@@ -2560,13 +2579,27 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
+    private static boolean isPlaylistLink(String u) {
+        return u.startsWith("spotify:playlist:") || (u.startsWith("spotify:user:") && u.contains(":playlist:"));
+    }
+
+    /** Off → Shuffle → Smart Shuffle (playlists only) → Off, as Spotify's own shuffle button cycles. */
     private void toggleShuffle() {
-        boolean before = shuffle, want = !before;
+        boolean before = shuffle, beforeSmart = smartShuffle;
+        int mode = !shuffle ? 1 : !smartShuffle && isPlaylistLink(context) ? 2 : 0;
+        boolean want = mode > 0;
         shuffle = want;
+        smartShuffle = mode == 2;
         refresh();
+        String list = context;
         COMMANDS.execute(() -> {
-            if (!nativeCommand(SHUFFLE, want ? 1 : 0, "")) post(() -> {
-                if (shuffle == want) { shuffle = before; refresh(); }
+            boolean ok = nativeCommand(SHUFFLE, want ? 1 : 0, "");
+            if (ok && isPlaylistLink(list)) {
+                String error = nativeSetShuffleMode(list, mode);
+                if (error != null && !error.isEmpty()) android.util.Log.w("SpatchUi", "Shuffle mode: " + error);
+            }
+            if (!ok) post(() -> {
+                if (shuffle == want) { shuffle = before; smartShuffle = beforeSmart; refresh(); }
                 if (isAttachedToWindow()) Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show();
             });
         });
@@ -2819,6 +2852,7 @@ public final class SpatchUi extends FrameLayout {
         if (pPlay != null) pPlay.set(on);
         if (pLike != null) { ((Runnable) pLike.getTag()).run(); pLike.setAlpha(saved == null ? .4f : 1f); }
         if (pShuffle != null) ((Runnable) pShuffle.getTag()).run();
+        if (pSparkle != null) ((Runnable) pSparkle.getTag()).run();
         if (pRepeat != null) ((Runnable) pRepeat.getTag()).run();
         if (disc != null) { disc.url = image; disc.invalidate(); }
         if (backdrop != null) backdrop.invalidate();
