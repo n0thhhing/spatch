@@ -141,7 +141,7 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
         .filter(|name| !name.is_empty());
     let end = offset.max(0) as usize + data.item.len();
     let more = !data.item.is_empty() && end < data.unranged_length.max(data.unfiltered_length) as usize;
-    let tracks = data
+    let tracks: Vec<Track> = data
         .item
         .into_iter()
         .map(|item| {
@@ -169,6 +169,9 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
             }
         })
         .collect();
+    if !tracks.is_empty() && tracks.iter().all(|t| t.duration_ms == 0) {
+        log::warn!("Playlist page has no song lengths ({} songs); first item: {:?}", tracks.len(), tracks.first().map(|t| (&t.title, &t.album)));
+    }
     Ok(Reply::Page { tracks, next: more.then_some(end as i32), owner })
 }
 

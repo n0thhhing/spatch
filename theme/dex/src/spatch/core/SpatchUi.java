@@ -1293,16 +1293,17 @@ public final class SpatchUi extends FrameLayout {
         shuf.setBackground(shufBg);
         colored(shuf, () -> { shuf.setTextColor(ink); shufBg.setColor(surfHi); });
         TextView play = pill("Play", () -> command(PLAY, 2, playUri()));
-        actions.addView(shuf, lp(dp(130), dp(50)));
+        // Buttons share the row's width, so two or three always fit the screen.
+        actions.addView(shuf, new LinearLayout.LayoutParams(0, dp(50), 1));
         actions.addView(space(dp(8), 1));
-        actions.addView(play, lp(dp(130), dp(50)));
+        actions.addView(play, new LinearLayout.LayoutParams(0, dp(50), 1));
         if (!recommendedSongs.isEmpty()) {
             TextView sim = pill("Similar", this::openRecommended);
             GradientDrawable simBg = round(surfHi, 22);
             sim.setBackground(simBg);
             colored(sim, () -> { sim.setTextColor(ink); simBg.setColor(surfHi); });
             actions.addView(space(dp(8), 1));
-            actions.addView(sim, lp(dp(106), dp(50)));
+            actions.addView(sim, new LinearLayout.LayoutParams(0, dp(50), 1));
         }
         LinearLayout.LayoutParams ap = fill(-2);
         ap.topMargin = dp(4);
