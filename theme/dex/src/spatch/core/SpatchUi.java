@@ -1900,6 +1900,7 @@ public final class SpatchUi extends FrameLayout {
 
     private final class Switch extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path check = new Path();
         boolean on;
         private float t;
         Switch(boolean on) { super(activity); this.on = on; t = on ? 1 : 0; setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
@@ -1917,7 +1918,16 @@ public final class SpatchUi extends FrameLayout {
             paint.setColor(blend(surfHi, accent, k));
             c.drawRoundRect(0, 0, w, h, r, r, paint);
             paint.setColor(blend(inkDim, onAccent, k));
-            c.drawCircle(r + (w - 2 * r) * t, r, dp(8) + dp(4) * t, paint);
+            float cx = r + (w - 2 * r) * t;
+            c.drawCircle(cx, r, dp(8) + dp(4) * t, paint);
+            // Material 3's check inside the thumb, fading in as it slides on.
+            if (k > .05f) {
+                float size = dp(12);
+                c.save();
+                c.translate(cx - size / 2, r - size / 2);
+                drawGlyph(c, paint, check, "check", (accent & 0x00ffffff) | (Math.round(255 * k) << 24), size);
+                c.restore();
+            }
         }
     }
 
