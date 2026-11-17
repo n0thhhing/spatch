@@ -437,20 +437,29 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, 
     strings(&mut env, fields)
 }
 
-/// The songs to show, as indexes into `fields` (playlist::FIELDS strings per song), for a search and a sort
-/// (0 playlist order, 1 title, 2 artist, 3 album, 4 recently added).
+/// The open playlist's songs (playlist::FIELDS strings each), kept here so a search doesn't resend them.
+static SONGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Keeps the open playlist's song fields for nativeArrange.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeArrange(mut env: JNIEnv, _: JClass, fields: JObjectArray, query: JString, sort: jint) -> jni::sys::jintArray {
-    let query = read(&mut env, &query).unwrap_or_default();
-    let Ok(len) = env.get_array_length(&fields) else { return std::ptr::null_mut() };
+pub extern "system" fn Java_spatch_SpatchUi_nativeSongs(mut env: JNIEnv, _: JClass, fields: JObjectArray) {
+    let Ok(len) = env.get_array_length(&fields) else { return };
     let mut values = Vec::with_capacity(len as usize);
     for i in 0..len {
-        let Ok(item) = env.get_object_array_element(&fields, i) else { return std::ptr::null_mut() };
+        let Ok(item) = env.get_object_array_element(&fields, i) else { return };
         let item = JString::from(item);
         values.push(read(&mut env, &item).unwrap_or_default());
         let _ = env.delete_local_ref(item);
     }
-    let order: Vec<i32> = playlist::arrange(&values, &query, sort).into_iter().map(|i| i as i32).collect();
+    *SONGS.lock().unwrap() = values;
+}
+
+/// The songs to show, as indexes into the kept songs, for a search and a sort
+/// (0 playlist order, 1 title, 2 artist, 3 album, 4 recently added).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeArrange(mut env: JNIEnv, _: JClass, query: JString, sort: jint) -> jni::sys::jintArray {
+    let query = read(&mut env, &query).unwrap_or_default();
+    let order: Vec<i32> = playlist::arrange(&SONGS.lock().unwrap(), &query, sort).into_iter().map(|i| i as i32).collect();
     let Ok(out) = env.new_int_array(order.len() as i32) else { return std::ptr::null_mut() };
     let _ = env.set_int_array_region(&out, 0, &order);
     out.into_raw()

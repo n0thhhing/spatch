@@ -65,7 +65,8 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeStopPlaylist();
     private static native long nativePlaylistRevision();
     private static native String[] nativePlaylistRest(String uri, int offset);
-    private static native int[] nativeArrange(String[] fields, String query, int sort);
+    private static native void nativeSongs(String[] fields);
+    private static native int[] nativeArrange(String query, int sort);
     private static native boolean nativePlayFrom(String context, String track, int index);
     private static native String[] nativeCached(String key);
     private static native void nativeRemember(String key, String[] fields);
@@ -1257,6 +1258,7 @@ public final class SpatchUi extends FrameLayout {
                 }
             }
             songFields = kept.toArray(new String[0]);
+            nativeSongs(songFields);
             arrangeSongs();
         }
         showPage();
@@ -1264,7 +1266,7 @@ public final class SpatchUi extends FrameLayout {
 
     /** playlistTracks becomes the songs the search and sort leave, in that order (Rust: playlist::arrange). */
     private void arrangeSongs() {
-        int[] order = nativeArrange(songFields, songQuery, prefs.getInt("song_sort", 0));
+        int[] order = nativeArrange(songQuery, prefs.getInt("song_sort", 0));
         playlistTracks.clear();
         if (order != null) for (int i : order) if (i < allSongs.size()) playlistTracks.add(allSongs.get(i));
     }
