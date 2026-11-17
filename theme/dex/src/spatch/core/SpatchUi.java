@@ -1140,6 +1140,9 @@ public final class SpatchUi extends FrameLayout {
 
     /** Pages opened from another page (an album from a playlist...), so back retraces them. */
     private View headCover;
+    private TextView nowPlayingChip;
+    /** View tag key for the now-playing chip's position (any id unique to this file). */
+    private static final int R_JUMP = 0x7f5a0001;
     private final java.util.ArrayDeque<Entry> pageStack = new java.util.ArrayDeque<>();
 
     private void openPlaylist(Entry e) { openPlaylist(e, true); }
@@ -1493,6 +1496,24 @@ public final class SpatchUi extends FrameLayout {
             LinearLayout.LayoutParams tp = fill(-2);
             tp.topMargin = dp(14);
             header.addView(tools, tp);
+            // The song that's playing is in this list: a chip that glides the list down to it.
+            int playingAt = -1;
+            for (int i = 0; i < playlistTracks.size(); i++) {
+                Entry t = playlistTracks.get(i);
+                if (!title.isEmpty() && t.title.equals(title) && t.subtitle.equals(artist)) { playingAt = i; break; }
+            }
+            if (playingAt > 3) {
+                nowPlayingChip = text("Now playing • " + title, 13, () -> onAccent, true);
+                nowPlayingChip.setSingleLine(true);
+                nowPlayingChip.setEllipsize(TextUtils.TruncateAt.END);
+                nowPlayingChip.setGravity(Gravity.CENTER);
+                nowPlayingChip.setPadding(dp(16), 0, dp(16), 0);
+                bgRound(nowPlayingChip, 18, () -> accent);
+                nowPlayingChip.setTag(R_JUMP, playingAt);
+                LinearLayout.LayoutParams cp = lp(-2, dp(36));
+                cp.topMargin = dp(10);
+                header.addView(nowPlayingChip, cp);
+            } else nowPlayingChip = null;
         }
 
         if (playlistTracks.isEmpty() && releases.isEmpty()) {
@@ -1512,6 +1533,11 @@ public final class SpatchUi extends FrameLayout {
                         notifyList(list);
                     }
                 });
+            }
+            if (nowPlayingChip != null) {
+                TextView chip = nowPlayingChip;
+                int at = (Integer) chip.getTag(R_JUMP);
+                tappable(chip, "Jump to the song that's playing", () -> list.smoothScrollToPositionFromTop(at + list.getHeaderViewsCount(), dp(120), 520));
             }
             if (sortPill != null) {
                 TextView pillView = sortPill;
