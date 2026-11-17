@@ -1030,6 +1030,8 @@ public final class SpatchUi extends FrameLayout {
             @Override public long getItemId(int i) { return i; }
             @Override public View getView(int i, View old, ViewGroup parent) {
                 Row row = old instanceof Row ? (Row) old : new Row();
+                // On an album every song shares the cover, so rows show their track number instead, as Spotify does.
+                row.number = playlist != null && playlist.uri.startsWith("spotify:album:") && items == playlistTracks ? i + 1 : 0;
                 row.bind(getItem(i));
                 return row;
             }
@@ -1055,11 +1057,16 @@ public final class SpatchUi extends FrameLayout {
         private final GradientDrawable pressedBg = round(surfHi, 16), badgeBg = round(inkDim, 3);
         private final TextView explicitBadge = text("E", 10, bg, true);
         private boolean current;
+        int number;
+        private final TextView trackNumber = text("", 16, inkDim, true);
         Row() {
             super(activity);
             setGravity(Gravity.CENTER_VERTICAL);
             setPadding(dp(4), dp(7), dp(4), dp(7));
             addView(art, lp(dp(52), dp(52)));
+            trackNumber.setGravity(Gravity.CENTER);
+            trackNumber.setVisibility(GONE);
+            addView(trackNumber, lp(dp(36), dp(52)));
             LinearLayout words = column();
             words.setPadding(dp(14), 0, dp(8), 0);
             oneLine(name); oneLine(sub);
@@ -1083,6 +1090,7 @@ public final class SpatchUi extends FrameLayout {
         private void tint() {
             name.setTextColor(current ? accent : ink);
             sub.setTextColor(inkDim);
+            trackNumber.setTextColor(current ? accent : inkDim);
             length.setTextColor(inkDim);
             pressedBg.setColor(surfHi);
             badgeBg.setColor(inkDim);
@@ -1102,6 +1110,9 @@ public final class SpatchUi extends FrameLayout {
             fade.start();
         }
         void bind(Entry e) {
+            art.setVisibility(number > 0 ? GONE : VISIBLE);
+            trackNumber.setVisibility(number > 0 ? VISIBLE : GONE);
+            trackNumber.setText(String.valueOf(number));
             art.shapeKind = e.category == 2 ? Art.CIRCLE : Art.ROUNDED;
             art.letter = initial(e.title);
             art.bind(e.image);
