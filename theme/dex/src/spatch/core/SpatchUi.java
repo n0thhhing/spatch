@@ -1072,6 +1072,10 @@ public final class SpatchUi extends FrameLayout {
             note.setPadding(dp(22), dp(20), dp(22), 0);
             page.addView(note);
         } else {
+            TextView noMatch = text("", 15, () -> inkDim, false);
+            noMatch.setPadding(dp(22), dp(18), dp(22), 0);
+            noMatch.setVisibility(GONE);
+            page.addView(noMatch);
             android.widget.AbsListView list = grid ? entryGrid(shown) : entryList(shown, null);
             list.setPadding(dp(grid ? 14 : 18), dp(4), dp(grid ? 14 : 18), dp(170) + inset.bottom);
             list.setClipToPadding(false);
@@ -1086,6 +1090,8 @@ public final class SpatchUi extends FrameLayout {
                     shown.clear();
                     shown.addAll(entries(filter, query, az, 400));
                     ((BaseAdapter) list.getAdapter()).notifyDataSetChanged();
+                    noMatch.setText("Nothing in your library matches “" + query.trim() + "”");
+                    noMatch.setVisibility(shown.isEmpty() && !query.trim().isEmpty() ? VISIBLE : GONE);
                 }
             });
         }
@@ -1315,7 +1321,7 @@ public final class SpatchUi extends FrameLayout {
     /** Pages opened from another page (an album from a playlist...), so back retraces them. */
     private static boolean greeted;
     private View headCover;
-    private TextView nowPlayingChip;
+    private TextView nowPlayingChip, songsNoMatch;
     /** View tag key for the now-playing chip's position (any id unique to this file). */
     private static final int R_JUMP = 0x7f5a0001;
     private final java.util.ArrayDeque<Entry> pageStack = new java.util.ArrayDeque<>();
@@ -1674,6 +1680,11 @@ public final class SpatchUi extends FrameLayout {
             LinearLayout.LayoutParams tp = fill(-2);
             tp.topMargin = dp(14);
             header.addView(tools, tp);
+            songsNoMatch = text("", 15, () -> inkDim, false);
+            songsNoMatch.setGravity(Gravity.CENTER);
+            songsNoMatch.setPadding(0, dp(24), 0, 0);
+            songsNoMatch.setVisibility(GONE);
+            header.addView(songsNoMatch, fill(-2));
             // The song that's playing is in this list: a chip that glides the list down to it.
             int playingAt = -1;
             for (int i = 0; i < playlistTracks.size(); i++) {
@@ -1709,6 +1720,10 @@ public final class SpatchUi extends FrameLayout {
                         songQuery = e.toString();
                         arrangeSongs();
                         notifyList(list);
+                        if (songsNoMatch != null) {
+                            songsNoMatch.setText("No songs match “" + songQuery.trim() + "”");
+                            songsNoMatch.setVisibility(playlistTracks.isEmpty() && !songQuery.trim().isEmpty() ? VISIBLE : GONE);
+                        }
                     }
                 });
             }
