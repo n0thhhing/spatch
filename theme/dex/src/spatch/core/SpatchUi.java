@@ -2200,7 +2200,28 @@ public final class SpatchUi extends FrameLayout {
         oneLine(pSource);
         from.addView(pSource, fill(-2));
         top.addView(from, weight());
-        top.addView(iconButton(icon("timer", () -> sleepAt > SystemClock.uptimeMillis() ? accent : ink), "Sleep timer", this::openSleepTimer), lp(dp(48), dp(48)));
+        // The timer icon carries a small badge with the minutes left while a sleep timer runs.
+        FrameLayout timerBox = new FrameLayout(activity);
+        timerBox.setClipChildren(false);
+        timerBox.addView(iconButton(icon("timer", () -> sleepAt > SystemClock.uptimeMillis() ? accent : ink), "Sleep timer", this::openSleepTimer), new LayoutParams(-1, -1));
+        TextView left = text("", 10, () -> onAccent, true);
+        left.setGravity(Gravity.CENTER);
+        left.setPadding(dp(4), 0, dp(4), 0);
+        bgRound(left, 8, () -> accent);
+        timerBox.addView(left, new LayoutParams(-2, dp(16), Gravity.BOTTOM | Gravity.END));
+        sleepBadge = new Runnable() {
+            @Override public void run() {
+                left.removeCallbacks(this);
+                long ms = sleepAt - SystemClock.uptimeMillis();
+                left.setVisibility(ms > 0 ? VISIBLE : GONE);
+                recolorView(timerBox);
+                if (ms <= 0) return;
+                left.setText(Math.max(1, (ms + 59_999) / 60_000) + "m");
+                left.postDelayed(this, 15_000);
+            }
+        };
+        sleepBadge.run();
+        top.addView(timerBox, lp(dp(48), dp(48)));
         top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
         top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
         col.addView(top, fill(-2));
@@ -2422,6 +2443,7 @@ public final class SpatchUi extends FrameLayout {
     };
 
     private int sleepChoice;
+    private Runnable sleepBadge;
 
     private void openSleepTimer() {
         String[] names = {"Off", "15 minutes", "30 minutes", "45 minutes", "1 hour", "End of this track"};
@@ -2436,6 +2458,7 @@ public final class SpatchUi extends FrameLayout {
             long delay = choice == 0 ? 0 : choice == 5 ? Math.max(1000, duration - playhead() - 500) : new long[]{0, 15, 30, 45, 60}[choice] * 60_000L;
             sleepAt = choice == 0 ? 0 : SystemClock.uptimeMillis() + delay;
             if (choice != 0) MAIN.postDelayed(SLEEP, delay);
+            if (sleepBadge != null) sleepBadge.run();
             Toast.makeText(activity, choice == 0 ? "Sleep timer off" : "Pausing " + (choice == 5 ? "after this track" : "in " + names[choice]), Toast.LENGTH_SHORT).show();
         });
     }
