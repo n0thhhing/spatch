@@ -24,16 +24,20 @@ pub struct Track {
     /// When it was added to the playlist (seconds since 1970), 0 if unknown.
     pub added: u32,
     pub liked: bool,
+    /// True when Spotify attached this track as a recommendation rather than a playlist entry.
+    pub recommended: bool,
 }
 
 /// How many strings each song takes in the UI's arrays (`fields`).
-pub const FIELDS: usize = 10;
+pub const FIELDS: usize = 11;
 
 impl Track {
-    /// title, artist, uri, image, album, album uri, artist uri, length ms, added, liked ("1" or "").
+    /// title, artist, uri, image, album, album uri, artist uri, length ms, added, liked ("1" or ""), recommended ("1" or "").
     pub fn fields(self) -> [String; FIELDS] {
         [self.title, self.artist, self.uri, self.image, self.album, self.album_uri, self.artist_uri,
-         self.duration_ms.to_string(), self.added.to_string(), if self.liked { "1".into() } else { String::new() }]
+         self.duration_ms.to_string(), self.added.to_string(),
+         if self.liked { "1".into() } else { String::new() },
+         if self.recommended { "1".into() } else { String::new() }]
     }
 }
 
@@ -99,6 +103,11 @@ pub fn request_range(uri: &str, offset: i32, length: i32) -> Vec<u8> {
                 }),
                 add_time: true,
                 in_collection: true,
+                is_recommendation: true,
+                ..Default::default()
+            }),
+            episode: Some(policy::PlaylistEpisodeDecorationPolicy {
+                is_recommendation: true,
                 ..Default::default()
             }),
             item: Some(policy::PlaylistItemDecorationPolicy {
@@ -156,6 +165,7 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
                 duration_ms: track.map_or(0, |t| t.length),
                 added: item.add_time,
                 liked: item.track_collection_state.as_ref().is_some_and(|c| c.is_in_collection),
+                recommended: item.is_recommendation,
             }
         })
         .collect();
@@ -218,5 +228,25 @@ mod tests {
         assert_eq!(decode(&empty.encode_to_vec(), 0), Err("No playlist data".into()));
         let loading = es::PlaylistGetResponse { data: Some(crate::protos::com::spotify::playlist::proto::Response { loading_contents: true, ..Default::default() }), ..Default::default() };
         assert_eq!(decode(&loading.encode_to_vec(), 0), Ok(Reply::Loading));
+    }
+
+    #[test]
+    fn marks_recommended_items_separately() {
+        use crate::protos::com::spotify::playlist::proto as pl;
+        let item = |uri: &str, is_recommendation| pl::Item {
+            uri: uri.into(),
+            is_recommendation,
+            ..Default::default()
+        };
+        let reply = es::PlaylistGetResponse {
+            data: Some(pl::Response {
+                item: vec![item("spotify:track:1", false), item("spotify:track:2", true)],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let Ok(Reply::Page { tracks, .. }) = decode(&reply.encode_to_vec(), 0) else { panic!("not a page") };
+        assert!(!tracks[0].recommended && tracks[1].recommended);
+        assert_eq!(tracks[1].clone().fields()[10], "1");
     }
 }

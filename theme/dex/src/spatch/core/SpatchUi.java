@@ -1045,6 +1045,7 @@ public final class SpatchUi extends FrameLayout {
         songQuery = "";
         songFields = new String[0];
         allSongs.clear();
+        recommendedSongs.clear();
         shownReply = null;
         shownCached = false;
         detailTitle = detailSubtitle = detailImage = "";
@@ -1068,7 +1069,7 @@ public final class SpatchUi extends FrameLayout {
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
-            String key = (isDetail(e) ? "page:" : "playlist2:") + e.uri;
+            String key = (isDetail(e) ? "page:" : "playlist3:") + e.uri;
             // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
             if (attempt == 0) {
                 String[] saved = nativeCached(key);
@@ -1109,10 +1110,11 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Rust's playlist fields: SONG_FIELDS strings per song. */
-    private static final int SONG_FIELDS = 10;
+    private static final int SONG_FIELDS = 11;
     /** Every song of the open playlist, in its order; playlistTracks is what the search and sort leave of it. */
     private String[] songFields = new String[0];
     private final List<Song> allSongs = new ArrayList<>();
+    private final List<Song> recommendedSongs = new ArrayList<>();
     private String songQuery = "";
 
     /** The reply this page is showing, and whether it came from the saved copy. */
@@ -1142,9 +1144,21 @@ public final class SpatchUi extends FrameLayout {
         playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
         if (playlistFailed) android.util.Log.w("SpatchUi", "Playlist request failed: " + playlistError);
         else {
-            songFields = java.util.Arrays.copyOfRange(r, 2, 2 + (r.length - 2) / SONG_FIELDS * SONG_FIELDS);
             allSongs.clear();
-            for (int i = 0; i * SONG_FIELDS < songFields.length; i++) allSongs.add(new Song(songFields, i * SONG_FIELDS, i));
+            recommendedSongs.clear();
+            int count = (r.length - 2) / SONG_FIELDS;
+            List<String> kept = new ArrayList<>(count * SONG_FIELDS);
+            for (int i = 0; i < count; i++) {
+                int at = 2 + i * SONG_FIELDS;
+                boolean rec = !r[at + 10].isEmpty();
+                if (rec) {
+                    recommendedSongs.add(new Song(r, at, recommendedSongs.size()));
+                } else {
+                    allSongs.add(new Song(r, at, allSongs.size()));
+                    for (int k = 0; k < SONG_FIELDS; k++) kept.add(r[at + k]);
+                }
+            }
+            songFields = kept.toArray(new String[0]);
             arrangeSongs();
         }
         showPage();
@@ -1186,6 +1200,16 @@ public final class SpatchUi extends FrameLayout {
             for (int i = 0; i < shelf && at + 3 < r.length; i++, at += 4) releases.add(new Entry(r[at], r[at + 1], r[at + 2], r[at + 3], 1));
         }
         showPage();
+    }
+
+    private void openRecommended() {
+        if (recommendedSongs.isEmpty()) return;
+        String[] names = new String[recommendedSongs.size()];
+        for (int i = 0; i < names.length; i++) {
+            Song s = recommendedSongs.get(i);
+            names[i] = s.title + (s.subtitle.isEmpty() ? "" : " · " + s.subtitle);
+        }
+        sheet("Similar songs", "Recommended based on this playlist", names, i -> command(PLAY, 0, recommendedSongs.get(i).uri));
     }
 
     /** Long-press on a playlist song: play from it, queue it, go to its album or artist, like or unlike it. */
@@ -1272,6 +1296,14 @@ public final class SpatchUi extends FrameLayout {
         actions.addView(shuf, lp(dp(130), dp(50)));
         actions.addView(space(dp(8), 1));
         actions.addView(play, lp(dp(130), dp(50)));
+        if (!recommendedSongs.isEmpty()) {
+            TextView sim = pill("Similar", this::openRecommended);
+            GradientDrawable simBg = round(surfHi, 22);
+            sim.setBackground(simBg);
+            colored(sim, () -> { sim.setTextColor(ink); simBg.setColor(surfHi); });
+            actions.addView(space(dp(8), 1));
+            actions.addView(sim, lp(dp(106), dp(50)));
+        }
         LinearLayout.LayoutParams ap = fill(-2);
         ap.topMargin = dp(4);
         header.addView(actions, ap);
@@ -2707,6 +2739,7 @@ public final class SpatchUi extends FrameLayout {
         final String album, albumUri, artistUri;
         final long duration;
         final int index;
+        final boolean recommended;
         boolean liked;
         Song(String[] f, int at, int index) {
             super(f[at], f[at + 1], f[at + 2], f[at + 3], -1);
@@ -2715,6 +2748,7 @@ public final class SpatchUi extends FrameLayout {
             try { ms = Long.parseLong(f[at + 7]); } catch (NumberFormatException ignored) { /* no length */ }
             duration = ms;
             liked = !f[at + 9].isEmpty();
+            recommended = !f[at + 10].isEmpty();
             this.index = index;
         }
     }
