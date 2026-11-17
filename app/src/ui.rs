@@ -708,7 +708,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
     let command = match action {
         0 => Command::Pause,
         1 => Command::Resume,
-        2 => Command::Previous,
+        2 => Command::Previous(value != 0),
         3 => Command::Next,
         4 if value >= 0 => Command::SeekTo(value),
         5 => Command::Shuffle(value != 0),

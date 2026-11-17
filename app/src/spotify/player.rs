@@ -174,7 +174,8 @@ pub enum Command {
     Pause,
     Resume,
     Next,
-    Previous,
+    /// `true` allows Spotify to restart the current track when past the beginning; `false` forces skipping back.
+    Previous(bool),
     SeekTo(i64),
     Shuffle(bool),
     /// 0 off, 1 the context, 2 the track.
@@ -252,7 +253,7 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
         Command::Pause => ("Pause", es::PauseRequest { logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::Resume => ("Resume", es::ResumeRequest { logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::Next => ("SkipNext", es::SkipNextRequest { logging_params: log, ..Default::default() }.encode_to_vec()),
-        Command::Previous => ("SkipPrev", es::SkipPrevRequest { allow_seeking: true, logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::Previous(allow_seeking) => ("SkipPrev", es::SkipPrevRequest { allow_seeking, logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::SeekTo(ms) => ("SeekTo", es::SeekToRequest { position: ms, logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::Shuffle(on) => ("SetShufflingContext", es::SetShufflingContextRequest { shuffling_context: on, logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::Repeat(mode) => (
@@ -363,6 +364,8 @@ mod tests {
         assert_eq!((method, shuf.shuffling_context), ("SetShufflingContext", true));
         assert!(shuf.logging_params.and_then(|l| l.command_initiated_time).is_some());
         assert_eq!(es::SeekToRequest::decode(command(Command::SeekTo(1234)).1.as_slice()).unwrap().position, 1234);
+        assert!(es::SkipPrevRequest::decode(command(Command::Previous(true)).1.as_slice()).unwrap().allow_seeking);
+        assert!(!es::SkipPrevRequest::decode(command(Command::Previous(false)).1.as_slice()).unwrap().allow_seeking);
     }
 
     #[test]

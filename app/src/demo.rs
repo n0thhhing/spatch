@@ -141,7 +141,14 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
         }
         Command::PlayFrom { track: uri, .. } => *now = track(index_of(&uri), true),
         Command::Next => *now = track((here + 1) % TRACKS.len(), now.playing),
-        Command::Previous => *now = track((here + TRACKS.len() - 1) % TRACKS.len(), now.playing),
+        Command::Previous(allow_seeking) => {
+            if allow_seeking && at > 3000 {
+                now.position_ms = 0;
+                now.timestamp = now_ms();
+            } else {
+                *now = track((here + TRACKS.len() - 1) % TRACKS.len(), now.playing);
+            }
+        }
         Command::SkipTo { uri, .. } => *now = track(index_of(&uri), now.playing),
         Command::SeekTo(ms) => {
             now.position_ms = ms.clamp(0, now.duration_ms);

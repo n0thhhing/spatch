@@ -141,6 +141,7 @@ public final class SpatchUi extends FrameLayout {
     private String savedUri = "";
     private String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
     private boolean buffering, canNext = true, canPrevious = true;
+    private long prevTappedAt;
     private String albumUri = "", artistUri = "";
     /** Skip buttons (true for next), dimmed and disabled while Spotify doesn't allow that skip. */
     private final java.util.Map<View, Boolean> skipButtons = new java.util.WeakHashMap<>();
@@ -400,11 +401,25 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void command(int action, long value, String target) {
+        if (action == NEXT || action == PLAY || action == SKIP_TO) prevTappedAt = 0;
         COMMANDS.execute(() -> {
             if (!nativeCommand(action, value, target)) post(() -> {
                 if (isAttachedToWindow()) Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show();
             });
         });
+    }
+
+    /** Restarts the song when well into it on the first tap, then forces skipping to the previous song on repeat taps or near the start. */
+    private void previousTrack() {
+        long now = SystemClock.uptimeMillis();
+        boolean allowSeek = playhead() > 3000 && now - prevTappedAt > 4000;
+        prevTappedAt = now;
+        if (allowSeek) {
+            position = 0;
+            stamp = now;
+            if (wave != null) wave.invalidate();
+        }
+        command(PREVIOUS, allowSeek ? 1 : 0, "");
     }
 
     private static String time(long ms) {
@@ -728,7 +743,7 @@ public final class SpatchUi extends FrameLayout {
         words.addView(mTitle);
         words.addView(mArtist);
         mini.addView(words, weight());
-        mini.addView(skip(iconButton(icon("previous", () -> ink), "Previous", () -> command(PREVIOUS, 0, "")), false), lp(dp(44), dp(44)));
+        mini.addView(skip(iconButton(icon("previous", () -> ink), "Previous", this::previousTrack), false), lp(dp(44), dp(44)));
         mPlay = new PlayButton();
         mini.addView(mPlay, lp(dp(50), dp(50)));
         mini.addView(skip(iconButton(icon("next", () -> ink), "Next", () -> command(NEXT, 0, "")), true), lp(dp(44), dp(44)));
@@ -1536,7 +1551,7 @@ public final class SpatchUi extends FrameLayout {
                 if (dy < -dp(28) && Math.abs(dy) > Math.abs(dx)) { flung[0] = true; openPlayer(true); }
                 else if (Math.abs(dx) > dp(48) && Math.abs(dx) > Math.abs(dy)) {
                     flung[0] = true;
-                    command(dx < 0 ? NEXT : PREVIOUS, 0, "");
+                    if (dx < 0) command(NEXT, 0, ""); else previousTrack();
                     tick(mini);
                 }
                 return flung[0];
@@ -2580,7 +2595,7 @@ public final class SpatchUi extends FrameLayout {
         sp.setMargins(0, dp(11), dp(9), 0);
         shuffleBox.addView(pSparkle, sp);
         controls.addView(shuffleBox, lp(dp(52), dp(52)));
-        controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", () -> command(PREVIOUS, 0, "")), false), false), lp(dp(60), dp(60)));
+        controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", this::previousTrack), false), false), lp(dp(60), dp(60)));
         pPlay = new PlayButton();
         controls.addView(pPlay, lp(dp(86), dp(86)));
         controls.addView(skip(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), true), lp(dp(60), dp(60)));
@@ -2653,7 +2668,7 @@ public final class SpatchUi extends FrameLayout {
             @Override public boolean onDoubleTap(MotionEvent e) { if (pref("double_tap", true)) togglePlay(); return true; }
             @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
                 if (a == null || !pref("swipe_skip", true) || Math.abs(b.getX() - a.getX()) < dp(60) || Math.abs(b.getX() - a.getX()) < Math.abs(b.getY() - a.getY())) return false;
-                command(b.getX() < a.getX() ? NEXT : PREVIOUS, 0, "");
+                if (b.getX() < a.getX()) command(NEXT, 0, ""); else previousTrack();
                 tick(v);
                 return true;
             }
