@@ -782,6 +782,17 @@ public final class SpatchUi extends FrameLayout {
         TextView h = text(hour < 5 ? "Up late?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening", 34, () -> ink, true);
         h.setPadding(0, dp(8), 0, dp(2));
         page.addView(h);
+        // Expressive type: the first time Home appears the greeting swells from light to bold (variable fonts only).
+        if (!greeted && motion() && pref("expressive_type", true) && h.getFontVariationSettings() != null) {
+            greeted = true;
+            android.animation.ValueAnimator swell = android.animation.ValueAnimator.ofInt(250, 720);
+            swell.setDuration(900);
+            swell.setStartDelay(120);
+            swell.setInterpolator(EMPHASIZED);
+            swell.addUpdateListener(a -> h.setFontVariationSettings("'wght' " + a.getAnimatedValue() + ", 'ROND' 100"));
+            h.setFontVariationSettings("'wght' 250, 'ROND' 100");
+            swell.start();
+        }
         TextView sub = text("Here’s your music", 15, () -> inkDim, false);
         sub.setPadding(0, 0, 0, dp(16));
         page.addView(sub);
@@ -1264,6 +1275,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Pages opened from another page (an album from a playlist...), so back retraces them. */
+    private static boolean greeted;
     private View headCover;
     private TextView nowPlayingChip;
     /** View tag key for the now-playing chip's position (any id unique to this file). */
