@@ -1685,7 +1685,9 @@ public final class SpatchUi extends FrameLayout {
     private void actions(Entry e) {
         if (e instanceof Song) { songActions((Song) e); return; }
         boolean song = playlist != null;
-        String[] options = song ? new String[]{"Play", "Add to queue"} : new String[]{"Play", "Shuffle play", "Open"};
+        Option[] options = song
+            ? new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false)}
+            : new Option[]{new Option("Play", "", "", "play", false), new Option("Shuffle play", "", "", "shuffle", false), new Option("Open", "", "", "chevron", false)};
         sheet(e.title, e.subtitle.isEmpty() ? "Choose what to do" : e.subtitle, options, choice -> {
             if (song) {
                 if (choice == 0) command(PLAY, 0, e.uri);
