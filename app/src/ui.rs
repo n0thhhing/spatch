@@ -193,6 +193,40 @@ fn watch_library() {
     }
 }
 
+#[cfg(feature = "preview")]
+static PREVIEW_SHUFFLE: Mutex<Vec<(String, i32)>> = Mutex::new(Vec::new());
+
+/// The shuffle mode Spotify keeps for a playlist: 0 off, 1 shuffle, 2 Smart Shuffle, -1 if it couldn't say.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeShuffleMode(mut env: JNIEnv, _: JClass, uri: JString) -> jint {
+    let Some(uri) = read(&mut env, &uri) else { return -1 };
+    #[cfg(feature = "preview")]
+    return PREVIEW_SHUFFLE.lock().unwrap().iter().find(|(u, _)| *u == uri).map_or(0, |(_, m)| *m);
+    #[cfg(not(feature = "preview"))]
+    crate::spotify::shuffle::get(&uri).unwrap_or_else(|e| {
+        log::warn!("Shuffle state for {uri}: {e}");
+        -1
+    })
+}
+
+/// Stores a playlist's shuffle mode with Spotify; "" on success, else why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSetShuffleMode(mut env: JNIEnv, _: JClass, uri: JString, mode: jint) -> jstring {
+    let Some(uri) = read(&mut env, &uri) else { return string(&mut env, "No playlist") };
+    #[cfg(feature = "preview")]
+    {
+        let mut kept = PREVIEW_SHUFFLE.lock().unwrap();
+        kept.retain(|(u, _)| *u != uri);
+        kept.push((uri, mode));
+        return string(&mut env, "");
+    }
+    #[cfg(not(feature = "preview"))]
+    {
+        let result = crate::spotify::shuffle::set(&uri, mode.clamp(0, 2));
+        string(&mut env, &result.err().unwrap_or_default())
+    }
+}
+
 /// The commit this build came from.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeBuild(mut env: JNIEnv, _: JClass) -> jstring {

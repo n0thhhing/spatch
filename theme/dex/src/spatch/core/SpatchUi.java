@@ -62,6 +62,8 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
     private static native String nativeBuild();
+    private static native int nativeShuffleMode(String uri);
+    private static native String nativeSetShuffleMode(String uri, int mode);
     private static native void nativeWatchPlaylist(String uri, String key);
     private static native void nativeStopPlaylist();
     private static native long nativePlaylistRevision();
@@ -176,7 +178,7 @@ public final class SpatchUi extends FrameLayout {
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist"}) {
+                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null);
@@ -702,8 +704,8 @@ public final class SpatchUi extends FrameLayout {
         dock.removeAllViews();
         LinearLayout mini = row();
         mini.setPadding(dp(8), dp(6), dp(8), dp(6));
-        bgRound(mini, 30, () -> blend(surfHi, accent, .12f));
-        mini.setElevation(dp(3));
+        // A hairline edge instead of an elevation shadow, which drew unevenly under the rounded, tinted pills.
+        bgRound(mini, 30, () -> blend(surfHi, accent, .12f)).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
         mArt = new Art(Art.CIRCLE, true);
         mArt.crossfade = true;
         mini.addView(mArt, lp(dp(46), dp(46)));
@@ -727,8 +729,7 @@ public final class SpatchUi extends FrameLayout {
 
         dockBar = row();
         dockBar.setGravity(Gravity.CENTER);
-        bgRound(dockBar, 28, () -> surf);
-        dockBar.setElevation(dp(3));
+        bgRound(dockBar, 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
         dockBar.setPadding(dp(6), dp(5), dp(6), dp(5));
         dock.addView(dockBar, fill(dp(56)));
         updateDock();
@@ -833,13 +834,19 @@ public final class SpatchUi extends FrameLayout {
         colored(scrim, () -> scrimBg.setColors(new int[]{surf & 0x00ffffff, (surf & 0x00ffffff) | 0xc8000000, surf}));
         hero.addView(scrim, new LayoutParams(-1, dp(130), Gravity.BOTTOM));
         LinearLayout words = column();
-        words.setPadding(dp(18), 0, dp(18), dp(16));
+        words.setPadding(dp(18), 0, dp(84), dp(16));
         heroTitle = text("", 26, () -> ink, true);
         heroArtist = text("", 14, () -> inkDim, false);
         oneLine(heroTitle); oneLine(heroArtist);
         words.addView(heroTitle);
         words.addView(heroArtist);
         hero.addView(words, new LayoutParams(-1, -2, Gravity.BOTTOM));
+        // Play or pause right from the banner.
+        PlayButton heroPlay = new PlayButton();
+        heroPlay.set(pending != null ? pending : playing);
+        LayoutParams hp = new LayoutParams(dp(58), dp(58), Gravity.BOTTOM | Gravity.END);
+        hp.setMargins(0, 0, dp(16), dp(14));
+        hero.addView(heroPlay, hp);
         tappable(hero, "Open player", () -> openPlayer(true));
         page.addView(hero, fill(dp(200)));
 
@@ -1625,29 +1632,73 @@ public final class SpatchUi extends FrameLayout {
             why.setPadding(dp(8), dp(6), dp(8), dp(4));
             header.addView(why, fill(-2));
         }
+        // Spotify's header: the shuffle mode, share and Similar on the left, a big round play button on the right.
         LinearLayout actions = row();
-        actions.setGravity(Gravity.CENTER);
-        TextView shuf = pill("Shuffle", () -> command(PLAY, 1, playUri()));
-        GradientDrawable shufBg = round(surfHi, 22);
-        shuf.setBackground(shufBg);
-        colored(shuf, () -> { shuf.setTextColor(ink); shufBg.setColor(surfHi); });
-        // While this list is the one playing, the big button pauses and resumes it instead of starting it over.
-        TextView play = pill(listIsPlaying() && playing ? "Pause" : "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, 2, playUri()); });
-        listPlay = play;
-        // Buttons share the row's width, so two or three always fit the screen.
-        actions.addView(shuf, new LinearLayout.LayoutParams(0, dp(50), 1));
-        actions.addView(space(dp(8), 1));
-        actions.addView(play, new LinearLayout.LayoutParams(0, dp(50), 1));
-        if (!recommendedSongs.isEmpty()) {
-            TextView sim = pill("Similar", this::openRecommended);
-            GradientDrawable simBg = round(surfHi, 22);
-            sim.setBackground(simBg);
-            colored(sim, () -> { sim.setTextColor(ink); simBg.setColor(surfHi); });
-            actions.addView(space(dp(8), 1));
-            actions.addView(sim, new LinearLayout.LayoutParams(0, dp(50), 1));
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        String listUri = playUri();
+        boolean smartAllowed = !detail && !liked(playlist.uri);
+        LinearLayout mode = row();
+        mode.setGravity(Gravity.CENTER);
+        mode.setPadding(dp(14), 0, dp(16), 0);
+        GradientDrawable modeBg = round(surfHi, 22);
+        mode.setBackground(modeBg);
+        Icon modeIcon = new Icon("shuffle", ink);
+        mode.addView(modeIcon, lp(dp(20), dp(20)));
+        TextView modeName = text("Shuffle", 14, ink, true);
+        modeName.setPadding(dp(8), 0, 0, 0);
+        oneLine(modeName);
+        mode.addView(modeName);
+        Runnable paintMode = () -> {
+            boolean on = listShuffle > 0;
+            modeBg.setColor(on ? blend(surfHi, accent, .25f) : surfHi);
+            modeIcon.color = on ? accent : ink;
+            modeIcon.invalidate();
+            modeName.setTextColor(on ? accent : ink);
+            modeName.setText(listShuffle == 2 ? "Smart shuffle" : listShuffle == 1 ? "Shuffle on" : "Shuffle off");
+        };
+        colored(mode, paintMode);
+        tappable(mode, "Shuffle mode", () -> {
+            // Off → Shuffle → Smart Shuffle (playlists only) → Off, stored with Spotify for this list.
+            int next = listShuffle <= 0 ? 1 : listShuffle == 1 && smartAllowed ? 2 : 0;
+            int before = listShuffle;
+            listShuffle = next;
+            paintMode.run();
+            if (listIsPlaying()) command(SHUFFLE, next > 0 ? 1 : 0, "");
+            PLAYLISTS.execute(() -> {
+                String error = nativeSetShuffleMode(listUri, next);
+                if (error != null && !error.isEmpty()) post(() -> {
+                    listShuffle = before;
+                    paintMode.run();
+                    Toast.makeText(activity, "Couldn’t change shuffle: " + error, Toast.LENGTH_SHORT).show();
+                });
+            });
+        });
+        actions.addView(mode, lp(-2, dp(44)));
+        listShuffle = -1;
+        paintMode.run();
+        PLAYLISTS.execute(() -> {
+            int known = nativeShuffleMode(listUri);
+            post(() -> { if (playlist != null && listUri.equals(playUri()) && known >= 0) { listShuffle = known; paintMode.run(); } });
+        });
+        String link = shareLink(playlist.uri);
+        if (!link.isEmpty()) {
+            actions.addView(space(dp(6), 1));
+            actions.addView(iconButton(icon("share", () -> ink), "Share", () -> shareLinkSheet(headTitle, link)), lp(dp(44), dp(44)));
         }
+        if (!recommendedSongs.isEmpty()) {
+            actions.addView(space(dp(6), 1));
+            actions.addView(iconButton(icon("album", () -> ink), "Similar songs", this::openRecommended), lp(dp(44), dp(44)));
+        }
+        actions.addView(space(0, 1), weight());
+        // While this list is the one playing, the button pauses and resumes it instead of starting it over.
+        PlayButton fab = new PlayButton();
+        playButtons.remove(fab);
+        fab.set(listIsPlaying() && playing);
+        tappable(fab, "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, listShuffle > 0 ? 1 : 2, playUri()); });
+        listFab = fab;
+        actions.addView(fab, lp(dp(62), dp(62)));
         LinearLayout.LayoutParams ap = fill(-2);
-        ap.topMargin = dp(4);
+        ap.topMargin = dp(10);
         header.addView(actions, ap);
         if (playlistFailed) header.addView(pill("Retry", () -> { playlistLoading = true; playlistFailed = false; showPage(); loadPlaylist(playlist, 0); }));
         android.widget.EditText songSearch = null;
@@ -2698,7 +2749,35 @@ public final class SpatchUi extends FrameLayout {
     // ---------- refresh ----------
 
     /** Pushes the current state into whichever views exist. */
-    private TextView listPlay;
+    private PlayButton listFab;
+    /** The open list's shuffle mode as Spotify keeps it: -1 unknown, 0 off, 1 shuffle, 2 Smart Shuffle. */
+    private int listShuffle = -1;
+
+    /** The open.spotify.com link for a playlist, album, artist, show, song or episode; "" for others. */
+    private static String shareLink(String u) {
+        for (String kind : new String[]{"playlist", "album", "artist", "show", "track", "episode"}) {
+            String prefix = "spotify:" + kind + ":";
+            if (u.startsWith(prefix)) return "https://open.spotify.com/" + kind + "/" + u.substring(prefix.length());
+            int at = u.indexOf(":" + kind + ":");
+            if (u.startsWith("spotify:user:") && at > 0 && kind.equals("playlist")) return "https://open.spotify.com/playlist/" + u.substring(at + kind.length() + 2);
+        }
+        return "";
+    }
+
+    private void shareLinkSheet(String name, String link) {
+        sheet(name, link, new Option[]{new Option("Share link", "", "", "share", false), new Option("Copy link", "", "", "check", false)}, c -> {
+            if (c == 0) {
+                android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
+                send.setType("text/plain");
+                send.putExtra(android.content.Intent.EXTRA_TEXT, link);
+                activity.startActivity(android.content.Intent.createChooser(send, name));
+            } else {
+                android.content.ClipboardManager clip = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText(name, link));
+                Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 
     /** Whether the open playlist or page is what's playing. */
     private boolean listIsPlaying() {
@@ -2708,13 +2787,13 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void refresh() {
-        if (listPlay != null && listPlay.isAttachedToWindow()) listPlay.setText(listIsPlaying() && playing ? "Pause" : "Play");
+        if (listFab != null && listFab.isAttachedToWindow()) listFab.set(listIsPlaying() && (pending == null ? playing : pending));
         String shown = title.isEmpty() ? "Nothing playing" : title;
         boolean on = pending == null ? playing : pending;
         if (mTitle != null) mTitle.setText(shown);
         if (mArtist != null) mArtist.setText(artist);
         if (mArt != null) { mArt.bind(image); mArt.invalidate(); }
-        if (mPlay != null) mPlay.set(on);
+        for (PlayButton b : playButtons) if (b != pPlay) b.set(on);
         if (heroTitle != null) heroTitle.setText(shown);
         if (heroArtist != null) heroArtist.setText(artist);
         if (heroArt != null) heroArt.bind(image);
