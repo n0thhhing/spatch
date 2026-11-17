@@ -423,6 +423,9 @@ public final class SpatchUi extends FrameLayout {
         super.onAttachedToWindow();
         requestApplyInsets();
         android.view.Window w = activity.getWindow();
+        // The keyboard draws over Spatch instead of squeezing it: resizing the window re-laid out every page
+        // around the keyboard and could leave the bottom fade misplaced. The search fields sit at the top.
+        w.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         w.setStatusBarColor(Color.TRANSPARENT);
         w.setNavigationBarColor(Color.TRANSPARENT);
         if (android.os.Build.VERSION.SDK_INT >= 29) {
@@ -463,6 +466,8 @@ public final class SpatchUi extends FrameLayout {
     Object backCallback() { return (android.window.OnBackInvokedCallback) this::back; }
 
     void back() {
+        // Spatch's back handler outranks the keyboard's, so close the keyboard here first.
+        if (hideKeyboard()) return;
         if (sheetClose != null) sheetClose.run();
         else if (playerOpen) closePlayer();
         else if (playlist != null) { playlist = null; showPage(); updateDock(); enter(-dp(44), 0); }
@@ -600,7 +605,20 @@ public final class SpatchUi extends FrameLayout {
         page.animate().alpha(1f).translationX(0).translationY(0).setDuration(300).setInterpolator(EMPHASIZED).start();
     }
 
+    /** Closes the on-screen keyboard and drops text focus; true if it was open. */
+    private boolean hideKeyboard() {
+        View focused = findFocus();
+        boolean open = android.os.Build.VERSION.SDK_INT >= 30 && getRootWindowInsets() != null && getRootWindowInsets().isVisible(WindowInsets.Type.ime());
+        if (!(focused instanceof android.widget.EditText) && !open) return false;
+        android.view.inputmethod.InputMethodManager keyboard = (android.view.inputmethod.InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (keyboard != null) keyboard.hideSoftInputFromWindow(getWindowToken(), 0);
+        if (focused != null) focused.clearFocus();
+        requestFocus();
+        return android.os.Build.VERSION.SDK_INT >= 30 ? open : focused instanceof android.widget.EditText;
+    }
+
     private void go(int next) {
+        hideKeyboard();
         if (next == tab && playlist == null) return;
         boolean forward = next > tab;
         playlist = null;
