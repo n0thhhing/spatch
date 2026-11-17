@@ -1943,7 +1943,22 @@ public final class SpatchUi extends FrameLayout {
 
     interface Choice { void picked(int index); }
 
+    /** A sheet choice: a label, an optional second line, a cover (image url) or icon, and whether it's the current one. */
+    private static final class Option {
+        final String label, detail, image, glyph;
+        final boolean selected;
+        Option(String label, String detail, String image, String glyph, boolean selected) {
+            this.label = label; this.detail = detail; this.image = image; this.glyph = glyph; this.selected = selected;
+        }
+    }
+
     private void sheet(String heading, String note, String[] options, Choice choice) {
+        Option[] plain = new Option[options.length];
+        for (int i = 0; i < options.length; i++) plain[i] = new Option(options[i], "", "", "", false);
+        sheet(heading, note, plain, choice);
+    }
+
+    private void sheet(String heading, String note, Option[] options, Choice choice) {
         FrameLayout scrim = new FrameLayout(activity);
         scrim.setBackgroundColor(0x77000000);
         LinearLayout card = column();
@@ -1965,21 +1980,52 @@ public final class SpatchUi extends FrameLayout {
         TextView n = text(note, 14, () -> inkDim, false);
         n.setPadding(0, dp(4), 0, dp(14));
         card.addView(n);
-        ScrollView choices = new ScrollView(activity);
+        // A long list scrolls inside the sheet instead of running off the screen.
+        int most = Math.round(getHeight() * .62f);
+        ScrollView choices = new ScrollView(activity) {
+            @Override protected void onMeasure(int w, int h) {
+                super.onMeasure(w, most > 0 ? MeasureSpec.makeMeasureSpec(most, MeasureSpec.AT_MOST) : h);
+            }
+        };
+        choices.setVerticalScrollBarEnabled(false);
         LinearLayout list = column();
         choices.addView(list);
         Runnable[] close = new Runnable[1];
         for (int i = 0; i < options.length; i++) {
             final int index = i;
-            TextView option = text(options[i], 16, ink, true);
-            option.setGravity(Gravity.CENTER_VERTICAL);
-            option.setPadding(dp(18), 0, dp(18), 0);
-            GradientDrawable optBg = round(surfHi, 16);
+            Option o = options[i];
+            LinearLayout option = row();
+            option.setPadding(dp(o.image.isEmpty() ? 18 : 8), dp(8), dp(14), dp(8));
+            GradientDrawable optBg = round(o.selected ? blend(surfHi, accent, .22f) : surfHi, 16);
             option.setBackground(optBg);
-            colored(option, () -> { option.setTextColor(ink); optBg.setColor(surfHi); });
-            oneLine(option);
-            tappable(option, options[i], () -> { close[0].run(); choice.picked(index); });
-            LinearLayout.LayoutParams p = fill(dp(54));
+            if (!o.image.isEmpty()) {
+                Art art = new Art(Art.ROUNDED, false);
+                art.letter = initial(o.label);
+                art.bind(o.image);
+                LinearLayout.LayoutParams ap = lp(dp(42), dp(42));
+                ap.rightMargin = dp(12);
+                option.addView(art, ap);
+            } else if (!o.glyph.isEmpty()) {
+                LinearLayout.LayoutParams ip = lp(dp(24), dp(24));
+                ip.rightMargin = dp(14);
+                option.addView(icon(o.glyph, () -> o.selected ? accent : inkDim), ip);
+            }
+            LinearLayout words = column();
+            TextView label = text(o.label, 16, () -> o.selected ? accent : ink, true);
+            oneLine(label);
+            words.addView(label);
+            if (!o.detail.isEmpty()) {
+                TextView detail = text(o.detail, 13, () -> inkDim, false);
+                oneLine(detail);
+                detail.setPadding(0, dp(2), 0, 0);
+                words.addView(detail);
+            }
+            option.addView(words, weight());
+            if (o.selected) option.addView(icon("check", () -> accent), lp(dp(22), dp(22)));
+            colored(option, () -> optBg.setColor(o.selected ? blend(surfHi, accent, .22f) : surfHi));
+            tappable(option, o.label, () -> { close[0].run(); choice.picked(index); });
+            LinearLayout.LayoutParams p = fill(o.detail.isEmpty() && o.image.isEmpty() ? dp(54) : -2);
+            if (!o.detail.isEmpty() || !o.image.isEmpty()) option.setMinimumHeight(dp(58));
             p.bottomMargin = dp(5);
             list.addView(option, p);
         }
@@ -2267,9 +2313,9 @@ public final class SpatchUi extends FrameLayout {
 
     private void openQueue() {
         if (upcoming.isEmpty()) { Toast.makeText(activity, "The queue is empty", Toast.LENGTH_SHORT).show(); return; }
-        String[] names = new String[upcoming.size()];
-        for (int i = 0; i < names.length; i++) names[i] = upcoming.get(i).title + (upcoming.get(i).subtitle.isEmpty() ? "" : " · " + upcoming.get(i).subtitle);
-        sheet("Up next", source.isEmpty() ? "Coming up" : "From " + source, names, i -> command(SKIP_TO, i, upcoming.get(i).uri));
+        Option[] songs = new Option[upcoming.size()];
+        for (int i = 0; i < songs.length; i++) songs[i] = new Option(upcoming.get(i).title, upcoming.get(i).subtitle, upcoming.get(i).image, "", false);
+        sheet("Up next", source.isEmpty() ? "Coming up" : "From " + source, songs, i -> command(SKIP_TO, i, upcoming.get(i).uri));
     }
 
     // Sleep timer: pauses playback later. Kept on the main looper, not in a view, so it survives page changes.
@@ -2280,11 +2326,17 @@ public final class SpatchUi extends FrameLayout {
         COMMANDS.execute(() -> nativeCommand(PAUSE, 0, ""));
     };
 
+    private int sleepChoice;
+
     private void openSleepTimer() {
         String[] names = {"Off", "15 minutes", "30 minutes", "45 minutes", "1 hour", "End of this track"};
         long left = sleepAt - SystemClock.uptimeMillis();
         String note = left > 0 ? "Pausing in " + Math.max(1, (left + 59_999) / 60_000) + " min" : "Pause playback later";
-        sheet("Sleep timer", note, names, choice -> {
+        int current = left > 0 ? sleepChoice : 0;
+        Option[] options = new Option[names.length];
+        for (int i = 0; i < names.length; i++) options[i] = new Option(names[i], "", "", i == 0 ? "close" : "timer", i == current);
+        sheet("Sleep timer", note, options, choice -> {
+            sleepChoice = choice;
             MAIN.removeCallbacks(SLEEP);
             long delay = choice == 0 ? 0 : choice == 5 ? Math.max(1000, duration - playhead() - 500) : new long[]{0, 15, 30, 45, 60}[choice] * 60_000L;
             sleepAt = choice == 0 ? 0 : SystemClock.uptimeMillis() + delay;
@@ -2301,12 +2353,14 @@ public final class SpatchUi extends FrameLayout {
             post(() -> {
                 if (f == null || f.length < 5) { Toast.makeText(activity, "No devices found", Toast.LENGTH_SHORT).show(); return; }
                 int count = f.length / 5;
-                String[] names = new String[count];
+                Option[] devices = new Option[count];
                 for (int i = 0; i < count; i++) {
                     boolean active = Boolean.parseBoolean(f[i * 5 + 3]), here = Boolean.parseBoolean(f[i * 5 + 4]);
-                    names[i] = f[i * 5] + (here ? " (this phone)" : "") + (active ? "  ·  playing" : "");
+                    String kind = f[i * 5 + 1];
+                    String detail = (here ? "This phone" : kind) + (active ? " • Playing" : "");
+                    devices[i] = new Option(f[i * 5], detail, "", here ? "devices" : "volume", active);
                 }
-                sheet("Play on", "Pick where your music should play", names, i -> {
+                sheet("Play on", "Pick where your music should play", devices, i -> {
                     String id = f[i * 5 + 2];
                     PLAYLISTS.execute(() -> {
                         String error = nativeTransfer(id);
