@@ -13,6 +13,17 @@ fn main() {
     for p in &protos {
         println!("cargo:rerun-if-changed={p}");
     }
+    // The commit this build came from, shown in Settings so it's clear which nightly is installed.
+    let commit = std::env::var("GITHUB_SHA")
+        .ok()
+        .map(|sha| sha.chars().take(7).collect::<String>())
+        .or_else(|| {
+            let out = std::process::Command::new("git").args(["rev-parse", "--short", "HEAD"]).output().ok()?;
+            out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        })
+        .unwrap_or_else(|| "dev".into());
+    println!("cargo:rustc-env=SPATCH_COMMIT={commit}");
+    println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     let mut config = prost_build::Config::new();
     config.include_file("protos.rs");
     config.compile_protos(&protos, &["proto"]).expect("protoc failed; install protobuf (brew install protobuf / apt install protobuf-compiler)");

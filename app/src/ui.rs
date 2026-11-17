@@ -193,6 +193,12 @@ fn watch_library() {
     }
 }
 
+/// The commit this build came from.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeBuild(mut env: JNIEnv, _: JClass) -> jstring {
+    string(&mut env, env!("SPATCH_COMMIT"))
+}
+
 /// Bumps whenever the library changes; the UI redraws when it moves.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLibraryRevision(_: JNIEnv, _: JClass) -> jlong {

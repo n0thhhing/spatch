@@ -61,6 +61,7 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativeDevices();
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
+    private static native String nativeBuild();
     private static native void nativeWatchPlaylist(String uri, String key);
     private static native void nativeStopPlaylist();
     private static native long nativePlaylistRevision();
@@ -1778,7 +1779,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout storage = card(page, "Storage");
         cacheRow(storage);
 
-        TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.", 13, () -> inkDim, false);
+        TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.\n\nBuild " + nativeBuild(), 13, () -> inkDim, false);
         note.setPadding(dp(4), dp(22), dp(4), 0);
         page.addView(note);
         return scrolling(page);
