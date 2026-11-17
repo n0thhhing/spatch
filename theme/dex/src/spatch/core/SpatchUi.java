@@ -1381,7 +1381,7 @@ public final class SpatchUi extends FrameLayout {
             showPage();
         }, 20_000);
         PLAYLISTS.execute(() -> {
-            String key = (isDetail(e) ? "page:" : "playlist4:") + e.uri;
+            String key = (isDetail(e) ? "page2:" : "playlist4:") + e.uri;
             // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
             if (attempt == 0) {
                 String[] saved = nativeCached(key);
