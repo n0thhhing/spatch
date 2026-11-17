@@ -1698,7 +1698,7 @@ public final class SpatchUi extends FrameLayout {
         }
         if (!recommendedSongs.isEmpty()) {
             actions.addView(space(dp(6), 1));
-            actions.addView(iconButton(icon("album", () -> ink), "Similar songs", this::openRecommended), lp(dp(44), dp(44)));
+            actions.addView(iconButton(icon("sparkle", () -> ink), "Similar songs", this::openRecommended), lp(dp(44), dp(44)));
         }
         actions.addView(space(0, 1), weight());
         // While this list is the one playing, the button pauses and resumes it instead of starting it over.
