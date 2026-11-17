@@ -62,6 +62,7 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
     private static native String nativeBuild();
+    private static native String[] nativeSearch(String query);
     private static native int nativeShuffleMode(String uri);
     private static native String nativeSetShuffleMode(String uri, int mode);
     private static native void nativeWatchPlaylist(String uri, String key);
@@ -85,7 +86,7 @@ public final class SpatchUi extends FrameLayout {
     private static native float[] nativeGeometry(String kind);
 
     private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
-    private static final int HOME = 0, LIBRARY = 1, SETTINGS = 2;
+    private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3;
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
 
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
@@ -200,6 +201,14 @@ public final class SpatchUi extends FrameLayout {
             if (!next.equals(inset)) {
                 inset.set(next);
                 build();
+            }
+            // The keyboard draws over Spatch rather than resizing it, so results keep clear of it by padding.
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                int keyboard = Math.max(0, insets.getInsets(WindowInsets.Type.ime()).bottom - inset.bottom);
+                if (keyboard != imeInset) {
+                    imeInset = keyboard;
+                    if (searchScroll != null) searchScroll.setPadding(0, 0, 0, imeInset);
+                }
             }
             return insets;
         });
@@ -531,7 +540,7 @@ public final class SpatchUi extends FrameLayout {
             if (libRevision != libraryRevision) {
                 libraryRevision = libRevision;
                 // Not while you're typing in a search box: the rebuild would throw the text and keyboard away.
-                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS && !(findFocus() instanceof android.widget.EditText)) showPageKeepingPlace();
+                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS && tab != SEARCH && !(findFocus() instanceof android.widget.EditText)) showPageKeepingPlace();
                 else if (findFocus() instanceof android.widget.EditText) libraryRevision--;
             }
             postDelayed(this, 350);
@@ -567,7 +576,7 @@ public final class SpatchUi extends FrameLayout {
     /** Redraws the page for new data without losing your place in the Library list or Home's scroll. */
     private void showPageKeepingPlace() {
         // Only for Home and Library: by the time a posted redraw runs, a playlist or the player may have opened.
-        if (playlist != null || playerOpen || sheetClose != null || tab == SETTINGS) return;
+        if (playlist != null || playerOpen || sheetClose != null || tab == SETTINGS || tab == SEARCH) return;
         android.widget.AbsListView list = tab == LIBRARY ? libraryList : null;
         int first = list != null ? list.getFirstVisiblePosition() : 0;
         int top = list != null && list.getChildCount() > 0 ? list.getChildAt(0).getTop() : 0;
@@ -618,7 +627,7 @@ public final class SpatchUi extends FrameLayout {
         }
         context = s[13];
         // Home and Library mark what's playing; redraw them in place when that changes.
-        if (contextChanged && playlist == null && sheetClose == null && !playerOpen && tab != SETTINGS && !(findFocus() instanceof android.widget.EditText)) post(this::showPageKeepingPlace);
+        if (contextChanged && playlist == null && sheetClose == null && !playerOpen && tab != SETTINGS && tab != SEARCH && !(findFocus() instanceof android.widget.EditText)) post(this::showPageKeepingPlace);
         quality = s[14];
         boolean wasBuffering = buffering;
         buffering = Boolean.parseBoolean(s[15]);
@@ -714,6 +723,197 @@ public final class SpatchUi extends FrameLayout {
         box.addView(clear, lp(dp(40), dp(40)));
     }
 
+    // ================= search =================
+
+    private static final int HIT_FIELDS = 6;
+    private String searchQuery = "";
+    private String[] searchHits = new String[0];
+    private boolean searchBusy, focusSearch;
+    private int searchRequest, imeInset;
+    private ScrollView searchScroll;
+    private LinearLayout searchResults;
+    private android.widget.EditText searchField;
+
+    private final Runnable searchRun = new Runnable() {
+        @Override public void run() {
+            final int id = ++searchRequest;
+            final String q = searchQuery;
+            PLAYLISTS.execute(() -> {
+                String[] found = nativeSearch(q);
+                post(() -> {
+                    if (id != searchRequest) return; // the text changed meanwhile
+                    searchBusy = false;
+                    searchHits = found == null ? new String[0] : found;
+                    renderSearch();
+                });
+            });
+        }
+    };
+
+    private void scheduleSearch() {
+        removeCallbacks(searchRun);
+        if (searchQuery.trim().isEmpty()) {
+            searchRequest++;
+            searchBusy = false;
+            searchHits = new String[0];
+            renderSearch();
+            return;
+        }
+        searchBusy = true;
+        postDelayed(searchRun, 220);
+    }
+
+    private List<String> recentSearches() {
+        List<String> out = new ArrayList<>();
+        for (String q : prefs.getString("recent_searches", "").split("\n")) if (!q.trim().isEmpty()) out.add(q.trim());
+        return out;
+    }
+
+    private void rememberSearch(String q) {
+        q = q.trim();
+        if (q.isEmpty()) return;
+        List<String> all = recentSearches();
+        all.remove(q);
+        all.add(0, q);
+        while (all.size() > 8) all.remove(all.size() - 1);
+        prefs.edit().putString("recent_searches", android.text.TextUtils.join("\n", all)).apply();
+    }
+
+    private View searchPage() {
+        LinearLayout page = column();
+        page.setPadding(0, inset.top, 0, 0);
+        TextView h = text("Search", 34, () -> ink, true);
+        h.setPadding(dp(18), dp(18), dp(18), dp(10));
+        page.addView(h);
+
+        LinearLayout box = row();
+        box.setPadding(dp(16), 0, dp(8), 0);
+        bgRound(box, 26, () -> surf);
+        box.addView(icon("search", () -> inkDim), lp(dp(22), dp(22)));
+        android.widget.EditText field = new android.widget.EditText(activity);
+        field.setBackground(null);
+        field.setHint("Songs, albums, playlists, podcasts");
+        field.setHintTextColor(inkDim);
+        field.setTextColor(ink);
+        field.setTextSize(16);
+        field.setSingleLine(true);
+        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        field.setPadding(dp(12), 0, dp(4), 0);
+        field.setText(searchQuery);
+        box.addView(field, new LinearLayout.LayoutParams(0, dp(50), 1));
+        clearButton(box, field);
+        LinearLayout.LayoutParams bp = fill(dp(50));
+        bp.setMargins(dp(18), 0, dp(18), dp(8));
+        page.addView(box, bp);
+        searchField = field;
+
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setClipToPadding(true);
+        scroll.setPadding(0, 0, 0, imeInset);
+        LinearLayout results = column();
+        results.setPadding(dp(18), dp(4), dp(18), dp(170) + inset.bottom);
+        scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
+        page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        searchScroll = scroll;
+        searchResults = results;
+
+        field.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable e) {
+                searchQuery = e.toString();
+                scheduleSearch();
+            }
+        });
+        field.setOnEditorActionListener((v, action, event) -> { hideKeyboard(); return true; });
+        renderSearch();
+        // Arriving from the tab bar puts the cursor in the box, ready to type.
+        if (focusSearch) {
+            focusSearch = false;
+            field.post(() -> {
+                field.requestFocus();
+                android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(field, 0);
+            });
+        }
+        return page;
+    }
+
+    /** Draws the results (or, with nothing typed, the recent searches and a note on what's searched). */
+    private void renderSearch() {
+        LinearLayout box = searchResults;
+        if (box == null || !box.isAttachedToWindow() && box.getParent() == null) return;
+        box.removeAllViews();
+        String q = searchQuery.trim();
+        if (q.isEmpty()) {
+            List<String> recents = recentSearches();
+            if (!recents.isEmpty()) {
+                LinearLayout head = row();
+                TextView title = text("Recent searches", 15, () -> ink, true);
+                head.addView(title, weight());
+                TextView clear = pill("Clear", () -> { prefs.edit().remove("recent_searches").apply(); renderSearch(); });
+                clear.setTextSize(12);
+                clear.setPadding(dp(14), 0, dp(14), 0);
+                head.addView(clear, lp(-2, dp(32)));
+                head.setPadding(0, dp(6), 0, dp(6));
+                box.addView(head, fill(-2));
+                for (String recent : recents) {
+                    LinearLayout line = row();
+                    line.setPadding(dp(4), dp(4), dp(4), dp(4));
+                    line.addView(icon("timer", () -> inkDim), lp(dp(20), dp(20)));
+                    TextView label = text(recent, 16, () -> ink, false);
+                    label.setPadding(dp(14), dp(10), dp(8), dp(10));
+                    oneLine(label);
+                    line.addView(label, weight());
+                    line.setOnClickListener(v -> { searchField.setText(recent); searchField.setSelection(recent.length()); hideKeyboard(); });
+                    line.setClickable(true);
+                    box.addView(line, fill(-2));
+                }
+            }
+            TextView note = text("Searches your library, plus the songs, albums, playlists and podcast episodes Spotify has saved on this phone. It can’t search all of Spotify.", 13, () -> inkDim, false);
+            note.setPadding(dp(2), dp(18), dp(2), 0);
+            box.addView(note, fill(-2));
+            return;
+        }
+        if (searchHits.length < HIT_FIELDS) {
+            if (searchBusy) return; // the answer is on its way: leave the page as it is rather than flashing "nothing"
+            TextView none = text("Nothing found for “" + q + "”", 16, () -> ink, true);
+            none.setPadding(dp(2), dp(14), dp(2), dp(4));
+            box.addView(none, fill(-2));
+            TextView why = text("Spatch searches your library and what Spotify has saved on this phone, not all of Spotify.", 13, () -> inkDim, false);
+            why.setPadding(dp(2), 0, dp(2), 0);
+            box.addView(why, fill(-2));
+            return;
+        }
+        String section = "";
+        for (int i = 0; i + HIT_FIELDS <= searchHits.length; i += HIT_FIELDS) {
+            if (!searchHits[i].equals(section)) {
+                section = searchHits[i];
+                TextView header = text(section, 13, () -> accent, true);
+                header.setLetterSpacing(.04f);
+                header.setPadding(dp(4), dp(i == 0 ? 6 : 18), 0, dp(4));
+                box.addView(header, fill(-2));
+            }
+            Entry e = new Entry(searchHits[i + 1], searchHits[i + 2], searchHits[i + 3], searchHits[i + 4], parseInt(searchHits[i + 5]));
+            Row row = new Row();
+            row.bind(e);
+            row.setClickable(true);
+            row.setOnClickListener(v -> { tick(v); rememberSearch(searchQuery); open(e); });
+            row.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
+            box.addView(row, fill(-2));
+        }
+    }
+
+    /** Long-press on a result: songs and episodes can play or queue; lists, albums and artists get the library menu. */
+    private void searchActions(Entry e) {
+        if (!e.uri.startsWith("spotify:track:") && !e.uri.startsWith("spotify:episode:") && !e.uri.startsWith("spotify:preview:")) { actions(e); return; }
+        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false)}, c -> {
+            if (c == 0) command(PLAY, 0, e.uri);
+            else { command(QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
+        });
+    }
+
     private void go(int next) {
         hideKeyboard();
         if (next == tab && playlist == null) return;
@@ -721,6 +921,7 @@ public final class SpatchUi extends FrameLayout {
         playlist = null;
         pageStack.clear();
         tab = next;
+        focusSearch = next == SEARCH;
         showPage();
         updateDock();
         enter((forward ? 1 : -1) * dp(36), 0);
@@ -764,8 +965,8 @@ public final class SpatchUi extends FrameLayout {
 
     private void updateDock() {
         if (dockBar == null) return;
-        String[] names = {"Home", "Library", "Settings"}, glyphs = {"home", "library", "settings"};
-        boolean fresh = dockBar.getChildCount() != 3;
+        String[] names = {"Home", "Search", "Library", "Settings"}, glyphs = {"home", "search", "library", "settings"};
+        boolean fresh = dockBar.getChildCount() != names.length;
         if (!fresh && motion()) {
             // The selected pill stretches across to the new tab and its label fades in, instead of jumping.
             android.transition.AutoTransition morph = new android.transition.AutoTransition();
@@ -775,7 +976,7 @@ public final class SpatchUi extends FrameLayout {
         }
         if (fresh) {
             dockBar.removeAllViews();
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < names.length; i++) {
                 final int index = i;
                 LinearLayout item = row();
                 item.setGravity(Gravity.CENTER);
@@ -788,7 +989,7 @@ public final class SpatchUi extends FrameLayout {
                 dockBar.addView(item, new LinearLayout.LayoutParams(0, dp(46), 1f));
             }
         }
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < names.length; i++) {
             boolean on = tab == i && playlist == null;
             ViewGroup item = (ViewGroup) dockBar.getChildAt(i);
             item.getChildAt(1).setVisibility(on ? VISIBLE : GONE);
@@ -806,7 +1007,7 @@ public final class SpatchUi extends FrameLayout {
         pageList = null;
         libraryList = null;
         heroArt = null; heroTitle = heroArtist = null;
-        View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == LIBRARY ? libraryPage() : settingsPage();
+        View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == SEARCH ? searchPage() : tab == LIBRARY ? libraryPage() : settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         if (tab != SETTINGS && playlist == null) refreshLibraryIfStale();
         if (tab == HOME && playlist == null) loadRecentIfStale();

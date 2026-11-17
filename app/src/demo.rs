@@ -56,6 +56,26 @@ pub fn now_playing() -> NowPlaying {
     NowPlaying { position_ms: 56_000, ..track(0, true) }
 }
 
+/// What the core's offline index would say for a search: the demo songs whose title, artist or album match.
+pub fn search(query: &str) -> Vec<crate::spotify::search::Hit> {
+    let needle = query.trim().to_lowercase();
+    TRACKS
+        .iter()
+        .enumerate()
+        .filter(|(_, (title, artist, album, _))| {
+            format!("{title} {artist} {album}").to_lowercase().contains(&needle)
+        })
+        .map(|(i, (title, artist, album, _))| crate::spotify::search::Hit {
+            section: "Songs",
+            title: (*title).into(),
+            subtitle: format!("{artist} • {album}"),
+            uri: format!("spotify:preview:{i}"),
+            image: format!("demo:{i}"),
+            category: -1,
+        })
+        .collect()
+}
+
 pub fn playlist() -> Vec<Track> {
     (0..40)
         .map(|n| {

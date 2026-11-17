@@ -227,6 +227,27 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSetShuffleMode(mut env: JNIEnv
     }
 }
 
+/// Results for a search, six strings each (section, title, subtitle, uri, image, category): your library first,
+/// then what the core's offline index knows. Blocks for the core's answer; empty for an empty query.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSearch(mut env: JNIEnv, _: JClass, query: JString) -> jobjectArray {
+    use crate::spotify::search;
+    let query = read(&mut env, &query).unwrap_or_default();
+    if query.trim().is_empty() {
+        return strings(&mut env, Vec::new());
+    }
+    #[cfg(feature = "preview")]
+    let offline = crate::demo::search(&query);
+    #[cfg(not(feature = "preview"))]
+    let offline = search::offline(query.trim()).unwrap_or_else(|error| {
+        log::warn!("Offline search: {error}");
+        Vec::new()
+    });
+    let library = LIBRARY.lock().unwrap().clone().unwrap_or_default();
+    let hits = search::merge(&query, &library, offline, 8);
+    strings(&mut env, hits.into_iter().flat_map(search::Hit::fields).collect())
+}
+
 /// The commit this build came from.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeBuild(mut env: JNIEnv, _: JClass) -> jstring {
