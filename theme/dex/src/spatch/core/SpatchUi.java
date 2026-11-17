@@ -605,6 +605,12 @@ public final class SpatchUi extends FrameLayout {
         fade.setBackground(fadeBg);
         colored(fade, () -> fadeBg.setColors(new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg}));
         addView(fade, new LayoutParams(-1, dp(190) + inset.bottom, Gravity.BOTTOM));
+        // And under the status bar, so scrolled content doesn't collide with the clock and icons.
+        View topFade = new View(activity);
+        GradientDrawable topBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, (bg & 0x00ffffff) | 0xcc000000, bg & 0x00ffffff});
+        topFade.setBackground(topBg);
+        colored(topFade, () -> topBg.setColors(new int[]{bg, (bg & 0x00ffffff) | 0xcc000000, bg & 0x00ffffff}));
+        addView(topFade, new LayoutParams(-1, inset.top + dp(18), Gravity.TOP));
         dock = column();
         dock.setPadding(dp(12), 0, dp(12), dp(10) + inset.bottom);
         addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
@@ -1688,8 +1694,10 @@ public final class SpatchUi extends FrameLayout {
         spotifySwitch(box, "Automix", "Blend songs together in playlists", "automix");
         int fade = spotifyValue("crossfade") == 0 ? 0 : spotifyValue("crossfade_time_seconds");
         int[] seconds = {0, 3, 6, 12};
-        int selected = -1;
-        for (int i = 0; i < seconds.length; i++) if (seconds[i] == fade) selected = i;
+        // Spotify's crossfade is any number of seconds; light the nearest of the offered lengths.
+        int selected = 0;
+        for (int i = 0; i < seconds.length; i++) if (Math.abs(seconds[i] - fade) < Math.abs(seconds[selected] - fade)) selected = i;
+        if (fade > 0 && selected == 0) selected = 1;
         segmented(box, "Crossfade", new String[]{"Off", "3 s", "6 s", "12 s"}, selected, i -> {
             if (seconds[i] == 0) setSpotify("crossfade", 0, false);
             else { setSpotify("crossfade_time_seconds", seconds[i], false); setSpotify("crossfade", 1, false); }
