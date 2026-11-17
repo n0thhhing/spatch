@@ -938,8 +938,19 @@ public final class SpatchUi extends FrameLayout {
             art.letter = initial(e.title);
             art.heart = liked(e.uri) && e.image.isEmpty();
             art.bind(e.image);
-            tile.addView(art, lp(dp(width), dp(width)));
-            TextView name = text(e.title, 14, () -> ink, true);
+            FrameLayout cover = new FrameLayout(activity);
+            cover.addView(art, new LayoutParams(-1, -1));
+            // What's playing gets the little moving bars in a chip on its cover.
+            if (playingFrom(e.uri)) {
+                FrameLayout chip = new FrameLayout(activity);
+                bgRound(chip, 12, () -> (bg & 0x00ffffff) | 0xcc000000);
+                chip.addView(new Bars(), new LayoutParams(dp(16), dp(14), Gravity.CENTER));
+                LayoutParams cp = new LayoutParams(dp(34), dp(26), Gravity.BOTTOM | Gravity.END);
+                cp.setMargins(0, 0, dp(e.category == 2 ? 18 : 8), dp(e.category == 2 ? 18 : 8));
+                cover.addView(chip, cp);
+            }
+            tile.addView(cover, lp(dp(width), dp(width)));
+            TextView name = text(e.title, 14, () -> playingFrom(e.uri) ? accent : ink, true);
             oneLine(name);
             name.setPadding(dp(2), dp(8), dp(2), 0);
             tile.addView(name);
