@@ -116,6 +116,8 @@ pub fn geometry(kind: &str) -> Vec<f32> {
         "heart-outline" => heart(false),
         "search" => [ring(10.5, 10.5, 6.5, 24), stroke(&[(15.5, 15.5), (20.5, 20.5)])].concat(),
         "timer" => [ring(12.0, 13.5, 8.0, 32), stroke(&[(12., 9.), (12., 13.5), (15., 15.5)]), stroke(&[(10., 2.5), (14., 2.5)])].concat(),
+        // An arrow down into a tray: download.
+        "download" => [stroke(&[(12., 3.), (12., 14.5)]), stroke(&[(7., 10.), (12., 15.), (17., 10.)]), stroke(&[(4., 15.), (4., 20.), (20., 20.), (20., 15.)])].concat(),
         // A four-pointed star: Smart Shuffle.
         "sparkle" => fill(&[(12., 2.), (14.2, 9.8), (22., 12.), (14.2, 14.2), (12., 22.), (9.8, 14.2), (2., 12.), (9.8, 9.8)]),
         // Three linked dots.
@@ -143,9 +145,9 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeGeometry(mut env: JNIEnv, _: J
 mod tests {
     use super::*;
 
-    const ICONS: [&str; 26] = [
+    const ICONS: [&str; 27] = [
         "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "shuffle", "repeat", "repeat-one", "volume", "queue",
-        "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices", "album", "artist", "share", "sparkle",
+        "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices", "album", "artist", "share", "sparkle", "download",
     ];
 
     #[test]

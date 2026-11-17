@@ -7,6 +7,7 @@
 //! OfflineSearchResponse { repeated OfflineAlbum albums = 1; repeated OfflineAudioEpisode audio_episodes = 2;
 //!   repeated OfflinePlaylist playlists = 3; repeated OfflineTrack tracks = 4 } (small messages, read here by hand).
 
+use super::wire::{self, Value, fields};
 use super::{image_url, library};
 use crate::bridge;
 
@@ -34,84 +35,11 @@ impl Hit {
     }
 }
 
-fn varint(out: &mut Vec<u8>, mut v: u64) {
-    loop {
-        let byte = (v & 0x7f) as u8;
-        v >>= 7;
-        if v == 0 {
-            out.push(byte);
-            return;
-        }
-        out.push(byte | 0x80);
-    }
-}
-
 pub fn request(query: &str, limit: i32) -> Vec<u8> {
-    let mut out = vec![0x0a];
-    varint(&mut out, query.len() as u64);
-    out.extend_from_slice(query.as_bytes());
-    out.push(0x10);
-    varint(&mut out, limit.max(0) as u64);
-    out
-}
-
-/// A protobuf field's value: a number (not needed here), or the bytes of a nested message or string.
-enum Value<'a> {
-    Number,
-    Bytes(&'a [u8]),
-}
-
-/// The fields of one message, in order; stops quietly at bytes that aren't valid.
-fn fields(mut bytes: &[u8]) -> Vec<(u32, Value<'_>)> {
-    fn read_varint(bytes: &mut &[u8]) -> Option<u64> {
-        let (mut v, mut shift) = (0u64, 0);
-        loop {
-            let (&b, rest) = bytes.split_first()?;
-            *bytes = rest;
-            v |= u64::from(b & 0x7f) << shift;
-            if b < 0x80 {
-                return Some(v);
-            }
-            shift += 7;
-            if shift > 63 {
-                return None;
-            }
-        }
-    }
     let mut out = Vec::new();
-    while !bytes.is_empty() {
-        let Some(tag) = read_varint(&mut bytes) else { break };
-        let value = match tag & 7 {
-            0 => read_varint(&mut bytes).map(|_| Value::Number),
-            2 => read_varint(&mut bytes).and_then(|n| {
-                let n = n as usize;
-                (n <= bytes.len()).then(|| {
-                    let (head, rest) = bytes.split_at(n);
-                    bytes = rest;
-                    Value::Bytes(head)
-                })
-            }),
-            1 if bytes.len() >= 8 => {
-                bytes = &bytes[8..];
-                Some(Value::Number)
-            }
-            5 if bytes.len() >= 4 => {
-                bytes = &bytes[4..];
-                Some(Value::Number)
-            }
-            _ => None,
-        };
-        let Some(value) = value else { break };
-        out.push(((tag >> 3) as u32, value));
-    }
+    wire::string_field(&mut out, 1, query);
+    wire::number_field(&mut out, 2, limit.max(0) as u64);
     out
-}
-
-fn text(value: &Value) -> String {
-    match value {
-        Value::Bytes(b) => String::from_utf8_lossy(b).into_owned(),
-        Value::Number => String::new(),
-    }
 }
 
 /// name = 1, uri = 2, image = 3, then the artist or show names (`names` is the field repeating them, or 0).
@@ -119,10 +47,10 @@ fn read_item(bytes: &[u8], names: u32) -> (String, String, String, Vec<String>) 
     let (mut name, mut uri, mut image, mut by) = (String::new(), String::new(), String::new(), Vec::new());
     for (field, value) in fields(bytes) {
         match field {
-            1 => name = text(&value),
-            2 => uri = text(&value),
-            3 => image = image_url(&text(&value)),
-            f if f == names && names != 0 => by.push(text(&value)),
+            1 => name = value.text(),
+            2 => uri = value.text(),
+            3 => image = image_url(&value.text()),
+            f if f == names && names != 0 => by.push(value.text()),
             _ => {}
         }
     }
@@ -143,7 +71,7 @@ pub fn decode(bytes: &[u8]) -> Vec<Hit> {
             }
             2 => {
                 let (title, uri, image, _) = read_item(item, 0);
-                let show = fields(item).iter().find(|(f, _)| *f == 4).map(|(_, v)| text(v)).unwrap_or_default();
+                let show = fields(item).iter().find(|(f, _)| *f == 4).map(|(_, v)| v.text()).unwrap_or_default();
                 episodes.push(Hit { section: "Podcast episodes", title, subtitle: show, uri, image, category: 3 });
             }
             3 => {
@@ -152,7 +80,7 @@ pub fn decode(bytes: &[u8]) -> Vec<Hit> {
             }
             4 => {
                 let (title, uri, image, artists) = read_item(item, 5);
-                let album = fields(item).iter().find(|(f, _)| *f == 4).map(|(_, v)| text(v)).unwrap_or_default();
+                let album = fields(item).iter().find(|(f, _)| *f == 4).map(|(_, v)| v.text()).unwrap_or_default();
                 let subtitle = match (artists.is_empty(), album.is_empty()) {
                     (false, false) => format!("{} • {album}", artists.join(", ")),
                     (false, true) => artists.join(", "),

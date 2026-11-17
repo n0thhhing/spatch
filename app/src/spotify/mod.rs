@@ -3,6 +3,7 @@
 
 pub mod collection;
 pub mod connect;
+pub mod downloads;
 pub mod library;
 pub mod metadata;
 pub mod player;
@@ -11,6 +12,7 @@ pub mod recent;
 pub mod search;
 pub mod settings;
 pub mod shuffle;
+pub mod wire;
 
 /// Spotify's image URIs (`spotify:image:<id>`) as their public CDN URL; anything else unchanged.
 pub fn image_url(uri: &str) -> String {

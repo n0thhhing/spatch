@@ -63,6 +63,13 @@ public final class SpatchUi extends FrameLayout {
     private static native long nativeLibraryRevision();
     private static native String nativeBuild();
     private static native String[] nativeSearch(String query);
+    private static native void nativeDownloadsStart();
+    private static native String[] nativeDownloads();
+    private static native long nativeDownloadsRevision();
+    private static native long nativeDownloadsSet();
+    private static native String nativeDownload(String uri, int action);
+    private static native String[] nativeDownloadTotals();
+    private static native String[] nativeStorage();
     private static native int nativeShuffleMode(String uri);
     private static native String nativeSetShuffleMode(String uri, int mode);
     private static native void nativeWatchPlaylist(String uri, String key);
@@ -88,6 +95,8 @@ public final class SpatchUi extends FrameLayout {
     private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
     private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3;
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
+    /** The Library filter after the four sections: what's downloaded. */
+    private static final int DOWNLOADED = SECTIONS.length;
 
     private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
     private static final ExecutorService COMMANDS = Executors.newSingleThreadExecutor();
@@ -182,7 +191,7 @@ public final class SpatchUi extends FrameLayout {
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle"}) {
+                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null);
@@ -536,6 +545,15 @@ public final class SpatchUi extends FrameLayout {
                 // The push carries the first page only, so ask again for the whole playlist; it redraws if it changed.
                 if (open != null && !isDetail(open) && !playlistLoading) loadPlaylist(open, 1);
             }
+            long downloadsNow = nativeDownloadsRevision();
+            if (downloadsNow != downloadRevision) {
+                downloadRevision = downloadsNow;
+                pullDownloads();
+                long setNow = nativeDownloadsSet();
+                boolean setChanged = setNow != downloadSetRevision;
+                downloadSetRevision = setNow;
+                onDownloadsChanged(setChanged);
+            }
             long libRevision = nativeLibraryRevision();
             if (libRevision != libraryRevision) {
                 libraryRevision = libRevision;
@@ -559,6 +577,10 @@ public final class SpatchUi extends FrameLayout {
                     // Last launch's copy shows at once; backdating it makes the next check ask Spotify again.
                     libraryLoadedAt = SystemClock.uptimeMillis() - (cached ? 90_000 : 0);
                     libraryStatus = "Nothing saved here yet";
+                    if (!downloadsStarted) {
+                        downloadsStarted = true;
+                        PLAYLISTS.execute(SpatchUi::nativeDownloadsStart);
+                    }
                 } else {
                     libraryStatus = "Couldn’t load your library";
                     libraryRetry = SystemClock.uptimeMillis() + 12_000;
@@ -721,6 +743,318 @@ public final class SpatchUi extends FrameLayout {
             @Override public void afterTextChanged(android.text.Editable e) { clear.setVisibility(e.length() > 0 ? VISIBLE : GONE); }
         });
         box.addView(clear, lp(dp(40), dp(40)));
+    }
+
+    // ================= downloads =================
+    // Spotify's downloads live in its core (Offline service); Rust follows them and these screens show them.
+
+    private static final int DL_ERROR = 1, DL_REQUESTED = 2, DL_DONE = 3, DL_BUSY = 4, DL_WAITING = 5;
+    /** Downloaded or on its way, by uri: {state, percent 0 to 100}. */
+    private final java.util.Map<String, int[]> downloads = new java.util.HashMap<>();
+    private long downloadRevision, downloadSetRevision;
+    private boolean downloadsStarted;
+    private View downloadButton;
+    private LinearLayout downloadsList, downloadsProgress;
+    private TextView downloadsSummary, downloadsStorage, downloadsProgressText;
+    private Meter downloadsMeter;
+    private View removeAllDownloads;
+    private final java.util.Map<String, Object[]> downloadRows = new java.util.HashMap<>();
+    private long storageLocked, storageFree, storageTotal;
+
+    private int downloadState(String uri) {
+        int[] d = uri == null ? null : downloads.get(uri);
+        return d == null ? 0 : d[0];
+    }
+
+    private void pullDownloads() {
+        String[] f = nativeDownloads();
+        downloads.clear();
+        if (f != null) for (int i = 0; i + 2 < f.length; i += 3) downloads.put(f[i], new int[]{parseInt(f[i + 1]), parseInt(f[i + 2])});
+    }
+
+    /** Something changed in the core's downloads: progress only, or a download added, removed or finished. */
+    private void onDownloadsChanged(boolean setChanged) {
+        if (downloadButton != null && downloadButton.isAttachedToWindow()) downloadButton.invalidate();
+        if (downloadsList != null && downloadsList.isAttachedToWindow()) {
+            if (setChanged) { renderDownloads(); loadStorage(); } else updateDownloadProgress();
+        }
+        if (setChanged && tab != SETTINGS && tab != SEARCH && playlist == null && sheetClose == null && !playerOpen
+                && !(findFocus() instanceof android.widget.EditText)) showPageKeepingPlace();
+    }
+
+    private interface UriOf { String get(); }
+
+    /** The page's download button: a ring with an arrow, a filling ring while it downloads, a check once it has. */
+    private final class DownloadButton extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path glyph = new Path();
+        private final RectF oval = new RectF();
+        private final UriOf target;
+        private final String name;
+
+        DownloadButton(UriOf target, String name) {
+            super(activity);
+            this.target = target;
+            this.name = name;
+            tappable(this, "Download", () -> downloadTapped(target.get(), name));
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            int state = downloadState(target.get());
+            int[] d = downloads.get(target.get());
+            float w = getWidth(), h = getHeight(), cx = w / 2, cy = h / 2, size = Math.min(w, h);
+            boolean busy = state == DL_BUSY || state == DL_REQUESTED || state == DL_WAITING;
+            setContentDescription(state == DL_DONE ? "Downloaded. Tap to remove" : busy ? "Downloading. Tap to cancel" : "Download");
+            paint.setStyle(Paint.Style.FILL);
+            if (state == DL_DONE) {
+                paint.setColor(accent);
+                c.drawCircle(cx, cy, size * .3f, paint);
+                c.save();
+                c.translate(cx - size * .15f, cy - size * .15f);
+                drawGlyph(c, paint, glyph, "check", onAccent, size * .3f);
+                c.restore();
+            } else if (busy) {
+                float r = size * .3f;
+                oval.set(cx - r, cy - r, cx + r, cy + r);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dp(2.5f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor((ink & 0x00ffffff) | 0x33000000);
+                c.drawOval(oval, paint);
+                paint.setColor(accent);
+                int percent = d == null ? 0 : d[1];
+                boolean known = state == DL_BUSY && percent > 0;
+                float start = known ? -90 : (SystemClock.uptimeMillis() % 1100) / 1100f * 360f, sweep = known ? 360f * percent / 100f : 95f;
+                c.drawArc(oval, start, sweep, false, paint);
+                paint.setStyle(Paint.Style.FILL);
+                float half = size * .075f;
+                c.drawRoundRect(cx - half, cy - half, cx + half, cy + half, dp(1.5f), dp(1.5f), paint);
+                if (!known && motion() && isShown()) postInvalidateOnAnimation();
+            } else {
+                c.save();
+                c.translate(cx - size * .21f, cy - size * .21f);
+                drawGlyph(c, paint, glyph, "download", state == DL_ERROR ? accent2 : ink, size * .42f);
+                c.restore();
+            }
+        }
+    }
+
+    /** A thin progress bar. */
+    private final class Meter extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float value;
+        Meter() { super(activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
+        void set(float v) { value = Math.max(0f, Math.min(1f, v)); invalidate(); }
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight(), r = h / 2;
+            paint.setColor((ink & 0x00ffffff) | 0x24000000);
+            c.drawRoundRect(0, 0, w, h, r, r, paint);
+            paint.setColor(accent);
+            c.drawRoundRect(0, 0, Math.max(h, w * value), h, r, r, paint);
+        }
+    }
+
+    /** The small round badge on a cover that's downloaded (accent) or downloading (dim). */
+    private View downloadChip(int state) {
+        FrameLayout chip = new FrameLayout(activity);
+        boolean done = state == DL_DONE;
+        bgRound(chip, 13, () -> done ? accent : (bg & 0x00ffffff) | 0xd0000000);
+        chip.addView(icon("download", () -> done ? onAccent : ink), new LayoutParams(dp(14), dp(14), Gravity.CENTER));
+        return chip;
+    }
+
+    private void downloadTapped(String uri, String name) {
+        int state = downloadState(uri);
+        if (state == 0 || state == DL_ERROR) {
+            PLAYLISTS.execute(() -> {
+                String error = nativeDownload(uri, 0);
+                post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? "Downloading “" + name + "”" : error, error == null || error.isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show());
+            });
+            return;
+        }
+        confirmRemoveDownload(uri, name, state == DL_DONE);
+    }
+
+    private void confirmRemoveDownload(String uri, String name, boolean done) {
+        sheet(name, done ? "Removes the downloaded songs from this phone. It stays in your library." : "Stops the download and removes what’s been saved so far.",
+            new Option[]{new Option(done ? "Remove download" : "Cancel download", "", "", "close", false)}, c -> PLAYLISTS.execute(() -> {
+                String error = nativeDownload(uri, 1);
+                post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? (done ? "Removed download" : "Download cancelled") : error, Toast.LENGTH_LONG).show());
+            }));
+    }
+
+    private static String bytes(long b) {
+        if (b >= 1_000_000_000L) return String.format(java.util.Locale.ROOT, "%.1f GB", b / 1e9);
+        if (b >= 1_000_000L) return Math.round(b / 1e6) + " MB";
+        return Math.max(0, Math.round(b / 1e3)) + " KB";
+    }
+
+    private static String timeLeft(long seconds) {
+        if (seconds <= 0) return "";
+        return seconds < 60 ? "under a minute left" : ((seconds + 59) / 60) + " min left";
+    }
+
+    private static String kindName(String uri) {
+        return uri.contains(":album:") ? "Album" : uri.contains(":show:") ? "Podcast" : "Playlist";
+    }
+
+    private void downloadsCard(LinearLayout box) {
+        downloadsSummary = text("", 16, () -> ink, true);
+        downloadsSummary.setPadding(dp(18), dp(14), dp(18), dp(2));
+        box.addView(downloadsSummary);
+        downloadsStorage = text("", 13, () -> inkDim, false);
+        downloadsStorage.setPadding(dp(18), 0, dp(18), dp(8));
+        box.addView(downloadsStorage);
+
+        downloadsProgress = column();
+        downloadsProgress.setPadding(dp(18), dp(4), dp(18), dp(12));
+        downloadsProgressText = text("", 13, () -> ink, false);
+        downloadsProgress.addView(downloadsProgressText);
+        downloadsMeter = new Meter();
+        LinearLayout.LayoutParams mp = fill(dp(4));
+        mp.topMargin = dp(8);
+        downloadsProgress.addView(downloadsMeter, mp);
+        downloadsProgress.setVisibility(GONE);
+        box.addView(downloadsProgress, fill(-2));
+
+        downloadsList = column();
+        box.addView(downloadsList, fill(-2));
+
+        if (spotifySettings != null) {
+            int quality = spotifyValue("download_quality");
+            segmented(box, "Download quality", new String[]{"Low", "Normal", "High", "Very high", "Lossless"}, quality >= 1 && quality <= 5 ? quality - 1 : -1, i -> setSpotify("download_quality", i + 1));
+        }
+
+        TextView clear = pill("Remove all downloads", () -> sheet("Remove all downloads?", "Every downloaded playlist, album and podcast is removed from this phone. Your library stays as it is.",
+            new Option[]{new Option("Remove all downloads", "", "", "close", false)}, c -> PLAYLISTS.execute(() -> {
+                String error = nativeDownload("", 2);
+                post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? "Removed all downloads" : error, Toast.LENGTH_LONG).show());
+            })));
+        clear.setTextColor(ink);
+        GradientDrawable clearBg = round(surfHi, 22);
+        clear.setBackground(clearBg);
+        colored(clear, () -> { clear.setTextColor(ink); clearBg.setColor(surfHi); });
+        LinearLayout.LayoutParams cp = fill(dp(46));
+        cp.setMargins(dp(18), dp(6), dp(18), dp(14));
+        box.addView(clear, cp);
+        removeAllDownloads = clear;
+
+        renderDownloads();
+        loadStorage();
+    }
+
+    /** How much the downloads take and what's free, asked of the core. */
+    private void loadStorage() {
+        PLAYLISTS.execute(() -> {
+            String[] st = nativeStorage();
+            post(() -> {
+                if (st != null && st.length >= 4 && !"!".equals(st[0])) {
+                    try {
+                        storageLocked = Long.parseLong(st[1]);
+                        storageFree = Long.parseLong(st[2]);
+                        storageTotal = Long.parseLong(st[3]);
+                    } catch (NumberFormatException ignored) { /* keep what was shown */ }
+                }
+                updateDownloadSummary();
+            });
+        });
+    }
+
+    private void updateDownloadSummary() {
+        if (downloadsSummary == null) return;
+        int n = downloads.size();
+        downloadsSummary.setText(n == 0 ? "Nothing downloaded" : n + (n == 1 ? " download" : " downloads") + (storageLocked > 0 ? " • " + bytes(storageLocked) : ""));
+        downloadsStorage.setText(storageTotal > 0 ? bytes(storageFree) + " free of " + bytes(storageTotal) + " on this phone" : "");
+        downloadsStorage.setVisibility(storageTotal > 0 ? VISIBLE : GONE);
+    }
+
+    private String downloadStatus(int[] d) {
+        switch (d[0]) {
+            case DL_DONE: return "Downloaded";
+            case DL_BUSY: return d[1] > 0 ? "Downloading • " + d[1] + "%" : "Downloading…";
+            case DL_ERROR: return "Couldn’t download • tap to retry";
+            default: return "Waiting to download";
+        }
+    }
+
+    /** Rebuilds the list of downloads in Settings. */
+    private void renderDownloads() {
+        LinearLayout list = downloadsList;
+        if (list == null) return;
+        list.removeAllViews();
+        downloadRows.clear();
+        java.util.Map<String, Entry> known = new java.util.HashMap<>();
+        for (Entry e : entries(-1, "", false, 400)) known.put(e.uri, e);
+        List<String> order = new ArrayList<>(downloads.keySet());
+        java.util.Collections.sort(order, (a, b) -> {
+            int sa = downloads.get(a)[0] == DL_DONE ? 1 : 0, sb = downloads.get(b)[0] == DL_DONE ? 1 : 0;
+            if (sa != sb) return sa - sb; // what's still downloading first
+            Entry ea = known.get(a), eb = known.get(b);
+            return (ea == null ? kindName(a) : ea.title).compareToIgnoreCase(eb == null ? kindName(b) : eb.title);
+        });
+        if (order.isEmpty()) {
+            TextView none = text("Open a playlist, album or podcast and tap its download button to keep it on this phone.", 13, () -> inkDim, false);
+            none.setPadding(dp(18), dp(4), dp(18), dp(12));
+            list.addView(none, fill(-2));
+        }
+        for (String uri : order) {
+            Entry known1 = known.get(uri);
+            String name = known1 != null ? known1.title : kindName(uri);
+            Entry entry = known1 != null ? known1 : new Entry(name, "", uri, "", uri.contains(":album:") ? 1 : uri.contains(":show:") ? 3 : 0);
+            int[] d = downloads.get(uri);
+            LinearLayout line = row();
+            line.setPadding(dp(14), dp(8), dp(6), dp(8));
+            Art art = new Art(Art.ROUNDED, false);
+            art.letter = initial(name);
+            art.heart = liked(uri) && entry.image.isEmpty();
+            art.bind(entry.image);
+            line.addView(art, lp(dp(46), dp(46)));
+            LinearLayout words = column();
+            words.setPadding(dp(12), 0, dp(6), 0);
+            TextView title = text(name, 15, () -> ink, true);
+            oneLine(title);
+            words.addView(title);
+            TextView status = text(downloadStatus(d), 13, () -> d[0] == DL_ERROR ? accent2 : inkDim, false);
+            oneLine(status);
+            words.addView(status);
+            Meter meter = new Meter();
+            meter.set(d[1] / 100f);
+            meter.setVisibility(d[0] == DL_BUSY ? VISIBLE : GONE);
+            LinearLayout.LayoutParams mp = fill(dp(3));
+            mp.topMargin = dp(6);
+            words.addView(meter, mp);
+            line.addView(words, weight());
+            line.addView(iconButton(icon("close", () -> inkDim), "Remove download", () -> confirmRemoveDownload(uri, name, d[0] == DL_DONE)), lp(dp(40), dp(40)));
+            line.setClickable(true);
+            line.setOnClickListener(v -> {
+                if (d[0] == DL_ERROR) PLAYLISTS.execute(() -> nativeDownload(uri, 0));
+                else open(entry);
+            });
+            list.addView(line, fill(-2));
+            downloadRows.put(uri, new Object[]{status, meter});
+        }
+        if (removeAllDownloads != null) removeAllDownloads.setVisibility(order.isEmpty() ? GONE : VISIBLE);
+        updateDownloadSummary();
+        updateDownloadProgress();
+    }
+
+    /** Refreshes the progress lines in place while downloads move, without rebuilding the list. */
+    private void updateDownloadProgress() {
+        if (downloadsProgress == null) return;
+        String[] t = nativeDownloadTotals();
+        boolean busy = t != null && t.length >= 9 && "true".equals(t[4]);
+        downloadsProgress.setVisibility(busy ? VISIBLE : GONE);
+        if (busy) {
+            String left = timeLeft(parseInt(t[6]));
+            downloadsProgressText.setText("Downloading • " + t[0] + " of " + t[1] + " songs" + (left.isEmpty() ? "" : " • " + left));
+            downloadsMeter.set(parseInt(t[5]) / 100f);
+        }
+        for (java.util.Map.Entry<String, Object[]> row : downloadRows.entrySet()) {
+            int[] d = downloads.get(row.getKey());
+            if (d == null) continue;
+            ((TextView) row.getValue()[0]).setText(downloadStatus(d));
+            ((Meter) row.getValue()[1]).set(d[1] / 100f);
+        }
     }
 
     // ================= search =================
@@ -1137,6 +1471,12 @@ public final class SpatchUi extends FrameLayout {
 
     /** Library items for a chip (-1 for all), searched and sorted by Rust. */
     private List<Entry> entries(int category, String search, boolean alphabetical, int limit) {
+        if (category == DOWNLOADED) {
+            // The Library's Downloaded filter: whatever is downloaded or on its way.
+            List<Entry> out = new ArrayList<>();
+            for (Entry e : entryList(nativeEntries(-1, search, alphabetical, 400))) if (downloadState(e.uri) != 0 && out.size() < limit) out.add(e);
+            return out;
+        }
         return entryList(nativeEntries(category, search, alphabetical, limit));
     }
 
@@ -1205,6 +1545,12 @@ public final class SpatchUi extends FrameLayout {
                 LayoutParams cp = new LayoutParams(dp(34), dp(26), Gravity.BOTTOM | Gravity.END);
                 cp.setMargins(0, 0, dp(e.category == 2 ? 18 : 8), dp(e.category == 2 ? 18 : 8));
                 cover.addView(chip, cp);
+            }
+            int shelfDownload = downloadState(e.uri);
+            if (shelfDownload != 0) {
+                LayoutParams hp = new LayoutParams(dp(26), dp(26), Gravity.BOTTOM | Gravity.START);
+                hp.setMargins(dp(8), 0, 0, dp(8));
+                cover.addView(downloadChip(shelfDownload), hp);
             }
             tile.addView(cover, lp(dp(width), dp(width)));
             TextView name = text(e.title, 14, () -> playingFrom(e.uri) ? accent : ink, true);
@@ -1284,10 +1630,10 @@ public final class SpatchUi extends FrameLayout {
         tappable(layout, grid ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid", () -> { prefs.edit().putBoolean("library_grid", !grid).apply(); showPage(); });
         chips.addView(layout, lp(-2, dp(38)));
         chips.addView(space(dp(8), 1));
-        for (int i = -1; i < SECTIONS.length; i++) {
+        for (int i = -1; i <= SECTIONS.length; i++) {
             final int index = i;
             boolean on = i == filter;
-            TextView chip = text(i == -1 ? "All" : SECTIONS[i], 14, on ? onAccent : ink, true);
+            TextView chip = text(i == -1 ? "All" : i == DOWNLOADED ? "Downloaded" : SECTIONS[i], 14, on ? onAccent : ink, true);
             chip.setGravity(Gravity.CENTER);
             chip.setPadding(dp(16), 0, dp(16), 0);
             GradientDrawable chipBg = round(on ? accent : surf, 19);
@@ -1302,7 +1648,7 @@ public final class SpatchUi extends FrameLayout {
 
         List<Entry> shown = entries(filter, query, az, 400);
         if (shown.isEmpty() && query.isEmpty()) {
-            TextView note = text(libraryStatus, 14, () -> inkDim, false);
+            TextView note = text(filter == DOWNLOADED && libraryReady ? "Nothing downloaded yet. Open a playlist, album or podcast and tap its download button." : libraryStatus, 14, () -> inkDim, false);
             note.setPadding(dp(22), dp(20), dp(22), 0);
             page.addView(note);
         } else {
@@ -1368,6 +1714,7 @@ public final class SpatchUi extends FrameLayout {
     private final class Tile extends LinearLayout {
         private final Art art = new Art(Art.ROUNDED, false);
         private final TextView name = text("", 15, ink, true), sub = text("", 13, inkDim, false);
+        private final FrameLayout chipHolder = new FrameLayout(activity);
         Tile() {
             super(activity);
             setOrientation(VERTICAL);
@@ -1375,6 +1722,9 @@ public final class SpatchUi extends FrameLayout {
                 @Override protected void onMeasure(int w, int h) { super.onMeasure(w, w); }
             };
             square.addView(art, new LayoutParams(-1, -1));
+            LayoutParams hp = new LayoutParams(dp(26), dp(26), Gravity.BOTTOM | Gravity.START);
+            hp.setMargins(dp(8), 0, 0, dp(8));
+            square.addView(chipHolder, hp);
             addView(square, new LinearLayout.LayoutParams(-1, -2));
             oneLine(name); oneLine(sub);
             name.setPadding(dp(2), dp(8), dp(2), 0);
@@ -1398,6 +1748,9 @@ public final class SpatchUi extends FrameLayout {
             name.setText(e.title);
             name.setTextColor(playingFrom(e.uri) ? accent : ink);
             sub.setText(e.subtitle);
+            chipHolder.removeAllViews();
+            int ds = downloadState(e.uri);
+            if (ds != 0) chipHolder.addView(downloadChip(ds), new LayoutParams(-1, -1));
         }
     }
 
@@ -1450,6 +1803,8 @@ public final class SpatchUi extends FrameLayout {
         private final Bars bars = new Bars();
         private final GradientDrawable pressedBg = round(surfHi, 16), badgeBg = round(inkDim, 3);
         private final TextView explicitBadge = text("E", 10, bg, true);
+        private final Icon dlBadge = new Icon("download", inkDim);
+        private int dlState;
         private boolean current;
         int number;
         private final TextView trackNumber = text("", 16, inkDim, true);
@@ -1470,6 +1825,10 @@ public final class SpatchUi extends FrameLayout {
             explicitBadge.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams ep = lp(dp(15), dp(15));
             ep.rightMargin = dp(6);
+            LinearLayout.LayoutParams dp2 = lp(dp(14), dp(14));
+            dp2.rightMargin = dp(5);
+            dlBadge.setVisibility(GONE);
+            byline.addView(dlBadge, dp2);
             byline.addView(explicitBadge, ep);
             byline.addView(sub, weight());
             words.addView(byline);
@@ -1488,6 +1847,8 @@ public final class SpatchUi extends FrameLayout {
             length.setTextColor(inkDim);
             pressedBg.setColor(surfHi);
             badgeBg.setColor(inkDim);
+            dlBadge.color = dlState == DL_DONE ? accent : inkDim;
+            dlBadge.invalidate();
             explicitBadge.setTextColor(bg);
             explicitBadge.setBackground(badgeBg);
         }
@@ -1517,6 +1878,8 @@ public final class SpatchUi extends FrameLayout {
             length.setText(ms > 0 ? time(ms) : "");
             length.setVisibility(ms > 0 ? VISIBLE : GONE);
             explicitBadge.setVisibility(e instanceof Song && ((Song) e).explicit ? VISIBLE : GONE);
+            dlState = downloadState(e.uri);
+            dlBadge.setVisibility(dlState != 0 ? VISIBLE : GONE);
             current = playlist != null ? !title.isEmpty() && e.title.equals(title) && e.subtitle.equals(artist) : playingFrom(e.uri);
             tint();
             bars.setVisibility(current ? VISIBLE : GONE);
@@ -1951,6 +2314,18 @@ public final class SpatchUi extends FrameLayout {
             });
             actions.addView(shareBtn, lp(dp(46), dp(46)));
         }
+        if (!playlist.uri.startsWith("spotify:artist:")) {
+            actions.addView(space(dp(10), 1));
+            DownloadButton dlBtn = new DownloadButton(this::playUri, headTitle);
+            GradientDrawable dlBg = round(surfHi, 23);
+            dlBtn.setBackground(dlBg);
+            colored(dlBtn, () -> {
+                dlBg.setColor(surfHi);
+                dlBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
+            });
+            actions.addView(dlBtn, lp(dp(46), dp(46)));
+            downloadButton = dlBtn;
+        }
         if (!recommendedSongs.isEmpty()) {
             actions.addView(space(dp(10), 1));
             View simBtn = iconButton(icon("sparkle", () -> accent), "Similar songs", this::openRecommended);
@@ -2206,6 +2581,9 @@ public final class SpatchUi extends FrameLayout {
 
         LinearLayout spotify = card(page, "Spotify");
         spotifyCard(spotify);
+
+        LinearLayout downloadsBox = card(page, "Downloads");
+        downloadsCard(downloadsBox);
 
         LinearLayout player = card(page, "Player");
         choice(player, "Visualizer", new String[]{"Ring and bars", "Ring only", "Off"}, "viz", 0, false);
