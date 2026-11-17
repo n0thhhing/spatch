@@ -969,6 +969,16 @@ public final class SpatchUi extends FrameLayout {
         tappable(sort, az ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z", () -> { prefs.edit().putBoolean("library_az", !az).apply(); showPage(); });
         chips.addView(sort, lp(-2, dp(38)));
         chips.addView(space(dp(8), 1));
+        boolean grid = pref("library_grid", false);
+        TextView layout = text(grid ? "Grid" : "List", 14, ink, true);
+        layout.setGravity(Gravity.CENTER);
+        layout.setPadding(dp(16), 0, dp(16), 0);
+        GradientDrawable layoutBg = round(surfHi, 19);
+        layout.setBackground(layoutBg);
+        colored(layout, () -> { layout.setTextColor(ink); layoutBg.setColor(surfHi); });
+        tappable(layout, grid ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid", () -> { prefs.edit().putBoolean("library_grid", !grid).apply(); showPage(); });
+        chips.addView(layout, lp(-2, dp(38)));
+        chips.addView(space(dp(8), 1));
         for (int i = -1; i < SECTIONS.length; i++) {
             final int index = i;
             boolean on = i == filter;
@@ -991,11 +1001,11 @@ public final class SpatchUi extends FrameLayout {
             note.setPadding(dp(22), dp(20), dp(22), 0);
             page.addView(note);
         } else {
-            ListView list = entryList(shown, null);
-            list.setPadding(dp(18), dp(4), dp(18), dp(170) + inset.bottom);
+            android.widget.AbsListView list = grid ? entryGrid(shown) : entryList(shown, null);
+            list.setPadding(dp(grid ? 14 : 18), dp(4), dp(grid ? 14 : 18), dp(170) + inset.bottom);
             list.setClipToPadding(false);
             page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-            pageList = list;
+            if (list instanceof ListView) pageList = (ListView) list;
             field.addTextChangedListener(new android.text.TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
                 @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
@@ -1003,11 +1013,79 @@ public final class SpatchUi extends FrameLayout {
                     query = e.toString();
                     shown.clear();
                     shown.addAll(entries(filter, query, az, 400));
-                    notifyList(list);
+                    ((BaseAdapter) list.getAdapter()).notifyDataSetChanged();
                 }
             });
         }
         return page;
+    }
+
+    /** The library as big covers, two to a row. */
+    private android.widget.GridView entryGrid(List<Entry> items) {
+        android.widget.GridView grid = new android.widget.GridView(activity);
+        grid.setNumColumns(2);
+        grid.setHorizontalSpacing(dp(12));
+        grid.setVerticalSpacing(dp(16));
+        grid.setVerticalScrollBarEnabled(false);
+        grid.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        grid.setOverScrollMode(OVER_SCROLL_NEVER);
+        grid.setAdapter(new BaseAdapter() {
+            @Override public int getCount() { return items.size(); }
+            @Override public Entry getItem(int i) { return items.get(i); }
+            @Override public long getItemId(int i) { return i; }
+            @Override public View getView(int i, View old, ViewGroup parent) {
+                Tile tile = old instanceof Tile ? (Tile) old : new Tile();
+                tile.bind(getItem(i));
+                return tile;
+            }
+        });
+        grid.setOnItemClickListener((p, v, i, id) -> open(items.get(i)));
+        grid.setOnItemLongClickListener((p, v, i, id) -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); actions(items.get(i)); return true; });
+        if (motion()) {
+            android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
+            rise.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
+            rise.addAnimation(new android.view.animation.ScaleAnimation(.92f, 1f, .92f, 1f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f));
+            rise.setDuration(300);
+            rise.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+            grid.setLayoutAnimation(new android.view.animation.GridLayoutAnimationController(rise, .12f, .1f));
+        }
+        return grid;
+    }
+
+    /** A grid cell: a square cover (round for artists) with the name and kind under it. */
+    private final class Tile extends LinearLayout {
+        private final Art art = new Art(Art.ROUNDED, false);
+        private final TextView name = text("", 15, ink, true), sub = text("", 13, inkDim, false);
+        Tile() {
+            super(activity);
+            setOrientation(VERTICAL);
+            FrameLayout square = new FrameLayout(activity) {
+                @Override protected void onMeasure(int w, int h) { super.onMeasure(w, w); }
+            };
+            square.addView(art, new LayoutParams(-1, -1));
+            addView(square, new LinearLayout.LayoutParams(-1, -2));
+            oneLine(name); oneLine(sub);
+            name.setPadding(dp(2), dp(8), dp(2), 0);
+            sub.setPadding(dp(2), dp(2), dp(2), 0);
+            addView(name);
+            addView(sub);
+            colored(this, () -> { name.setTextColor(ink); sub.setTextColor(inkDim); });
+        }
+        @Override public void setPressed(boolean pressed) {
+            boolean was = isPressed();
+            super.setPressed(pressed);
+            if (was == pressed || !motion()) return;
+            animate().scaleX(pressed ? .955f : 1f).scaleY(pressed ? .955f : 1f).setDuration(pressed ? 90 : 280)
+                .setInterpolator(pressed ? new android.view.animation.DecelerateInterpolator() : new android.view.animation.OvershootInterpolator(2f)).start();
+        }
+        void bind(Entry e) {
+            art.shapeKind = e.category == 2 ? Art.CIRCLE : Art.ROUNDED;
+            art.letter = initial(e.title);
+            art.bind(e.image);
+            name.setText(e.title);
+            name.setTextColor(playingFrom(e.uri) ? accent : ink);
+            sub.setText(e.subtitle);
+        }
     }
 
     private ListView entryList(List<Entry> items, View header) {
