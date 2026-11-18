@@ -118,7 +118,7 @@ public final class CoreBridge implements Transport {
         params.put("query", query);
         params.put("limit", "30");
         params.put("entity_types", "track,album,artist,playlist,show,audio_episode");
-        params.put("query_complete", "true");
+        params.put("query_complete", "submit");
         params.put("show_type", "podcast");
         params.put("on_demand_sets_enabled", "true");
         params.put("locale", java.util.Locale.getDefault().toString());
