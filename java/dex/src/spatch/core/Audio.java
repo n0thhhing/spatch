@@ -1,6 +1,11 @@
 package spatch;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.media.audiofx.DynamicsProcessing;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Iterator;
 import android.media.audiofx.Visualizer;
 import android.os.SystemClock;
 import java.util.LinkedHashSet;
@@ -19,12 +24,102 @@ public final class Audio {
     static volatile Context context;
 
     /** Hooks: AudioEffectsListener's session opened, closed, paused or resumed. */
-    public static synchronized void created(int id) { if (id > 0) { SESSIONS.add(id); session = id; } }
+    public static synchronized void created(int id) {
+        if (id > 0) {
+            SESSIONS.add(id);
+            session = id;
+            refreshEqualizer();
+        }
+    }
     public static synchronized void destroyed(int id) {
         SESSIONS.remove(id);
         if (session == id) { session = 0; for (int left : SESSIONS) session = left; }
+        refreshEqualizer();
     }
-    public static synchronized void paused(boolean paused, int id) { if (!paused && SESSIONS.contains(id)) session = id; }
+    public static synchronized void paused(boolean paused, int id) {
+        if (!paused && SESSIONS.contains(id)) {
+            session = id;
+            refreshEqualizer();
+        }
+    }
+
+    static final int[] EQ_HZ = {31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000};
+    static final int EQ_RANGE = 12;
+    private static final Map<Integer, DynamicsProcessing> effects = new HashMap<>();
+    private static SharedPreferences eqPrefs;
+    static volatile String eqStatus = "";
+
+    static synchronized void initialize(Context app, SharedPreferences prefs) {
+        context = app;
+        eqPrefs = prefs;
+        refreshEqualizer();
+    }
+
+    static synchronized void refreshEqualizer() {
+        if (eqPrefs == null) return;
+        android.os.Handler handler = worker();
+        handler.removeCallbacks(EQUALIZE);
+        handler.post(EQUALIZE);
+    }
+
+    static int gain(SharedPreferences prefs, int band) {
+        return Math.max(-EQ_RANGE, Math.min(EQ_RANGE, prefs.getInt("eq_band_" + band, 0)));
+    }
+
+    private static final Runnable EQUALIZE = () -> {
+        LinkedHashSet<Integer> sessions;
+        SharedPreferences prefs;
+        int active;
+        synchronized (Audio.class) {
+            sessions = new LinkedHashSet<>(SESSIONS);
+            prefs = eqPrefs;
+            active = session;
+        }
+        boolean on = prefs.getBoolean("equalizer", false);
+        Iterator<Map.Entry<Integer, DynamicsProcessing>> entries = effects.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<Integer, DynamicsProcessing> entry = entries.next();
+            if (!on || !sessions.contains(entry.getKey())) {
+                releaseEffect(entry.getValue());
+                entries.remove();
+            }
+        }
+        if (!on || sessions.isEmpty()) {
+            eqStatus = on ? "Start playback on this device to apply the equalizer" : "Equalizer off";
+            return;
+        }
+        int boost = 0;
+        DynamicsProcessing.Eq eq = new DynamicsProcessing.Eq(true, true, EQ_HZ.length);
+        for (int band = 0; band < EQ_HZ.length; band++) {
+            int gain = gain(prefs, band);
+            boost = Math.max(boost, gain);
+            eq.setBand(band, new DynamicsProcessing.EqBand(true, EQ_HZ[band], gain));
+        }
+        for (int id : sessions) {
+            DynamicsProcessing effect = effects.get(id);
+            try {
+                if (effect == null) {
+                    DynamicsProcessing.Config config = new DynamicsProcessing.Config.Builder(
+                        DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, 2,
+                        true, EQ_HZ.length, false, 0, false, 0, false).build();
+                    effect = new DynamicsProcessing(0, id, config);
+                    effects.put(id, effect);
+                }
+                effect.setInputGainAllChannelsTo(-boost);
+                effect.setPreEqAllChannelsTo(eq);
+                if (effect.setEnabled(true) != 0) throw new IllegalStateException("Equalizer unavailable");
+            } catch (RuntimeException unavailable) {
+                releaseEffect(effects.remove(id));
+            }
+        }
+        eqStatus = effects.containsKey(active) ? "Active on this device" : "Equalizer unavailable for this playback session";
+    };
+
+    private static void releaseEffect(DynamicsProcessing effect) {
+        if (effect != null) {
+            try { effect.release(); } catch (RuntimeException ignored) { /* the audio server already dropped it */ }
+        }
+    }
 
     /** 0..1, eased: low end, whole spectrum, and the strength of the last kick (decays to 0). */
     static volatile float bass, level, kick;
@@ -63,7 +158,7 @@ public final class Audio {
         worker().post(TICK);
     }
 
-    private static android.os.Handler worker() {
+    private static synchronized android.os.Handler worker() {
         if (worker == null) {
             android.os.HandlerThread thread = new android.os.HandlerThread("SpatchAudio");
             thread.start();

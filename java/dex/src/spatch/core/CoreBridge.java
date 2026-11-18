@@ -101,6 +101,36 @@ public final class CoreBridge implements Transport {
         if (d != null) d.dispose();
     }
 
+    private static volatile Object router;
+    public static void router(Object value) {
+        if (router == null && value instanceof com.spotify.cosmos.rxrouter.RxRouter) router = value;
+    }
+
+    /** Catalog search through Spotify's authenticated router, with the app's protobuf response format. */
+    public static byte[] search(String query, String pageToken) throws java.io.UnsupportedEncodingException {
+        Object r = router;
+        if (r == null) throw new IllegalStateException("Spotify's router isn't running yet");
+        String uri = "hm://searchview/v3/search?query=" + java.net.URLEncoder.encode(query, "UTF-8")
+            + "&limit=30&locale=" + java.net.URLEncoder.encode(java.util.Locale.getDefault().toLanguageTag(), "UTF-8")
+            + "&request_id=" + java.util.UUID.randomUUID().toString();
+        if (!pageToken.isEmpty()) uri += "&page_token=" + java.net.URLEncoder.encode(pageToken, "UTF-8");
+        java.util.Map<String, String> headers = java.util.Collections.singletonMap("Accept", "application/protobuf");
+        com.spotify.cosmos.cosmos.Response reply = (com.spotify.cosmos.cosmos.Response)
+            ((com.spotify.cosmos.rxrouter.RxRouter) r).resolve(
+                new com.spotify.cosmos.cosmos.Request("GET", uri, headers, new byte[0]))
+                .timeout(12, TimeUnit.SECONDS).blockingFirst();
+        if (reply.getStatus() / 100 != 2) throw new IllegalStateException("Search answered " + reply.getStatus());
+        byte[] body = reply.getBody();
+        if (body == null || body.length == 0) throw new IllegalStateException("Search returned no response");
+        return body;
+    }
+
+    static String diagnostics() {
+        return "Core transport " + (fallback == null ? "waiting" : "connected")
+            + " · router " + (router == null ? "waiting" : "connected")
+            + " · services " + SERVICES.size();
+    }
+
     /** Where downloaded covers are kept between launches (set by the UI). */
     static volatile java.io.File cacheDir;
 

@@ -1,6 +1,7 @@
 //! Generates Rust types for the protos Spatch's app speaks (rebuilt from Spotify by scripts/port/protos.py).
 fn main() {
     let protos = [
+        "proto/com.spotify.searchview.proto.proto",
         "proto/com.spotify.player.esperanto.proto.proto",
         "proto/spotify.your_library.esperanto.proto.proto",
         "proto/spotify.playlist.esperanto.proto.proto",

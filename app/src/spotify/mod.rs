@@ -21,3 +21,5 @@ pub fn image_url(uri: &str) -> String {
         _ => uri.to_string(),
     }
 }
+
+pub mod catalog;

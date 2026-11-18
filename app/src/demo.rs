@@ -27,6 +27,7 @@ fn next_track(i: usize) -> NextTrack {
         image: format!("demo:{i}"),
         uri: format!("spotify:preview:{i}"),
         uid: format!("preview-{i}"),
+        queued: false,
     }
 }
 
@@ -160,7 +161,12 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
             }
         }
         Command::PlayFrom { track: uri, .. } => *now = track(index_of(&uri), true),
-        Command::Next => *now = track((here + 1) % TRACKS.len(), now.playing),
+        Command::Next => {
+            if let Some(next) = now.up_next.first().cloned() {
+                return apply(now, Command::SkipTo { uri: next.uri, uid: next.uid });
+            }
+            *now = track((here + 1) % TRACKS.len(), now.playing);
+        }
         Command::Previous(allow_seeking) => {
             if allow_seeking && at > 3000 {
                 now.position_ms = 0;
@@ -169,14 +175,29 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
                 *now = track((here + TRACKS.len() - 1) % TRACKS.len(), now.playing);
             }
         }
-        Command::SkipTo { uri, .. } => *now = track(index_of(&uri), now.playing),
+        Command::SkipTo { uri, uid } => {
+            let tail = now.up_next.iter().position(|t| t.uri == uri && t.uid == uid)
+                .map(|at| now.up_next[at + 1..].to_vec());
+            let revision = now.queue_revision + 1;
+            let mut next = track(index_of(&uri), now.playing);
+            if let Some(tail) = tail { next.up_next = tail; }
+            next.queue_revision = revision;
+            *now = next;
+        }
         Command::SeekTo(ms) => {
             now.position_ms = ms.clamp(0, now.duration_ms);
             now.timestamp = now_ms();
         }
         Command::Shuffle(on) => now.shuffle = on,
         Command::Repeat(mode) => now.repeat = mode,
-        Command::AddToQueue(uri) => now.up_next.insert(0, next_track(index_of(&uri))),
+        Command::AddToQueue(uri) => {
+            let mut track = next_track(index_of(&uri));
+            now.queue_revision += 1;
+            track.queued = true;
+            track.uid = format!("queued-{}", now.queue_revision);
+            let index = now.up_next.iter().position(|t| !t.queued).unwrap_or(now.up_next.len());
+            now.up_next.insert(index, track);
+        },
     }
     if !keeps_options {
         now.shuffle = shuffle;

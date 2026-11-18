@@ -9,6 +9,9 @@ import android.graphics.Shader;
 
 /** Offline art for the separately packaged preview. */
 final class CoreBridge {
+    static String diagnostics() { return "Offline preview"; }
+    static byte[] search(String query, String pageToken) { throw new IllegalStateException("Catalog search requires Spotify"); }
+
     static volatile java.io.File cacheDir;
 
     static void pruneCache() {}

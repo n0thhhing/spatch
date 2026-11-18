@@ -6,7 +6,10 @@ use crate::spotify::{library, player, playlist};
 #[cfg(not(feature = "preview"))]
 use crate::spotify::collection;
 use jni::JNIEnv;
-use jni::objects::{JClass, JObjectArray, JString};
+use jni::objects::{JByteArray, JClass, JObjectArray, JString};
+use crate::protos::com::spotify::player::esperanto::proto as es;
+#[cfg(not(feature = "preview"))]
+use prost::Message;
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong, jobjectArray, jstring};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,6 +18,46 @@ static CONNECTED: AtomicBool = AtomicBool::new(false);
 /// A counter that moves with every state change, and the latest state.
 static PLAYER: Mutex<(i64, Option<player::NowPlaying>)> = Mutex::new((0, None));
 static LIBRARY: Mutex<Option<Vec<library::Item>>> = Mutex::new(None);
+#[cfg(not(feature = "preview"))]
+static QUEUE_CONNECTED: AtomicBool = AtomicBool::new(false);
+static QUEUE_STATE: Mutex<Option<es::Queue>> = Mutex::new(None);
+
+fn current_queue(now: &player::NowPlaying, queue: &es::Queue) -> bool {
+    queue.queue_revision == now.queue_revision &&
+        queue.track.as_ref().and_then(|t| t.context_track.as_ref())
+            .map_or(now.uri.is_empty(), |t| t.uri == now.uri)
+}
+
+fn queue_key(track: &player::NextTrack, revision: u64) -> String {
+    format!("{revision}:{}:{}", track.uid, track.uri)
+}
+
+#[cfg(not(feature = "preview"))]
+fn connect_queue() {
+    if QUEUE_CONNECTED.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    if bridge::subscribe(player::SERVICE, "GetQueue", &es::GetQueueRequest::default().encode_to_vec(), |reply| {
+        let mut state = PLAYER.lock().unwrap();
+        let mut queue = QUEUE_STATE.lock().unwrap();
+        match reply {
+            Ok(bytes) => {
+                if let Ok(next) = es::Queue::decode(bytes) {
+                    *queue = Some(next);
+                    state.0 += 1;
+                }
+            }
+            Err(_) => {
+                *queue = None;
+                state.0 += 1;
+                QUEUE_CONNECTED.store(false, Ordering::Release);
+            }
+        }
+    }).is_err() {
+        QUEUE_CONNECTED.store(false, Ordering::Release);
+    }
+}
+
 /// Your Spotify username, learned from a playlist you own; Liked Songs' link needs it.
 static USERNAME: Mutex<Option<String>> = Mutex::new(None);
 /// What the last username lookup tried, shown on the Liked Songs page when it fails.
@@ -98,6 +141,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) 
             CONNECTED.store(false, Ordering::Release);
         }
     }
+    #[cfg(not(feature = "preview"))]
+    if CONNECTED.load(Ordering::Acquire) { connect_queue(); }
     if CONNECTED.load(Ordering::Acquire) { JNI_TRUE } else { JNI_FALSE }
 }
 
@@ -106,12 +151,15 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) 
 /// "Explicit" or "", context uri, the quality label or "", buffering, can skip next, can skip previous, album uri, artist uri; then four strings (title, artist, image, uri) per queued track.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JClass, revision: jlong) -> jobjectArray {
-    let (serial, now) = {
+    let (serial, now, queue) = {
         let state = PLAYER.lock().unwrap();
         if state.0 == revision {
             return std::ptr::null_mut();
         }
-        (state.0, state.1.clone())
+        let queue = QUEUE_STATE.lock().unwrap();
+        let tracks = state.1.as_ref().and_then(|now| queue.as_ref().filter(|q| current_queue(now, q))
+            .map(|q| player::next_tracks(&q.next_tracks).collect::<Vec<_>>()));
+        (state.0, state.1.clone(), tracks)
     };
     let Some(now) = now else { return std::ptr::null_mut() };
     let mut fields = vec![
@@ -136,8 +184,10 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JCl
         now.album_uri.clone(),
         now.artist_uri.clone(),
     ];
-    for next in &now.up_next {
-        fields.extend([next.title.clone(), next.artist.clone(), next.image.clone(), next.uri.clone()]);
+    let editable = queue.is_some() || cfg!(feature = "preview");
+    for next in queue.as_ref().unwrap_or(&now.up_next) {
+        fields.extend([next.title.clone(), next.artist.clone(), next.image.clone(), next.uri.clone(),
+            queue_key(next, now.queue_revision), (editable && next.queued).to_string()]);
     }
     strings(&mut env, fields)
 }
@@ -224,6 +274,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSetShuffleMode(mut env: JNIEnv
     {
         let result = crate::spotify::shuffle::set(&uri, mode.clamp(0, 2));
         string(&mut env, &result.err().unwrap_or_default())
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeCatalog(mut env: JNIEnv, _: JClass, bytes: JByteArray) -> jobjectArray {
+    match env.convert_byte_array(bytes).ok().and_then(|bytes| crate::spotify::catalog::decode(&bytes).ok()) {
+        Some(fields) => strings(&mut env, fields),
+        None => std::ptr::null_mut(),
     }
 }
 
@@ -831,12 +889,44 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
             uri: target,
             shuffle: match value { 1 => Some(true), 2 => Some(false), _ => None },
         },
-        8 if spotify_uri => {
-            let state = PLAYER.lock().unwrap();
-            let Some(next) = state.1.as_ref().and_then(|n| n.up_next.get(value.max(0) as usize)).filter(|t| t.uri == target) else {
-                return JNI_FALSE;
+        8 | 10..=12 => {
+            let key = target;
+            let Ok(index) = usize::try_from(value) else { return JNI_FALSE };
+            let mut state = PLAYER.lock().unwrap();
+            let Some(now) = state.1.as_mut() else { return JNI_FALSE };
+            let queue = QUEUE_STATE.lock().unwrap();
+            let full_queue = queue.as_ref().filter(|q| current_queue(now, q));
+            let next = match full_queue {
+                Some(q) => player::next_tracks(&q.next_tracks).nth(index),
+                None => now.up_next.get(index).cloned(),
             };
-            Command::SkipTo { uri: target, uid: next.uid.clone() }
+            let Some(next) = next.filter(|t| queue_key(t, now.queue_revision) == key) else { return JNI_FALSE };
+            if action == 8 {
+                Command::SkipTo { uri: next.uri, uid: next.uid }
+            } else {
+                #[cfg(feature = "preview")]
+                {
+                    if !player::edit_queue(&mut now.up_next, index, action, |t| t.queued) {
+                        return JNI_FALSE;
+                    }
+                    now.queue_revision += 1;
+                    state.0 += 1;
+                    return JNI_TRUE;
+                }
+                #[cfg(not(feature = "preview"))]
+                {
+                    let Some(request) = full_queue.and_then(|q| player::queue_edit_request(q, index, action)) else {
+                        return JNI_FALSE;
+                    };
+                    let request = request.encode_to_vec();
+                    drop(queue);
+                    drop(state);
+                    return match bridge::call(player::SERVICE, "SetQueue", &request).and_then(|bytes| player::check_response(&bytes)) {
+                        Ok(()) => JNI_TRUE,
+                        Err(error) => { log::warn!("SetQueue failed: {error}"); JNI_FALSE }
+                    };
+                }
+            }
         }
         9 if spotify_uri => Command::AddToQueue(target),
         _ => return JNI_FALSE,
