@@ -129,11 +129,9 @@ public final class CoreBridge implements Transport {
         String requestId = java.util.UUID.randomUUID().toString();
         java.util.Map<String, String> params = new java.util.HashMap<>();
         params.put("query", query);
-        params.put("limit", "30");
+        params.put("limit", "20");
         params.put("entity_types", "track,album,artist,playlist,show,audio_episode");
-        params.put("query_complete", "submit");
         params.put("show_type", "podcast");
-        params.put("on_demand_sets_enabled", "true");
         params.put("locale", java.util.Locale.getDefault().toString());
         params.put("request_id", requestId);
         params.put("page_token", pageToken);
