@@ -121,7 +121,7 @@ public final class CoreBridge implements Transport {
         params.put("query_complete", "true");
         params.put("show_type", "podcast");
         params.put("on_demand_sets_enabled", "true");
-        params.put("locale", java.util.Locale.getDefault().toLanguageTag());
+        params.put("locale", java.util.Locale.getDefault().toString());
         params.put("request_id", requestId);
         params.put("page_token", pageToken);
         params.put("timestamp", Long.toString(System.currentTimeMillis()));
@@ -130,6 +130,23 @@ public final class CoreBridge implements Transport {
             Single call = (Single) api.getMethod("a", java.util.Map.class, java.util.Map.class).invoke(service, params, headers);
             Object response = call.timeout(12, TimeUnit.SECONDS).blockingGet();
             return (byte[]) response.getClass().getMethod("toByteArray").invoke(response);
+        } catch (RuntimeException failed) {
+            try {
+                Class<?> httpError = Class.forName("retrofit2.HttpException", true, maker.getClass().getClassLoader());
+                if (httpError.isInstance(failed)) {
+                    Object response = httpError.getField("c").get(failed);
+                    Object body = response == null ? null : response.getClass().getField("c").get(response);
+                    if (body != null) {
+                        Class<?> bodyType = Class.forName("p.uz21", true, maker.getClass().getClassLoader());
+                        String detail = (String) bodyType.getMethod("f").invoke(body);
+                        throw new IllegalStateException("Search " + failed.getMessage() + ": "
+                            + detail.substring(0, Math.min(512, detail.length())), failed);
+                    }
+                }
+            } catch (ReflectiveOperationException ignored) {
+                // Preserve the original network error if its body cannot be read.
+            }
+            throw failed;
         } catch (java.lang.reflect.InvocationTargetException failed) {
             Throwable cause = failed.getCause();
             if (cause instanceof Exception) throw (Exception) cause;
