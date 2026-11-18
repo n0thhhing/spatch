@@ -58,6 +58,7 @@ public final class SpatchUi extends FrameLayout {
     /** Playlists get their own threads: a stuck reply can't hold up the library or the next try. */
     private static final ExecutorService PLAYLIST_DATA = Executors.newCachedThreadPool();
     private static final ExecutorService COMMANDS = Executors.newSingleThreadExecutor();
+    private static final ExecutorService SEARCH_DATA = Executors.newCachedThreadPool();
     private static final ExecutorService ART = Executors.newFixedThreadPool(3);
     private static final LruCache<String, Bitmap> IMAGES = new LruCache<String, Bitmap>(24 * 1024 * 1024) {
         @Override protected int sizeOf(String key, Bitmap image) { return image.getAllocationByteCount(); }
@@ -72,6 +73,7 @@ public final class SpatchUi extends FrameLayout {
     private static native String[] nativeEntries(int filter, int limit);
     private static native String nativeLiked();
     private static native String[] nativePlaylist(String uri, int offset);
+    private static native String[] nativeSearch(byte[] response);
     private static native boolean nativeCommand(int action, long value, String uri);
     private static native int nativeSaved(String uri);
     private static native boolean nativeSave(String uri, boolean save);
@@ -98,6 +100,11 @@ public final class SpatchUi extends FrameLayout {
     private ScrollView scroll;
     private ListView libraryList, playlistList;
     private android.widget.GridView libraryGrid;
+    private TextView searchEmpty, searchMore;
+    private boolean catalogSearch = true;
+    private int searchRequest;
+    private String searchPage = "", searchError = "";
+    private List<Entry> catalogResults = new ArrayList<>();
     private int playlistRow, playlistTop;
     private TextView playbackSource, infoTrack, infoArtist, infoAlbum, infoAlbumArtist, infoRelease,
         infoPosition, infoRating, infoSource;
@@ -119,6 +126,7 @@ public final class SpatchUi extends FrameLayout {
         Audio.initialize(activity.getApplicationContext(), prefs);
         applyPalette();
         setFocusableInTouchMode(true);
+        setDescendantFocusability(FOCUS_BEFORE_DESCENDANTS);
         setForeground(null);
         // Content sits inside the system bars; the backdrop and motes draw under them, edge to edge.
         setOnApplyWindowInsetsListener((v, insets) -> {
@@ -352,7 +360,16 @@ public final class SpatchUi extends FrameLayout {
         shuffle = Boolean.parseBoolean(state[7]);
         repeat = Integer.parseInt(state[8]);
         position = Long.parseLong(state[9]);
-        duration = Long.parseLong(state[10]);
+        long coreDuration = Long.parseLong(state[10]);
+        if (coreDuration > 0 || trackChanged) duration = Math.max(0, coreDuration);
+        if (duration == 0 && !uri.isEmpty()) {
+            for (Entry track : playlistTracks) {
+                if (track.uri.equals(uri) && track.durationMs > 0) {
+                    duration = track.durationMs;
+                    break;
+                }
+            }
+        }
         source = state[11];
         albumArtist = state[12]; release = state[13]; albumPosition = state[14]; rating = state[15];
         stamp = SystemClock.uptimeMillis();
@@ -632,8 +649,10 @@ public final class SpatchUi extends FrameLayout {
     private void openLibrary(int category) { navigate(1, category); }
 
     private void render() {
+        searchRequest++;
         sheetClose = null;
-        if (screen != LIBRARY) hideKeyboard();
+        hideKeyboard();
+        requestFocus();
         if (immersiveDrift != null) immersiveDrift.cancel();
         immersiveDrift = null;
         immersiveChrome = null;
@@ -648,6 +667,7 @@ public final class SpatchUi extends FrameLayout {
         libraryList = playlistList = queueList = null;
         equalizerStatus = null;
         libraryGrid = null;
+        searchEmpty = searchMore = null;
         miniShape = null;
         miniColor = 0;
         trackTitle = trackArtist = albumTitle = heroTitle = heroArtist = heroBadge = explicitBadge = null;
@@ -802,16 +822,41 @@ public final class SpatchUi extends FrameLayout {
                 entries.sort((a, b) -> order.compare(a.title, b.title));
                 entries.addAll(0, pinned);
             }
-            if (entries.isEmpty()) libraryMessage(feed());
-            else {
-                List<Entry> shown = matching(entries, libraryQuery);
-                content.addView(searchField(entries, shown), content.getChildCount() - 1);
-                if (pref("library_grid", false)) libraryGrid = entryGrid(shown);
-                else {
-                    libraryList = entryList(shown);
-                    libraryList.setSelectionFromTop(collectionRow, collectionOffset);
-                }
+            boolean online = catalogSearch && !libraryQuery.trim().isEmpty();
+            List<Entry> shown = online ? new ArrayList<>(catalogResults) : matching(entries, libraryQuery);
+            choices.setVisibility(online ? GONE : VISIBLE);
+            LinearLayout scope = row();
+            scope.setPadding(dp(16), dp(4), dp(16), 0);
+            for (int i = 0; i < 2; i++) {
+                final boolean spotify = i == 0;
+                TextView option = chip(spotify ? "Spotify" : "Your library",
+                    catalogSearch == spotify ? secondaryContainer : surface,
+                    catalogSearch == spotify ? onSecondaryContainer : onVariant, () -> {
+                        catalogSearch = spotify;
+                        catalogResults.clear();
+                        collectionRow = collectionOffset = 0;
+                        render();
+                    });
+                option.setSelected(catalogSearch == spotify);
+                scope.addView(option, new LinearLayout.LayoutParams(0, dp(44), 1));
             }
+            content.addView(scope, match(-2));
+            content.addView(searchField(entries, shown, choices), match(-2));
+            searchEmpty = text(online ? "Searching Spotify…" : "No matches in your library", 16, onVariant, false);
+            searchEmpty.setPadding(dp(20), dp(20), dp(20), dp(12));
+            searchEmpty.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            searchEmpty.setVisibility(shown.isEmpty() ? VISIBLE : GONE);
+            content.addView(searchEmpty, match(-2));
+            searchMore = chip("Load more results", secondaryContainer, onSecondaryContainer,
+                () -> searchCatalog(shown, libraryQuery.trim(), searchPage, searchRequest));
+            searchMore.setVisibility(GONE);
+            content.addView(searchMore, match(-2));
+            if (pref("library_grid", false)) libraryGrid = entryGrid(shown);
+            else {
+                libraryList = entryList(shown);
+                libraryList.setSelectionFromTop(collectionRow, collectionOffset);
+            }
+            if (online) scheduleSearch(shown);
 
         }
         // Keep the feed visible around the floating player, with room to reach its last row.
@@ -1820,8 +1865,11 @@ public final class SpatchUi extends FrameLayout {
                 playlistFailed = result == null || result.length < 2 || !result[0].isEmpty();
                 if (!playlistFailed) {
                     playlistOffset = Integer.parseInt(result[1]);
-                    for (int i = 2; i + 3 < result.length; i += 4) {
-                        playlistTracks.add(new Entry(result[i], result[i + 1], result[i + 2], result[i + 3], -1));
+                    for (int i = 2; i + 4 < result.length; i += 5) {
+                        long length = Long.parseLong(result[i + 4]);
+                        playlistTracks.add(new Entry(result[i], result[i + 1], result[i + 2],
+                            result[i + 3], -1, "", false, length));
+                        if (duration == 0 && !uri.isEmpty() && uri.equals(result[i + 2])) duration = length;
                     }
                 }
                 if (screen == PLAYLIST) render();
@@ -2031,6 +2079,33 @@ public final class SpatchUi extends FrameLayout {
         toggle(playback, "Keep screen on", "While the immersive player is open", "keep_on", true);
         toggle(playback, "Track details", "Show the details card under the player", "details", true);
         toggle(playback, "Haptics", "Little taps when you skip or change shapes", "haptics", true);
+
+        LinearLayout developer = settingsGroup(page, "Developer");
+        developer.addView(chip("Playback diagnostics", high, onSurface, () -> {
+            String report = "Spatch · Android " + android.os.Build.VERSION.SDK_INT
+                + "\nPlayback stream revision " + revision
+                + "\nPlaying " + playing + " · position " + position + " ms · duration " + duration + " ms"
+                + "\nLibrary loaded " + libraryReady
+                + "\nUpcoming tracks " + upcoming.size()
+                + "\nEqualizer " + Audio.eqStatus
+                + "\nSearch " + (searchError.isEmpty() ? "No error" : searchError)
+                + "\nServices " + CoreBridge.diagnostics();
+            sheet("Playback diagnostics", report, new String[]{"Copy diagnostics", "Close"}, -1, choice -> {
+                if (choice != 0) return;
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager)
+                    activity.getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch diagnostics", report));
+                    Toast.makeText(activity, "Diagnostics copied", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }), match(-2));
+        developer.addView(chip("Refresh library", high, onSurface, () -> {
+            LIBRARY_DATA.execute(() -> {
+                nativeRefreshLibrary();
+                post(() -> Toast.makeText(activity, "Library refresh finished", Toast.LENGTH_SHORT).show());
+            });
+        }), match(-2));
 
         LinearLayout about = settingsGroup(page, "About");
         TextView info = text("Spatch draws its own interface on top of Spotify’s core. Playback, your library and "
@@ -2500,8 +2575,8 @@ public final class SpatchUi extends FrameLayout {
 
     /** Long press: play it, shuffle it, or open it (playlists only), from a sheet. */
     private void entryActions(Entry entry) {
-        if (screen == PLAYLIST) {
-            // A song in a playlist: play it now or line it up.
+        if (screen == PLAYLIST || entry.uri.startsWith("spotify:track:") || entry.uri.startsWith("spotify:episode:")) {
+            // A song in a playlist or search: play it now or line it up.
             sheet(entry.title, entry.subtitle.isEmpty() ? "Song" : entry.subtitle, new String[]{"Play", "Add to queue"}, -1, choice -> {
                 if (choice == 0) { selectEntry(entry); return; }
                 command(QUEUE_ADD, 0, entry.uri);
@@ -2607,6 +2682,8 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Three bouncing bars: the universal "this one is playing" mark. Still when paused. */
+    private final Set<Bars> attachedBars = new HashSet<>();
+
     private final class Bars extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         Bars(int ink) {
@@ -2614,8 +2691,21 @@ public final class SpatchUi extends FrameLayout {
             paint.setColor(ink);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            attachedBars.add(this);
+            invalidate();
+        }
+        @Override protected void onDetachedFromWindow() {
+            attachedBars.remove(this);
+            super.onDetachedFromWindow();
+        }
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility == VISIBLE) invalidate();
+        }
         @Override protected void onDraw(Canvas c) {
-            boolean running = playing && motionEnabled() && getWindowVisibility() == VISIBLE;
+            boolean running = playing && motionEnabled() && isShown() && getWindowVisibility() == VISIBLE;
             float t = running ? SystemClock.uptimeMillis() / 1000f : 0f;
             float w = getWidth(), h = getHeight(), bar = w / 5f;
             for (int i = 0; i < 3; i++) {
@@ -2664,18 +2754,34 @@ public final class SpatchUi extends FrameLayout {
         return out;
     }
 
+    private static final class LibrarySearch {
+        static String normalize(String text) {
+            return java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "").toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        }
+
+        static boolean matches(String title, String subtitle, String[] words) {
+            String searchable = normalize(title + " " + subtitle);
+            for (String word : words) {
+                if (!searchable.contains(word)) return false;
+            }
+            return true;
+        }
+    }
+
     private static List<Entry> matching(List<Entry> all, String query) {
         List<Entry> out = new ArrayList<>();
-        String q = query.trim().toLowerCase(java.util.Locale.ROOT);
-        for (Entry e : all) {
-            if (q.isEmpty() || e.title.toLowerCase(java.util.Locale.ROOT).contains(q)
-                || e.subtitle.toLowerCase(java.util.Locale.ROOT).contains(q)) out.add(e);
+        String normalized = LibrarySearch.normalize(query);
+        String[] words = normalized.isEmpty() ? new String[0] : normalized.split(" +");
+        for (Entry entry : all) {
+            if (words.length == 0 || LibrarySearch.matches(entry.title, entry.subtitle, words)) out.add(entry);
         }
         return out;
     }
 
     /** Filters the library list in place as you type; the query survives page changes. */
-    private View searchField(List<Entry> all, List<Entry> shown) {
+    private View searchField(List<Entry> all, List<Entry> shown, View libraryFilters) {
         LinearLayout box = row();
         box.setPadding(dp(14), 0, dp(4), 0);
         box.setBackground(background(high, 28));
@@ -2685,14 +2791,18 @@ public final class SpatchUi extends FrameLayout {
         box.addView(icon, control(24));
         android.widget.EditText field = new android.widget.EditText(activity);
         field.setBackground(null);
-        field.setHint("Search your library");
+        field.setHint(catalogSearch ? "Search Spotify" : "Search titles or artists");
+        field.setContentDescription("Search your library");
         field.setHintTextColor(onVariant);
         field.setTextColor(onSurface);
         field.setTextSize(16);
         field.setSingleLine(true);
-        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        field.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         field.setPadding(dp(10), 0, dp(4), 0);
         field.setText(libraryQuery);
+        field.setSelection(field.length());
         box.addView(field, new LinearLayout.LayoutParams(0, dp(52), 1));
         Glyph clear = glyph("close", "Clear search", false, () -> field.setText(""));
         clear.setVisibility(libraryQuery.isEmpty() ? GONE : VISIBLE);
@@ -2703,8 +2813,20 @@ public final class SpatchUi extends FrameLayout {
             @Override public void afterTextChanged(android.text.Editable text) {
                 libraryQuery = text.toString();
                 clear.setVisibility(libraryQuery.isEmpty() ? GONE : VISIBLE);
+                searchRequest++;
+                catalogResults.clear();
                 shown.clear();
-                shown.addAll(matching(all, libraryQuery));
+                boolean online = catalogSearch && !libraryQuery.trim().isEmpty();
+                libraryFilters.setVisibility(online ? GONE : VISIBLE);
+                if (!online) shown.addAll(matching(all, libraryQuery));
+                if (searchEmpty != null) {
+                    searchEmpty.setOnClickListener(null);
+                    searchEmpty.setText(online ? "Searching Spotify…" : "No matches in your library");
+                    searchEmpty.setVisibility(shown.isEmpty() ? VISIBLE : GONE);
+                }
+                if (searchMore != null) searchMore.setVisibility(GONE);
+                if (online) scheduleSearch(shown);
+                collectionRow = collectionOffset = 0;
                 if (libraryList != null) {
                     ((BaseAdapter) libraryList.getAdapter()).notifyDataSetChanged();
                     libraryList.setSelection(0);
@@ -2716,13 +2838,78 @@ public final class SpatchUi extends FrameLayout {
             }
         });
         field.setOnEditorActionListener((v, action, event) -> {
+            if (action != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+                    && action != android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+                    && (event == null || event.getKeyCode() != KeyEvent.KEYCODE_ENTER)) return false;
             hideKeyboard();
+            SpatchUi.this.requestFocus();
             return true;
         });
         FrameLayout wrap = new FrameLayout(activity);
         wrap.setPadding(dp(16), dp(4), dp(16), 0);
         wrap.addView(box, new FrameLayout.LayoutParams(-1, dp(52)));
         return wrap;
+    }
+
+    private void scheduleSearch(List<Entry> shown) {
+        int request = ++searchRequest;
+        String query = libraryQuery.trim();
+        postDelayed(() -> {
+            if (request == searchRequest && screen == LIBRARY && catalogSearch) {
+                searchCatalog(shown, query, "", request);
+            }
+        }, 350);
+    }
+
+    private void searchCatalog(List<Entry> shown, String query, String token, int request) {
+        if (request != searchRequest || query.isEmpty()) return;
+        searchMore.setVisibility(GONE);
+        if (token.isEmpty()) {
+            searchEmpty.setText("Searching Spotify…");
+            searchEmpty.setVisibility(VISIBLE);
+        }
+        SEARCH_DATA.execute(() -> {
+            String[] result = null;
+            String error = "";
+            try {
+                result = nativeSearch(CoreBridge.search(query, token));
+                if (result == null || result.length == 0 || (result.length - 1) % 6 != 0) {
+                    throw new IllegalStateException("Search returned an invalid response");
+                }
+            } catch (Exception failed) {
+                error = failed.toString();
+                android.util.Log.w("SpatchUi", "Catalog search failed", failed);
+            }
+            String[] response = result;
+            String failure = error;
+            post(() -> {
+                if (request != searchRequest || screen != LIBRARY || !catalogSearch) return;
+                searchError = failure;
+                if (!failure.isEmpty()) {
+                    searchEmpty.setText("Couldn’t search Spotify. Tap to retry.");
+                    searchEmpty.setVisibility(VISIBLE);
+                    searchEmpty.setOnClickListener(v -> searchCatalog(shown, query, token, request));
+                    return;
+                }
+                searchEmpty.setOnClickListener(null);
+                if (token.isEmpty()) shown.clear();
+                Set<String> seen = new HashSet<>();
+                for (Entry entry : shown) seen.add(entry.uri);
+                for (int i = 1; i + 5 < response.length; i += 6) {
+                    if (seen.add(response[i + 2])) {
+                        shown.add(new Entry(response[i], response[i + 1], response[i + 2], response[i + 3],
+                            Integer.parseInt(response[i + 4]), "", false, Long.parseLong(response[i + 5])));
+                    }
+                }
+                catalogResults = new ArrayList<>(shown);
+                searchPage = response[0];
+                searchMore.setVisibility(!searchPage.isEmpty() && !searchPage.equals(token) ? VISIBLE : GONE);
+                searchEmpty.setText("No results on Spotify");
+                searchEmpty.setVisibility(shown.isEmpty() ? VISIBLE : GONE);
+                if (libraryList != null) ((BaseAdapter) libraryList.getAdapter()).notifyDataSetChanged();
+                if (libraryGrid != null) ((BaseAdapter) libraryGrid.getAdapter()).notifyDataSetChanged();
+            });
+        });
     }
 
     private void hideKeyboard() {
@@ -2951,7 +3138,7 @@ public final class SpatchUi extends FrameLayout {
 
     private final class EntryRow extends LinearLayout {
         private final Art imageView;
-        private final TextView name, subtitle, queueMenu;
+        private final TextView name, subtitle, queueMenu, length;
         EntryRow() {
             super(activity);
             setGravity(Gravity.CENTER_VERTICAL);
@@ -2965,6 +3152,10 @@ public final class SpatchUi extends FrameLayout {
             single(name); single(subtitle);
             info.addView(name); info.addView(subtitle);
             addView(info, weighted());
+            length = text("", 13, onVariant, false);
+            length.setPadding(dp(8), 0, dp(4), 0);
+            length.setVisibility(GONE);
+            addView(length, new LinearLayout.LayoutParams(-2, -2));
             queueMenu = text("⋮", 24, primary, true);
             queueMenu.setGravity(Gravity.CENTER);
             queueMenu.setFocusable(false);
@@ -2975,9 +3166,11 @@ public final class SpatchUi extends FrameLayout {
         }
 
         private final Bars bars;
+        private Entry entry;
 
         /** The track that's playing now reads in the accent colour with bouncing bars. */
         void bind(Entry entry) {
+            this.entry = entry;
             imageView.shape = entry.category == 2 ? Art.ROUND : Art.SQUARE;
             imageView.letter = initial(entry.title);
             imageView.bind(entry.image);
@@ -2985,7 +3178,14 @@ public final class SpatchUi extends FrameLayout {
             name.setText(entry.title);
             subtitle.setText(entry.editable
                 ? (entry.subtitle.isEmpty() ? "In queue" : entry.subtitle + " · In queue") : entry.subtitle);
-            boolean current = screen == PLAYLIST ? !title.isEmpty() && entry.title.equals(title) && entry.subtitle.equals(artist)
+            length.setVisibility(entry.durationMs > 0 ? VISIBLE : GONE);
+            if (entry.durationMs > 0) length.setText(time(entry.durationMs));
+            refreshPlayback();
+        }
+
+        void refreshPlayback() {
+            if (entry == null) return;
+            boolean current = screen == PLAYLIST ? !uri.isEmpty() && entry.uri.equals(uri)
                 : screen == LIBRARY && playingFrom(entry.uri);
             name.setTextColor(current ? primary : onSurface);
             bars.setVisibility(current ? VISIBLE : GONE);
@@ -3020,6 +3220,14 @@ public final class SpatchUi extends FrameLayout {
         if (atmosphere != null) atmosphere.bind(image);
         refreshPlaybackButtons();
         refreshMini();
+        for (ListView list : new ListView[]{playlistList, libraryList}) {
+            if (list == null) continue;
+            for (int i = 0; i < list.getChildCount(); i++) {
+                View child = list.getChildAt(i);
+                if (child instanceof EntryRow) ((EntryRow) child).refreshPlayback();
+            }
+        }
+        for (Bars bars : attachedBars) bars.invalidate();
         updateMotion();
         if (shuffleButton != null) {
             shuffleButton.setSelected(shuffle);
@@ -3093,7 +3301,8 @@ public final class SpatchUi extends FrameLayout {
 
     private long playhead() {
         long elapsed = playing && stamp > 0 ? Math.max(0, SystemClock.uptimeMillis() - stamp) : 0;
-        return Math.max(0, Math.min(duration, position + elapsed));
+        long at = Math.max(0, position + elapsed);
+        return duration > 0 ? Math.min(duration, at) : at;
     }
 
     private void seek(float fraction) {
@@ -3304,10 +3513,15 @@ public final class SpatchUi extends FrameLayout {
         final String title, subtitle, uri, image, queueKey;
         final int category;
         final boolean editable;
+        final long durationMs;
         Entry(String title, String subtitle, String uri, String image, int category) {
             this(title, subtitle, uri, image, category, "", false);
         }
         Entry(String title, String subtitle, String uri, String image, int category, String queueKey, boolean editable) {
+            this(title, subtitle, uri, image, category, queueKey, editable, 0);
+        }
+        Entry(String title, String subtitle, String uri, String image, int category, String queueKey, boolean editable, long durationMs) {
+            this.durationMs = durationMs;
             this.title = title; this.subtitle = subtitle; this.uri = uri; this.image = image; this.category = category;
             this.queueKey = queueKey; this.editable = editable;
         }
@@ -3315,9 +3529,9 @@ public final class SpatchUi extends FrameLayout {
             if (!(other instanceof Entry)) return false;
             Entry e = (Entry) other;
             return title.equals(e.title) && subtitle.equals(e.subtitle) && uri.equals(e.uri) && image.equals(e.image) && category == e.category
-                && queueKey.equals(e.queueKey) && editable == e.editable;
+                && queueKey.equals(e.queueKey) && editable == e.editable && durationMs == e.durationMs;
         }
-        @Override public int hashCode() { return java.util.Objects.hash(title, subtitle, uri, image, category, queueKey, editable); }
+        @Override public int hashCode() { return java.util.Objects.hash(title, subtitle, uri, image, category, queueKey, editable, durationMs); }
     }
 
     private final class Art extends View {
@@ -3870,7 +4084,7 @@ public final class SpatchUi extends FrameLayout {
                 paint.setColor(onVariant);
             } else canvas.drawText(elapsedLabel, x0, timeBaseline, paint);
             paint.setTextAlign(Paint.Align.RIGHT);
-            canvas.drawText(remainingLabel, x1, timeBaseline, paint);
+            canvas.drawText(duration > 0 ? remainingLabel : "—", x1, timeBaseline, paint);
             boolean settling = Math.abs((playing && pref("wavy", true) ? dp(3) : 0) - amp) > 0;
             if ((playing || settling) && isShown()) {
                 if (motionEnabled()) postInvalidateOnAnimation();

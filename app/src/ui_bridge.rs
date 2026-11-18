@@ -2,7 +2,7 @@
 use crate::{core, es_player as es, library, player};
 use prost::Message;
 use jni::JNIEnv;
-use jni::objects::{JClass, JObjectArray, JString};
+use jni::objects::{JByteArray, JClass, JObjectArray, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong, jobjectArray, jstring};
 use std::sync::{
     Mutex,
@@ -341,6 +341,17 @@ fn command_succeeded(method: &str, request: &[u8]) -> jboolean {
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSearch(
+    mut env: JNIEnv,
+    _: JClass,
+    bytes: JByteArray,
+) -> jobjectArray {
+    let result = env.convert_byte_array(bytes).ok()
+        .and_then(|bytes| crate::search::decode(&bytes).ok());
+    result.and_then(|fields| strings(&mut env, fields).ok()).unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
     mut env: JNIEnv,
     _: JClass,
@@ -353,19 +364,11 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
     let uri = String::from(uri);
     #[cfg(feature = "preview")]
     if uri.starts_with("spotify:preview:") || library::is_liked_uri(&uri) {
-        let demo = crate::preview::player();
-        // Forty rows (the demo tracks repeated) so long-list scrolling can be tried offline.
-        let tracks: Vec<_> = std::iter::once((demo.title, demo.artist, demo.image))
-            .chain(demo.up_next.into_iter().map(|t| (t.title, t.artist, t.image)))
-            .collect();
-        let tracks = tracks.iter().cloned().cycle().take(40);
         return strings(
             &mut env,
             ["".into(), "0".into()]
                 .into_iter()
-                .chain(tracks.enumerate().flat_map(|(i, (title, artist, image))| {
-                    [title, artist, format!("spotify:preview:{i}"), image]
-                })),
+                .chain((0..40).flat_map(crate::preview::playlist_row)),
         )
         .unwrap_or(std::ptr::null_mut());
     }
@@ -394,11 +397,19 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
             track: Some(policy::PlaylistTrackDecorationPolicy {
                 track: Some(metadata::TrackDecorationPolicy {
                     name: true,
+                    length: true,
                     link: true,
                     ..Default::default()
                 }),
                 artist: Some(metadata::ArtistDecorationPolicy {
                     name: true,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            episode: Some(policy::PlaylistEpisodeDecorationPolicy {
+                episode: Some(metadata::EpisodeDecorationPolicy {
+                    length: true,
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -453,12 +464,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(
                                 .as_ref()
                                 .and_then(|track| track.artist.first())
                                 .map_or_else(String::new, |artist| artist.name.clone());
+                            let duration = item.track_metadata.as_ref().map_or(0, |track| track.length)
+                                .max(item.episode_metadata.as_ref().map_or(0, |episode| episode.length));
                             if title.is_empty() {
                                 title = item
                                     .track_metadata
                                     .map_or_else(|| "Track unavailable".into(), |track| track.name);
                             }
-                            [title, artist, item.uri, image]
+                            [title, artist, item.uri, image, duration.to_string()]
                         })
                         .flatten(),
                 )

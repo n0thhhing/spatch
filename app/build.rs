@@ -2,6 +2,7 @@
 fn main() {
     let protos = [
         "proto/com.spotify.player.esperanto.proto.proto",
+        "proto/com.spotify.searchview.proto.proto",
         "proto/spotify.your_library.esperanto.proto.proto",
         "proto/spotify.playlist.esperanto.proto.proto",
         "proto/spotify.collection.esperanto.proto.proto",

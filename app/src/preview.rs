@@ -52,6 +52,11 @@ fn track(index: usize, playing: bool) -> NowPlaying {
     }
 }
 
+pub fn playlist_row(index: usize) -> [String; 5] {
+    let track = track(index % TRACKS.len(), false);
+    [track.title, track.artist, track.uri, track.image, track.duration_ms.to_string()]
+}
+
 pub fn player() -> NowPlaying {
     NowPlaying {
         position_ms: 56_000,
@@ -201,6 +206,14 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn playlist_rows_use_the_playback_duration() {
+        let row = playlist_row(7);
+        let mut now = player();
+        apply(&mut now, Command::Play(row[2].clone()));
+        assert_eq!((row[0].as_str(), row[4].parse().unwrap()), (now.title.as_str(), now.duration_ms));
+    }
 
     #[test]
     fn library_playback_and_transport_are_interactive() {

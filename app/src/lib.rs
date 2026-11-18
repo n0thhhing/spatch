@@ -6,6 +6,7 @@ mod ui_bridge;
 mod ui_geometry;
 pub mod library;
 pub mod player;
+mod search;
 
 /// Types for Spotify's Esperanto protos (app/proto, rebuilt by scripts/port/protos.py).
 #[allow(clippy::all, non_camel_case_types)]
