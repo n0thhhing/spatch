@@ -103,20 +103,9 @@ public final class CoreBridge implements Transport {
 
     private static volatile Object webgate;
 
-    /** Hook: the authenticated Retrofit factory used by Spotify's online screens. */
-    public static void webgate(Object maker) { webgate = maker; }
-
-    public static Object searchService(Class<?> api, Object service) {
-        if (!api.getName().equals("p.rd51")) return service;
-        return java.lang.reflect.Proxy.newProxyInstance(api.getClassLoader(), new Class<?>[]{api}, (proxy, method, args) -> {
-            if (args != null && args.length >= 2 && args[0] instanceof java.util.Map) {
-                java.util.Map params = (java.util.Map) args[0];
-                if ("Radiohead".equals(params.get("query")))
-                    android.util.Log.i("SpatchSearch", "Native params " + params + " header names " + ((java.util.Map) args[1]).keySet());
-            }
-            try { return method.invoke(service, args); }
-            catch (java.lang.reflect.InvocationTargetException failed) { throw failed.getCause(); }
-        });
+    /** Hook: t4c0.B's app factory, excluding vhg0's separate native-playback factory. */
+    public static void webgate(Object maker, Object assertion) {
+        if (assertion != null && assertion.getClass().getName().equals("p.o610")) webgate = maker;
     }
 
     /** Uses the exact catalog interface shipped in the pinned Spotify 9.2.0.26 APK. */
@@ -131,12 +120,15 @@ public final class CoreBridge implements Transport {
         params.put("query", query);
         params.put("limit", "20");
         params.put("entity_types", "track,album,artist,playlist,show,audio_episode");
+        params.put("query_complete", "submit");
         params.put("show_type", "podcast");
-        params.put("locale", java.util.Locale.getDefault().toString());
+        Class<?> locale = Class.forName("p.upn1", true, maker.getClass().getClassLoader());
+        params.put("locale", (String) locale.getMethod("m").invoke(null));
+        // Match Spotify's query-metadata mode; header mode needs BOTH x-search-* headers plus _t.
         params.put("request_id", requestId);
         params.put("page_token", pageToken);
         params.put("timestamp", Long.toString(System.currentTimeMillis()));
-        java.util.Map<String, String> headers = java.util.Collections.singletonMap("x-search-request-id", requestId);
+        java.util.Map<String, String> headers = java.util.Collections.emptyMap();
         try {
             Single call = (Single) api.getMethod("a", java.util.Map.class, java.util.Map.class).invoke(service, params, headers);
             Object response = call.timeout(12, TimeUnit.SECONDS).blockingGet();

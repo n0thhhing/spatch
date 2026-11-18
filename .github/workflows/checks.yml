@@ -31,3 +31,5 @@ jobs:
           cargo clippy --all-targets --features preview --locked -- -D warnings
       - name: Check nightly input selection
         run: python3 tests/nightly-inputs.py
+      - name: Check catalog request contract
+        run: python3 tests/catalog-request.py

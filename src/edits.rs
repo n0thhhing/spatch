@@ -6,9 +6,8 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 7] = [
-    Edit { file: "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali", anchor: "    invoke-virtual {p0, p1}, Lp/gc31;->b(Ljava/lang/Class;)Ljava/lang/Object;\n\n    .line 2\n    .line 3\n    .line 4\n    move-result-object p0\n", replacement: "    invoke-virtual {p0, p1}, Lp/gc31;->b(Ljava/lang/Class;)Ljava/lang/Object;\n\n    .line 2\n    .line 3\n    .line 4\n    move-result-object p0\n\n    invoke-static {p1, p0}, Lspatch/CoreBridge;->searchService(Ljava/lang/Class;Ljava/lang/Object;)Ljava/lang/Object;\n\n    move-result-object p0\n" },
-    Edit { file: "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali", anchor: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/jc31;\n", replacement: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/jc31;\n\n    invoke-static {p0}, Lspatch/CoreBridge;->webgate(Ljava/lang/Object;)V\n" },
+pub const EDITS: [Edit; 6] = [
+    Edit { file: "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali", anchor: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/jc31;\n", replacement: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/jc31;\n\n    invoke-static {p0, p5}, Lspatch/CoreBridge;->webgate(Ljava/lang/Object;Ljava/lang/Object;)V\n" },
     // The Rust app reaches Spotify's core through the same Esperanto transports Spotify's screens use:
     // every client's transport passes through CoreBridge.
     Edit { file: "smali/com/spotify/esperanto/esperanto/ClientBase.smali", anchor: "    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n", replacement: "    invoke-static {p1}, Lspatch/CoreBridge;->wrap(Ljava/lang/Object;)Lcom/spotify/esperanto/esperanto/Transport;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n" },
