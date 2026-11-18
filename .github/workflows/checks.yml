@@ -33,3 +33,30 @@ jobs:
         run: python3 tests/nightly-inputs.py
       - name: Check catalog request contract
         run: python3 tests/catalog-request.py
+
+  mac-preview:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: app/preview/desktop/**/*.gradle
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.m2/repository/org/robolectric
+            app/target/mac-preview
+          key: mac-preview-${{ runner.arch }}-${{ hashFiles('app/Cargo.lock', 'app/preview/desktop/build.gradle') }}-${{ hashFiles('app/src/**', 'app/proto/**') }}
+          restore-keys: mac-preview-${{ runner.arch }}-${{ hashFiles('app/Cargo.lock', 'app/preview/desktop/build.gradle') }}-
+      - name: Install protobuf compiler
+        run: command -v protoc || brew install protobuf
+      - name: Render the shared Android UI on Mac
+        run: app/preview/mac.sh --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-preview-screenshot
+          path: app/preview/desktop/build/reports/preview/settings.png

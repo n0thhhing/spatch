@@ -24,4 +24,26 @@ Settings covers theme, accent colour, artwork colours, the player artwork shape,
 
 Run `app/preview/build.sh` to build `dist/spatch-preview.apk`. Install it on an ARM64 Android 10+ phone or emulator with `adb install -r dist/spatch-preview.apk` and open **Spatch Preview**. It uses the same Android views, Rust navigation, and renderer as the patched UI. Sample playback, seeking, and the library work offline.
 
-On an Apple silicon Mac, run `app/preview/mac.sh` to open Spatch Preview in its own Android emulator. The script shows the SDK install command if the emulator or its system image is missing.
+### Native Mac window
+
+Run `app/preview/mac.sh`, or double-click `app/preview/Spatch Preview.command` in Finder.
+It builds `dist/Spatch Preview.app` and opens an interactive desktop window through
+[Robolectric's native desktop host](https://robolectric.org/simulator/). You can open that `.app`
+directly afterward; rerun the command to rebuild it after source changes.
+No browser, Android emulator, virtual device or connected phone is needed.
+
+The host compiles **the actual `SpatchUi.java` and `Audio.java`**, and loads a Mac build of the
+same Rust library with its existing `preview` feature. There is no second screen implementation:
+changes to the Android UI, icons, palette and Rust preview behavior appear on the next launch.
+The small preview activity and offline artwork adapter are shared with the preview APK too.
+
+You need Rust, `protoc`, and JDK 21 (`brew install protobuf openjdk@21`). The Gradle wrapper
+downloads its pinned build tools and Robolectric dependencies on first launch. `JAVA_HOME` can
+select a different compatible JDK. Closing the preview window quits the desktop host.
+
+Playback, seeking, library browsing, local search and queue controls use sample data. This previews
+the shared UI; live Spotify catalog requests, real audio processing and Android system integration
+still need the signed Android app. Robolectric's rendering can differ from a physical device.
+
+Run `app/preview/mac.sh --check` for the desktop smoke test. It navigates the shared screen and
+writes a screenshot to `app/preview/desktop/build/reports/preview/settings.png`.

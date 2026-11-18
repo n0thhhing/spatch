@@ -5,3 +5,5 @@ dist/
 swiftify/
 .cache/
 scripts/port/.work/
+app/preview/desktop/.gradle/
+app/preview/desktop/build/

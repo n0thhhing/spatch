@@ -14,6 +14,7 @@ public final class PreviewActivity extends Activity {
     private SpatchUi ui;
 
     @Override public void onCreate(Bundle savedInstanceState) {
+        setTheme(android.R.style.Theme_Material_NoActionBar);
         super.onCreate(savedInstanceState);
         ui = new SpatchUi(this);
         setContentView(ui);

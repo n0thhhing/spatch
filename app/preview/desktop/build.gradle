@@ -1,0 +1,98 @@
+import org.gradle.api.artifacts.transform.*
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition
+import org.gradle.api.file.FileSystemLocation
+import org.gradle.api.provider.Provider
+import java.util.zip.ZipFile
+
+plugins { id 'java' }
+
+repositories { mavenCentral(); google() }
+
+// AndroidX ships AARs; this JVM host only needs their classes, not an Android build plugin.
+abstract class AarClasses implements TransformAction<TransformParameters.None> {
+    @InputArtifact abstract Provider<FileSystemLocation> getInputArtifact()
+    void transform(TransformOutputs outputs) {
+        new ZipFile(inputArtifact.get().asFile).withCloseable { archive ->
+            outputs.file('classes.jar').bytes = archive.getInputStream(archive.getEntry('classes.jar')).bytes
+        }
+    }
+}
+
+dependencies {
+    registerTransform(AarClasses) {
+        from.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, 'aar')
+        to.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, 'jar')
+    }
+    compileOnly 'org.robolectric:android-all:15-robolectric-12650502'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.18.1'
+    testImplementation 'org.robolectric:simulator:4.18.1'
+    testImplementation 'org.robolectric:android-all:15-robolectric-12650502'
+}
+configurations.configureEach {
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, 'jar')
+}
+
+sourceSets.main.java.setSrcDirs([])
+compileJava {
+    // Compile the production screen and audio class directly. There is no second UI to maintain.
+    source = files('../../../java/dex/src/spatch/core/SpatchUi.java',
+                   '../../../java/dex/src/spatch/core/Audio.java',
+                   '../CoreBridge.java', '../PreviewActivity.java')
+    options.release = 11
+}
+compileTestJava.options.release = 11
+
+def desktopJvmArgs = [
+    '--add-opens=java.base/java.lang=ALL-UNNAMED',
+    '--add-opens=java.base/java.util=ALL-UNNAMED',
+    '--add-opens=java.base/java.io=ALL-UNNAMED',
+    '--add-opens=java.base/java.net=ALL-UNNAMED',
+    '--add-opens=java.base/java.security=ALL-UNNAMED',
+    '--add-opens=java.base/java.text=ALL-UNNAMED',
+    '--add-opens=java.base/jdk.internal.access=ALL-UNNAMED',
+    '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED',
+    '--add-exports=java.desktop/sun.awt=ALL-UNNAMED',
+    '--add-exports=java.base/sun.reflect.misc=ALL-UNNAMED',
+    '--add-exports=java.base/sun.security.action=ALL-UNNAMED',
+    '--add-exports=java.desktop/sun.swing=ALL-UNNAMED',
+    '--add-exports=java.desktop/sun.lwawt.macosx=ALL-UNNAMED',
+    "-Djava.library.path=${file('../../target/mac-preview/release')}",
+    '-Drobolectric.dependency.repo.url=https://repo.maven.apache.org/maven2',
+    '-Dapple.awt.application.name=Spatch Preview',
+]
+
+test { jvmArgs desktopJvmArgs; testLogging { exceptionFormat = 'full'; showStandardStreams = true } }
+
+def desktopLibraries = { sourceSets.test.runtimeClasspath.files.findAll { it.isFile() } }
+tasks.register('desktopJar', Jar) {
+    dependsOn testClasses
+    archiveFileName = 'spatch-preview.jar'
+    from sourceSets.main.output, sourceSets.test.output
+    manifest {
+        attributes 'Class-Path': desktopLibraries().withIndex().collect { file, i -> "lib/${i}.jar" }.join(' ')
+    }
+}
+
+tasks.register('macApp', Exec) {
+    dependsOn desktopJar
+    doFirst {
+        def input = layout.buildDirectory.dir('mac-input').get().asFile
+        delete input
+        copy { from tasks.desktopJar.archiveFile; into input }
+        desktopLibraries().eachWithIndex { file, i ->
+            copy { from file; into new File(input, 'lib'); rename { "${i}.jar" } }
+        }
+        copy { from '../../target/mac-preview/release/libspatch_app.dylib'; into new File(input, 'native') }
+        def destination = file('../../../dist')
+        delete new File(destination, 'Spatch Preview.app')
+        def options = desktopJvmArgs.findAll { !it.startsWith('-Djava.library.path=') } +
+            ['-Djava.library.path=$APPDIR/native', '-Dspatch.preview.interactive=true']
+        commandLine([new File(System.getProperty('java.home'), 'bin/jpackage'),
+            '--type', 'app-image', '--name', 'Spatch Preview', '--app-version', '1.0',
+            '--mac-package-identifier', 'dev.spatch.preview.mac', '--dest', destination,
+            '--input', input, '--main-jar', 'spatch-preview.jar', '--main-class', 'org.junit.runner.JUnitCore',
+            '--arguments', 'spatch.MacPreviewTest', '--add-modules', 'java.se,jdk.unsupported,jdk.compiler,jdk.zipfs,jdk.crypto.ec'] +
+            options.collectMany { ['--java-options', '"' + it.toString() + '"'] })
+    }
+}
