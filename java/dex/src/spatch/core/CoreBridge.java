@@ -106,6 +106,19 @@ public final class CoreBridge implements Transport {
     /** Hook: the authenticated Retrofit factory used by Spotify's online screens. */
     public static void webgate(Object maker) { webgate = maker; }
 
+    public static Object searchService(Class<?> api, Object service) {
+        if (!api.getName().equals("p.rd51")) return service;
+        return java.lang.reflect.Proxy.newProxyInstance(api.getClassLoader(), new Class<?>[]{api}, (proxy, method, args) -> {
+            if (args != null && args.length >= 2 && args[0] instanceof java.util.Map) {
+                java.util.Map params = (java.util.Map) args[0];
+                if ("Radiohead".equals(params.get("query")))
+                    android.util.Log.i("SpatchSearch", "Native params " + params + " header names " + ((java.util.Map) args[1]).keySet());
+            }
+            try { return method.invoke(service, args); }
+            catch (java.lang.reflect.InvocationTargetException failed) { throw failed.getCause(); }
+        });
+    }
+
     /** Uses the exact catalog interface shipped in the pinned Spotify 9.2.0.26 APK. */
     public static byte[] search(String query, String pageToken) throws Exception {
         Object maker = webgate;
