@@ -2661,10 +2661,11 @@ public final class SpatchUi extends FrameLayout {
         toggle(player, "Keep screen on", "While the player is open", "keep_on", true, false);
 
         LinearLayout controls = card(page, "Equalizer");
-        toggle(controls, "Enable equalizer", "10 bands with automatic headroom for boosted frequencies", "equalizer", false, false);
+        toggle(controls, "Equalizer", "Shape the sound on this device", "equalizer", false, false);
         equalizerStatus = text(Audio.eqStatus, 13, () -> inkDim, false);
+        equalizerStatus.setPadding(dp(18), 0, dp(18), dp(8));
         controls.addView(equalizerStatus, fill(-2));
-        String[] presets = {"Flat", "Bass boost", "Vocals", "Treble boost", "Loudness"};
+        String[] presets = {"Flat", "Bass", "Vocals", "Bright", "Loudness"};
         int[][] curves = {
             {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
             {6, 6, 4, 2, 0, 0, 0, 0, 0, 0},
@@ -2673,25 +2674,26 @@ public final class SpatchUi extends FrameLayout {
             {5, 4, 2, 0, -1, -1, 0, 2, 4, 5}
         };
         android.widget.SeekBar[] sliders = new android.widget.SeekBar[Audio.EQ_HZ.length];
-        controls.addView(pill("Presets", () -> {
-            sheet("Presets", "Choose a starting curve", presets, choice -> {
-                android.content.SharedPreferences.Editor editor = prefs.edit();
-                for (int i = 0; i < sliders.length; i++) editor.putInt("eq_band_" + i, curves[choice][i]);
-                editor.apply();
-                for (int i = 0; i < sliders.length; i++) sliders[i].setProgress(curves[choice][i] + Audio.EQ_RANGE);
-                Audio.refreshEqualizer();
-            });
-        }), fill(-2));
+        int selectedPreset = -1;
+        int[] savedGains = new int[sliders.length];
+        for (int i = 0; i < savedGains.length; i++) savedGains[i] = Audio.gain(prefs, i);
+        for (int i = 0; i < curves.length; i++) if (java.util.Arrays.equals(savedGains, curves[i])) selectedPreset = i;
+        segmented(controls, "Preset", presets, selectedPreset, selected -> {
+            android.content.SharedPreferences.Editor editor = prefs.edit();
+            for (int i = 0; i < sliders.length; i++) editor.putInt("eq_band_" + i, curves[selected][i]);
+            editor.apply();
+            Audio.refreshEqualizer();
+            settingsChanged(false);
+        });
 
-        LinearLayout bands = card(page, "Frequency bands");
         for (int i = 0; i < sliders.length; i++) {
             final int band = i;
             int hz = Audio.EQ_HZ[i];
             String frequency = hz < 1000 ? hz + " Hz" : (hz / 1000) + " kHz";
             LinearLayout line = row();
-            line.setPadding(dp(16), 0, dp(16), 0);
-            line.addView(text(frequency, 14, ink, true), new LinearLayout.LayoutParams(dp(62), -2));
-            TextView level = text(db(Audio.gain(prefs, i)), 13, inkDim, false);
+            line.setPadding(dp(18), 0, dp(18), 0);
+            line.addView(text(frequency, 14, () -> ink, true), new LinearLayout.LayoutParams(dp(62), -2));
+            TextView level = text(db(Audio.gain(prefs, i)), 13, () -> inkDim, false);
             level.setGravity(Gravity.END);
             android.widget.SeekBar slider = new android.widget.SeekBar(activity);
             sliders[i] = slider;
@@ -2699,8 +2701,23 @@ public final class SpatchUi extends FrameLayout {
             slider.setProgress(Audio.gain(prefs, i) + Audio.EQ_RANGE);
             slider.setContentDescription(frequency);
             if (android.os.Build.VERSION.SDK_INT >= 30) slider.setStateDescription(level.getText());
-            slider.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
-            slider.setThumbTintList(android.content.res.ColorStateList.valueOf(accent));
+            GradientDrawable track = round(surfHi, 8);
+            GradientDrawable fill = round(accent, 8);
+            android.graphics.drawable.ClipDrawable progress = new android.graphics.drawable.ClipDrawable(fill, Gravity.LEFT, android.graphics.drawable.ClipDrawable.HORIZONTAL);
+            android.graphics.drawable.LayerDrawable layers = new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[]{track, progress});
+            layers.setId(0, android.R.id.background);
+            layers.setId(1, android.R.id.progress);
+            for (int layer = 0; layer < 2; layer++) {
+                layers.setLayerHeight(layer, dp(8));
+                layers.setLayerGravity(layer, Gravity.CENTER_VERTICAL);
+            }
+            GradientDrawable thumb = round(ink, 3);
+            thumb.setSize(dp(5), dp(22));
+            slider.setProgressDrawable(layers);
+            slider.setThumb(thumb);
+            slider.setSplitTrack(false);
+            colored(slider, () -> { track.setColor(surfHi); fill.setColor(accent); thumb.setColor(ink); });
             slider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
                 @Override public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean user) {
                     int gain = progress - Audio.EQ_RANGE;
@@ -2716,16 +2733,16 @@ public final class SpatchUi extends FrameLayout {
             });
             line.addView(slider, new LinearLayout.LayoutParams(0, dp(48), 1));
             line.addView(level, new LinearLayout.LayoutParams(dp(52), -2));
-            bands.addView(line, fill(-2));
+            controls.addView(line, fill(-2));
         }
 
         LinearLayout developer = card(page, "Developer");
-        developer.addView(pill("Playback diagnostics", () -> {
+        settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
             String report = "Build " + nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
                 + "\nPlaying " + playing + " · buffering " + buffering
                 + "\nPosition " + position + " ms · duration " + duration + " ms"
                 + "\nLibrary loaded " + libraryReady + " · upcoming " + upcoming.size()
-                + "\nEqualizer " + Audio.eqStatus + "\nVisualizer " + Audio.status
+                + "\nEqualizer " + Audio.eqStatus + "\nEQ detail " + Audio.eqError + "\nVisualizer " + Audio.status
                 + "\nSearch " + (catalogError.isEmpty() ? "No error" : catalogError)
                 + "\n" + CoreBridge.diagnostics();
             sheet("Diagnostics", report, new String[]{"Copy diagnostics", "Close"}, choice -> {
@@ -2734,13 +2751,13 @@ public final class SpatchUi extends FrameLayout {
                     if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch diagnostics", report));
                 }
             });
-        }), fill(dp(48)));
-        developer.addView(pill("Refresh library", () -> {
+        });
+        settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
             DATA.execute(() -> {
                 nativeRefreshLibrary();
                 post(() -> Toast.makeText(activity, "Library refresh finished", Toast.LENGTH_SHORT).show());
             });
-        }), fill(dp(48)));
+        });
 
         LinearLayout gestures = card(page, "Gestures and controls");
         toggle(gestures, "Double-tap to play or pause", "On the artwork in the player", "double_tap", true, false);
@@ -3002,6 +3019,20 @@ public final class SpatchUi extends FrameLayout {
         box.setPadding(0, dp(6), 0, dp(6));
         page.addView(box, fill(-2));
         return box;
+    }
+
+    private void settingsAction(LinearLayout box, String title, String detail, Runnable action) {
+        LinearLayout line = row();
+        line.setPadding(dp(18), dp(12), dp(16), dp(12));
+        LinearLayout words = column();
+        words.addView(text(title, 16, () -> ink, true));
+        TextView hint = text(detail, 13, () -> inkDim, false);
+        hint.setPadding(0, dp(2), dp(8), 0);
+        words.addView(hint);
+        line.addView(words, weight());
+        line.addView(icon("chevron", () -> inkDim), lp(dp(24), dp(24)));
+        tappable(line, title, action);
+        box.addView(line, fill(-2));
     }
 
     private static String db(int gain) { return (gain > 0 ? "+" : "") + gain + " dB"; }

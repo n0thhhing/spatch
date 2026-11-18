@@ -101,33 +101,41 @@ public final class CoreBridge implements Transport {
         if (d != null) d.dispose();
     }
 
-    private static volatile Object router;
-    public static void router(Object value) {
-        if (router == null && value instanceof com.spotify.cosmos.rxrouter.RxRouter) router = value;
-    }
+    private static volatile Object webgate;
 
-    /** Catalog search through Spotify's authenticated router, with the app's protobuf response format. */
-    public static byte[] search(String query, String pageToken) throws java.io.UnsupportedEncodingException {
-        Object r = router;
-        if (r == null) throw new IllegalStateException("Spotify's router isn't running yet");
-        String uri = "hm://searchview/v3/search?query=" + java.net.URLEncoder.encode(query, "UTF-8")
-            + "&limit=30&locale=" + java.net.URLEncoder.encode(java.util.Locale.getDefault().toLanguageTag(), "UTF-8")
-            + "&request_id=" + java.util.UUID.randomUUID().toString();
-        if (!pageToken.isEmpty()) uri += "&page_token=" + java.net.URLEncoder.encode(pageToken, "UTF-8");
-        java.util.Map<String, String> headers = java.util.Collections.singletonMap("Accept", "application/protobuf");
-        com.spotify.cosmos.cosmos.Response reply = (com.spotify.cosmos.cosmos.Response)
-            ((com.spotify.cosmos.rxrouter.RxRouter) r).resolve(
-                new com.spotify.cosmos.cosmos.Request("GET", uri, headers, new byte[0]))
-                .timeout(12, TimeUnit.SECONDS).blockingFirst();
-        if (reply.getStatus() / 100 != 2) throw new IllegalStateException("Search answered " + reply.getStatus());
-        byte[] body = reply.getBody();
-        if (body == null || body.length == 0) throw new IllegalStateException("Search returned no response");
-        return body;
+    /** Hook: the authenticated Retrofit factory used by Spotify's online screens. */
+    public static void webgate(Object maker) { webgate = maker; }
+
+    /** Uses the exact catalog interface shipped in the pinned Spotify 9.2.0.26 APK. */
+    public static byte[] search(String query, String pageToken) throws Exception {
+        Object maker = webgate;
+        if (maker == null) throw new IllegalStateException("Spotify’s search connection is starting");
+        Class<?> api = Class.forName("p.rd51", true, maker.getClass().getClassLoader());
+        Object service = maker.getClass().getMethod("createWebgateService", Class.class, String.class)
+            .invoke(maker, api, "android-search-onlineproto");
+        String requestId = java.util.UUID.randomUUID().toString();
+        java.util.Map<String, String> params = new java.util.HashMap<>();
+        params.put("query", query);
+        params.put("limit", "30");
+        params.put("locale", java.util.Locale.getDefault().toLanguageTag());
+        params.put("request_id", requestId);
+        params.put("page_token", pageToken);
+        params.put("timestamp", Long.toString(System.currentTimeMillis()));
+        java.util.Map<String, String> headers = java.util.Collections.singletonMap("x-search-request-id", requestId);
+        try {
+            Single call = (Single) api.getMethod("a", java.util.Map.class, java.util.Map.class).invoke(service, params, headers);
+            Object response = call.timeout(12, TimeUnit.SECONDS).blockingGet();
+            return (byte[]) response.getClass().getMethod("toByteArray").invoke(response);
+        } catch (java.lang.reflect.InvocationTargetException failed) {
+            Throwable cause = failed.getCause();
+            if (cause instanceof Exception) throw (Exception) cause;
+            throw failed;
+        }
     }
 
     static String diagnostics() {
         return "Core transport " + (fallback == null ? "waiting" : "connected")
-            + " · router " + (router == null ? "waiting" : "connected")
+            + " · search connection " + (webgate == null ? "waiting" : "connected")
             + " · services " + SERVICES.size();
     }
 

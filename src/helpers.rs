@@ -21,10 +21,7 @@ pub const HELPERS: [(&str, &str); 4] = [
 ];
 
 /// Compile-only stand-ins for Spotify dependencies, never packaged.
-pub const STUBS: [(&str, &str); 8] = [
-    ("Request.java", include_str!("../java/dex/stubs/com/spotify/cosmos/cosmos/Request.java")),
-    ("Response.java", include_str!("../java/dex/stubs/com/spotify/cosmos/cosmos/Response.java")),
-    ("RxRouter.java", include_str!("../java/dex/stubs/com/spotify/cosmos/rxrouter/RxRouter.java")),
+pub const STUBS: [(&str, &str); 5] = [
     (
         "Transport.java",
         include_str!("../java/dex/stubs/com/spotify/esperanto/esperanto/Transport.java"),

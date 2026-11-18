@@ -3,6 +3,8 @@ package spatch;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.media.audiofx.DynamicsProcessing;
+import android.media.audiofx.AudioEffect;
+import android.media.audiofx.Equalizer;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -45,9 +47,10 @@ public final class Audio {
 
     static final int[] EQ_HZ = {31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000};
     static final int EQ_RANGE = 12;
-    private static final Map<Integer, DynamicsProcessing> effects = new HashMap<>();
+    private static final Map<Integer, AudioEffect> effects = new HashMap<>();
     private static SharedPreferences eqPrefs;
     static volatile String eqStatus = "";
+    static volatile String eqError = "";
 
     static synchronized void initialize(Context app, SharedPreferences prefs) {
         context = app;
@@ -76,9 +79,9 @@ public final class Audio {
             active = session;
         }
         boolean on = prefs.getBoolean("equalizer", false);
-        Iterator<Map.Entry<Integer, DynamicsProcessing>> entries = effects.entrySet().iterator();
+        Iterator<Map.Entry<Integer, AudioEffect>> entries = effects.entrySet().iterator();
         while (entries.hasNext()) {
-            Map.Entry<Integer, DynamicsProcessing> entry = entries.next();
+            Map.Entry<Integer, AudioEffect> entry = entries.next();
             if (!on || !sessions.contains(entry.getKey())) {
                 releaseEffect(entry.getValue());
                 entries.remove();
@@ -88,34 +91,79 @@ public final class Audio {
             eqStatus = on ? "Start playback on this device to apply the equalizer" : "Equalizer off";
             return;
         }
+        int[] gains = new int[EQ_HZ.length];
         int boost = 0;
-        DynamicsProcessing.Eq eq = new DynamicsProcessing.Eq(true, true, EQ_HZ.length);
-        for (int band = 0; band < EQ_HZ.length; band++) {
-            int gain = gain(prefs, band);
-            boost = Math.max(boost, gain);
-            eq.setBand(band, new DynamicsProcessing.EqBand(true, EQ_HZ[band], gain));
+        for (int band = 0; band < gains.length; band++) {
+            gains[band] = gain(prefs, band);
+            boost = Math.max(boost, gains[band]);
         }
+        int activeBands = 0;
         for (int id : sessions) {
-            DynamicsProcessing effect = effects.get(id);
+            AudioEffect effect = effects.get(id);
             try {
-                if (effect == null) {
-                    DynamicsProcessing.Config config = new DynamicsProcessing.Config.Builder(
-                        DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, 2,
-                        true, EQ_HZ.length, false, 0, false, 0, false).build();
-                    effect = new DynamicsProcessing(0, id, config);
-                    effects.put(id, effect);
+                if (!(effect instanceof Equalizer)) {
+                    try {
+                        if (effect == null) {
+                            DynamicsProcessing.Config config = new DynamicsProcessing.Config.Builder(
+                                DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, 2,
+                                true, EQ_HZ.length, false, 0, false, 0, false).build();
+                            effect = new DynamicsProcessing(0, id, config);
+                        }
+                        if (!effect.hasControl()) throw new IllegalStateException("DynamicsProcessing is controlled by another equalizer");
+                        DynamicsProcessing dynamics = (DynamicsProcessing) effect;
+                        DynamicsProcessing.Eq eq = new DynamicsProcessing.Eq(true, true, EQ_HZ.length);
+                        for (int band = 0; band < gains.length; band++) {
+                            eq.setBand(band, new DynamicsProcessing.EqBand(true, EQ_HZ[band], gains[band]));
+                        }
+                        dynamics.setInputGainAllChannelsTo(-boost);
+                        dynamics.setPreEqAllChannelsTo(eq);
+                    } catch (RuntimeException unavailable) {
+                        eqError = unavailable.toString();
+                        releaseEffect(effect);
+                        effect = new Equalizer(0, id);
+                    }
                 }
-                effect.setInputGainAllChannelsTo(-boost);
-                effect.setPreEqAllChannelsTo(eq);
-                if (effect.setEnabled(true) != 0) throw new IllegalStateException("Equalizer unavailable");
+                if (!effect.hasControl()) throw new IllegalStateException("The device equalizer is controlled by another app");
+                if (effect instanceof Equalizer) {
+                    Equalizer equalizer = (Equalizer) effect;
+                    short[] range = equalizer.getBandLevelRange();
+                    short count = equalizer.getNumberOfBands();
+                    if (id == active) activeBands = count;
+                    if (count <= 0) throw new IllegalStateException("The device equalizer exposes no bands");
+                    for (short band = 0; band < count; band++) {
+                        float hz = equalizer.getCenterFreq(band) / 1000f;
+                        int level = Math.round((gainAt(hz, gains) - boost) * 100);
+                        equalizer.setBandLevel(band, (short) Math.max(range[0], Math.min(range[1], level)));
+                    }
+                }
+                if (effect.setEnabled(true) != AudioEffect.SUCCESS) throw new IllegalStateException("The audio effect could not be enabled");
+                effects.put(id, effect);
             } catch (RuntimeException unavailable) {
-                releaseEffect(effects.remove(id));
+                eqError = unavailable.toString();
+                android.util.Log.w("SpatchAudio", "Equalizer session " + id + ": " + eqError);
+                effects.remove(id);
+                releaseEffect(effect);
             }
         }
-        eqStatus = effects.containsKey(active) ? "Active on this device" : "Equalizer unavailable for this playback session";
+        AudioEffect current = effects.get(active);
+        eqStatus = current instanceof Equalizer ? "Active · " + activeBands + " device bands"
+            : current != null ? "Active · 10 bands" : "Waiting for audio effects · retrying";
+        if (effects.size() < sessions.size()) worker().postDelayed(Audio.EQUALIZE, 2000);
     };
 
-    private static void releaseEffect(DynamicsProcessing effect) {
+    /** Interpolate the saved curve on a device's own band centres. */
+    static float gainAt(float hz, int[] gains) {
+        if (hz <= EQ_HZ[0]) return gains[0];
+        for (int band = 1; band < EQ_HZ.length; band++) {
+            if (hz <= EQ_HZ[band]) {
+                double fraction = Math.log((double) hz / EQ_HZ[band - 1]) / Math.log((double) EQ_HZ[band] / EQ_HZ[band - 1]);
+                return (float) (gains[band - 1] + fraction * (gains[band] - gains[band - 1]));
+            }
+        }
+        return gains[gains.length - 1];
+    }
+
+    private static void releaseEffect(AudioEffect effect) {
         if (effect != null) {
             try { effect.release(); } catch (RuntimeException ignored) { /* the audio server already dropped it */ }
         }
