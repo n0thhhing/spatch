@@ -16,12 +16,50 @@ import java.util.Locale;
 final class AutoEqCatalog {
     private static final String ROOT = "/jaakkopasanen/AutoEq/master/results/";
     private static final String HOST = "raw.githubusercontent.com";
+    private static volatile List<Headphone> fallbackCatalog;
+
     static final class Headphone {
         final String name, query, url;
         Headphone(String name, String url) { this.name = name; this.query = name.toLowerCase(Locale.ROOT); this.url = url; }
     }
 
+    private static native byte[] nativeParse(byte[] markdown);
+    private static native int nativeLoad(String dir, byte[] markdown);
+    private static native byte[] nativeSearch(String query, int limit);
+
+    private static List<Headphone> unpackPairs(byte[] packed) {
+        if (packed == null || packed.length == 0) return new ArrayList<>();
+        List<Headphone> result = new ArrayList<>();
+        int pos = 0, end = packed.length;
+        while (pos + 4 <= end) {
+            int nlen = (packed[pos] & 0xff) | ((packed[pos + 1] & 0xff) << 8)
+                | ((packed[pos + 2] & 0xff) << 16) | ((packed[pos + 3] & 0xff) << 24);
+            pos += 4;
+            if (nlen < 0 || pos + nlen + 4 > end) break;
+            String name = new String(packed, pos, nlen, StandardCharsets.UTF_8);
+            pos += nlen;
+            int ulen = (packed[pos] & 0xff) | ((packed[pos + 1] & 0xff) << 8)
+                | ((packed[pos + 2] & 0xff) << 16) | ((packed[pos + 3] & 0xff) << 24);
+            pos += 4;
+            if (ulen < 0 || pos + ulen > end) break;
+            String url = new String(packed, pos, ulen, StandardCharsets.UTF_8);
+            pos += ulen;
+            result.add(new Headphone(name, url));
+        }
+        return result;
+    }
+
     static List<Headphone> parse(String markdown) {
+        try {
+            byte[] packed = nativeParse(markdown.getBytes(StandardCharsets.UTF_8));
+            if (packed != null) return unpackPairs(packed);
+        } catch (UnsatisfiedLinkError ignored) {
+            // Fall back to pure Java when running standalone without libspatch_app.
+        }
+        return parseJava(markdown);
+    }
+
+    static List<Headphone> parseJava(String markdown) {
         List<Headphone> result = new ArrayList<>();
         for (String line : markdown.split("\\r?\\n")) {
             if (!line.startsWith("- [") || !line.endsWith(")")) continue;
@@ -46,6 +84,43 @@ final class AutoEqCatalog {
         return result;
     }
 
+    /** Loads the catalog into Rust's binary index (downloading once if absent) and returns the model count. */
+    static int loadIndex(File directory) throws Exception {
+        try {
+            String dir = directory.getAbsolutePath();
+            int count = nativeLoad(dir, null);
+            if (count > 0) return count;
+            byte[] bytes = downloadBytes("https://" + HOST + ROOT + "README.md", 4 * 1024 * 1024);
+            count = nativeLoad(dir, bytes);
+            if (count <= 0) throw new IllegalStateException("The headphone database returned no models");
+            return count;
+        } catch (UnsatisfiedLinkError ignored) {
+            List<Headphone> list = load(directory);
+            fallbackCatalog = list;
+            return list.size();
+        }
+    }
+
+    static List<Headphone> search(String query, int limit) {
+        try {
+            byte[] packed = nativeSearch(query, limit);
+            if (packed != null) return unpackPairs(packed);
+        } catch (UnsatisfiedLinkError ignored) {
+            // Fall back to pure Java if native library is absent.
+        }
+        List<Headphone> list = fallbackCatalog;
+        List<Headphone> out = new ArrayList<>();
+        if (list == null) return out;
+        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        if (q.isEmpty()) return out;
+        for (Headphone h : list) {
+            if (!h.query.contains(q)) continue;
+            out.add(h);
+            if (out.size() >= limit) break;
+        }
+        return out;
+    }
+
     static List<Headphone> load(File directory) throws Exception {
         File cache = new File(directory, "autoeq-headphones.md");
         if (cache.isFile()) {
@@ -68,6 +143,10 @@ final class AutoEqCatalog {
     static String profile(Headphone headphone) throws Exception { return download(headphone.url, 256 * 1024); }
 
     private static String download(String address, int limit) throws Exception {
+        return new String(downloadBytes(address, limit), StandardCharsets.UTF_8);
+    }
+
+    private static byte[] downloadBytes(String address, int limit) throws Exception {
         URI uri = URI.create(address);
         if (!"https".equals(uri.getScheme()) || !HOST.equals(uri.getHost()) || !uri.getPath().startsWith(ROOT))
             throw new IllegalArgumentException("Unsupported headphone profile address");
@@ -77,17 +156,21 @@ final class AutoEqCatalog {
         connection.setInstanceFollowRedirects(false);
         try {
             if (connection.getResponseCode() != 200) throw new IllegalStateException("The headphone download failed (HTTP " + connection.getResponseCode() + ")");
-            try (InputStream stream = connection.getInputStream()) { return read(stream, limit); }
+            try (InputStream stream = connection.getInputStream()) { return readBytes(stream, limit); }
         } finally { connection.disconnect(); }
     }
 
     private static String read(InputStream stream, int limit) throws Exception {
+        return new String(readBytes(stream, limit), StandardCharsets.UTF_8);
+    }
+
+    private static byte[] readBytes(InputStream stream, int limit) throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
         for (int count; (count = stream.read(buffer)) != -1;) {
             if (bytes.size() + count > limit) throw new IllegalArgumentException("The headphone data is too large");
             bytes.write(buffer, 0, count);
         }
-        return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+        return bytes.toByteArray();
     }
 }

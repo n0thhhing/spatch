@@ -113,13 +113,20 @@ public final class Audio {
         return profile;
     }
 
+    private static volatile String cachedGraphicEqRaw;
+    private static volatile GraphicEqProfile cachedGraphicEqProfile;
+
     /** Load the currently saved GraphicEQ profile, or null if absent/invalid. */
     public static GraphicEqProfile loadGraphicEq(SharedPreferences prefs) {
         if (prefs == null) return null;
         String raw = prefs.getString("eq_autoeq_curve", "");
         if (raw == null || raw.trim().isEmpty()) return null;
+        if (raw.equals(cachedGraphicEqRaw)) return cachedGraphicEqProfile;
         try {
-            return GraphicEqProfile.parse(raw);
+            GraphicEqProfile parsed = GraphicEqProfile.parse(raw);
+            cachedGraphicEqRaw = raw;
+            cachedGraphicEqProfile = parsed;
+            return parsed;
         } catch (IllegalArgumentException invalid) {
             return null;
         }
@@ -181,12 +188,13 @@ public final class Audio {
 
         float[] eqBandHz = buildBandFrequencies(cfg.wantsHiResEq());
         float[] eqBandGains = new float[eqBandHz.length];
-        float peakEqBoostDb = 0f;
-        for (int i = 0; i < eqBandHz.length; i++) {
-            float g = evaluateCombinedEqGain(eqBandHz[i], cfg);
-            eqBandGains[i] = g;
-            if (g > peakEqBoostDb) peakEqBoostDb = g;
-        }
+        float peakEqBoostDb = evaluateBands(
+            eqBandHz,
+            cfg.geqEnabled, cfg.geqGains,
+            cfg.autoEqEnabled ? cfg.autoEqProfile : null, cfg.autoEqIntensity,
+            cfg.loudnessEnabled, cfg.volumeFraction, cfg.loudnessThreshold / 100f,
+            eqBandGains
+        );
         float peakBassBoostDb = cfg.bassTunerEnabled ? Math.max(0f, cfg.bassTunerPostGainDb) : 0f;
         float peakLimiterPostDb = cfg.limiterEnabled ? Math.max(0f, cfg.limiterPostGainDb) : 0f;
         float autoAttenDb = -Math.max(0f, peakEqBoostDb + peakBassBoostDb + peakLimiterPostDb);
@@ -243,6 +251,38 @@ public final class Audio {
             out[i] = (float) Math.exp(logMin + t * (logMax - logMin));
         }
         return out;
+    }
+
+    static float evaluateBands(
+        float[] eqBandHz,
+        boolean geqEnabled, float[] geqGains,
+        GraphicEqProfile autoEqProfile, float autoEqIntensity,
+        boolean loudnessEnabled, float volumeFraction, float thresholdFraction,
+        float[] outGains
+    ) {
+        try {
+            return nativeEvaluateBands(
+                eqBandHz,
+                geqEnabled, geqGains,
+                autoEqProfile != null ? autoEqProfile.freqs : null,
+                autoEqProfile != null ? autoEqProfile.gains : null,
+                autoEqIntensity,
+                loudnessEnabled, volumeFraction, thresholdFraction,
+                outGains
+            );
+        } catch (UnsatisfiedLinkError ignored) {
+            float peak = 0f;
+            for (int i = 0; i < eqBandHz.length; i++) {
+                float hz = eqBandHz[i];
+                float total = 0f;
+                if (geqEnabled && geqGains != null) total += gainAt(hz, geqGains);
+                if (autoEqProfile != null) total += autoEqProfile.evaluate(hz, autoEqIntensity);
+                if (loudnessEnabled) total += Iso226.compensationDb(hz, volumeFraction, thresholdFraction);
+                outGains[i] = total;
+                if (total > peak) peak = total;
+            }
+            return peak;
+        }
     }
 
     private static float evaluateCombinedEqGain(float hz, DspSettings cfg) {
@@ -581,6 +621,29 @@ public final class Audio {
         }
 
         public static GraphicEqProfile parse(String raw) {
+            if (raw == null) throw new IllegalArgumentException("GraphicEQ text is null");
+            try {
+                float[] flat = nativeParseGraphicEq(raw);
+                if (flat != null && flat.length >= 4 && (flat.length & 1) == 0) {
+                    int n = flat.length >>> 1;
+                    float[] freqs = new float[n];
+                    float[] gains = new float[n];
+                    System.arraycopy(flat, 0, freqs, 0, n);
+                    System.arraycopy(flat, n, gains, 0, n);
+                    StringBuilder canonical = new StringBuilder(12 + n * 16).append("GraphicEQ: ");
+                    for (int i = 0; i < n; i++) {
+                        if (i > 0) canonical.append("; ");
+                        canonical.append(freqs[i]).append(' ').append(gains[i]);
+                    }
+                    return new GraphicEqProfile(freqs, gains, canonical.toString());
+                }
+            } catch (UnsatisfiedLinkError ignored) {
+                // Fall back to pure Java when running standalone without libspatch_app.
+            }
+            return parseJava(raw);
+        }
+
+        static GraphicEqProfile parseJava(String raw) {
             if (raw == null) throw new IllegalArgumentException("GraphicEQ text is null");
             if (raw.length() > 256 * 1024) throw new IllegalArgumentException("GraphicEQ profile is too large");
             String body = raw.trim();
@@ -1154,9 +1217,17 @@ public final class Audio {
         }
     }
 
-    // The analysis is in Rust (app/src/spectrum.rs): 48 bands, then bass, level, kick, strongest band and reference.
+    // The analysis and EQ curve solver are in Rust (app/src/spectrum.rs, eq.rs).
     private static native void nativeAnalyse(byte[] fft, int rateHz, float dtMs, long nowMs, float[] out);
     private static native void nativeReset();
+    private static native float[] nativeParseGraphicEq(String raw);
+    private static native float nativeEvaluateBands(
+        float[] eqHz,
+        boolean geqEnabled, float[] geqGains,
+        float[] autoFreqs, float[] autoGains, float autoIntensity,
+        boolean loudnessEnabled, float volumeFraction, float thresholdFraction,
+        float[] outGains
+    );
     private static final float[] OUT = new float[53];
     private static long loggedAt;
 

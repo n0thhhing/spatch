@@ -2,8 +2,8 @@
 //! screen opens instantly with what it showed last time while the core is asked again.
 
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JObjectArray, JString};
-use jni::sys::jobjectArray;
+use jni::objects::{JByteArray, JClass, JString};
+use jni::sys::jbyteArray;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -53,7 +53,13 @@ pub fn get(key: &str) -> Option<Vec<u8>> {
 
 /// Strings as a 4-byte little-endian length and the UTF-8 bytes, one after another.
 pub fn encode(fields: &[String]) -> Vec<u8> {
-    fields.iter().flat_map(|f| (f.len() as u32).to_le_bytes().into_iter().chain(f.bytes())).collect()
+    let total: usize = fields.iter().map(|f| 4 + f.len()).sum();
+    let mut out = Vec::with_capacity(total);
+    for f in fields {
+        out.extend_from_slice(&(f.len() as u32).to_le_bytes());
+        out.extend_from_slice(f.as_bytes());
+    }
+    out
 }
 
 fn decode_one(bytes: &[u8]) -> Option<(String, usize)> {
@@ -79,35 +85,20 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCacheDir(mut env: JNIEnv, _: J
     }
 }
 
-/// The strings last remembered under `key`, or null.
+/// The packed UTF-8 bytes last remembered under `key`, or null.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeCached(mut env: JNIEnv, _: JClass, key: JString) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativeCached(mut env: JNIEnv, _: JClass, key: JString) -> jbyteArray {
     let Ok(key) = env.get_string(&key).map(String::from) else { return std::ptr::null_mut() };
-    let Some(fields) = get(&key).and_then(|b| decode(&b)) else { return std::ptr::null_mut() };
-    let Ok(array) = env.new_object_array(fields.len() as i32, "java/lang/String", JObject::null()) else {
-        return std::ptr::null_mut();
-    };
-    for (i, field) in fields.iter().enumerate() {
-        let Ok(s) = env.new_string(field) else { return std::ptr::null_mut() };
-        let _ = env.set_object_array_element(&array, i as i32, &s);
-        let _ = env.delete_local_ref(s);
-    }
-    array.into_raw()
+    let Some(bytes) = get(&key) else { return std::ptr::null_mut() };
+    env.byte_array_from_slice(&bytes).map_or(std::ptr::null_mut(), |a| a.into_raw())
 }
 
-/// Remembers a screen's answer under `key`.
+/// Remembers a screen's packed answer under `key`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeRemember(mut env: JNIEnv, _: JClass, key: JString, fields: JObjectArray) {
+pub extern "system" fn Java_spatch_SpatchUi_nativeRemember(mut env: JNIEnv, _: JClass, key: JString, packed: JByteArray) {
     let Ok(key) = env.get_string(&key).map(String::from) else { return };
-    let Ok(len) = env.get_array_length(&fields) else { return };
-    let mut values = Vec::with_capacity(len as usize);
-    for i in 0..len {
-        let Ok(item) = env.get_object_array_element(&fields, i) else { return };
-        let item = JString::from(item);
-        values.push(env.get_string(&item).map(String::from).unwrap_or_default());
-        let _ = env.delete_local_ref(item);
-    }
-    put(&key, &encode(&values));
+    let Ok(bytes) = env.convert_byte_array(&packed) else { return };
+    put(&key, &bytes);
 }
 
 #[cfg(test)]

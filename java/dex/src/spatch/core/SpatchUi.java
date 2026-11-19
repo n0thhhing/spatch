@@ -48,24 +48,26 @@ import java.util.concurrent.Executors;
  */
 public final class SpatchUi extends FrameLayout {
     // ---- Rust (app/src/ui.rs, shapes.rs) ----
+    private static native void nativeAttachUi();
+    private static native void nativeRevisions(long[] out);
     private static native boolean nativeConnect();
-    private static native String[] nativePlayer(long revision);
+    private static native byte[] nativePlayer(long revision);
     private static native String nativeLibrary();
     private static native boolean nativeRefreshLibrary();
-    private static native String[] nativeEntries(int filter, String query, boolean alphabetical, int limit);
-    private static native String[] nativeRecent();
+    private static native byte[] nativeEntries(int filter, String query, boolean alphabetical, int limit);
+    private static native byte[] nativeRecent();
     private static native String nativeLiked();
     private static native String nativeLikedNote();
-    private static native String[] nativePlaylist(String uri, int offset);
-    private static native String[] nativePage(String uri);
+    private static native byte[] nativePlaylist(String uri, int offset);
+    private static native byte[] nativePage(String uri);
     private static native String[] nativeDevices();
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
     private static native String nativeBuild();
-    private static native String[] nativeSearch(String query);
-    private static native String[] nativeCatalog(byte[] response);
+    private static native byte[] nativeSearch(String query);
+    private static native byte[] nativeCatalog(byte[] response);
     private static native void nativeDownloadsStart();
-    private static native String[] nativeDownloads();
+    private static native byte[] nativeDownloads();
     private static native long nativeDownloadsRevision();
     private static native long nativeDownloadsSet();
     private static native String nativeDownload(String uri, int action);
@@ -76,12 +78,12 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeWatchPlaylist(String uri, String key);
     private static native void nativeStopPlaylist();
     private static native long nativePlaylistRevision();
-    private static native String[] nativePlaylistRest(String uri, int offset);
-    private static native void nativeSongs(String[] fields);
+    private static native byte[] nativePlaylistRest(String uri, int offset);
+    private static native void nativeSongs(byte[] packed);
     private static native int[] nativeArrange(String query, int sort);
     private static native boolean nativePlayFrom(String context, String track, int index);
-    private static native String[] nativeCached(String key);
-    private static native void nativeRemember(String key, String[] fields);
+    private static native byte[] nativeCached(String key);
+    private static native void nativeRemember(String key, byte[] packed);
     private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
     private static native int nativeSeed(int[] pixels);
     private static native void nativeRing(int perSide, float[] out);
@@ -138,7 +140,7 @@ public final class SpatchUi extends FrameLayout {
     private int settingsSection = -1, navHover = -1;
     private final java.util.ArrayDeque<Integer> tabHistory = new java.util.ArrayDeque<>();
     private int soundPanel = -1, headphoneRequest;
-    private List<AutoEqCatalog.Headphone> headphones;
+    private int headphoneCount = -1;
     private String headphoneQuery = "", headphoneError = "", headphoneLoading = "";
     private boolean headphonesLoading;
     private LinearLayout headphoneResults;
@@ -516,19 +518,30 @@ public final class SpatchUi extends FrameLayout {
         int lightBars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         decor.setSystemUiVisibility(dark ? decor.getSystemUiVisibility() & ~lightBars : decor.getSystemUiVisibility() | lightBars);
         requestFocus();
+        activeUi = new java.lang.ref.WeakReference<>(this);
+        nativeAttachUi();
+        removeCallbacks(syncPush);
         removeCallbacks(poll);
         post(poll);
     }
 
     @Override protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
+        removeCallbacks(syncPush);
         removeCallbacks(poll);
-        if (visibility == VISIBLE && isAttachedToWindow()) post(poll);
+        if (visibility == VISIBLE && isAttachedToWindow()) {
+            activeUi = new java.lang.ref.WeakReference<>(this);
+            nativeAttachUi();
+            post(poll);
+        }
     }
 
     @Override protected void onDetachedFromWindow() {
         if (accountMenu != null) accountMenu.dismiss();
         closeCreateMenu();
+        java.lang.ref.WeakReference<SpatchUi> ref = activeUi;
+        if (ref != null && ref.get() == this) activeUi = null;
+        removeCallbacks(syncPush);
         removeCallbacks(poll);
         if (paletteAnim != null) { paletteAnim.cancel(); paletteAnim = null; }
         super.onDetachedFromWindow();
@@ -567,11 +580,112 @@ public final class SpatchUi extends FrameLayout {
         else activity.moveTaskToBack(true);
     }
 
+    private static final byte[] EMPTY_BYTES = new byte[0];
+
+    /** Unpacks Rust's length-prefixed UTF-8 wire buffer (cache::encode) in one pass after counting fields. */
+    static String[] unpackStrings(byte[] raw) {
+        if (raw == null) return null;
+        int n = 0, pos = 0, end = raw.length;
+        while (pos + 4 <= end) {
+            int len = (raw[pos] & 0xff) | ((raw[pos + 1] & 0xff) << 8)
+                | ((raw[pos + 2] & 0xff) << 16) | ((raw[pos + 3] & 0xff) << 24);
+            pos += 4;
+            if (len < 0 || pos + len > end) return null;
+            pos += len;
+            n++;
+        }
+        if (pos != end) return null;
+        String[] out = new String[n];
+        pos = 0;
+        for (int i = 0; i < n; i++) {
+            int len = (raw[pos] & 0xff) | ((raw[pos + 1] & 0xff) << 8)
+                | ((raw[pos + 2] & 0xff) << 16) | ((raw[pos + 3] & 0xff) << 24);
+            pos += 4;
+            out[i] = len == 0 ? "" : new String(raw, pos, len, java.nio.charset.StandardCharsets.UTF_8);
+            pos += len;
+        }
+        return out;
+    }
+
+    /** Packs strings into Rust's length-prefixed UTF-8 wire buffer (cache::encode) for a single JNI copy. */
+    static byte[] packStrings(String[] values) {
+        if (values == null || values.length == 0) return EMPTY_BYTES;
+        byte[][] encoded = new byte[values.length][];
+        int total = 0;
+        for (int i = 0; i < values.length; i++) {
+            String s = values[i];
+            byte[] b = (s == null || s.isEmpty()) ? EMPTY_BYTES : s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            encoded[i] = b;
+            total += 4 + b.length;
+        }
+        byte[] out = new byte[total];
+        int pos = 0;
+        for (byte[] b : encoded) {
+            int len = b.length;
+            out[pos] = (byte) len;
+            out[pos + 1] = (byte) (len >>> 8);
+            out[pos + 2] = (byte) (len >>> 16);
+            out[pos + 3] = (byte) (len >>> 24);
+            pos += 4;
+            if (len > 0) {
+                System.arraycopy(b, 0, out, pos, len);
+                pos += len;
+            }
+        }
+        return out;
+    }
+
+    private static volatile java.lang.ref.WeakReference<SpatchUi> activeUi;
+    private final long[] revisions = new long[5];
+
+    /** Called by Rust (from any thread) whenever player, library, playlist, or download state changes. */
+    static boolean onNativeChange() {
+        java.lang.ref.WeakReference<SpatchUi> ref = activeUi;
+        SpatchUi ui = ref == null ? null : ref.get();
+        if (ui == null || !ui.isAttachedToWindow() || ui.getWindowVisibility() != VISIBLE) return false;
+        ui.post(ui.syncPush);
+        return true;
+    }
+
+    private final Runnable syncPush = this::syncNativeState;
+
+    private void syncNativeState() {
+        if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
+        nativeRevisions(revisions);
+        if (revisions[0] != revision) {
+            String[] state = unpackStrings(nativePlayer(revision));
+            if (state != null) applyPlayer(state);
+        }
+        long listRevision = revisions[1];
+        if (listRevision != playlistRevision) {
+            playlistRevision = listRevision;
+            Entry open = playlist;
+            // The push carries the first page only, so ask again for the whole playlist; it redraws if it changed.
+            if (open != null && !isDetail(open) && !playlistLoading) loadPlaylist(open, 1);
+        }
+        long downloadsNow = revisions[2];
+        if (downloadsNow != downloadRevision) {
+            downloadRevision = downloadsNow;
+            pullDownloads();
+            long setNow = revisions[3];
+            boolean setChanged = setNow != downloadSetRevision;
+            downloadSetRevision = setNow;
+            onDownloadsChanged(setChanged);
+        }
+        long libRevision = revisions[4];
+        if (libRevision != libraryRevision) {
+            libraryRevision = libRevision;
+            // Not while you're typing in a search box: the rebuild would throw the text and keyboard away.
+            if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS && tab != SEARCH && !(findFocus() instanceof android.widget.EditText)) showPageKeepingPlace();
+            else if (findFocus() instanceof android.widget.EditText) libraryRevision--;
+        }
+    }
+
+    /** Low-frequency connection/retry maintenance; live state updates arrive immediately via onNativeChange(). */
     private final Runnable poll = new Runnable() {
         @Override public void run() {
             if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
-            String[] state = nativePlayer(revision);
-            if (state != null) applyPlayer(state);
+            syncNativeState();
             if (equalizerStatus != null && equalizerStatus.isAttachedToWindow()) equalizerStatus.setText(soundStatus());
             long now = SystemClock.uptimeMillis();
             if (!polling && now - lastConnect > 2000) {
@@ -582,31 +696,7 @@ public final class SpatchUi extends FrameLayout {
                 });
             }
             if (!libraryReady && !fetching && now >= libraryRetry) loadLibrary();
-            // The library changed (Spotify pushed it to the core, which streamed it to Rust): redraw.
-            long listRevision = nativePlaylistRevision();
-            if (listRevision != playlistRevision) {
-                playlistRevision = listRevision;
-                Entry open = playlist;
-                // The push carries the first page only, so ask again for the whole playlist; it redraws if it changed.
-                if (open != null && !isDetail(open) && !playlistLoading) loadPlaylist(open, 1);
-            }
-            long downloadsNow = nativeDownloadsRevision();
-            if (downloadsNow != downloadRevision) {
-                downloadRevision = downloadsNow;
-                pullDownloads();
-                long setNow = nativeDownloadsSet();
-                boolean setChanged = setNow != downloadSetRevision;
-                downloadSetRevision = setNow;
-                onDownloadsChanged(setChanged);
-            }
-            long libRevision = nativeLibraryRevision();
-            if (libRevision != libraryRevision) {
-                libraryRevision = libRevision;
-                // Not while you're typing in a search box: the rebuild would throw the text and keyboard away.
-                if (libraryReady && playlist == null && sheetClose == null && tab != SETTINGS && tab != SEARCH && !(findFocus() instanceof android.widget.EditText)) showPageKeepingPlace();
-                else if (findFocus() instanceof android.widget.EditText) libraryRevision--;
-            }
-            postDelayed(this, 350);
+            postDelayed(this, 2000);
         }
     };
 
@@ -828,7 +918,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void pullDownloads() {
-        String[] f = nativeDownloads();
+        String[] f = unpackStrings(nativeDownloads());
         downloads.clear();
         if (f != null) for (int i = 0; i + 2 < f.length; i += 3) downloads.put(f[i], new int[]{parseInt(f[i + 1]), parseInt(f[i + 2])});
     }
@@ -1761,7 +1851,7 @@ public final class SpatchUi extends FrameLayout {
             String next = "", error = "";
             try {
                 if (online) {
-                    String[] response = nativeCatalog(CoreBridge.search(q, token));
+                    String[] response = unpackStrings(nativeCatalog(CoreBridge.search(q, token)));
                     if (response == null || response.length == 0 || (response.length - 1) % 6 != 0)
                         throw new IllegalStateException("Invalid search response");
                     next = response[0];
@@ -1774,7 +1864,7 @@ public final class SpatchUi extends FrameLayout {
                             response[i + 3], response[i + 4]);
                     }
                     found = hits.toArray(new String[0]);
-                } else found = nativeSearch(q);
+                } else found = unpackStrings(nativeSearch(q));
             } catch (Exception failed) {
                 error = failed.toString();
                 android.util.Log.w("SpatchUi", "Search failed", failed);
@@ -2382,10 +2472,10 @@ public final class SpatchUi extends FrameLayout {
         if (category == DOWNLOADED) {
             // The Library's Downloaded filter: whatever is downloaded or on its way.
             List<Entry> out = new ArrayList<>();
-            for (Entry e : entryList(nativeEntries(-1, search, alphabetical, 400))) if (downloadState(e.uri) != 0 && out.size() < limit) out.add(e);
+            for (Entry e : entryList(unpackStrings(nativeEntries(-1, search, alphabetical, 400)))) if (downloadState(e.uri) != 0 && out.size() < limit) out.add(e);
             return out;
         }
-        return entryList(nativeEntries(category, search, alphabetical, limit));
+        return entryList(unpackStrings(nativeEntries(category, search, alphabetical, limit)));
     }
 
     private List<Entry> entries(int category, int limit) { return entries(category, "", false, limit); }
@@ -2402,16 +2492,16 @@ public final class SpatchUi extends FrameLayout {
         boolean first = recentAt == 0 && recent.isEmpty();
         PLAYLISTS.execute(() -> {
             if (first) {
-                String[] saved = nativeCached("recent");
+                String[] saved = unpackStrings(nativeCached("recent"));
                 if (saved != null) post(() -> {
                     if (!recent.isEmpty()) return;
                     recent = entryList(saved);
                     if (tab == HOME && playlist == null && sheetClose == null) showPage();
                 });
             }
-            String[] fresh = nativeRecent();
-            if (fresh != null && fresh.length > 0) nativeRemember("recent", fresh);
-            List<Entry> got = entryList(fresh);
+            byte[] freshBytes = nativeRecent();
+            if (freshBytes != null && freshBytes.length > 0) nativeRemember("recent", freshBytes);
+            List<Entry> got = entryList(unpackStrings(freshBytes));
             post(() -> {
                 loadingRecent = false;
                 recentAt = SystemClock.uptimeMillis();
@@ -2873,28 +2963,30 @@ public final class SpatchUi extends FrameLayout {
             String key = (isDetail(e) ? "page2:" : "playlist4:") + e.uri;
             // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
             if (attempt == 0) {
-                String[] saved = nativeCached(key);
+                String[] saved = unpackStrings(nativeCached(key));
                 if (saved != null) post(() -> { if (request == playlistRequest && playlist == e && playlistLoading) applyReply(e, saved, true); });
             }
             // Liked Songs' link includes your username, which Spotify has to be asked for first.
             String target = liked(e.uri) ? nativeLiked() : e.uri;
             if (target == null || target.isEmpty()) target = e.uri;
             final String resolved = target;
-            String[] first = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
+            byte[] firstBytes = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
+            String[] first = unpackStrings(firstBytes);
             boolean ok = first != null && first.length >= (isDetail(e) ? 6 : 2) && first[0].isEmpty();
             int more = ok && !isDetail(e) ? parseInt(first[1]) : 0;
             String[] full;
             if (more > 0) {
                 // Long playlist: show the first page now if nothing is on screen, then fetch the rest and show it all.
                 post(() -> { if (request == playlistRequest && playlist == e && shownReply == null) applyReply(e, first, false); });
-                String[] rest = nativePlaylistRest(resolved, more);
+                String[] rest = unpackStrings(nativePlaylistRest(resolved, more));
+                if (rest == null) rest = new String[0];
                 String[] all = java.util.Arrays.copyOf(first, first.length + rest.length);
                 System.arraycopy(rest, 0, all, first.length, rest.length);
                 all[1] = "0";
                 full = all;
             } else full = first;
             final String[] r = full;
-            if (ok) nativeRemember(key, r);
+            if (ok) nativeRemember(key, more > 0 ? packStrings(r) : firstBytes);
             // From here on Spotify pushes this playlist whenever it changes; the poll reloads it.
             if (ok && !isDetail(e) && playlist == e) { nativeWatchPlaylist(resolved, "push:" + e.uri); watchingPlaylist = true; }
             post(() -> {
@@ -2963,7 +3055,7 @@ public final class SpatchUi extends FrameLayout {
                 if (song.uri.equals(uri) && song.duration > 0) { duration = song.duration; break; }
             }
             songFields = kept.toArray(new String[0]);
-            nativeSongs(songFields);
+            nativeSongs(packStrings(songFields));
             arrangeSongs();
         }
         showPage();
@@ -3783,6 +3875,10 @@ public final class SpatchUi extends FrameLayout {
     private final class EqualizerCurve extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path line = new Path(), area = new Path();
+        private final Typeface labelFace = Typeface.create("sans-serif", Typeface.NORMAL);
+        private LinearGradient fillGradient;
+        private float gradTop = -1, gradBottom = -1;
+        private int gradAccent;
         Runnable selection, edit;
         private float downY;
         private boolean moved;
@@ -3798,7 +3894,7 @@ public final class SpatchUi extends FrameLayout {
             super.onDraw(c);
             float width = right() - left();
             if (width <= 0) return;
-            paint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            paint.setTypeface(labelFace);
             paint.setTextSize(dp(9)); paint.setStrokeWidth(dp(1));
             for (int db = -12; db <= 12; db += 6) {
                 paint.setColor(inkDim); paint.setAlpha(db == 0 ? 65 : 24);
@@ -3817,7 +3913,12 @@ public final class SpatchUi extends FrameLayout {
                 c.drawText(hz, x, bottom() + dp(20), paint);
             }
             area.set(line); area.lineTo(right(), bottom()); area.lineTo(left(), bottom()); area.close();
-            paint.setShader(new LinearGradient(0, top(), 0, bottom(), (accent & 0xffffff) | 0x44000000, accent & 0xffffff, Shader.TileMode.CLAMP));
+            float t = top(), b = bottom();
+            if (fillGradient == null || gradTop != t || gradBottom != b || gradAccent != accent) {
+                gradTop = t; gradBottom = b; gradAccent = accent;
+                fillGradient = new LinearGradient(0, t, 0, b, (accent & 0xffffff) | 0x44000000, accent & 0xffffff, Shader.TileMode.CLAMP);
+            }
+            paint.setShader(fillGradient);
             paint.setStyle(Paint.Style.FILL); paint.setAlpha(255); c.drawPath(area, paint); paint.setShader(null);
             paint.setColor(accent); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(dp(2.5f)); paint.setStrokeJoin(Paint.Join.ROUND); c.drawPath(line, paint);
             paint.setStyle(Paint.Style.FILL);
@@ -4019,16 +4120,16 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void loadHeadphones() {
-        if (headphones != null || headphonesLoading) return;
+        if (headphoneCount > 0 || headphonesLoading) return;
         headphonesLoading = true; headphoneError = "";
         PLAYLISTS.execute(() -> {
-            List<AutoEqCatalog.Headphone> found = null;
+            int found = -1;
             String error = "";
-            try { found = AutoEqCatalog.load(activity.getFilesDir()); }
+            try { found = AutoEqCatalog.loadIndex(activity.getFilesDir()); }
             catch (Exception failed) { error = failed.getMessage() == null ? "Couldn’t load the headphone database" : failed.getMessage(); }
-            final List<AutoEqCatalog.Headphone> result = found;
+            final int result = found;
             final String failure = error;
-            post(() -> { headphonesLoading = false; headphones = result; headphoneError = failure; renderHeadphones(); });
+            post(() -> { headphonesLoading = false; headphoneCount = result; headphoneError = failure; renderHeadphones(); });
         });
     }
 
@@ -4041,12 +4142,11 @@ public final class SpatchUi extends FrameLayout {
             rows.addView(pill("Retry", () -> { headphoneError = ""; loadHeadphones(); renderHeadphones(); }));
             return;
         }
-        if (headphones == null) { soundNote(rows, "Loading the AutoEq headphone database…"); return; }
-        String query = headphoneQuery.trim().toLowerCase(java.util.Locale.ROOT);
-        if (query.isEmpty()) { soundNote(rows, headphones.size() + " headphone models. Search for your exact model."); return; }
-        int shown = 0;
-        for (AutoEqCatalog.Headphone headphone : headphones) {
-            if (!headphone.query.contains(query)) continue;
+        if (headphoneCount <= 0) { soundNote(rows, "Loading the AutoEq headphone database…"); return; }
+        String query = headphoneQuery.trim();
+        if (query.isEmpty()) { soundNote(rows, headphoneCount + " headphone models. Search for your exact model."); return; }
+        List<AutoEqCatalog.Headphone> matches = AutoEqCatalog.search(query, 40);
+        for (AutoEqCatalog.Headphone headphone : matches) {
             settingsAction(rows, headphone.name, headphoneLoading.equals(headphone.name) ? "Loading correction…" : "Load this AutoEq correction", () -> {
                 hideKeyboard();
                 headphoneLoading = headphone.name;
@@ -4069,9 +4169,8 @@ public final class SpatchUi extends FrameLayout {
                     });
                 });
             });
-            if (++shown == 40) break;
         }
-        if (shown == 0) soundNote(rows, "No matching headphones. Try the brand and model name, or import your own correction.");
+        if (matches.isEmpty()) soundNote(rows, "No matching headphones. Try the brand and model name, or import your own correction.");
     }
 
     private void activateProfile(String name, String curve) {
@@ -5338,8 +5437,20 @@ public final class SpatchUi extends FrameLayout {
             invalidate();
         }
 
+        private Bitmap shaderBmpA, shaderBmpB;
+        private BitmapShader shaderA, shaderB;
+
+        private BitmapShader shaderFor(Bitmap b) {
+            if (b == shaderBmpA) return shaderA;
+            if (b == shaderBmpB) return shaderB;
+            BitmapShader s = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            shaderBmpB = shaderBmpA; shaderB = shaderA;
+            shaderBmpA = b; shaderA = s;
+            return s;
+        }
+
         private void drawCover(Canvas c, Bitmap b, int alpha, float radius) {
-            BitmapShader shader = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            BitmapShader shader = shaderFor(b);
             float k = Math.max(box.width() / b.getWidth(), box.height() / b.getHeight());
             crop.setScale(k, k);
             crop.postTranslate(box.left + (box.width() - b.getWidth() * k) / 2, box.top + (box.height() - b.getHeight() * k) / 2);
@@ -5463,8 +5574,20 @@ public final class SpatchUi extends FrameLayout {
             }
         }
 
-        private void wash(Canvas c, Bitmap blur, float w, float h, int alpha) {
+        private Bitmap washBmpA, washBmpB;
+        private BitmapShader washShaderA, washShaderB;
+
+        private BitmapShader washShaderFor(Bitmap blur) {
+            if (blur == washBmpA) return washShaderA;
+            if (blur == washBmpB) return washShaderB;
             BitmapShader s = new BitmapShader(blur, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            washBmpB = washBmpA; washShaderB = washShaderA;
+            washBmpA = blur; washShaderA = s;
+            return s;
+        }
+
+        private void wash(Canvas c, Bitmap blur, float w, float h, int alpha) {
+            BitmapShader s = washShaderFor(blur);
             m.setScale(w / blur.getWidth(), h / blur.getHeight());
             s.setLocalMatrix(m);
             paint.setShader(s);

@@ -3,8 +3,10 @@
 //! `bridge` reaches the core through Java (spatch.CoreBridge), `spotify` speaks its services,
 //! `ui` is what SpatchUi.java calls, `shapes` supplies icon and button geometry.
 
+pub mod autoeq;
 pub mod bridge;
 pub mod cache;
+pub mod eq;
 pub mod palette;
 pub mod shapes;
 pub mod spectrum;

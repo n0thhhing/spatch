@@ -208,20 +208,25 @@ fn with<T>(f: impl FnOnce(&mut Shared) -> T) -> T {
     f(SHARED.lock().unwrap().get_or_insert_with(Shared::default))
 }
 
+fn bump_revision(set_changed: bool) {
+    REVISION.fetch_add(1, Ordering::SeqCst);
+    if set_changed {
+        SET_REVISION.fetch_add(1, Ordering::SeqCst);
+    }
+    crate::bridge::notify_ui();
+}
+
 fn record(downloads: &[Download]) {
     let changed = with(|s| downloads.iter().fold(false, |acc, d| s.put(d) | acc));
-    REVISION.fetch_add(1, Ordering::Relaxed);
-    if changed {
-        SET_REVISION.fetch_add(1, Ordering::Relaxed);
-    }
+    bump_revision(changed);
 }
 
 pub fn revision() -> u64 {
-    REVISION.load(Ordering::Relaxed)
+    REVISION.load(Ordering::SeqCst)
 }
 
 pub fn set_revision() -> u64 {
-    SET_REVISION.load(Ordering::Relaxed)
+    SET_REVISION.load(Ordering::SeqCst)
 }
 
 /// Everything downloaded or on its way, by uri.
@@ -261,8 +266,7 @@ mod core {
         }
         found.retain(|d| d.state != State::NotDownloaded);
         with(|s| s.map = found.iter().map(|d| (d.uri.clone(), (d.state, d.percent))).collect());
-        REVISION.fetch_add(1, Ordering::Relaxed);
-        SET_REVISION.fetch_add(1, Ordering::Relaxed);
+        bump_revision(true);
         Ok(())
     }
 
@@ -286,7 +290,7 @@ mod core {
         let _ = bridge::subscribe(SERVICE, "SubscribeTotalProgress", &[], |reply| {
             if let Ok(bytes) = reply {
                 with(|s| s.total = decode_total(bytes));
-                REVISION.fetch_add(1, Ordering::Relaxed);
+                bump_revision(false);
             }
         });
     }
@@ -316,8 +320,7 @@ mod core {
     pub fn remove_all() -> Result<(), String> {
         bridge::call(SERVICE, "RemoveAllDownloads", &[])?;
         with(|s| s.map.clear());
-        REVISION.fetch_add(1, Ordering::Relaxed);
-        SET_REVISION.fetch_add(1, Ordering::Relaxed);
+        bump_revision(true);
         Ok(())
     }
 
@@ -400,8 +403,7 @@ mod demo {
 
     pub fn remove_all() -> Result<(), String> {
         with(|s| s.map.clear());
-        REVISION.fetch_add(1, Ordering::Relaxed);
-        SET_REVISION.fetch_add(1, Ordering::Relaxed);
+        bump_revision(true);
         refresh_total();
         Ok(())
     }

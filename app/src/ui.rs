@@ -10,7 +10,7 @@ use jni::objects::{JByteArray, JClass, JObjectArray, JString};
 use crate::protos::com::spotify::player::esperanto::proto as es;
 #[cfg(not(feature = "preview"))]
 use prost::Message;
-use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jlong, jobjectArray, jstring};
+use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jbyteArray, jint, jlong, jobjectArray, jstring};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -38,20 +38,28 @@ fn connect_queue() {
         return;
     }
     if bridge::subscribe(player::SERVICE, "GetQueue", &es::GetQueueRequest::default().encode_to_vec(), |reply| {
-        let mut state = PLAYER.lock().unwrap();
-        let mut queue = QUEUE_STATE.lock().unwrap();
-        match reply {
-            Ok(bytes) => {
-                if let Ok(next) = es::Queue::decode(bytes) {
-                    *queue = Some(next);
+        let mut changed = false;
+        {
+            let mut state = PLAYER.lock().unwrap();
+            let mut queue = QUEUE_STATE.lock().unwrap();
+            match reply {
+                Ok(bytes) => {
+                    if let Ok(next) = es::Queue::decode(bytes) {
+                        *queue = Some(next);
+                        state.0 += 1;
+                        changed = true;
+                    }
+                }
+                Err(_) => {
+                    *queue = None;
                     state.0 += 1;
+                    QUEUE_CONNECTED.store(false, Ordering::Release);
+                    changed = true;
                 }
             }
-            Err(_) => {
-                *queue = None;
-                state.0 += 1;
-                QUEUE_CONNECTED.store(false, Ordering::Release);
-            }
+        }
+        if changed {
+            bridge::notify_ui();
         }
     }).is_err() {
         QUEUE_CONNECTED.store(false, Ordering::Release);
@@ -88,6 +96,11 @@ fn learn_username(context: &str) {
 }
 #[cfg(feature = "preview")]
 static SAVED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn packed_strings(env: &JNIEnv, values: &[String]) -> jbyteArray {
+    let bytes = crate::cache::encode(values);
+    env.byte_array_from_slice(&bytes).map_or(std::ptr::null_mut(), |a| a.into_raw())
+}
 
 fn strings(env: &mut JNIEnv, values: Vec<String>) -> jobjectArray {
     let build = |env: &mut JNIEnv| -> jni::errors::Result<jobjectArray> {
@@ -130,9 +143,12 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) 
             Ok(bytes) => {
                 if let Ok(now) = player::NowPlaying::decode(bytes) {
                     learn_username(&now.context);
-                    let mut state = PLAYER.lock().unwrap();
-                    state.0 += 1;
-                    state.1 = Some(now);
+                    {
+                        let mut state = PLAYER.lock().unwrap();
+                        state.0 += 1;
+                        state.1 = Some(now);
+                    }
+                    bridge::notify_ui();
                 }
             }
             Err(_) => CONNECTED.store(false, Ordering::Release),
@@ -146,11 +162,27 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeConnect(_: JNIEnv, _: JClass) 
     if CONNECTED.load(Ordering::Acquire) { JNI_TRUE } else { JNI_FALSE }
 }
 
+/// Acknowledges any pending push notification and snapshots all 5 revision counters in one JNI call:
+/// [player, playlist, downloads, downloads_set, library].
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeRevisions(env: JNIEnv, _: JClass, out: jni::objects::JLongArray) {
+    bridge::ack_ui();
+    let player = PLAYER.lock().unwrap().0;
+    let vals = [
+        player,
+        PLAYLIST_REVISION.load(Ordering::SeqCst),
+        crate::spotify::downloads::revision() as i64,
+        crate::spotify::downloads::set_revision() as i64,
+        LIBRARY_REVISION.load(Ordering::SeqCst),
+    ];
+    let _ = env.set_long_array_region(&out, 0, &vals);
+}
+
 /// The player as strings, or null if nothing changed since `revision`:
 /// revision, uri, title, artist, album, image, playing, shuffle, repeat, position, duration, source,
 /// "Explicit" or "", context uri, the quality label or "", buffering, can skip next, can skip previous, album uri, artist uri; then four strings (title, artist, image, uri) per queued track.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JClass, revision: jlong) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(env: JNIEnv, _: JClass, revision: jlong) -> jbyteArray {
     let (serial, now, queue) = {
         let state = PLAYER.lock().unwrap();
         if state.0 == revision {
@@ -189,7 +221,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(mut env: JNIEnv, _: JCl
         fields.extend([next.title.clone(), next.artist.clone(), next.image.clone(), next.uri.clone(),
             queue_key(next, now.queue_revision), (editable && next.queued).to_string()]);
     }
-    strings(&mut env, fields)
+    packed_strings(&env, &fields)
 }
 
 fn fetch_library() -> Result<Vec<library::Item>, String> {
@@ -207,12 +239,15 @@ static LIBRARY_LIVE: AtomicBool = AtomicBool::new(false);
 
 /// Replaces the library if it changed; true if it did.
 fn set_library(items: Vec<library::Item>) -> bool {
-    let mut current = LIBRARY.lock().unwrap();
-    if current.as_ref() == Some(&items) {
-        return false;
+    {
+        let mut current = LIBRARY.lock().unwrap();
+        if current.as_ref() == Some(&items) {
+            return false;
+        }
+        *current = Some(items);
+        LIBRARY_REVISION.fetch_add(1, Ordering::SeqCst);
     }
-    *current = Some(items);
-    LIBRARY_REVISION.fetch_add(1, Ordering::Relaxed);
+    bridge::notify_ui();
     true
 }
 
@@ -282,14 +317,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSetShuffleMode(mut env: JNIEnv
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeCatalog(mut env: JNIEnv, _: JClass, bytes: JByteArray) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativeCatalog(env: JNIEnv, _: JClass, bytes: JByteArray) -> jbyteArray {
     let Some(bytes) = env.convert_byte_array(bytes).ok() else { return std::ptr::null_mut() };
     #[cfg(feature = "preview")]
     let decoded = std::str::from_utf8(&bytes).ok().map(crate::demo::catalog);
     #[cfg(not(feature = "preview"))]
     let decoded = crate::spotify::catalog::decode(&bytes).ok();
     match decoded {
-        Some(fields) => strings(&mut env, fields),
+        Some(fields) => packed_strings(&env, &fields),
         None => std::ptr::null_mut(),
     }
 }
@@ -297,11 +332,11 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCatalog(mut env: JNIEnv, _: JC
 /// Results for a search, six strings each (section, title, subtitle, uri, image, category): your library first,
 /// then what the core's offline index knows. Blocks for the core's answer; empty for an empty query.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeSearch(mut env: JNIEnv, _: JClass, query: JString) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativeSearch(mut env: JNIEnv, _: JClass, query: JString) -> jbyteArray {
     use crate::spotify::search;
     let query = read(&mut env, &query).unwrap_or_default();
     if query.trim().is_empty() {
-        return strings(&mut env, Vec::new());
+        return packed_strings(&env, &[]);
     }
     #[cfg(feature = "preview")]
     let offline = crate::demo::search(&query);
@@ -312,7 +347,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSearch(mut env: JNIEnv, _: JCl
     });
     let library = LIBRARY.lock().unwrap().clone().unwrap_or_default();
     let hits = search::merge(&query, &library, offline, 8);
-    strings(&mut env, hits.into_iter().flat_map(search::Hit::fields).collect())
+    let fields: Vec<String> = hits.into_iter().flat_map(search::Hit::fields).collect();
+    packed_strings(&env, &fields)
 }
 
 /// Library items that can be downloaded (playlists, albums, podcasts), for asking the core about each.
@@ -341,12 +377,12 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeDownloadsStart(_: JNIEnv, _: J
 /// Everything downloaded or on its way: uri, state (1 error, 2 requested, 3 downloaded, 4 downloading,
 /// 5 waiting) and percent (0 to 100), as three strings each.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeDownloads(mut env: JNIEnv, _: JClass) -> jobjectArray {
-    let fields = crate::spotify::downloads::snapshot()
+pub extern "system" fn Java_spatch_SpatchUi_nativeDownloads(env: JNIEnv, _: JClass) -> jbyteArray {
+    let fields: Vec<String> = crate::spotify::downloads::snapshot()
         .into_iter()
         .flat_map(|d| [d.uri, d.state.code().to_string(), ((d.percent * 100.0).round() as i32).to_string()])
         .collect();
-    strings(&mut env, fields)
+    packed_strings(&env, &fields)
 }
 
 /// Bumps on any change to downloads, progress included.
@@ -478,19 +514,19 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeEntries(
     query: JString,
     alphabetical: jboolean,
     limit: jint,
-) -> jobjectArray {
+) -> jbyteArray {
     let query = read(&mut env, &query).unwrap_or_default();
     let fields = {
         let library = LIBRARY.lock().unwrap();
         item_fields(library::select(library.as_deref().unwrap_or(&[]), filter, &query, alphabetical != JNI_FALSE, limit.max(0) as usize))
     };
-    strings(&mut env, fields)
+    packed_strings(&env, &fields)
 }
 
 /// What you played lately, from Spotify's own history, as five strings each (like `nativeEntries`).
 /// Blocks for up to a few seconds; empty if Spotify has nothing or didn't answer.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeRecent(mut env: JNIEnv, _: JClass) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativeRecent(env: JNIEnv, _: JClass) -> jbyteArray {
     #[cfg(feature = "preview")]
     let recent: Result<Vec<library::Item>, String> = Ok(crate::demo::recent());
     #[cfg(not(feature = "preview"))]
@@ -502,7 +538,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRecent(mut env: JNIEnv, _: JCl
             Vec::new()
         }
     };
-    strings(&mut env, fields)
+    packed_strings(&env, &fields)
 }
 
 /// Learns your username from the first of your own playlists that Spotify says you own.
@@ -573,7 +609,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JCla
 
 /// A page of a playlist: ["loading"], [error], or ["", next offset or "0", then title, artist, uri, image per track].
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: JClass, uri: JString, #[allow(unused_variables)] offset: jint) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: JClass, uri: JString, #[allow(unused_variables)] offset: jint) -> jbyteArray {
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
     if !cfg!(feature = "preview") && !library::is_playlist(&uri) {
         return std::ptr::null_mut();
@@ -624,7 +660,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
         Ok(page) => page_fields(page),
         Err(error) => vec![if error.is_empty() { "Couldn’t load playlist".into() } else { error }],
     };
-    strings(&mut env, fields)
+    packed_strings(&env, &fields)
 }
 
 /// A playlist page as the UI reads it: "", the next offset, then title, artist, uri and image per track.
@@ -639,7 +675,7 @@ fn page_fields(page: playlist::Reply) -> Vec<String> {
 /// The rest of a playlist after its first page: every page from `offset` on, as song fields only. Blocks; stops
 /// at an error (returning what it has) or 10,000 songs.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, _: JClass, uri: JString, offset: jint) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, _: JClass, uri: JString, offset: jint) -> jbyteArray {
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
     let mut fields = Vec::new();
     let mut next = Some(offset);
@@ -668,7 +704,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, 
             }
         }
     }
-    strings(&mut env, fields)
+    packed_strings(&env, &fields)
 }
 
 /// The open playlist's songs (playlist::FIELDS strings each), kept here so a search doesn't resend them.
@@ -676,16 +712,11 @@ static SONGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 /// Keeps the open playlist's song fields for nativeArrange.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeSongs(mut env: JNIEnv, _: JClass, fields: JObjectArray) {
-    let Ok(len) = env.get_array_length(&fields) else { return };
-    let mut values = Vec::with_capacity(len as usize);
-    for i in 0..len {
-        let Ok(item) = env.get_object_array_element(&fields, i) else { return };
-        let item = JString::from(item);
-        values.push(read(&mut env, &item).unwrap_or_default());
-        let _ = env.delete_local_ref(item);
+pub extern "system" fn Java_spatch_SpatchUi_nativeSongs(env: JNIEnv, _: JClass, packed: JByteArray) {
+    let Ok(bytes) = env.convert_byte_array(&packed) else { return };
+    if let Some(values) = crate::cache::decode(&bytes) {
+        *SONGS.lock().unwrap() = values;
     }
-    *SONGS.lock().unwrap() = values;
 }
 
 /// The songs to show, as indexes into the kept songs, for a search and a sort
@@ -706,10 +737,18 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayFrom(mut env: JNIEnv, _: J
     let command = player::Command::PlayFrom { context, track, index: index.max(0) as i64 };
     #[cfg(feature = "preview")]
     {
-        let mut state = PLAYER.lock().unwrap();
-        if let Some(now) = &mut state.1 {
-            crate::demo::apply(now, command);
-            state.0 += 1;
+        let changed = {
+            let mut state = PLAYER.lock().unwrap();
+            if let Some(now) = &mut state.1 {
+                crate::demo::apply(now, command);
+                state.0 += 1;
+                true
+            } else {
+                false
+            }
+        };
+        if changed {
+            bridge::notify_ui();
         }
         JNI_TRUE
     }
@@ -767,7 +806,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeWatchPlaylist(mut env: JNIEnv,
         let encoded = crate::cache::encode(&page_fields(page));
         if crate::cache::get(&watched).as_deref() != Some(encoded.as_slice()) {
             crate::cache::put(&watched, &encoded);
-            PLAYLIST_REVISION.fetch_add(1, Ordering::Relaxed);
+            PLAYLIST_REVISION.fetch_add(1, Ordering::SeqCst);
+            bridge::notify_ui();
         }
     });
     match opened {
@@ -794,7 +834,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRevision(_: JNIEnv, _:
 /// An album or artist page: [error], or "", name, subtitle, image, track count, release count, then four
 /// strings per track (title, artist, uri, image) and four per release (name, subtitle, uri, image).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClass, uri: JString) -> jobjectArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClass, uri: JString) -> jbyteArray {
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
     #[cfg(feature = "preview")]
     let page: Result<crate::spotify::metadata::Page, String> = Ok(crate::demo::page(&uri));
@@ -809,7 +849,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClas
         }
         Err(error) => vec![if error.is_empty() { "Couldn’t load this page".into() } else { error }],
     };
-    strings(&mut env, fields)
+    packed_strings(&env, &fields)
 }
 
 #[cfg(feature = "preview")]
@@ -929,6 +969,9 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
                     }
                     now.queue_revision += 1;
                     state.0 += 1;
+                    drop(queue);
+                    drop(state);
+                    bridge::notify_ui();
                     return JNI_TRUE;
                 }
                 #[cfg(not(feature = "preview"))]
@@ -951,10 +994,18 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
     };
     #[cfg(feature = "preview")]
     {
-        let mut state = PLAYER.lock().unwrap();
-        if let Some(now) = &mut state.1 {
-            crate::demo::apply(now, command);
-            state.0 += 1;
+        let changed = {
+            let mut state = PLAYER.lock().unwrap();
+            if let Some(now) = &mut state.1 {
+                crate::demo::apply(now, command);
+                state.0 += 1;
+                true
+            } else {
+                false
+            }
+        };
+        if changed {
+            bridge::notify_ui();
             return JNI_TRUE;
         }
     }
@@ -1162,8 +1213,9 @@ fn preview_create_playlist(name: &str, description: &str, from_queue: bool) -> V
             uri: uri.clone(),
             image,
         });
-        LIBRARY_REVISION.fetch_add(1, Ordering::Relaxed);
+        LIBRARY_REVISION.fetch_add(1, Ordering::SeqCst);
     }
+    bridge::notify_ui();
     vec![uri, String::new()]
 }
 
@@ -1219,14 +1271,20 @@ fn preview_add_to_playlist(playlist_uri: &str, uris: &[String]) -> String {
         .collect();
     let first_image = added.first().map(|t| t.image.clone()).unwrap_or_default();
     tracks.extend(added);
+    let mut bumped = false;
     if !first_image.is_empty() {
         let mut library = LIBRARY.lock().unwrap();
         if let Some(item) = library.as_mut().and_then(|items| items.iter_mut().find(|i| i.uri == playlist_uri)) {
             if item.image.is_empty() {
                 item.image = first_image;
-                LIBRARY_REVISION.fetch_add(1, Ordering::Relaxed);
+                LIBRARY_REVISION.fetch_add(1, Ordering::SeqCst);
+                bumped = true;
             }
         }
+    }
+    drop(playlists);
+    if bumped {
+        bridge::notify_ui();
     }
     String::new()
 }

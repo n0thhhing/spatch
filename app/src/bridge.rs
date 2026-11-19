@@ -5,7 +5,7 @@ use jni::objects::{GlobalRef, JByteArray, JClass, JString, JValue};
 use jni::sys::jlong;
 use jni::{JNIEnv, JavaVM};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 struct Java {
@@ -16,6 +16,8 @@ struct Java {
 type Handler = Box<dyn Fn(Result<&[u8], &str>) + Send + Sync>;
 
 static JAVA: OnceLock<Java> = OnceLock::new();
+static UI_HOST: OnceLock<Java> = OnceLock::new();
+static UI_QUEUED: AtomicBool = AtomicBool::new(false);
 static HANDLERS: Mutex<Option<HashMap<i64, Handler>>> = Mutex::new(None);
 static NEXT: AtomicI64 = AtomicI64::new(1);
 
@@ -135,5 +137,45 @@ pub extern "system" fn Java_spatch_CoreBridge_nativeError<'l>(mut env: JNIEnv<'l
     let text: String = env.get_string(&message).map(Into::into).unwrap_or_default();
     if let Some(handler) = handlers(|h| h.remove(&token)) {
         handler(Err(&text));
+    }
+}
+
+/// Registers `spatch.SpatchUi` so Rust can wake the UI immediately on state pushes instead of polling.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeAttachUi<'l>(env: JNIEnv<'l>, class: JClass<'l>) {
+    if UI_HOST.get().is_some() {
+        return;
+    }
+    if let (Ok(vm), Ok(global)) = (env.get_java_vm(), env.new_global_ref(class)) {
+        let _ = UI_HOST.set(Java { vm, class: global });
+    }
+}
+
+/// Clears the coalesced push flag right before Java reads the latest revision counters.
+pub fn ack_ui() {
+    UI_QUEUED.store(false, Ordering::SeqCst);
+}
+
+/// Wakes `SpatchUi` on the main thread when Rust state changes (coalesced to one in-flight push).
+/// Must never be called while holding a Rust state mutex.
+pub fn notify_ui() {
+    let Some(ui) = UI_HOST.get() else { return };
+    if UI_QUEUED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let Ok(mut env) = ui.vm.attach_current_thread() else {
+        UI_QUEUED.store(false, Ordering::SeqCst);
+        return;
+    };
+    let class: &JClass = ui.class.as_obj().into();
+    let handled = env
+        .call_static_method(class, "onNativeChange", "()Z", &[])
+        .and_then(|v| v.z())
+        .unwrap_or_else(|_| {
+            let _ = env.exception_clear();
+            false
+        });
+    if !handled {
+        UI_QUEUED.store(false, Ordering::SeqCst);
     }
 }

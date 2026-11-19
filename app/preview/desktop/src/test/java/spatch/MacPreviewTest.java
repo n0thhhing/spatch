@@ -69,7 +69,7 @@ public class MacPreviewTest {
         Class.forName("spatch.PreviewActivity");
         java.lang.reflect.Method catalog = SpatchUi.class.getDeclaredMethod("nativeCatalog", byte[].class);
         catalog.setAccessible(true);
-        String[] fields = (String[]) catalog.invoke(null, (Object) CoreBridge.search("Glasshouse", ""));
+        String[] fields = SpatchUi.unpackStrings((byte[]) catalog.invoke(null, (Object) CoreBridge.search("Glasshouse", "")));
         assertEquals(7, fields.length);
         assertEquals("Glasshouse", fields[1]);
         assertEquals("spotify:preview:0", fields[3]);
@@ -90,6 +90,58 @@ public class MacPreviewTest {
         assertArrayEquals(new float[]{100, 50}, Confetti.place(1, 1, 0, 100, 50), .001f);
         assertEquals(0, Confetti.pieceAlpha(1), .001f);
         assertEquals(1, Confetti.pieceScale(.15f), .001f);
+    }
+
+    @Test public void rustParityAndPushCallbacks() throws Exception {
+        Class.forName("spatch.PreviewActivity");
+        // 1. Packed byte[] JNI roundtrip parity (empty strings, Unicode, emoji)
+        String[] sample = new String[]{"", "Glasshouse", "Café ♫", "spotify:track:1", ""};
+        assertArrayEquals(sample, SpatchUi.unpackStrings(SpatchUi.packStrings(sample)));
+
+        // 2. AutoEq Rust vs Java URL parity
+        String md = "- [A (ANC Off)](./Source/GRAS/A%20(ANC%20Off))\n"
+            + "- [Unicode + é](./Source/GRAS/Unicode%20+%20%C3%A9)\n"
+            + "- [Bad](./../../../outside)\n- [Bad](./Source/A?query=1)\n- [Bad](https://evil.test/file)\n";
+        java.util.List<AutoEqCatalog.Headphone> rModels = AutoEqCatalog.parse(md);
+        java.util.List<AutoEqCatalog.Headphone> jModels = AutoEqCatalog.parseJava(md);
+        assertEquals(jModels.size(), rModels.size());
+        for (int i = 0; i < jModels.size(); i++) {
+            assertEquals(jModels.get(i).name, rModels.get(i).name);
+            assertEquals(jModels.get(i).url, rModels.get(i).url);
+        }
+
+        // 3. EQ 64-band + GraphicEQ + ISO-226 Rust vs Java numerical parity
+        String curveText = "GraphicEQ: 20 -3.5; 125 2.2; 1000 -0.8; 6000 3.1; 20000 -2.0";
+        Audio.GraphicEqProfile rCurve = Audio.GraphicEqProfile.parse(curveText);
+        Audio.GraphicEqProfile jCurve = Audio.GraphicEqProfile.parseJava(curveText);
+        assertArrayEquals(jCurve.freqs, rCurve.freqs, 1e-5f);
+        assertArrayEquals(jCurve.gains, rCurve.gains, 1e-5f);
+        float[] hz64 = Audio.logSpacedFrequencies(64, 20f, 20000f);
+        float[] geq = {2.5f, 1.5f, 0.5f, -0.5f, -1.0f, 0f, 1f, 2f, 1.5f, 0.5f};
+        float[] out = new float[64];
+        float peakRust = Audio.evaluateBands(hz64, true, geq, rCurve, 120f, true, 0.25f, 0.6f, out);
+        float peakJava = 0f;
+        for (int i = 0; i < 64; i++) {
+            float expected = Audio.gainAt(hz64[i], geq)
+                + Audio.evaluateGraphicEq(jCurve, hz64[i], 120f)
+                + Audio.iso226Gain(hz64[i], 0.25f, 0.6f);
+            assertEquals("Band " + i + " parity", expected, out[i], 1e-4f);
+            if (expected > peakJava) peakJava = expected;
+        }
+        assertEquals(peakJava, peakRust, 1e-4f);
+
+        // 4. Rust -> Java push callback syncs immediately without advancing the clock
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).create().start().resume().visible().get();
+        ShadowLooper.idleMainLooper();
+        SpatchUi ui = (SpatchUi) findType(activity.getWindow().getDecorView(), SpatchUi.class);
+        java.lang.reflect.Field revField = SpatchUi.class.getDeclaredField("revision");
+        revField.setAccessible(true);
+        long before = revField.getLong(ui);
+        java.lang.reflect.Method cmd = SpatchUi.class.getDeclaredMethod("nativeCommand", int.class, long.class, String.class);
+        cmd.setAccessible(true);
+        cmd.invoke(null, 0, 0L, "");
+        ShadowLooper.idleMainLooper();
+        assertTrue("Push notification updates UI immediately without 350ms poll wait", revField.getLong(ui) > before);
     }
 
     @Test public void sharedScreen() throws Exception {
