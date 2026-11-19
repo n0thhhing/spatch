@@ -122,3 +122,13 @@ explicit status and available album/artist links. Catalog durations survive grou
 Storage `GetStats` field numbers are known, but the counters’ unit conversion is not established
 from the pinned client. Device space displayed in Settings comes from `StatFs` in bytes; raw core
 counters are not presented as byte totals.
+
+## Individual offline items
+
+The pinned APK’s `p.vpp0.a` and `p.oqp0.a` call `Offline.AddDownload` with
+`com.spotify.offline_esperanto.proto.EsOffline$DownloadRequest`; `p.byp0.a/c` pass the item URI
+unchanged with this phone’s DeviceKey for add/remove. Spatch uses that existing request (device
+field 1, URI field 2) for individual song/episode actions as well as album/playlist downloads.
+No new transport, authentication flow or automatic playlist is introduced. Core progress drives
+status; responses still surface Spotify’s error codes. Static request parity and the shared preview
+are tested; acceptance of individual music-track URIs requires a signed-in phone test.

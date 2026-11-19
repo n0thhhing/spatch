@@ -49,6 +49,15 @@ account state and removes the old overlay; returning mounts a fresh screen. Netw
 an earlier account session cannot commit after the reset. The first library load requires Spotify’s
 core instead of showing a previous account’s unverified cached library.
 
+**About** includes the build commit, host version, Android version, copyable build details,
+project/update/issue links, license, credits and account/cache information.
+
+Hold a song in search, a playlist, an album or the queue, or hold the player artwork, and choose
+**Download song** (**Download episode** for podcasts). The menu changes to Cancel download or
+Remove download as Spotify reports progress. Individual downloads appear with their saved names
+and covers in **Downloads & storage** and **Library → Downloaded**. These actions use Spotify’s
+offline service and its account eligibility; downloading never likes the song or creates a playlist.
+
 Downloads & storage uses Android’s filesystem byte counts for the app’s volume. Spotify’s raw
 storage counters are not displayed as a download byte total until their units are established.
 

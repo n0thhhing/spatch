@@ -1,5 +1,5 @@
 //! Spotify's downloads, as the core keeps them (`Offline` service): which playlists, albums and shows are
-//! downloaded or downloading, how far along, adding and removing them, and the storage they take.
+//! and individual items are downloaded or downloading, their progress, adding/removing them and storage.
 //!
 //! The messages are small and read by hand (see `wire`):
 //! - DownloadRequest { DeviceKey device = 1; string uri = 2 } -> DownloadResponse { int64 error = 1 }
@@ -182,6 +182,8 @@ pub fn decode_storage(bytes: &[u8]) -> Storage {
 struct Shared {
     map: BTreeMap<String, (State, f32)>,
     total: Progress,
+    #[cfg(feature = "preview")]
+    jobs: BTreeMap<String, u64>,
     /// This phone's DeviceKey once the core has been asked for it.
     #[cfg(not(feature = "preview"))]
     device: Option<Vec<u8>>,
@@ -363,34 +365,49 @@ mod demo {
     use std::sync::atomic::AtomicBool;
 
     static SEEDED: AtomicBool = AtomicBool::new(false);
+    static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
+
+    fn advance(s: &mut Shared, uri: &str, job: u64, percent: f32) -> Option<bool> {
+        if s.jobs.get(uri) != Some(&job) { return None; }
+        if percent >= 1.0 { s.jobs.remove(uri); }
+        Some(s.put(&Download { uri: uri.into(), state: if percent >= 1.0 { State::Downloaded } else { State::Downloading }, percent }))
+    }
 
     fn ticker(uri: String, from: f32, step: f32) {
+        let job = NEXT_JOB.fetch_add(1, Ordering::Relaxed);
+        with(|s| s.jobs.insert(uri.clone(), job));
         std::thread::spawn(move || {
             let mut p = from;
             while p < 1.0 {
                 std::thread::sleep(std::time::Duration::from_millis(350));
                 p = (p + step).min(1.0);
-                let state = if p >= 1.0 { State::Downloaded } else { State::Downloading };
-                record(&[Download { uri: uri.clone(), state, percent: p }]);
+                let Some(changed) = with(|s| advance(s, &uri, job, p)) else { return };
+                bump_revision(changed);
                 refresh_total();
             }
         });
     }
 
+    fn track_count(uri: &str) -> u64 {
+        if uri.starts_with("spotify:track:") || uri.starts_with("spotify:episode:")
+            || uri.strip_prefix("spotify:preview:").is_some_and(|id| id.parse::<usize>().is_ok()) { 1 } else { 40 }
+    }
+
     fn refresh_total() {
         let all = snapshot();
-        let downloading = all.iter().any(|d| d.state == State::Downloading);
-        let tracks = 40 * all.len() as u64;
-        let done: u64 = all.iter().map(|d| (40.0 * d.percent) as u64).sum();
+        let downloading = all.iter().any(|d| matches!(d.state, State::Requested | State::Downloading | State::Waiting));
+        let tracks: u64 = all.iter().map(|d| track_count(&d.uri)).sum();
+        let complete: f32 = all.iter().map(|d| track_count(&d.uri) as f32 * d.percent).sum();
+        let done = all.iter().map(|d| (track_count(&d.uri) as f32 * d.percent) as u64).sum();
         with(|s| {
             s.total = Progress {
                 downloaded_tracks: done,
                 total_tracks: tracks,
-                downloaded_bytes: done * 6_000_000,
+                downloaded_bytes: (complete * 6_000_000.0) as u64,
                 total_bytes: tracks * 6_000_000,
                 downloading,
-                speed: 2_400_000,
-                percent: if tracks == 0 { 0.0 } else { done as f32 / tracks as f32 },
+                speed: if downloading { 2_400_000 } else { 0 },
+                percent: if tracks == 0 { 0.0 } else { complete / tracks as f32 },
                 seconds_left: if downloading { 70 } else { 0 },
                 ..Default::default()
             }
@@ -400,7 +417,7 @@ mod demo {
     pub fn refresh(_: &[String]) -> Result<(), String> {
         if !SEEDED.swap(true, Ordering::Relaxed) {
             record(&[
-                Download { uri: "spotify:preview:1".into(), state: State::Downloaded, percent: 1.0 },
+                Download { uri: "spotify:playlist:demo-1".into(), state: State::Downloaded, percent: 1.0 },
                 Download { uri: "spotify:album:1".into(), state: State::Downloaded, percent: 1.0 },
                 Download { uri: "spotify:album:0".into(), state: State::Downloading, percent: 0.42 },
             ]);
@@ -414,18 +431,20 @@ mod demo {
 
     pub fn add(uri: &str) -> Result<(), String> {
         record(&[Download { uri: uri.into(), state: State::Requested, percent: 0.0 }]);
-        ticker(uri.into(), 0.0, 0.07);
+        ticker(uri.into(), 0.0, if track_count(uri) == 1 { 0.25 } else { 0.07 });
+        refresh_total();
         Ok(())
     }
 
     pub fn remove(uri: &str) -> Result<(), String> {
+        with(|s| { s.jobs.remove(uri); });
         record(&[Download { uri: uri.into(), state: State::NotDownloaded, percent: 0.0 }]);
         refresh_total();
         Ok(())
     }
 
     pub fn remove_all() -> Result<(), String> {
-        with(|s| s.map.clear());
+        with(|s| { s.jobs.clear(); s.map.clear(); });
         bump_revision(true);
         refresh_total();
         Ok(())
@@ -435,6 +454,28 @@ mod demo {
         let t = total();
         Ok(Storage { current: t.downloaded_bytes + 310_000_000, locked: t.downloaded_bytes, free: 41_000_000_000, total: 128_000_000_000 })
     }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn cancelled_and_replaced_preview_jobs_cannot_restore_downloads() {
+            let mut state = Shared::default();
+            state.jobs.insert("spotify:track:one".into(), 1);
+            state.jobs.remove("spotify:track:one");
+            assert_eq!(advance(&mut state, "spotify:track:one", 1, 0.5), None);
+            assert!(state.map.is_empty());
+            state.jobs.insert("spotify:track:one".into(), 2);
+            assert_eq!(advance(&mut state, "spotify:track:one", 1, 0.5), None);
+            assert_eq!(advance(&mut state, "spotify:track:one", 2, 1.0), Some(true));
+            assert_eq!(state.map["spotify:track:one"].0, State::Downloaded);
+            assert_eq!(track_count("spotify:track:one"), 1);
+            assert_eq!(track_count("spotify:episode:one"), 1);
+            assert_eq!(track_count("spotify:album:one"), 40);
+            assert_eq!(track_count("spotify:preview:0"), 1);
+            assert_eq!(track_count("spotify:preview:collection"), 40);
+        }
+    }
+
 }
 
 #[cfg(feature = "preview")]
@@ -479,6 +520,10 @@ mod tests {
         let parsed = fields(&add);
         assert_eq!(first(&parsed, 2).map(|v| v.text()), Some("spotify:album:b".into()));
         assert_eq!(download_request(&[], "x"), vec![0x12, 1, b'x']);
+        for uri in ["spotify:track:one", "spotify:episode:one"] {
+            let request = download_request(&key, uri);
+            assert_eq!(first(&fields(&request), 2).unwrap().text(), uri);
+        }
         let ask = contexts_request(&key, &["a".into(), "b".into()]);
         assert_eq!(fields(&ask).iter().filter(|(f, _)| *f == 3).count(), 2);
     }

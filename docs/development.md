@@ -10,11 +10,13 @@ the earlier Spotify-UI patch. Start changes from `fresh`; keep the pinned input 
 | `src/` | Desktop patcher, guarded edits, DEX compilation, bundles and source staging |
 | `app/src/spotify/` | Spotify protobuf requests, decoders and domain operations |
 | `app/src/ui/mod.rs` | Playback/library/playlist JNI contracts, revision counters and current account state |
+| `app/src/ui/downloads.rs` | Offline JNI endpoints and validated, account-scoped song labels |
 | `app/src/ui/account.rs` | Profile and playlist creation/addition endpoints with their preview tests |
 | `app/src/bridge.rs` | JNI transport, Rust stream handlers, session generations and UI pushes |
 | `app/src/cache.rs` | Bounded account-scoped screen answers and packed string encoding |
 | `app/src/eq.rs`, `spectrum.rs`, `autoeq.rs` | DSP math, FFT analysis and headphone catalog parsing |
 | `java/dex/src/spatch/SpatchUi.java` | Screen composition, navigation, playback/library state and JNI boundary |
+| `AboutScreen.java` in the same directory | About information, build details, credits and support links |
 | `ArtworkViews.java` in the same directory | Cover tiles, artwork transitions, backdrop, motes and the audio ring |
 | `SoundSettings.java` in the same directory | Equalizer editor, effects and headphone profile browsing |
 | `CreationSheet.java` in the same directory | Create menu, playlist draft, validation and submission |
@@ -66,6 +68,11 @@ Update their exclusions when introducing another Spotify-only helper.
   Reduce motion still. Cache the small Soft/Deep/Streaks blur textures when artwork loads rather
   than allocating them during drawing. Filter enlarged textures and dither the backdrop gradients
   to avoid block edges and dark colour bands; all visual preferences use the shared Android UI.
+
+- Individual downloads share the core’s `AddDownload`/`RemoveDownload` URI contract. Keep item
+  names/artwork in the account-scoped `download-items` answer, validate the five-field metadata
+  before mutation, and commit it under the session gate. Retain uncached offline URIs in the
+  Downloaded filter. Cancelling preview jobs must invalidate their tokens before removing state.
 
 ## Checks
 

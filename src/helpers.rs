@@ -2,6 +2,7 @@
 
 /// Compiled together into the helper DEX. Keep this list in class-name order.
 pub const HELPERS: &[(&str, &str)] = &[
+    ("AboutScreen", include_str!("../java/dex/src/spatch/AboutScreen.java")),
     ("ArtworkViews", include_str!("../java/dex/src/spatch/ArtworkViews.java")),
     ("Audio", include_str!("../java/dex/src/spatch/Audio.java")),
     ("AutoEqCatalog", include_str!("../java/dex/src/spatch/AutoEqCatalog.java")),

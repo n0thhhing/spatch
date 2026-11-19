@@ -73,7 +73,7 @@ public final class SpatchUi extends FrameLayout {
     private static native byte[] nativeDownloads();
     private static native long nativeDownloadsRevision();
     private static native long nativeDownloadsSet();
-    private static native String nativeDownload(String uri, int action);
+    private static native String nativeDownload(String uri, int action, byte[] entry);
     private static native String[] nativeDownloadTotals();
     private static native int nativeShuffleMode(String uri);
     private static native String nativeSetShuffleMode(String uri, int mode);
@@ -923,6 +923,7 @@ public final class SpatchUi extends FrameLayout {
     private static final int DL_ERROR = 1, DL_REQUESTED = 2, DL_DONE = 3, DL_BUSY = 4, DL_WAITING = 5;
     /** Downloaded or on its way, by uri: {state, percent 0 to 100}. */
     private final java.util.Map<String, int[]> downloads = new java.util.HashMap<>();
+    private final java.util.Map<String, MediaEntry> downloadDetails = new java.util.LinkedHashMap<>();
     private long downloadRevision, downloadSetRevision;
     private boolean downloadsStarted;
     private View downloadButton;
@@ -942,10 +943,16 @@ public final class SpatchUi extends FrameLayout {
         String[] f = unpackStrings(nativeDownloads());
         downloads.clear();
         if (f != null) for (int i = 0; i + 2 < f.length; i += 3) downloads.put(f[i], new int[]{parseInt(f[i + 1]), parseInt(f[i + 2])});
+        downloadDetails.clear();
+        for (MediaEntry e : entryList(unpackStrings(nativeCached("download-items")))) if (downloads.containsKey(e.uri)) downloadDetails.put(e.uri, e);
+        for (String item : downloads.keySet()) if (isTrack(item) && !downloadDetails.containsKey(item)) {
+            downloadDetails.put(item, new MediaEntry(kindName(item), "", item, "", -1));
+        }
     }
 
     /** Something changed in the core's downloads: progress only, or a download added, removed or finished. */
     private void onDownloadsChanged(boolean setChanged) {
+        if (setChanged) for (Row row : attachedRows) row.updateDownloadBadge();
         if (downloadButton != null && downloadButton.isAttachedToWindow()) downloadButton.invalidate();
         if (downloadsList != null && downloadsList.isAttachedToWindow()) {
             if (setChanged) { renderDownloads(); loadStorage(); } else updateDownloadProgress();
@@ -1035,12 +1042,35 @@ public final class SpatchUi extends FrameLayout {
         return chip;
     }
 
+    private String downloadLabel(String uri) {
+        int state = downloadState(uri);
+        if (state == DL_DONE) return "Remove download";
+        if (state == DL_BUSY || state == DL_REQUESTED || state == DL_WAITING) return "Cancel download";
+        return state == DL_ERROR ? "Retry download" : uri.startsWith("spotify:episode:") ? "Download episode" : "Download song";
+    }
+
+    private Option songDownloadOption(MediaEntry song) {
+        int[] state = downloads.get(song.uri);
+        String note = state == null ? "Listen offline on this device" : downloadStatus(state);
+        return new Option(downloadLabel(song.uri), note, "", "download", state != null && state[0] == DL_DONE);
+    }
+
     private void downloadTapped(String uri, String name) {
+        downloadTapped(new MediaEntry(name, "", uri, "", -1));
+    }
+
+    private void downloadTapped(MediaEntry entry) {
+        String uri = entry.uri, name = entry.title.isEmpty() ? kindName(uri) : entry.title;
         int state = downloadState(uri);
         if (state == 0 || state == DL_ERROR) {
             submit(PLAYLISTS, () -> {
-                String error = nativeDownload(uri, 0);
-                post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? "Downloading “" + name + "”" : error, error == null || error.isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show());
+                String error = nativeDownload(uri, 0, packStrings(new String[]{name, entry.subtitle, uri, entry.image, Integer.toString(entry.category)}));
+                post(() -> {
+                    if (closed) return;
+                    if (error != null && error.isEmpty()) { pullDownloads(); onDownloadsChanged(true); }
+                    Toast.makeText(activity, error != null && error.isEmpty() ? "Downloading “" + name + "”" : error == null ? "No reply from Spotify" : error,
+                        error != null && error.isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
+                });
             });
             return;
         }
@@ -1048,9 +1078,9 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void confirmRemoveDownload(String uri, String name, boolean done) {
-        sheet(name, done ? "Removes the downloaded songs from this phone. It stays in your library." : "Stops the download and removes what’s been saved so far.",
+        sheet(name, done ? "Removes this download from this phone. It stays in your library." : "Stops the download and removes what’s been saved so far.",
             new Option[]{new Option(done ? "Remove download" : "Cancel download", "", "", "close", false)}, c -> submit(PLAYLISTS, () -> {
-                String error = nativeDownload(uri, 1);
+                String error = nativeDownload(uri, 1, null);
                 post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? (done ? "Removed download" : "Download cancelled") : error, Toast.LENGTH_LONG).show());
             }));
     }
@@ -1067,7 +1097,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private static String kindName(String uri) {
-        return uri.contains(":album:") ? "Album" : uri.contains(":show:") ? "Podcast" : "Playlist";
+        return uri.startsWith("spotify:track:") ? "Song" : uri.startsWith("spotify:episode:") ? "Episode" : uri.contains(":album:") ? "Album" : uri.contains(":show:") ? "Podcast" : "Playlist";
     }
 
     private void downloadsCard(LinearLayout box) {
@@ -1097,9 +1127,9 @@ public final class SpatchUi extends FrameLayout {
             segmented(box, "Download quality", new String[]{"Low", "Normal", "High", "Very high", "Lossless"}, quality >= 1 && quality <= 5 ? quality - 1 : -1, i -> setSpotify("download_quality", i + 1));
         }
 
-        TextView clear = pill("Remove all downloads", () -> sheet("Remove all downloads?", "Every downloaded playlist, album and podcast is removed from this phone. Your library stays as it is.",
+        TextView clear = pill("Remove all downloads", () -> sheet("Remove all downloads?", "Every downloaded song, episode, playlist and album is removed from this phone. Your library stays as it is.",
             new Option[]{new Option("Remove all downloads", "", "", "close", false)}, c -> submit(PLAYLISTS, () -> {
-                String error = nativeDownload("", 2);
+                String error = nativeDownload("", 2, null);
                 post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? "Removed all downloads" : error, Toast.LENGTH_LONG).show());
             })));
         clear.setTextColor(ink);
@@ -1156,6 +1186,7 @@ public final class SpatchUi extends FrameLayout {
         list.removeAllViews();
         downloadRows.clear();
         java.util.Map<String, MediaEntry> known = new java.util.HashMap<>();
+        known.putAll(downloadDetails);
         for (MediaEntry e : entries(-1, "", false, 400)) known.put(e.uri, e);
         List<String> order = new ArrayList<>(downloads.keySet());
         java.util.Collections.sort(order, (a, b) -> {
@@ -1165,14 +1196,14 @@ public final class SpatchUi extends FrameLayout {
             return (ea == null ? kindName(a) : ea.title).compareToIgnoreCase(eb == null ? kindName(b) : eb.title);
         });
         if (order.isEmpty()) {
-            TextView none = text("Open a playlist, album or podcast and tap its download button to keep it on this phone.", 13, () -> inkDim, false);
+            TextView none = text("Hold a song or episode and choose Download, or use the download button on a playlist, album or podcast.", 13, () -> inkDim, false);
             none.setPadding(dp(18), dp(4), dp(18), dp(12));
             list.addView(none, fill(-2));
         }
         for (String uri : order) {
             MediaEntry known1 = known.get(uri);
             String name = known1 != null ? known1.title : kindName(uri);
-            MediaEntry entry = known1 != null ? known1 : new MediaEntry(name, "", uri, "", uri.contains(":album:") ? 1 : uri.contains(":show:") ? 3 : 0);
+            MediaEntry entry = known1 != null ? known1 : new MediaEntry(name, "", uri, "", isTrack(uri) ? -1 : uri.contains(":album:") ? 1 : uri.contains(":show:") ? 3 : 0);
             int[] d = downloads.get(uri);
             LinearLayout line = row();
             line.setPadding(dp(14), dp(8), dp(6), dp(8));
@@ -1199,7 +1230,7 @@ public final class SpatchUi extends FrameLayout {
             line.addView(iconButton(icon("close", () -> inkDim), "Remove download", () -> confirmRemoveDownload(uri, name, d[0] == DL_DONE)), lp(dp(40), dp(40)));
             line.setClickable(true);
             line.setOnClickListener(v -> {
-                if (d[0] == DL_ERROR) submit(PLAYLISTS, () -> nativeDownload(uri, 0));
+                if (d[0] == DL_ERROR) submit(PLAYLISTS, () -> nativeDownload(uri, 0, null));
                 else open(entry);
             });
             list.addView(line, fill(-2));
@@ -1669,9 +1700,10 @@ public final class SpatchUi extends FrameLayout {
 
     private void searchActions(MediaEntry e) {
         if (!e.uri.startsWith("spotify:track:") && !e.uri.startsWith("spotify:episode:") && !e.uri.startsWith("spotify:preview:")) { actions(e); return; }
-        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false), new Option("Add to playlist", "", "", "add", false)}, c -> {
+        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false), new Option("Add to playlist", "", "", "add", false), songDownloadOption(e)}, c -> {
             if (c == 0) command(PLAY, 0, e.uri);
             else if (c == 2) addToPlaylist(e);
+            else if (c == 3) downloadTapped(e);
             else { command(QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
         });
     }
@@ -2104,16 +2136,27 @@ public final class SpatchUi extends FrameLayout {
     private static List<MediaEntry> entryList(String[] f) {
         List<MediaEntry> out = new ArrayList<>();
         if (f == null) return out;
-        for (int i = 0; i + 4 < f.length; i += 5) out.add(new MediaEntry(f[i], f[i + 1], f[i + 2], f[i + 3], Integer.parseInt(f[i + 4])));
+        for (int i = 0; i + 4 < f.length; i += 5) out.add(new MediaEntry(f[i], f[i + 1], f[i + 2], f[i + 3], parseInt(f[i + 4])));
         return out;
     }
 
     /** Library items for a chip (-1 for all), searched and sorted by Rust. */
     private List<MediaEntry> entries(int category, String search, boolean alphabetical, int limit) {
         if (category == DOWNLOADED) {
-            // The Library's Downloaded filter: whatever is downloaded or on its way.
             List<MediaEntry> out = new ArrayList<>();
-            for (MediaEntry e : entryList(unpackStrings(nativeEntries(-1, search, alphabetical, 400)))) if (downloadState(e.uri) != 0 && out.size() < limit) out.add(e);
+            Set<String> seen = new HashSet<>();
+            for (MediaEntry e : entryList(unpackStrings(nativeEntries(-1, search, alphabetical, 400)))) {
+                if (downloadState(e.uri) != 0 && out.size() < limit && seen.add(e.uri)) out.add(e);
+            }
+            String[] words = search.toLowerCase(java.util.Locale.ROOT).trim().split("\\s+");
+            for (MediaEntry e : downloadDetails.values()) {
+                if (out.size() >= limit || !seen.add(e.uri)) continue;
+                String text = (e.title + " " + e.subtitle).toLowerCase(java.util.Locale.ROOT);
+                boolean matches = true;
+                for (String word : words) if (!text.contains(word)) matches = false;
+                if (matches) out.add(e);
+            }
+            if (alphabetical) out.sort((a, b) -> liked(a.uri) != liked(b.uri) ? liked(a.uri) ? -1 : 1 : a.title.compareToIgnoreCase(b.title));
             return out;
         }
         return entryList(unpackStrings(nativeEntries(category, search, alphabetical, limit)));
@@ -2439,7 +2482,10 @@ public final class SpatchUi extends FrameLayout {
         return list;
     }
 
+    private final Set<Row> attachedRows = new HashSet<>();
+
     private final class Row extends LinearLayout {
+        private String boundUri = "";
         private final Art art = artwork.new Art(Art.ROUNDED, false);
         private final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
         private final Bars bars = new Bars();
@@ -2482,6 +2528,13 @@ public final class SpatchUi extends FrameLayout {
             setBackground(pressedBg);
             colored(this, this::tint);
         }
+        @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); attachedRows.add(this); updateDownloadBadge(); }
+        @Override protected void onDetachedFromWindow() { attachedRows.remove(this); super.onDetachedFromWindow(); }
+        void updateDownloadBadge() {
+            dlState = downloadState(boundUri);
+            dlBadge.setVisibility(dlState != 0 ? VISIBLE : GONE);
+            tint();
+        }
         private void tint() {
             name.setTextColor(current ? accent : ink);
             sub.setTextColor(inkDim);
@@ -2520,8 +2573,8 @@ public final class SpatchUi extends FrameLayout {
             length.setText(ms > 0 ? time(ms) : "");
             length.setVisibility(ms > 0 ? VISIBLE : GONE);
             explicitBadge.setVisibility(e instanceof Song && ((Song) e).explicit ? VISIBLE : GONE);
-            dlState = downloadState(e.uri);
-            dlBadge.setVisibility(dlState != 0 ? VISIBLE : GONE);
+            boundUri = e.uri;
+            updateDownloadBadge();
             current = playlist != null ? !uri.isEmpty() && e.uri.equals(uri) : playingFrom(e.uri);
             tint();
             bars.setVisibility(current ? VISIBLE : GONE);
@@ -2809,6 +2862,7 @@ public final class SpatchUi extends FrameLayout {
         names.add(new Option("Play from here", "", "", "play", false)); runs.add(() -> open(song));
         names.add(new Option("Add to queue", "", "", "queue", false)); runs.add(() -> { command(QUEUE_ADD, 0, song.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
         names.add(new Option("Add to playlist", "", "", "add", false)); runs.add(() -> addToPlaylist(song));
+        names.add(songDownloadOption(song)); runs.add(() -> downloadTapped(song));
         if (!song.albumUri.isEmpty()) { names.add(new Option("Go to album", song.album, "", "album", false)); runs.add(() -> openPlaylist(new MediaEntry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
         if (!song.artistUri.isEmpty()) { names.add(new Option("Go to artist", song.subtitle, "", "artist", false)); runs.add(() -> openPlaylist(new MediaEntry(song.subtitle, "Artist", song.artistUri, "", -1))); }
         names.add(new Option(song.liked ? "Remove from Liked Songs" : "Add to Liked Songs", "", "", song.liked ? "heart" : "heart-outline", false));
@@ -3380,9 +3434,7 @@ public final class SpatchUi extends FrameLayout {
             break;
         }
         case 6: {
-            TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.\n\nBuild " + nativeBuild(), 13, () -> inkDim, false);
-            note.setPadding(dp(4), dp(22), dp(4), 0);
-            page.addView(note);
+            AboutScreen.render(this, page, nativeBuild());
             break;
         }
         }
@@ -4253,8 +4305,9 @@ public final class SpatchUi extends FrameLayout {
         if (entry.editable && index > 0 && upcoming.get(index - 1).editable) { options.add("Move up"); commands.add(11); }
         if (entry.editable && index + 1 < upcoming.size() && upcoming.get(index + 1).editable) { options.add("Move down"); commands.add(12); }
         options.add("Add to playlist"); commands.add(-1);
+        options.add(downloadLabel(entry.uri)); commands.add(-2);
         if (entry.editable) { options.add("Remove from queue"); commands.add(10); }
-        sheet(entry.title, entry.subtitle, options.toArray(new String[0]), choice -> { if (commands.get(choice) == -1) addToPlaylist(entry); else command(commands.get(choice), index, entry.queueKey); });
+        sheet(entry.title, entry.subtitle, options.toArray(new String[0]), choice -> { if (commands.get(choice) == -1) addToPlaylist(entry); else if (commands.get(choice) == -2) downloadTapped(entry); else command(commands.get(choice), index, entry.queueKey); });
     }
 
 

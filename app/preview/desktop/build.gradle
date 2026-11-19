@@ -66,7 +66,7 @@ def desktopJvmArgs = [
     '-Dapple.awt.application.name=Spatch Preview',
 ]
 
-test { jvmArgs desktopJvmArgs; testLogging { exceptionFormat = 'full'; showStandardStreams = true } }
+test { inputs.file('../../target/mac-preview/release/libspatch_app.dylib'); jvmArgs desktopJvmArgs; testLogging { exceptionFormat = 'full'; showStandardStreams = true } }
 
 def desktopLibraries = { sourceSets.test.runtimeClasspath.files.findAll { it.isFile() } }
 tasks.register('desktopJar', Jar) {
