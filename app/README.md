@@ -26,10 +26,16 @@ Advanced EQ uses Android DynamicsProcessing with 64 bands for headphone correcti
 
 **Follow the music** makes the immersive glow, shockwaves and motes react to Spotify’s playback session; Android lists that capture as microphone access. Live Spotify search, profile and playlist mutation use the existing authenticated core session.
 
+The playback line straightens during drag-seeking and hold-to-seek, then returns to its playing
+wave when released. Track changes, restarts, repeats, seeks and duration corrections ease the
+line and mini-player progress ring from their visible position. Dragging follows the finger
+directly; canceling a drag eases back to playback. Reduce motion keeps position changes immediate.
+
 Long-press a song in search, an album, a playlist or the queue and choose **Add to playlist**.
-The player also has an **Add current song to playlist** button. The sheet shows playlists Spotify
+The player keeps its plain heart beside the title for one-tap liking. Hold the artwork to open
+song options, including **Add to playlist**. The sheet shows playlists Spotify
 marks editable (including collaborations), lets you search them, and offers **New playlist** with
-the song included. Liked Songs and read-only saved playlists are excluded. Adds append to the end;
+the song included. Read-only saved playlists are excluded. Adds append to the end;
 errors stay visible as feedback rather than reporting success.
 
 Private saved screen answers are namespaced by verified account identity. Before that identity is

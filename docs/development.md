@@ -45,6 +45,9 @@ Update both preview build source lists when introducing another Spotify-only hel
 - Keep page and request-generation checks before applying results or starting a watch. Playlist
   loading timeouts must offer a useful retry message. Preserve open forms/sheets when insets change.
 - Use keyed view tags for palette callbacks. A normal tag may already store interaction state.
+- Keep `shownProgress()` visual only: commands and timers use the real playhead. Ease discontinuous
+  positions in the line and mini-player ring together; direct dragging follows the finger and
+  both drag/hold seeking flatten the wave. Respect Reduce motion and cancel work on detach.
 - Recalculate EQ gains and peak attenuation for the actual hardware band centres, including
   fallback bands. Unsupported effects retry with backoff; failed visualizer captures clear stale
   levels and use the slower retry loop.

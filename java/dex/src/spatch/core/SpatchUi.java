@@ -187,6 +187,7 @@ public final class SpatchUi extends FrameLayout {
     private int repeat;
     private Boolean pending, saved;
     private String savedUri = "";
+    private int savedRequest;
     private String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
     private boolean buffering, canNext = true, canPrevious = true;
     private long prevTappedAt;
@@ -213,6 +214,10 @@ public final class SpatchUi extends FrameLayout {
     private ListView pageList;
     private Disc disc;
     private Wave wave;
+    private android.animation.ValueAnimator progressAnimator;
+    private float progressOffset;
+    private boolean holdingSeek;
+    private Runnable cancelHeldSeek;
     private Backdrop backdrop;
     private TextView pQuality;
     /** Last backdrop blur and cover kept across switches so transitions start from the previous track's art. */
@@ -489,9 +494,7 @@ public final class SpatchUi extends FrameLayout {
         boolean allowSeek = playhead() > 3000 && now - prevTappedAt > 4000;
         prevTappedAt = now;
         if (allowSeek) {
-            position = 0;
-            stamp = now;
-            if (wave != null) wave.invalidate();
+            setPosition(0);
         }
         command(PREVIOUS, allowSeek ? 1 : 0, "");
     }
@@ -505,6 +508,55 @@ public final class SpatchUi extends FrameLayout {
         long elapsed = playing && stamp > 0 ? Math.max(0, SystemClock.uptimeMillis() - stamp) : 0;
         long at = Math.max(0, position + elapsed);
         return duration > 0 ? Math.min(duration, at) : at;
+    }
+
+    private float playbackFraction() {
+        return duration <= 0 ? 0 : Math.max(0, Math.min(1, playhead() / (float) duration));
+    }
+
+    /** Visual easing never changes the position sent to Spotify or used by the sleep timer. */
+    private float shownProgress() {
+        if (wave != null && wave.preview >= 0) return wave.preview;
+        return Math.max(0, Math.min(1, playbackFraction() + (motion() ? progressOffset : 0)));
+    }
+
+    private void invalidateProgress() {
+        if (wave != null) wave.invalidate();
+        if (mArt != null) mArt.invalidate();
+    }
+
+    private void animateProgress(float from) {
+        if (progressAnimator != null) { progressAnimator.cancel(); progressAnimator = null; }
+        progressOffset = from - playbackFraction();
+        if (!motion() || !isShown() || Math.abs(progressOffset) < .0005f || wave != null && wave.preview >= 0) {
+            progressOffset = 0;
+            invalidateProgress();
+            return;
+        }
+        android.animation.ValueAnimator animator = android.animation.ValueAnimator.ofFloat(progressOffset, 0);
+        progressAnimator = animator;
+        animator.setDuration(280);
+        animator.setInterpolator(EMPHASIZED);
+        animator.addUpdateListener(a -> { progressOffset = (float) a.getAnimatedValue(); invalidateProgress(); });
+        animator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                if (progressAnimator == animator) { progressOffset = 0; progressAnimator = null; invalidateProgress(); }
+            }
+        });
+        animator.start();
+    }
+
+    private void setPosition(long target) {
+        float from = shownProgress();
+        position = Math.max(0, duration > 0 ? Math.min(duration, target) : target);
+        stamp = SystemClock.uptimeMillis();
+        animateProgress(from);
+    }
+
+    private void stopHeldSeek() {
+        if (cancelHeldSeek != null) { cancelHeldSeek.run(); cancelHeldSeek = null; }
+        holdingSeek = false;
+        invalidateProgress();
     }
 
     private static String initial(String name) {
@@ -566,6 +618,9 @@ public final class SpatchUi extends FrameLayout {
     @Override protected void onDetachedFromWindow() {
         closed = true;
         lifetime++;
+        stopHeldSeek();
+        if (progressAnimator != null) { progressAnimator.cancel(); progressAnimator = null; }
+        progressOffset = 0;
         if (accountMenu != null) accountMenu.dismiss();
         closeCreateMenu();
         java.lang.ref.WeakReference<SpatchUi> ref = activeUi;
@@ -798,8 +853,13 @@ public final class SpatchUi extends FrameLayout {
     /** state: revision, uri, title, artist, album, image, playing, shuffle, repeat, position, duration, source,
      *  explicit, context, then four strings (title, artist, image, uri) per queued track. */
     private void applyPlayer(String[] s) {
+        float from = shownProgress(), previousFraction = playbackFraction();
         revision = Long.parseLong(s[0]);
         boolean changed = !uri.equals(s[1]);
+        if (changed) {
+            stopHeldSeek();
+            if (wave != null) wave.cancelScrub();
+        }
         uri = s[1]; title = s[2]; artist = s[3]; album = s[4]; image = s[5];
         playing = Boolean.parseBoolean(s[6]);
         if (pending != null && (changed || pending == playing)) pending = null;
@@ -843,6 +903,7 @@ public final class SpatchUi extends FrameLayout {
             if (listFab != null) listFab.invalidate();
         }
         stamp = SystemClock.uptimeMillis();
+        if (changed || Math.abs(playbackFraction() - previousFraction) >= .0005f) animateProgress(from);
         List<Entry> next = new ArrayList<>();
         for (int i = 20; i + 5 < s.length; i += 6) {
             Entry entry = new Entry(s[i], s[i + 1], s[i + 3], s[i + 2], -1);
@@ -3151,8 +3212,12 @@ public final class SpatchUi extends FrameLayout {
                     for (int k = 0; k < SONG_FIELDS; k++) kept.add(r[at + k]);
                 }
             }
-            if (duration == 0 && !uri.isEmpty()) for (Song song : allSongs) {
-                if (song.uri.equals(uri) && song.duration > 0) { duration = song.duration; break; }
+            if (duration == 0 && !uri.isEmpty()) {
+                float from = shownProgress();
+                for (Song song : allSongs) {
+                    if (song.uri.equals(uri) && song.duration > 0) { duration = song.duration; break; }
+                }
+                if (duration > 0) animateProgress(from);
             }
             songFields = kept.toArray(new String[0]);
             nativeSongs(packStrings(songFields));
@@ -3259,17 +3324,7 @@ public final class SpatchUi extends FrameLayout {
         if (!song.albumUri.isEmpty()) { names.add(new Option("Go to album", song.album, "", "album", false)); runs.add(() -> openPlaylist(new Entry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
         if (!song.artistUri.isEmpty()) { names.add(new Option("Go to artist", song.subtitle, "", "artist", false)); runs.add(() -> openPlaylist(new Entry(song.subtitle, "Artist", song.artistUri, "", -1))); }
         names.add(new Option(song.liked ? "Remove from Liked Songs" : "Add to Liked Songs", "", "", song.liked ? "heart" : "heart-outline", false));
-        runs.add(() -> {
-            boolean want = !song.liked;
-            song.liked = want;
-            submit(DATA, () -> {
-                boolean done = nativeSave(song.uri, want);
-                post(() -> {
-                    if (!done) song.liked = !want;
-                    Toast.makeText(activity, !done ? "That didn’t go through" : want ? "Added to Liked Songs" : "Removed from Liked Songs", Toast.LENGTH_SHORT).show();
-                });
-            });
-        });
+        runs.add(() -> setLikedSong(song, !song.liked));
         String note = song.album.isEmpty() ? song.subtitle : song.subtitle + " • " + song.album;
         sheet(song.title, note, names.toArray(new Option[0]), choice -> runs.get(choice).run());
     }
@@ -4766,6 +4821,12 @@ public final class SpatchUi extends FrameLayout {
 
     private void closePlayer() {
         if (!playerOpen) return;
+        stopHeldSeek();
+        if (wave != null && wave.preview >= 0) {
+            float from = shownProgress();
+            wave.cancelScrub();
+            animateProgress(from);
+        }
         playerOpen = false;
         setDockHidden(false);
         activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -4825,9 +4886,6 @@ public final class SpatchUi extends FrameLayout {
         sleepBadge.run();
         top.addView(timerBox, lp(dp(48), dp(48)));
         top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
-        top.addView(iconButton(icon("add", () -> ink), "Add current song to playlist", () -> {
-            if (!uri.isEmpty()) addToPlaylist(new Entry(title, artist, uri, image, -1));
-        }), lp(dp(48), dp(48)));
         top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
         col.addView(top, fill(-2));
 
@@ -4932,21 +4990,27 @@ public final class SpatchUi extends FrameLayout {
             if (!held[0] || duration <= 0 || !button.isAttachedToWindow()) return;
             long jump = new long[]{5_000, 10_000, 30_000}[Math.max(0, Math.min(2, prefs.getInt("seek_step", 1)))];
             long target = Math.max(0, Math.min(duration - 1500, playhead() + (forward ? jump : -jump)));
-            position = target;
-            stamp = SystemClock.uptimeMillis();
-            if (wave != null) wave.invalidate();
+            setPosition(target);
             command(SEEK, target, "");
             tick(button);
             button.postDelayed(step[0], 480);
         };
-        button.setOnLongClickListener(v -> { held[0] = true; step[0].run(); return true; });
+        button.setOnLongClickListener(v -> {
+            stopHeldSeek();
+            held[0] = true;
+            holdingSeek = true;
+            cancelHeldSeek = () -> { held[0] = false; button.removeCallbacks(step[0]); };
+            step[0].run();
+            invalidateProgress();
+            return true;
+        });
         // iconButton installs its own touch listener for the press animation; wrap it so releasing still ends the hold.
         button.setOnTouchListener(new View.OnTouchListener() {
             @Override public boolean onTouch(View v, MotionEvent e) {
                 int a = e.getActionMasked();
                 if (a == MotionEvent.ACTION_DOWN) v.animate().scaleX(.96f).scaleY(.96f).setDuration(90).start();
                 else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
-                    held[0] = false;
+                    if (held[0]) stopHeldSeek();
                     v.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start();
                 }
                 return false;
@@ -4965,9 +5029,18 @@ public final class SpatchUi extends FrameLayout {
     /** On the disc: pull down to close, flick sideways to skip, double tap to play or pause. */
     private void gestures(View v) {
         float[] start = new float[2];
-        boolean[] drag = new boolean[1];
+        boolean[] drag = new boolean[1], menuOpened = new boolean[1];
+        v.setContentDescription("Artwork, hold for song options");
+        v.setOnLongClickListener(view -> {
+            if (uri.isEmpty()) return false;
+            menuOpened[0] = true;
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            currentSongActions();
+            return true;
+        });
         android.view.GestureDetector taps = new android.view.GestureDetector(activity, new android.view.GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { return true; }
+            @Override public void onLongPress(MotionEvent e) { if (!drag[0]) v.performLongClick(); }
             @Override public boolean onDoubleTap(MotionEvent e) { if (pref("double_tap", true)) togglePlay(); return true; }
             @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
                 if (a == null || !pref("swipe_skip", true) || Math.abs(b.getX() - a.getX()) < dp(60) || Math.abs(b.getX() - a.getX()) < Math.abs(b.getY() - a.getY())) return false;
@@ -4977,12 +5050,24 @@ public final class SpatchUi extends FrameLayout {
             }
         });
         v.setOnTouchListener((view, e) -> {
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) menuOpened[0] = false;
+            if (menuOpened[0]) {
+                if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) taps.onTouchEvent(e);
+                return true;
+            }
             if (player != null && motion()) {
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN: start[0] = e.getRawX(); start[1] = e.getRawY(); drag[0] = false; break;
                     case MotionEvent.ACTION_MOVE: {
                         float dy = e.getRawY() - start[1], dx = e.getRawX() - start[0];
-                        if (!drag[0] && dy > dp(16) && dy > Math.abs(dx) * 1.4f) { drag[0] = true; view.getParent().requestDisallowInterceptTouchEvent(true); }
+                        if (!drag[0] && dy > dp(16) && dy > Math.abs(dx) * 1.4f) {
+                            drag[0] = true;
+                            view.getParent().requestDisallowInterceptTouchEvent(true);
+                            MotionEvent cancel = MotionEvent.obtain(e);
+                            cancel.setAction(MotionEvent.ACTION_CANCEL);
+                            taps.onTouchEvent(cancel);
+                            cancel.recycle();
+                        }
                         if (drag[0]) { player.setTranslationY(Math.max(0, dy) * .8f); return true; }
                         break;
                     }
@@ -5209,12 +5294,13 @@ public final class SpatchUi extends FrameLayout {
     // ---------- like ----------
 
     private void checkSaved(String track) {
+        int request = ++savedRequest;
         savedUri = track;
         saved = null;
         if (!track.startsWith("spotify:track:") && !track.startsWith("spotify:episode:") && !track.startsWith("spotify:preview:")) return;
         submit(DATA, () -> {
             int a = nativeSaved(track);
-            post(() -> { if (track.equals(savedUri)) { saved = a < 0 ? null : a == 1; refresh(); } });
+            post(() -> { if (request == savedRequest && track.equals(savedUri)) { saved = a < 0 ? null : a == 1; refresh(); } });
         });
     }
 
@@ -5265,13 +5351,18 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void toggleSaved() {
-        if (uri.isEmpty()) return;
-        Boolean before = saved;
-        boolean want = !Boolean.TRUE.equals(before);
-        String track = uri;
-        saved = want;
+        if (!uri.isEmpty()) setLikedSong(new Entry(title, artist, uri, image, -1), !Boolean.TRUE.equals(saved));
+    }
+
+    private void setLikedSong(Entry song, boolean want) {
+        String track = song.uri;
+        boolean current = track.equals(uri);
+        Boolean before = current ? saved : song instanceof Song ? ((Song) song).liked : null;
+        int request = current ? ++savedRequest : -1;
+        if (current) { savedUri = track; saved = want; }
+        if (song instanceof Song) ((Song) song).liked = want;
         refresh();
-        if (want && motion() && pLike != null) {
+        if (want && current && motion() && pLike != null) {
             pLike.setScaleX(.5f);
             pLike.setScaleY(.5f);
             pLike.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(3.2f)).start();
@@ -5280,7 +5371,13 @@ public final class SpatchUi extends FrameLayout {
         submit(COMMANDS, () -> {
             boolean ok = nativeSave(track, want);
             post(() -> {
-                if (!ok && (track.equals(savedUri) || track.equals(uri))) { saved = before; refresh(); Toast.makeText(activity, "Couldn’t update Liked Songs", Toast.LENGTH_SHORT).show(); }
+                if (closed) return;
+                if (!ok) {
+                    if (request == savedRequest && track.equals(uri)) saved = before;
+                    if (song instanceof Song && ((Song) song).liked == want) ((Song) song).liked = Boolean.TRUE.equals(before);
+                }
+                refresh();
+                Toast.makeText(activity, !ok ? "Couldn’t update Liked Songs" : want ? "Added to Liked Songs" : "Removed from Liked Songs", Toast.LENGTH_SHORT).show();
             });
         });
     }
@@ -5357,7 +5454,13 @@ public final class SpatchUi extends FrameLayout {
             }
         }
         if (pPlay != null) pPlay.set(on);
-        if (pLike != null) { ((Runnable) pLike.getTag(R_COLOR)).run(); pLike.setAlpha(saved == null ? .4f : 1f); }
+        if (pLike != null) {
+            View button = (View) pLike.getParent();
+            recolorView(button);
+            button.setSelected(Boolean.TRUE.equals(saved));
+            if (android.os.Build.VERSION.SDK_INT >= 30) button.setStateDescription(saved == null ? "Checking Liked Songs" : Boolean.TRUE.equals(saved) ? "In Liked Songs" : "Not in Liked Songs");
+            pLike.setAlpha(saved == null ? .4f : 1f);
+        }
         if (pShuffle != null) ((Runnable) pShuffle.getTag(R_COLOR)).run();
         if (pSparkle != null) ((Runnable) pSparkle.getTag(R_COLOR)).run();
         if (pRepeat != null) ((Runnable) pRepeat.getTag(R_COLOR)).run();
@@ -5689,7 +5792,7 @@ public final class SpatchUi extends FrameLayout {
                 if (f < 1f) postInvalidateOnAnimation(); else { shownAt = 0; previousBitmap = null; }
             }
             if (ring) {
-                float f = duration <= 0 ? 0 : Math.min(1f, playhead() / (float) duration);
+                float f = shownProgress();
                 RectF rr = new RectF(dp(1.5f), dp(1.5f), w - dp(1.5f), h - dp(1.5f));
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dp(2.5f));
@@ -5927,7 +6030,7 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    /** Progress as a wavy line that flattens when paused; drag to seek. */
+    /** Progress eases across position changes and flattens while paused or seeking. */
     private final class Wave extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
@@ -5935,9 +6038,15 @@ public final class SpatchUi extends FrameLayout {
         private int lastTenth = -1;
         Wave() { super(activity); setContentDescription("Playback position"); }
 
+        private void cancelScrub() {
+            preview = -1;
+            lastTenth = -1;
+            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+        }
+
         @Override protected void onDraw(Canvas c) {
             long el = playhead();
-            float f = preview >= 0 ? preview : duration <= 0 ? 0 : el / (float) duration;
+            float f = shownProgress();
             float x0 = dp(6), x1 = getWidth() - dp(6), y = dp(20), tip = x0 + (x1 - x0) * f;
             // Scrubbing thickens the line; it eases back when you let go.
             float wantGrow = preview >= 0 ? 1f : 0f;
@@ -5947,7 +6056,7 @@ public final class SpatchUi extends FrameLayout {
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setColor((ink & 0x00ffffff) | 0x2a000000);
             if (tip + dp(8) < x1) c.drawLine(tip + dp(8), y, x1, y, paint);
-            float target = playing ? dp(3.2f) : 0;
+            float target = playing && preview < 0 && !holdingSeek ? dp(3.2f) : 0;
             amp = amp < 0 || !motion() ? target : amp + (target - amp) * .12f;
             paint.setColor(accent);
             path.rewind();
@@ -5963,21 +6072,33 @@ public final class SpatchUi extends FrameLayout {
             paint.setTextAlign(Paint.Align.LEFT);
             paint.setColor(preview >= 0 ? accent : inkDim);
             paint.setFakeBoldText(preview >= 0);
-            c.drawText(time(preview >= 0 ? Math.round(preview * (double) duration) : el), x0, dp(50), paint);
+            long shownTime = preview >= 0 ? Math.round(preview * (double) duration) : el;
+            c.drawText(time(shownTime), x0, dp(50), paint);
             paint.setFakeBoldText(false);
             paint.setColor(inkDim);
             paint.setTextAlign(Paint.Align.RIGHT);
-            c.drawText(duration > 0 ? "−" + time(Math.max(0, duration - el)) : "—", x1, dp(50), paint);
+            c.drawText(duration > 0 ? "−" + time(Math.max(0, duration - shownTime)) : "—", x1, dp(50), paint);
             boolean settling = Math.abs(target - amp) > .05f || Math.abs(wantGrow - grow) > .01f;
             if ((playing || settling) && isShown()) { if (motion()) postInvalidateOnAnimation(); else postInvalidateDelayed(500); }
         }
 
         @Override public boolean onTouchEvent(MotionEvent e) {
+            if (e.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                float from = shownProgress();
+                cancelScrub();
+                animateProgress(from);
+                return true;
+            }
             if (duration <= 0) return false;
             switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN: getParent().requestDisallowInterceptTouchEvent(true);
+                case MotionEvent.ACTION_DOWN:
+                    stopHeldSeek();
+                    if (progressAnimator != null) { progressAnimator.cancel(); progressAnimator = null; }
+                    progressOffset = 0;
+                    getParent().requestDisallowInterceptTouchEvent(true);
                 case MotionEvent.ACTION_MOVE:
                 case MotionEvent.ACTION_UP:
+                    if (e.getActionMasked() != MotionEvent.ACTION_DOWN && preview < 0) return false;
                     preview = Math.max(0, Math.min(1, (e.getX() - dp(6)) / Math.max(1, getWidth() - dp(12))));
                     // A light tick each time the drag crosses a tenth of the song.
                     int tenth = (int) (preview * 10);
@@ -5989,13 +6110,11 @@ public final class SpatchUi extends FrameLayout {
                     if (e.getActionMasked() == MotionEvent.ACTION_UP) {
                         long target = Math.round(duration * (double) preview);
                         command(SEEK, target, "");
-                        position = target;
-                        stamp = SystemClock.uptimeMillis();
-                        preview = -1;
+                        setPosition(target);
+                        cancelScrub();
                     }
-                    invalidate();
+                    invalidateProgress();
                     return true;
-                case MotionEvent.ACTION_CANCEL: preview = -1; invalidate(); return true;
                 default: return false;
             }
         }
