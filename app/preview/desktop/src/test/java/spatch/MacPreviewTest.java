@@ -275,7 +275,7 @@ public class MacPreviewTest {
         settle();
         assertEquals("Opened Profile from Settings", 5, field(ui, "tab"));
         assertTrue("Profile exposes sign-in/switch-account option",
-            find(root, "Switch Spotify account") != null || find(root, "Sign in to Spotify") != null);
+            find(root, "Sign in or switch account") != null);
         View playlistsRow = find(root, "Your playlists");
         if (!playlistsRow.isClickable()) playlistsRow = (View) playlistsRow.getParent();
         playlistsRow.performClick();
