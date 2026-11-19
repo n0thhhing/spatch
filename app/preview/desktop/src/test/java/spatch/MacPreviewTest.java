@@ -108,6 +108,36 @@ public class MacPreviewTest {
         assertFalse(registered.containsKey(activity));
     }
 
+    @Test public void libraryLoadingDoesNotImplySignedOut() throws Exception {
+        org.robolectric.android.controller.ActivityController<PreviewActivity> controller = Robolectric.buildActivity(PreviewActivity.class).setup();
+        PreviewActivity activity = controller.get();
+        View root = activity.getWindow().getDecorView();
+        SpatchUi ui = (SpatchUi) findType(root, SpatchUi.class);
+        settle();
+        ui.removeCallbacks((Runnable) field(ui, "poll"));
+        android.content.SharedPreferences prefs = activity.getSharedPreferences("spatch_ui", 0);
+        prefs.edit().putBoolean("home_recent", false).putBoolean("home_shelf_0", false)
+            .putBoolean("home_shelf_1", false).putBoolean("home_shelf_2", false).putBoolean("home_shelf_3", false).apply();
+        java.lang.reflect.Field ready = SpatchUi.class.getDeclaredField("libraryReady"); ready.setAccessible(true); ready.setBoolean(ui, false);
+        java.lang.reflect.Field fetching = SpatchUi.class.getDeclaredField("fetching"); fetching.setAccessible(true); fetching.setBoolean(ui, true);
+        java.lang.reflect.Field status = SpatchUi.class.getDeclaredField("libraryStatus"); status.setAccessible(true); status.set(ui, "Connecting to your library…");
+        java.lang.reflect.Method show = SpatchUi.class.getDeclaredMethod("showPage"); show.setAccessible(true); show.invoke(ui);
+        assertNotNull(find(root, "Connecting to your library…"));
+        assertNull("Loading music is not evidence of a signed-out account", find(root, "Sign in to Spotify"));
+        assertNull("No recovery actions before the first request finishes", find(root, "Open Spotify"));
+        fetching.setBoolean(ui, false); status.set(ui, "Couldn’t load your library"); show.invoke(ui);
+        assertNotNull(find(root, "Retry"));
+        assertNotNull(find(root, "Open Spotify"));
+        assertNull("Library failures do not force another login", find(root, "Sign in to Spotify"));
+        // The same recovery component serves Home and Library, including a failed empty filtered list.
+        java.lang.reflect.Field tab = SpatchUi.class.getDeclaredField("tab"); tab.setAccessible(true); tab.setInt(ui, 2);
+        java.lang.reflect.Field filter = SpatchUi.class.getDeclaredField("filter"); filter.setAccessible(true); filter.setInt(ui, 99);
+        show.invoke(ui);
+        assertNotNull(find(root, "Retry")); assertNotNull(find(root, "Open Spotify")); assertNull(find(root, "Sign in to Spotify"));
+        prefs.edit().clear().apply();
+        controller.pause().stop().destroy();
+    }
+
     @Test public void previewCatalogUsesSharedDemoData() throws Exception {
         Class.forName("spatch.PreviewActivity");
         java.lang.reflect.Method catalog = SpatchUi.class.getDeclaredMethod("nativeCatalog", byte[].class);

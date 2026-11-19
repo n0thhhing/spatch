@@ -2066,19 +2066,25 @@ public final class SpatchUi extends FrameLayout {
             TextView note = text(libraryStatus, 14, () -> inkDim, false);
             note.setPadding(dp(4), dp(24), 0, 0);
             page.addView(note);
-            if (!libraryReady) {
-                LinearLayout actions = row();
-                actions.addView(pill("Sign in to Spotify", this::openLogin));
-                actions.addView(space(dp(10), 1));
-                actions.addView(pill("Native Spotify", this::openNativeSpotify));
-                if (!libraryStatus.startsWith("Connecting")) {
-                    actions.addView(space(dp(10), 1));
-                    actions.addView(pill("Retry", () -> { if (!fetching) loadLibrary(); }));
-                }
-                page.addView(actions, lp(-2, -2));
-            }
+            libraryRecoveryActions(page, false);
         }
         return scrolling(page);
+    }
+
+    private void libraryRecoveryActions(LinearLayout page, boolean edgeToEdge) {
+        // A pending/failed library request does not establish that the account is signed out.
+        if (libraryReady || fetching || libraryStatus.startsWith("Connecting")) return;
+        LinearLayout actions = row();
+        if (edgeToEdge) actions.setPadding(dp(22), 0, dp(22), 0);
+        actions.addView(pill("Retry", () -> {
+            if (fetching) return;
+            libraryStatus = "Connecting to your library…";
+            loadLibrary();
+            showPageKeepingPlace();
+        }));
+        actions.addView(space(dp(10), 1));
+        actions.addView(pill("Open Spotify", this::openNativeSpotify));
+        page.addView(actions, lp(-2, -2));
     }
 
     TextView pill(String label, Runnable action) {
@@ -2285,14 +2291,7 @@ public final class SpatchUi extends FrameLayout {
             TextView note = text(filter == DOWNLOADED && libraryReady ? "Nothing downloaded yet. Open a playlist, album or podcast and tap its download button." : libraryStatus, 14, () -> inkDim, false);
             note.setPadding(dp(22), dp(20), dp(22), 0);
             page.addView(note);
-            if (!libraryReady) {
-                LinearLayout actions = row();
-                actions.setPadding(dp(22), 0, dp(22), 0);
-                actions.addView(pill("Sign in to Spotify", this::openLogin));
-                actions.addView(space(dp(10), 1));
-                actions.addView(pill("Native Spotify", this::openNativeSpotify));
-                page.addView(actions, lp(-2, -2));
-            }
+            libraryRecoveryActions(page, true);
         } else {
             TextView noMatch = text("", 15, () -> inkDim, false);
             noMatch.setPadding(dp(22), dp(18), dp(22), 0);
