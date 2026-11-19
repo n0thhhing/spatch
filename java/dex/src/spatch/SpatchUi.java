@@ -101,7 +101,7 @@ public final class SpatchUi extends FrameLayout {
     static native String[] nativeCreatePlaylist(String name, String description, boolean fromQueue);
     static native String nativeAddToPlaylist(String playlistUri, String[] uris);
 
-    private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
+    private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9, QUEUE_NEXT = 13;
     private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5;
     private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, CREATE};
     private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
@@ -1767,10 +1767,11 @@ public final class SpatchUi extends FrameLayout {
 
     private void searchActions(MediaEntry e) {
         if (!e.uri.startsWith("spotify:track:") && !e.uri.startsWith("spotify:episode:") && !e.uri.startsWith("spotify:preview:")) { actions(e); return; }
-        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false), new Option("Add to playlist", "", "", "add", false), songDownloadOption(e)}, c -> {
+        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Play next", "", "", "next", false), new Option("Add to queue", "", "", "queue", false), new Option("Add to playlist", "", "", "add", false), songDownloadOption(e)}, c -> {
             if (c == 0) command(PLAY, 0, e.uri);
-            else if (c == 2) addToPlaylist(e);
-            else if (c == 3) downloadTapped(e);
+            else if (c == 1) { command(QUEUE_NEXT, 0, e.uri); Toast.makeText(activity, "Playing next", Toast.LENGTH_SHORT).show(); }
+            else if (c == 3) addToPlaylist(e);
+            else if (c == 4) downloadTapped(e);
             else { command(QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
         });
     }
@@ -2927,6 +2928,7 @@ public final class SpatchUi extends FrameLayout {
         List<Option> names = new ArrayList<>();
         List<Runnable> runs = new ArrayList<>();
         names.add(new Option("Play from here", "", "", "play", false)); runs.add(() -> open(song));
+        names.add(new Option("Play next", "", "", "next", false)); runs.add(() -> { command(QUEUE_NEXT, 0, song.uri); Toast.makeText(activity, "Playing next", Toast.LENGTH_SHORT).show(); });
         names.add(new Option("Add to queue", "", "", "queue", false)); runs.add(() -> { command(QUEUE_ADD, 0, song.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
         names.add(new Option("Add to playlist", "", "", "add", false)); runs.add(() -> addToPlaylist(song));
         names.add(songDownloadOption(song)); runs.add(() -> downloadTapped(song));

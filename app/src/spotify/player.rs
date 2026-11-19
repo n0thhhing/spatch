@@ -229,6 +229,8 @@ pub enum Command {
     /// Skips forward to a track in Up Next, as Spotify's queue does.
     SkipTo { uri: String, uid: String },
     AddToQueue(String),
+    /// Puts a song at the front of Up Next (ahead of what's already queued), as Spotify's "Play next".
+    PlayNext(String),
 }
 
 fn logging_params() -> Option<es::LoggingParams> {
@@ -313,6 +315,10 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
             .encode_to_vec(),
         ),
         Command::SkipTo { uri, uid } => ("SkipNext", es::SkipNextRequest { track: track(uri, uid), logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::PlayNext(uri) => (
+            "PlayAsNextInQueue",
+            es::PlayAsNextInQueueRequest { tracks: vec![es::ContextTrack { uri, ..Default::default() }], logging_params: log, ..Default::default() }.encode_to_vec(),
+        ),
         Command::AddToQueue(uri) => ("AddToQueue", es::AddToQueueRequest { track: track(uri, String::new()), logging_params: log, ..Default::default() }.encode_to_vec()),
     }
 }
@@ -430,6 +436,9 @@ mod tests {
         let (method, bytes) = command(Command::SkipTo { uri: "spotify:track:2".into(), uid: "u2".into() });
         let skip = es::SkipNextRequest::decode(bytes.as_slice()).unwrap().track.unwrap();
         assert_eq!((method, skip.uri.as_str(), skip.uid.as_str()), ("SkipNext", "spotify:track:2", "u2"));
+        let (method, next) = command(Command::PlayNext("spotify:track:4".into()));
+        let sent = es::PlayAsNextInQueueRequest::decode(next.as_slice()).unwrap();
+        assert_eq!((method, sent.tracks.len(), sent.tracks[0].uri.as_str()), ("PlayAsNextInQueue", 1, "spotify:track:4"));
         let (method, bytes) = command(Command::AddToQueue("spotify:track:9".into()));
         assert_eq!((method, es::AddToQueueRequest::decode(bytes.as_slice()).unwrap().track.unwrap().uri.as_str()), ("AddToQueue", "spotify:track:9"));
         let (method, bytes) = command(Command::Repeat(1));

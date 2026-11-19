@@ -922,7 +922,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeTransfer(mut env: JNIEnv, _: J
 
 /// Sends a player command; true if Spotify accepted it.
 /// 0 pause, 1 resume, 2 previous, 3 next, 4 seek to `value` ms, 5 shuffle on/off, 6 repeat mode,
-/// 7 play the context `uri`, 8 skip to queue entry `value` (which must still hold `uri`), 9 add `uri` to the queue.
+/// 7 play the context `uri`, 8 skip to queue entry `value` (which must still hold `uri`), 9 add `uri` to the queue,
+/// 10 to 12 edit the queue, 13 put `uri` at the front of Up Next.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JClass, action: jint, value: jlong, uri: JString) -> jboolean {
     use player::Command;
@@ -983,6 +984,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
             }
         }
         9 if spotify_uri => Command::AddToQueue(target),
+        13 if spotify_uri => Command::PlayNext(target),
         _ => return JNI_FALSE,
     };
     #[cfg(feature = "preview")]
