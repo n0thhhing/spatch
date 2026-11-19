@@ -1719,7 +1719,13 @@ public final class SpatchUi extends FrameLayout {
         }
         for (int i = 0; i < NAV_TABS.length; i++) if (NAV_TABS[i] == CREATE) {
             Icon add = (Icon) ((ViewGroup) dockBar.getChildAt(i)).getChildAt(0);
-            add.symbol = createOverlay == null ? "add" : "close";
+            float targetRotation = createOverlay == null ? 0f : 45f;
+            if (!Float.valueOf(targetRotation).equals(add.getTag())) {
+                add.setTag(targetRotation);
+                add.animate().cancel();
+                if (motion()) add.animate().rotation(targetRotation).setDuration(260).setInterpolator(EMPHASIZED).start();
+                else add.setRotation(targetRotation);
+            }
             dockBar.getChildAt(i).setContentDescription(createOverlay == null ? "Create" : "Close create menu");
         }
         recolorView(dockBar);
@@ -1742,6 +1748,8 @@ public final class SpatchUi extends FrameLayout {
         private float startX, startY, indicatorX = -1, indicatorTarget = -1;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private android.animation.ValueAnimator slide;
+        private boolean draggingSlide;
+        private long lastTickMs;
         private int destination = HOME;
         Navigator() { super(activity); setOrientation(HORIZONTAL); }
 
@@ -1752,17 +1760,52 @@ public final class SpatchUi extends FrameLayout {
             for (int i = 0; i < getChildCount(); i++) if (NAV_TABS[i] == target) {
                 View child = getChildAt(i); x = (child.getLeft() + child.getRight()) / 2f;
             }
-            moveIndicator(x, true);
+            settleIndicator(x);
         }
-        private void moveIndicator(float x, boolean settle) {
-            if (x == indicatorTarget) return;
+        private void settleIndicator(float x) {
+            if (x == indicatorTarget && !draggingSlide) return;
             indicatorTarget = x;
+            draggingSlide = false;
             if (slide != null) slide.cancel();
             if (!motion() || indicatorX < 0 || x < 0) { indicatorX = x; invalidate(); return; }
             slide = android.animation.ValueAnimator.ofFloat(indicatorX, x);
-            slide.setDuration(settle ? 260 : 100);
+            slide.setDuration(240);
             slide.setInterpolator(EMPHASIZED);
             slide.addUpdateListener(a -> { indicatorX = (float) a.getAnimatedValue(); invalidate(); });
+            slide.start();
+        }
+        private void chaseIndicator(float x) {
+            indicatorTarget = x;
+            if (!motion() || indicatorX < 0 || x < 0) { indicatorX = x; invalidate(); return; }
+            if (slide != null && slide.isRunning() && draggingSlide) return;
+            if (slide != null) slide.cancel();
+            draggingSlide = true;
+            lastTickMs = -1;
+            slide = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            slide.setDuration(1000);
+            slide.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            slide.setInterpolator(new android.view.animation.LinearInterpolator());
+            slide.addUpdateListener(a -> {
+                long now = a.getCurrentPlayTime();
+                if (lastTickMs < 0) {
+                    lastTickMs = now;
+                    if (now == 0) return;
+                }
+                long rawDt = now >= lastTickMs ? now - lastTickMs : (1000 - lastTickMs) + now;
+                lastTickMs = now;
+                if (rawDt == 0) return;
+                long dt = Math.min(50, rawDt);
+                float alpha = 1f - (float) Math.exp(-dt * 0.032f);
+                float next = indicatorX + (indicatorTarget - indicatorX) * alpha;
+                if (Math.abs(indicatorTarget - next) < 0.5f) {
+                    indicatorX = indicatorTarget;
+                    invalidate();
+                    if (!navDragging) { draggingSlide = false; a.cancel(); }
+                } else {
+                    indicatorX = next;
+                    invalidate();
+                }
+            });
             slide.start();
         }
         @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
@@ -1780,10 +1823,10 @@ public final class SpatchUi extends FrameLayout {
             }
             super.dispatchDraw(canvas);
         }
-        @Override protected void onDetachedFromWindow() { if (slide != null) slide.cancel(); super.onDetachedFromWindow(); }
+        @Override protected void onDetachedFromWindow() { if (slide != null) slide.cancel(); draggingSlide = false; super.onDetachedFromWindow(); }
         private void follow(MotionEvent event) {
             float edge = Math.max(dp(24), getPaddingLeft() + indicatorHalf() + dp(3));
-            moveIndicator(Math.max(edge, Math.min(getWidth() - edge, event.getX())), false);
+            chaseIndicator(Math.max(edge, Math.min(getWidth() - edge, event.getX())));
             int target = targetAt(event);
             if (target >= 0 && target != navHover) {
                 navHover = target;
@@ -1792,21 +1835,43 @@ public final class SpatchUi extends FrameLayout {
         }
         @Override public boolean onInterceptTouchEvent(MotionEvent event) {
             if (!pref("nav_drag", true)) return false;
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
                 startX = event.getX(); startY = event.getY(); navDragging = false;
-            } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE
-                && Math.abs(event.getX() - startX) > dp(8)
-                && Math.abs(event.getX() - startX) > Math.abs(event.getY() - startY)) {
+            } else if (action == MotionEvent.ACTION_MOVE
+                && Math.abs(event.getX() - startX) > dp(6)
+                && Math.abs(event.getX() - startX) >= Math.abs(event.getY() - startY)) {
                 navDragging = true;
                 follow(event);
-                getParent().requestDisallowInterceptTouchEvent(true);
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
                 return true;
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                navDragging = false;
             }
             return navDragging;
         }
         @Override public boolean onTouchEvent(MotionEvent event) {
-            if (!navDragging) return super.onTouchEvent(event);
             int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN && pref("nav_drag", true)) {
+                startX = event.getX(); startY = event.getY(); navDragging = false;
+                return true;
+            }
+            if (!navDragging) {
+                if (pref("nav_drag", true) && action == MotionEvent.ACTION_MOVE
+                    && Math.abs(event.getX() - startX) > dp(6)
+                    && Math.abs(event.getX() - startX) >= Math.abs(event.getY() - startY)) {
+                    navDragging = true;
+                    follow(event);
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                    return true;
+                }
+                if (action == MotionEvent.ACTION_UP) {
+                    int target = targetAt(event);
+                    if (target >= 0) navigate(target);
+                    return true;
+                }
+                return super.onTouchEvent(event);
+            }
             if (action == MotionEvent.ACTION_MOVE) follow(event);
             else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 int target = targetAt(event);
@@ -1817,10 +1882,15 @@ public final class SpatchUi extends FrameLayout {
             return true;
         }
         private int targetAt(MotionEvent event) {
-            if (event.getY() < 0 || event.getY() > getHeight()) return -1;
-            for (int i = 0; i < getChildCount(); i++) {
+            int count = getChildCount();
+            if (count == 0) return -1;
+            float slopY = dp(16);
+            if (event.getY() < -slopY || event.getY() > getHeight() + slopY) return -1;
+            if (event.getX() < 0 || event.getX() > getWidth()) return -1;
+            float clampedX = Math.max(getChildAt(0).getLeft(), Math.min(getChildAt(count - 1).getRight(), event.getX()));
+            for (int i = 0; i < count; i++) {
                 View child = getChildAt(i);
-                if (event.getX() >= child.getLeft() && event.getX() <= child.getRight()) return NAV_TABS[i];
+                if (clampedX >= child.getLeft() && clampedX <= child.getRight()) return NAV_TABS[i];
             }
             return -1;
         }

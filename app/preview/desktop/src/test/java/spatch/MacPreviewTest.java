@@ -149,6 +149,8 @@ public class MacPreviewTest {
         assertEquals("Create menu keeps the current screen behind it", 3, field(ui, "tab"));
         View menu = (View) field(ui, "createOverlay");
         assertNotNull(menu);
+        View addIcon = ((ViewGroup) nav.getChildAt(4)).getChildAt(0);
+        assertEquals("Create icon rotates to x when open", 45f, addIcon.getRotation(), .01f);
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
         android.graphics.Rect visible = new android.graphics.Rect();
@@ -157,6 +159,7 @@ public class MacPreviewTest {
         screenshot(root, width, height, "create-menu");
         for (String option : new String[]{"Playlist", "Collaborative playlist", "Mixed playlist", "Blend", "Prompted Playlist", "Jam"}) assertNotNull(find(menu, option));
         find(menu, "Playlist").performClick();
+        assertEquals("Create icon rotates back to + when closed", 0f, addIcon.getRotation(), .01f);
         assertEquals(4, field(ui, "tab"));
         assertNotNull(find(root, "Make something yours."));
         java.util.Map<?, ?> glyphs = (java.util.Map<?, ?>) field(ui, "GLYPHS");
@@ -173,9 +176,13 @@ public class MacPreviewTest {
         java.lang.reflect.Field animation = nav.getClass().getDeclaredField("slide"); animation.setAccessible(true);
         android.animation.ValueAnimator hover = (android.animation.ValueAnimator) animation.get(nav);
         assertNotNull(hover);
-        hover.setCurrentPlayTime(hover.getDuration() / 2);
+        touch(nav, gesture, 2, 42, nav.getHeight()/2f);
+        assertSame("Continuous drag updates target without cancelling and restarting the animator", hover, animation.get(nav));
+        hover.setCurrentPlayTime(16);
         float midway = position.getFloat(nav);
-        assertTrue("Indicator travels through intermediate positions: " + before + " → " + midway, midway < before && midway > 45);
+        assertTrue("Indicator travels through intermediate positions: " + before + " → " + midway, midway < before && midway > 42);
+        hover.setCurrentPlayTime(32);
+        assertTrue("Indicator keeps advancing across frames", position.getFloat(nav) < midway);
         touch(nav, gesture, 3, 45, -10);
         prefs.edit().putBoolean("reduce_motion", true).apply();
         java.lang.reflect.Method scroll = SpatchUi.class.getDeclaredMethod("scrollDock", int.class, boolean.class);
