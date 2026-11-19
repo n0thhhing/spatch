@@ -185,7 +185,9 @@ public final class SpatchUi extends FrameLayout {
     private LinearLayout dock, nextPill;
     private Navigator dockBar;
     private FrameLayout createOverlay;
+    private ScrollView createScroll;
     private LinearLayout createCard;
+    private android.animation.ValueAnimator createResize;
     private boolean createComposerOpen, createComposerFromMenu;
     private View dockFade;
     private boolean dockHidden, navDragging;
@@ -1193,6 +1195,22 @@ public final class SpatchUi extends FrameLayout {
         menuAction(menu, "Queue", "queue", () -> { popup.dismiss(); openQueue(); });
         menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); updateDock(); } else go(LIBRARY); });
         popup.showAsDropDown(anchor, 0, dp(8), Gravity.END);
+        if (motion()) {
+            menu.setAlpha(0f);
+            menu.setTranslationY(-dp(8));
+            menu.setScaleX(.92f);
+            menu.setScaleY(.92f);
+            menu.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                @Override public boolean onPreDraw() {
+                    menu.getViewTreeObserver().removeOnPreDrawListener(this);
+                    menu.setPivotX(menu.getWidth());
+                    menu.setPivotY(0);
+                    menu.animate().alpha(1f).translationY(0).scaleX(1f).scaleY(1f)
+                        .setDuration(220).setInterpolator(EMPHASIZED).start();
+                    return true;
+                }
+            });
+        }
     }
 
     private void menuAction(LinearLayout menu, String title, String symbol, Runnable action) {
@@ -1255,12 +1273,13 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void ensureCreateOverlay() {
-        if (createOverlay != null && createCard != null) return;
+        if (createOverlay != null && createCard != null && createScroll != null) return;
         hideKeyboard();
         if (accountMenu != null) accountMenu.dismiss();
         setDockHidden(false);
         FrameLayout overlay = new FrameLayout(activity);
         overlay.setBackgroundColor(0x99000000);
+        overlay.setClipChildren(false);
         createOverlay = overlay;
         int[] navAt = new int[2], rootAt = new int[2];
         dockBar.getLocationInWindow(navAt); getLocationInWindow(rootAt);
@@ -1278,6 +1297,7 @@ public final class SpatchUi extends FrameLayout {
         };
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(card);
+        createScroll = scroll;
         LayoutParams menuParams = new LayoutParams(-1, -2, Gravity.BOTTOM);
         menuParams.setMargins(dp(8), dp(8), dp(8), dp(10));
         overlay.addView(scroll, menuParams);
@@ -1287,13 +1307,65 @@ public final class SpatchUi extends FrameLayout {
         card.setAccessibilityPaneTitle("Create");
         updateDock();
         if (motion()) {
-            overlay.setAlpha(0); overlay.animate().alpha(1).setDuration(180).start();
-            card.setTranslationY(dp(28)); card.animate().translationY(0).setDuration(280).setInterpolator(EMPHASIZED).start();
+            overlay.setAlpha(0f);
+            scroll.setAlpha(0f);
+            scroll.setScaleX(.86f);
+            scroll.setScaleY(.86f);
+            scroll.setTranslationY(dp(32));
+            scroll.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                @Override public boolean onPreDraw() {
+                    scroll.getViewTreeObserver().removeOnPreDrawListener(this);
+                    scroll.setPivotX(Math.max(0, scroll.getWidth() - dp(36)));
+                    scroll.setPivotY(scroll.getHeight());
+                    overlay.animate().alpha(1f).setDuration(200).start();
+                    scroll.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0)
+                        .setDuration(280).setInterpolator(EMPHASIZED).start();
+                    return true;
+                }
+            });
         }
+    }
+
+    private void morphCreateCard(int oldHeight, boolean forward) {
+        if (!motion() || createCard == null || createScroll == null || oldHeight <= 0) return;
+        if (createResize != null) createResize.cancel();
+        int width = createCard.getWidth();
+        if (width <= 0) return;
+        int maxH = Math.max(dp(120), (createOverlay != null && createOverlay.getHeight() > 0 ? createOverlay.getHeight() : getHeight()) - inset.top - dp(24));
+        createCard.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(maxH, MeasureSpec.AT_MOST));
+        int targetHeight = Math.min(maxH, createCard.getMeasuredHeight());
+        for (int i = 0; i < createCard.getChildCount(); i++) {
+            View child = createCard.getChildAt(i);
+            child.setAlpha(0f);
+            child.setTranslationX(forward ? dp(20) : -dp(20));
+            child.animate().alpha(1f).translationX(0).setDuration(220).setInterpolator(EMPHASIZED).start();
+        }
+        if (targetHeight <= 0 || targetHeight == oldHeight) return;
+        final ViewGroup.LayoutParams lp = createCard.getLayoutParams();
+        lp.height = oldHeight;
+        createCard.setLayoutParams(lp);
+        createResize = android.animation.ValueAnimator.ofInt(oldHeight, targetHeight);
+        createResize.setDuration(250);
+        createResize.setInterpolator(EMPHASIZED);
+        createResize.addUpdateListener(a -> {
+            if (createCard == null) { a.cancel(); return; }
+            lp.height = (int) a.getAnimatedValue();
+            createCard.setLayoutParams(lp);
+        });
+        createResize.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                if (createCard != null) {
+                    lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                    createCard.setLayoutParams(lp);
+                }
+            }
+        });
+        createResize.start();
     }
 
     private void showCreateMenuContent(boolean animateSwap) {
         if (createCard == null) return;
+        int oldHeight = animateSwap ? createCard.getHeight() : 0;
         hideKeyboard();
         createComposerOpen = false;
         createComposerFromMenu = false;
@@ -1342,14 +1414,12 @@ public final class SpatchUi extends FrameLayout {
             });
             createCard.addView(option, fill(-2));
         }
-        if (animateSwap && motion()) {
-            createCard.setAlpha(.25f);
-            createCard.animate().alpha(1f).setDuration(180).setInterpolator(EMPHASIZED).start();
-        }
+        if (animateSwap) morphCreateCard(oldHeight, false);
     }
 
     private void showCreateComposerContent(boolean animateSwap) {
         if (createCard == null) return;
+        int oldHeight = animateSwap ? createCard.getHeight() : 0;
         createComposerOpen = true;
         createCard.removeAllViews();
         createCard.setPadding(dp(18), dp(14), dp(18), dp(16));
@@ -1586,23 +1656,32 @@ public final class SpatchUi extends FrameLayout {
         actions.addView(make, new LinearLayout.LayoutParams(0, dp(46), 1.6f));
         createCard.addView(actions, ap);
 
-        if (animateSwap && motion()) {
-            createCard.setAlpha(.25f);
-            createCard.animate().alpha(1f).setDuration(180).setInterpolator(EMPHASIZED).start();
-        }
+        if (animateSwap) morphCreateCard(oldHeight, true);
     }
 
     private void closeCreateMenu() {
         FrameLayout overlay = createOverlay;
+        ScrollView scroll = createScroll;
         if (overlay == null) return;
         hideKeyboard();
+        if (createResize != null) { createResize.cancel(); createResize = null; }
         createOverlay = null;
+        createScroll = null;
         createCard = null;
         createComposerOpen = false;
         createComposerFromMenu = false;
         updateDock();
-        if (motion() && isAttachedToWindow()) overlay.animate().alpha(0).setDuration(140).withEndAction(() -> removeView(overlay)).start();
-        else removeView(overlay);
+        if (motion() && isAttachedToWindow()) {
+            overlay.animate().cancel();
+            overlay.animate().alpha(0f).setDuration(180).withEndAction(() -> removeView(overlay)).start();
+            if (scroll != null) {
+                scroll.animate().cancel();
+                scroll.setPivotX(Math.max(0, scroll.getWidth() - dp(36)));
+                scroll.setPivotY(scroll.getHeight());
+                scroll.animate().alpha(0f).scaleX(.90f).scaleY(.90f).translationY(dp(24))
+                    .setDuration(180).setInterpolator(EMPHASIZED).start();
+            }
+        } else removeView(overlay);
     }
 
     private android.widget.EditText createField(String hint, String value, boolean multiline) {
