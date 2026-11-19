@@ -136,6 +136,13 @@ public class MacPreviewTest {
         }
         // Use real touch dispatch: dragging across children must cancel their original click.
         ViewGroup nav = (ViewGroup) field(ui, "dockBar");
+        assertEquals("Bottom navigator has Home, Search, Library, Settings and +", 5, nav.getChildCount());
+        assertNotNull("Settings is on the bottom navigator", find(nav, "Settings"));
+        find(nav, "Home").performClick();
+        assertEquals(0, field(ui, "tab"));
+        find(nav, "Settings").performClick();
+        assertEquals(3, field(ui, "tab"));
+        settle();
         android.content.SharedPreferences prefs = activity.getSharedPreferences("spatch_ui", 0);
         prefs.edit().putBoolean("reduce_motion", true).apply();
         drag(nav, nav.getWidth() - 20, nav.getHeight() / 2f);

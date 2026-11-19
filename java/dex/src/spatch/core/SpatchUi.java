@@ -98,7 +98,7 @@ public final class SpatchUi extends FrameLayout {
 
     private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
     private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5;
-    private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, CREATE};
+    private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, SETTINGS, CREATE};
     private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
     private static final String[] SOUND_GROUPS = {"Graphic equalizer", "Headphone correction", "Loudness & bass", "Space", "Gain & dynamics", "Compatibility", "Find headphones", "Import profile"};
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
@@ -1700,12 +1700,13 @@ public final class SpatchUi extends FrameLayout {
     private void navigate(int destination) {
         if (destination == CREATE) {
             if (createOverlay == null) openCreateMenu(); else closeCreateMenu();
-        } else go(destination);
+        } else if (destination == SETTINGS) openSettings();
+        else go(destination);
     }
 
     private void updateDock() {
         if (dockBar == null) return;
-        String[] names = {"Home", "Search", "Library", "Create"}, glyphs = {"home", "search", "library", "add"};
+        String[] names = {"Home", "Search", "Library", "Settings", "Create"}, glyphs = {"home", "search", "library", "settings", "add"};
         if (dockBar.getChildCount() == 0) {
             for (int i = 0; i < names.length; i++) {
                 final int index = NAV_TABS[i];
@@ -1716,9 +1717,11 @@ public final class SpatchUi extends FrameLayout {
                 dockBar.addView(item, new LinearLayout.LayoutParams(0, dp(46), 1));
             }
         }
-        Icon add = (Icon) ((ViewGroup) dockBar.getChildAt(3)).getChildAt(0);
-        add.symbol = createOverlay == null ? "add" : "close";
-        dockBar.getChildAt(3).setContentDescription(createOverlay == null ? "Create" : "Close create menu");
+        for (int i = 0; i < NAV_TABS.length; i++) if (NAV_TABS[i] == CREATE) {
+            Icon add = (Icon) ((ViewGroup) dockBar.getChildAt(i)).getChildAt(0);
+            add.symbol = createOverlay == null ? "add" : "close";
+            dockBar.getChildAt(i).setContentDescription(createOverlay == null ? "Create" : "Close create menu");
+        }
         recolorView(dockBar);
         dockBar.setDestination(createOverlay != null ? CREATE : playlist == null ? tab : -1);
     }
@@ -1766,17 +1769,21 @@ public final class SpatchUi extends FrameLayout {
             super.onLayout(changed, l, t, r, b);
             setDestination(destination);
         }
+        private float indicatorHalf() {
+            return Math.min(dp(34), (getWidth() - getPaddingLeft() - getPaddingRight()) / (2f * Math.max(1, getChildCount())) - dp(3));
+        }
         @Override protected void dispatchDraw(Canvas canvas) {
             if (indicatorX >= 0) {
                 paint.setColor(blend(surf, accent, navDragging ? .38f : .25f));
-                float half = Math.min(dp(37), (getWidth() - getPaddingLeft() - getPaddingRight()) / 8f - dp(3));
+                float half = indicatorHalf();
                 canvas.drawRoundRect(indicatorX - half, dp(8), indicatorX + half, getHeight() - dp(8), dp(22), dp(22), paint);
             }
             super.dispatchDraw(canvas);
         }
         @Override protected void onDetachedFromWindow() { if (slide != null) slide.cancel(); super.onDetachedFromWindow(); }
         private void follow(MotionEvent event) {
-            moveIndicator(Math.max(dp(40), Math.min(getWidth() - dp(40), event.getX())), false);
+            float edge = Math.max(dp(24), getPaddingLeft() + indicatorHalf() + dp(3));
+            moveIndicator(Math.max(edge, Math.min(getWidth() - edge, event.getX())), false);
             int target = targetAt(event);
             if (target >= 0 && target != navHover) {
                 navHover = target;
