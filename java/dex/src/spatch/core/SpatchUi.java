@@ -1672,6 +1672,8 @@ public final class SpatchUi extends FrameLayout {
                 && Math.abs(event.getX() - startX) > dp(8)
                 && Math.abs(event.getX() - startX) > Math.abs(event.getY() - startY)) {
                 navDragging = true;
+                navHover = targetAt(event);
+                updateDock();
                 getParent().requestDisallowInterceptTouchEvent(true);
                 return true;
             }
@@ -1681,23 +1683,27 @@ public final class SpatchUi extends FrameLayout {
             if (!navDragging) return super.onTouchEvent(event);
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_MOVE) {
-                int target = -1;
-                for (int i = 0; i < getChildCount(); i++) {
-                    View child = getChildAt(i);
-                    if (event.getX() >= child.getLeft() && event.getX() <= child.getRight()) target = NAV_TABS[i];
-                }
+                int target = targetAt(event);
                 if (target >= 0 && target != navHover) {
                     navHover = target;
                     if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
                     updateDock();
                 }
             } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                int target = event.getY() >= 0 && event.getY() <= getHeight() && event.getX() >= 0 && event.getX() <= getWidth() ? navHover : -1;
+                int target = targetAt(event);
                 navHover = -1; navDragging = false;
                 if (action == MotionEvent.ACTION_UP && target >= 0) go(target);
                 updateDock();
             }
             return true;
+        }
+        private int targetAt(MotionEvent event) {
+            if (event.getY() < 0 || event.getY() > getHeight()) return -1;
+            for (int i = 0; i < getChildCount(); i++) {
+                View child = getChildAt(i);
+                if (event.getX() >= child.getLeft() && event.getX() <= child.getRight()) return NAV_TABS[i];
+            }
+            return -1;
         }
     }
 

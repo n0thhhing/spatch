@@ -138,10 +138,10 @@ public class MacPreviewTest {
     private static void drag(View nav, float endX, float endY) {
         long now = android.os.SystemClock.uptimeMillis();
         float startX = nav.getWidth() / 2f, y = nav.getHeight() / 2f;
-        int[] actions = {0, 2, 2, 1};
-        float[] xs = {startX, startX + (endX - startX) / 2f, endX, endX};
+        int[] actions = {0, 2, 1};
+        float[] xs = {startX, startX + (endX - startX) / 2f, endX};
         for (int i=0; i<actions.length; i++) {
-            android.view.MotionEvent event = android.view.MotionEvent.obtain(now, now + i * 50, actions[i], xs[i], i == 3 ? endY : y, 0);
+            android.view.MotionEvent event = android.view.MotionEvent.obtain(now, now + i * 50, actions[i], xs[i], i == actions.length - 1 ? endY : y, 0);
             nav.dispatchTouchEvent(event);
             event.recycle();
         }
