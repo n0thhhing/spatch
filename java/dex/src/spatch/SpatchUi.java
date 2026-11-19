@@ -160,8 +160,11 @@ public final class SpatchUi extends FrameLayout {
     private final java.util.ArrayDeque<Integer> tabHistory = new java.util.ArrayDeque<>();
     android.widget.PopupWindow accountMenu;
     private String profileName = "", profileUsername = "", profileImage = "", profileUri = "", profileError = "";
-    private boolean profileLoading;
-    private long profileAt;
+    private boolean profileLoading, profileAnnounce;
+    private long profileAt, profileStartedAt;
+    private int profileTicket, profileAttempts;
+    /** Asks again for the account until it's known (the library, which it's learned from, may not be ready yet). */
+    private final Runnable profileRetry = () -> loadProfile(true);
     private final Set<Art> avatars = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private MediaEntry playlist;
     private List<MediaEntry> playlistTracks = new ArrayList<>();
@@ -723,6 +726,8 @@ public final class SpatchUi extends FrameLayout {
                     // Last launch's copy shows at once; backdating it makes the next check ask Spotify again.
                     libraryLoadedAt = SystemClock.uptimeMillis() - (cached ? 90_000 : 0);
                     libraryStatus = "Nothing saved here yet";
+                    // The username is learned from the library, so ask again now that it's here.
+                    if (profileUsername.isEmpty()) loadProfile(true);
                     if (!downloadsStarted) {
                         downloadsStarted = true;
                         submit(PLAYLISTS, SpatchUi::nativeDownloadsStart);
@@ -1288,14 +1293,22 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void loadProfile(boolean force) {
-        if (profileLoading || !force && profileAt != 0 && SystemClock.uptimeMillis() - profileAt < (profileError.isEmpty() ? 60_000 : 5_000)) return;
+        long now = SystemClock.uptimeMillis();
+        // A load that has hung for 20 s no longer blocks a new one (it used to, so Refresh did nothing).
+        boolean hung = profileLoading && now - profileStartedAt > 20_000;
+        if (profileLoading && !hung) return;
+        if (!force && profileAt != 0 && now - profileAt < (profileUsername.isEmpty() ? 5_000 : 60_000)) return;
+        removeCallbacks(profileRetry);
         profileLoading = true;
+        profileStartedAt = now;
+        final int ticket = ++profileTicket;
         submit(PLAYLISTS, () -> {
             String[] result;
             try { result = nativeProfile(); }
             catch (RuntimeException | LinkageError failed) { result = new String[]{"", "", "", "", failed.toString()}; }
             final String[] info = result;
             post(() -> {
+                if (ticket != profileTicket) return; // a newer load took over
                 profileLoading = false;
                 profileAt = SystemClock.uptimeMillis();
                 if (info != null && info.length >= 5) {
@@ -1307,6 +1320,15 @@ public final class SpatchUi extends FrameLayout {
                         photo.invalidate();
                     }
                 } else profileError = "Profile information is not available yet";
+                if (profileUsername.isEmpty()) {
+                    // Keep trying with a growing pause: 2, 4, 8, 16, then every 30 seconds.
+                    profileAttempts++;
+                    postDelayed(profileRetry, Math.min(30_000, 2_000L << Math.min(profileAttempts - 1, 4)));
+                } else profileAttempts = 0;
+                if (profileAnnounce) {
+                    profileAnnounce = false;
+                    Toast.makeText(activity, profileUsername.isEmpty() ? "Couldn’t read your account yet. Spatch will keep trying." : "Signed in as @" + profileUsername, Toast.LENGTH_SHORT).show();
+                }
                 if (tab == PROFILE && playlist == null) showPage();
             });
         });
@@ -1418,7 +1440,8 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout words = column();
         words.setPadding(dp(18), 0, 0, 0);
         words.addView(text(profileName.isEmpty() ? "Your profile" : profileName, 24, () -> ink, true));
-        words.addView(text(profileUsername.isEmpty() ? "Waiting for Spotify’s account information" : "@" + profileUsername, 13, () -> inkDim, false));
+        words.addView(text(profileUsername.isEmpty() ? (profileLoading ? "Connecting to your Spotify account…" : "Couldn’t read your username yet. Still trying.") : "@" + profileUsername, 13, () -> inkDim, false));
+        if (profileUsername.isEmpty() && !profileError.isEmpty() && !profileLoading) words.addView(text(profileError, 12, () -> inkDim, false));
         photo.addView(words, weight());
         identity.addView(photo, fill(-2));
         if (!profileUri.isEmpty()) settingsAction(identity, "Copy profile link", "Share your Spotify profile", () -> {
@@ -1427,10 +1450,12 @@ public final class SpatchUi extends FrameLayout {
             if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spotify profile", link));
             Toast.makeText(activity, "Profile link copied", Toast.LENGTH_SHORT).show();
         });
-        settingsAction(identity, "Refresh profile", profileError.isEmpty() ? "Reload your name and photo from Spotify" : "Your profile hasn’t loaded yet. Tap to retry.", () -> loadProfile(true));
-        settingsAction(identity, profileUsername.isEmpty() ? "Sign in to Spotify" : "Switch Spotify account",
-            profileUsername.isEmpty() ? "Open Spotify’s login screen to connect your account" : "Open Spotify’s login screen to sign in again",
-            this::openLogin);
+        settingsAction(identity, "Refresh profile", profileUsername.isEmpty() ? "Spatch is still working out who you are. Tap to check now." : "Reload your name and photo from Spotify", () -> {
+            profileAnnounce = true;
+            Toast.makeText(activity, profileLoading ? "Still checking your Spotify account…" : "Checking your Spotify account…", Toast.LENGTH_SHORT).show();
+            loadProfile(true);
+        });
+        settingsAction(identity, "Sign in or switch account", "Open Spotify’s login screen. If you’re already signed in, you don’t need this.", this::openLogin);
         settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
         LinearLayout music = card(page, "Your music");
         settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
