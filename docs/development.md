@@ -61,6 +61,10 @@ Update their exclusions when introducing another Spotify-only helper.
   fallback bands. Unsupported effects retry with backoff; failed visualizer captures clear stale
   levels and use the slower retry loop. On pause, ignore stale bands and keep drawing until the
   artwork ring settles; paused frames must not renew audio capture.
+- Invalidate the motes on playback pushes and window visibility changes so a paused frame loop can
+  restart. Ease their speed to zero, advance sway/shimmer from that same local phase, and keep
+  Reduce motion still. Cache the small Soft/Deep/Streaks blur textures when artwork loads rather
+  than allocating them during drawing; all visual preferences use the shared Android UI.
 
 ## Checks
 

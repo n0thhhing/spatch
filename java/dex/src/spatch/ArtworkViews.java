@@ -15,8 +15,19 @@ import android.view.View;
 
 /** Shared cover rendering and player artwork effects. */
 final class ArtworkViews {
+    private static final int[][] BLUR_SIZES = {{10, 10}, {4, 4}, {2, 16}};
+    private static final int[] MOTE_COUNTS = {12, 30, 64};
+    private static final int[] MOTE_SHAPES = {Confetti.DOT, Confetti.STAR, Confetti.HEART};
     private final SpatchUi ui;
     ArtworkViews(SpatchUi ui) { this.ui = ui; }
+
+    /** Tiny filtered textures keep backdrop effects off the per-frame allocation path. */
+    static void cacheBlurs(String key, Bitmap cover) {
+        for (int i = 0; i < BLUR_SIZES.length; i++) {
+            int[] size = BLUR_SIZES[i];
+            SpatchUi.IMAGES.put(key + "/blur/" + i, Bitmap.createScaledBitmap(cover, size[0], size[1], true));
+        }
+    }
 
     final class Art extends View {
         static final int CIRCLE = 0, ROUNDED = 1, WIDE = 2;
@@ -214,7 +225,8 @@ final class ArtworkViews {
             float w = getWidth(), h = getHeight();
             if (!ui.pref("backdrop", true)) { c.drawColor(ui.bg); return; }
             ui.art(ui.image, 440);
-            Bitmap blur = SpatchUi.IMAGES.get(ui.image + ":440/blur");
+            int style = Math.max(0, Math.min(BLUR_SIZES.length - 1, ui.prefs.getInt("backdrop_blur", 0)));
+            Bitmap blur = SpatchUi.IMAGES.get(ui.image + ":440/blur/" + style);
             c.drawColor(ui.bg);
             long now = SystemClock.uptimeMillis();
             // A new cover's blur fades in over the old one.
@@ -237,33 +249,61 @@ final class ArtworkViews {
         }
     }
 
-    /** Soft particles rising through the player while music plays. */
+    /** Particles coast and dim on pause; playback and visibility changes restart their frames. */
     final class Motes extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final float[] x = new float[30], y = new float[30], sz = new float[30], sp = new float[30], ph = new float[30];
+        private final float[] x = new float[64], y = new float[64], sz = new float[64], sp = new float[64], ph = new float[64];
         private long last;
+        private float speed, phase;
+
         Motes() {
             super(ui.activity);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             java.util.Random r = new java.util.Random(7);
             for (int i = 0; i < x.length; i++) { x[i] = r.nextFloat(); y[i] = r.nextFloat(); sz[i] = 1.2f + r.nextFloat() * r.nextFloat() * 4.2f; sp[i] = .012f + r.nextFloat() * .03f; ph[i] = r.nextFloat() * 6.283f; }
         }
+
+        @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); last = 0; invalidate(); }
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility == VISIBLE) { last = 0; invalidate(); }
+        }
+
         @Override protected void onDraw(Canvas c) {
             long now = SystemClock.uptimeMillis();
-            boolean run = ui.playing && ui.motion();
-            float dt = last == 0 || !run ? 0 : Math.min(.05f, (now - last) / 1000f);
+            boolean animate = ui.motion(), run = ui.playing && animate;
+            float dt = last == 0 ? 0 : Math.min(.05f, (now - last) / 1000f);
             last = now;
-            if (run && Audio.level > 0) dt *= 1f + 3f * Audio.level + 3f * Audio.kick;
-            float w = getWidth(), h = getHeight(), t = now / 1000f;
-            for (int i = 0; i < x.length; i++) {
-                y[i] -= sp[i] * dt;
+            float target = run ? 1f : 0f;
+            speed = !animate || Math.abs(target - speed) < .001f ? target
+                : speed + (target - speed) * (1f - (float) Math.exp(-dt / .18f));
+            float travel = dt * speed;
+            phase += travel;
+            if (run && ui.pref("audio", true) && Audio.level > 0) travel *= 1f + 3f * Audio.level + 3f * Audio.kick;
+            float w = getWidth(), h = getHeight();
+            int count = MOTE_COUNTS[Math.max(0, Math.min(MOTE_COUNTS.length - 1, ui.prefs.getInt("motes_amount", 1)))];
+            int shape = Math.max(0, Math.min(3, ui.prefs.getInt("motes_shape", 0)));
+            for (int i = 0; i < count; i++) {
+                y[i] -= sp[i] * travel;
                 if (y[i] < -.03f) { y[i] = 1.03f; x[i] = (x[i] + .618f) % 1f; }
                 float edge = Math.min(1f, Math.min(y[i], 1f - y[i]) * 6f);
                 paint.setColor(i % 2 == 0 ? ui.accent : ui.ink);
-                paint.setAlpha(Math.max(0, Math.round(110 * (.5f + .5f * (float) Math.sin(t * 1.3f + ph[i] * 3f)) * Math.max(0f, edge))));
-                c.drawCircle(x[i] * w + (float) Math.sin(t * .6f + ph[i]) * ui.dp(10), y[i] * h, ui.dp(sz[i]), paint);
+                paint.setAlpha(Math.max(0, Math.round(110 * (.55f + .45f * speed)
+                    * (.5f + .5f * (float) Math.sin(phase * 1.3f + ph[i] * 3f)) * Math.max(0f, edge))));
+                float px = x[i] * w + (float) Math.sin(phase * .6f + ph[i]) * ui.dp(10), py = y[i] * h;
+                int kind = MOTE_SHAPES[shape == 3 ? i % MOTE_SHAPES.length : shape];
+                if (kind == Confetti.DOT) c.drawCircle(px, py, ui.dp(sz[i]), paint);
+                else {
+                    c.save();
+                    c.translate(px, py);
+                    float size = ui.dp(Math.max(2.5f, sz[i] * 1.3f));
+                    c.scale(size, size);
+                    c.rotate((phase * 12 + ph[i] * 30) % 360);
+                    c.drawPath(Confetti.shape(kind), paint);
+                    c.restore();
+                }
             }
-            if (run && isShown()) postInvalidateOnAnimation();
+            if ((run || speed > 0) && isShown()) postInvalidateOnAnimation();
         }
     }
 

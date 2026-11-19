@@ -210,6 +210,7 @@ public final class SpatchUi extends FrameLayout {
     private boolean holdingSeek;
     private Runnable cancelHeldSeek;
     private Backdrop backdrop;
+    private Motes motes;
     private TextView pQuality;
     /** Last backdrop blur and cover kept across switches so transitions start from the previous track's art. */
     Bitmap lastBlur, lastCover;
@@ -3296,7 +3297,12 @@ public final class SpatchUi extends FrameLayout {
             player.addView(audioStatus);
             toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
-            toggle(player, "Floating motes", "Soft particles drift behind the player", "motes", true, false);
+            if (pref("backdrop", true)) choice(player, "Backdrop blur", new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
+            toggle(player, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
+            if (pref("motes", true)) {
+                choice(player, "Mote amount", new String[]{"Few", "Normal", "Many"}, "motes_amount", 1, false);
+                choice(player, "Mote shapes", new String[]{"Dots", "Stars", "Hearts", "Mix"}, "motes_shape", 0, false);
+            }
 
 
             LinearLayout celebrations = card(page, "Motion & celebrations");
@@ -3663,6 +3669,7 @@ public final class SpatchUi extends FrameLayout {
             if (key.equals("auto_hide_dock") && !sw.on) setDockHidden(false);
             if (key.equals("audio") && sw.on && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
+            else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
             else if (rebuild) { int y = pageScroll != null ? pageScroll.getScrollY() : 0; build(); keepScroll(pageScroll, y); }
         });
         box.addView(line, fill(-2));
@@ -3878,7 +3885,7 @@ public final class SpatchUi extends FrameLayout {
         if (motion()) p.animate().translationY(getHeight()).setDuration(300).setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f)).withEndAction(() -> removeView(p)).start();
         else removeView(p);
         player = null;
-        disc = null; wave = null; backdrop = null; nextPill = null;
+        disc = null; wave = null; backdrop = null; motes = null; nextPill = null;
         pTitle = pArtist = pSource = pBadge = pQuality = null;
         pLike = pShuffle = pRepeat = pSparkle = null;
         pPlay = null;
@@ -3890,7 +3897,8 @@ public final class SpatchUi extends FrameLayout {
         player.setClickable(true);
         backdrop = artwork.new Backdrop();
         player.addView(backdrop, new LayoutParams(-1, -1));
-        if (pref("motes", true)) player.addView(artwork.new Motes(), new LayoutParams(-1, -1));
+        motes = pref("motes", true) ? artwork.new Motes() : null;
+        if (motes != null) player.addView(motes, new LayoutParams(-1, -1));
         LinearLayout col = column();
         col.setPadding(dp(18) + inset.left, dp(6) + inset.top, dp(18) + inset.right, dp(14) + inset.bottom);
         player.addView(col, new LayoutParams(-1, -1));
@@ -4510,6 +4518,7 @@ public final class SpatchUi extends FrameLayout {
         if (pRepeat != null) ((Runnable) pRepeat.getTag(R_COLOR)).run();
         if (disc != null) { disc.url = image; disc.invalidate(); }
         if (backdrop != null) backdrop.invalidate();
+        if (motes != null) motes.invalidate();
         if (wave != null) wave.invalidate();
         if (nextPill != null) fillNext();
         if (pageList != null && playlist != null) notifyList(pageList);
@@ -4676,7 +4685,7 @@ public final class SpatchUi extends FrameLayout {
                 if (got == null) got = CoreBridge.artwork(url, size);
                 if (got != null) {
                     IMAGES.put(key, got);
-                    if (size == 440) IMAGES.put(key + "/blur", Bitmap.createScaledBitmap(got, 10, 10, true));
+                    if (size == 440) ArtworkViews.cacheBlurs(key, got);
                     if (!SEEDS.containsKey(url)) SEEDS.put(url, seedOf(got));
                 }
                 final Bitmap result = got;

@@ -19,7 +19,7 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
     private static final long MILLIS = 780;
     private static final int MAX_LIVE = 4, BASE_COUNT = 12;
     private static final float REACH = 44, SPREAD = 52, SIZE = 5, SIZE_SPREAD = 6, FALL = 58; // dp
-    private static final int COOKIE = 0, SUN = 1, CLOVER = 2, HEART = 3, STAR = 4, DOT = 5;
+    static final int COOKIE = 0, SUN = 1, CLOVER = 2, HEART = 3, STAR = 4, DOT = 5;
     private static final Path[] SHAPES = new Path[6];
     static int live;
 
@@ -149,7 +149,7 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
         }
     }
 
-    private static Path shape(int kind) {
+    static Path shape(int kind) {
         if (SHAPES[kind] == null) SHAPES[kind] = trace(kind);
         return SHAPES[kind];
     }
