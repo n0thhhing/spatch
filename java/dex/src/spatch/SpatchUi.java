@@ -2393,6 +2393,7 @@ public final class SpatchUi extends FrameLayout {
         tappable(layout, grid ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid", () -> { prefs.edit().putBoolean("library_grid", !grid).apply(); showPage(); });
         chips.addView(layout, lp(-2, dp(38)));
         chips.addView(space(dp(8), 1));
+        TextView selectedChip = null;
         for (int i = -1; i <= SECTIONS.length; i++) {
             final int index = i;
             boolean on = i == filter;
@@ -2405,8 +2406,14 @@ public final class SpatchUi extends FrameLayout {
             tappable(chip, chip.getText().toString(), () -> { filter = index; showPage(); });
             chips.addView(chip, lp(-2, dp(38)));
             chips.addView(space(dp(8), 1));
+            if (on) selectedChip = chip;
         }
         chipScroll.addView(chips);
+        // The page is rebuilt on each pick, so bring the chosen chip back into view instead of leaving the row at its start.
+        if (selectedChip != null && filter >= 0) {
+            final View picked = selectedChip;
+            chipScroll.post(() -> chipScroll.scrollTo(Math.max(0, picked.getLeft() - dp(40)), 0));
+        }
         page.addView(chipScroll, fill(-2));
 
         List<MediaEntry> shown = entries(filter, query, az, 400);
