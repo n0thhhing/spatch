@@ -30,6 +30,7 @@ pub const SETTINGS: &[Setting] = &[
     Setting { key: "crossfade_time_seconds", setter: "SetCrossfadeTimeSeconds", number: true },
     Setting { key: "show_unavailable_tracks", setter: "SetShowUnavailableTracks", number: false },
     Setting { key: "download_quality", setter: "SetDownloadQuality", number: true },
+    Setting { key: "offline_mode", setter: "SetOfflineMode", number: false },
 ];
 
 /// The current value of each setting in [`SETTINGS`], in that order (bools as 0 or 1).
@@ -47,6 +48,7 @@ pub fn values(state: &es::SettingsState) -> Vec<i32> {
         state.crossfade_time_seconds,
         state.show_unavailable_tracks as i32,
         state.download_quality,
+        state.offline_mode as i32,
     ]
 }
 

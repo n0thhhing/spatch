@@ -1135,10 +1135,13 @@ public final class SpatchUi extends FrameLayout {
         downloadsList = column();
         box.addView(downloadsList, fill(-2));
 
+        ensureSpotifySettings();
         if (spotifySettings != null) {
             int quality = spotifyValue("download_quality");
             segmented(box, "Download quality", new String[]{"Low", "Normal", "High", "Very high", "Lossless"}, quality >= 1 && quality <= 5 ? quality - 1 : -1, i -> setSpotify("download_quality", i + 1));
         }
+
+        if (spotifySettings != null) offlineModeRow(box);
 
         TextView clear = pill("Remove all downloads", () -> sheet("Remove all downloads?", "Every downloaded song, episode, playlist and album is removed from this phone. Your library stays as it is.",
             new Option[]{new Option("Remove all downloads", "", "", "close", false)}, c -> submit(PLAYLISTS, () -> {
@@ -3519,6 +3522,25 @@ public final class SpatchUi extends FrameLayout {
 
     private int spotifyValue(String key) { Integer v = spotifySettings == null ? null : spotifySettings.get(key); return v == null ? 0 : v; }
 
+    /** Loads Spotify's own settings once; every card that shows one calls this and is redrawn when they arrive. */
+    private void ensureSpotifySettings() {
+        if (spotifySettings != null || spotifyLoading || !spotifyError.isEmpty()) return;
+        spotifyLoading = true;
+        submit(PLAYLISTS, () -> {
+            String[] f = nativeSpotifySettings();
+            post(() -> {
+                spotifyLoading = false;
+                if (f == null || f.length < 2 || f[0].equals("!")) spotifyError = f == null || f.length < 2 ? "no reply" : f[1];
+                else {
+                    java.util.Map<String, Integer> read = new java.util.HashMap<>();
+                    for (int i = 0; i + 1 < f.length; i += 2) read.put(f[i], Integer.parseInt(f[i + 1]));
+                    spotifySettings = read;
+                }
+                if (tab == SETTINGS && playlist == null) settingsChanged(false);
+            });
+        });
+    }
+
     private void spotifyCard(LinearLayout box) {
         if (spotifySettings == null) {
             TextView note = text(spotifyError.isEmpty() ? "Loading Spotify’s settings…" : "Couldn’t read Spotify’s settings: " + spotifyError, 14, () -> inkDim, false);
@@ -3530,22 +3552,7 @@ public final class SpatchUi extends FrameLayout {
                 LinearLayout.LayoutParams rp = lp(-2, -2);
                 rp.setMargins(dp(18), 0, 0, dp(12));
                 box.addView(retry, rp);
-            } else if (!spotifyLoading) {
-                spotifyLoading = true;
-                submit(PLAYLISTS, () -> {
-                    String[] f = nativeSpotifySettings();
-                    post(() -> {
-                        spotifyLoading = false;
-                        if (f == null || f.length < 2 || f[0].equals("!")) spotifyError = f == null || f.length < 2 ? "no reply" : f[1];
-                        else {
-                            java.util.Map<String, Integer> read = new java.util.HashMap<>();
-                            for (int i = 0; i + 1 < f.length; i += 2) read.put(f[i], Integer.parseInt(f[i + 1]));
-                            spotifySettings = read;
-                        }
-                        if (tab == SETTINGS && playlist == null) settingsChanged(false);
-                    });
-                });
-            }
+            } else ensureSpotifySettings();
             return;
         }
         // Spotify's scale: 1 Low, 2 Normal, 3 High, 4 Very high, 5 Lossless (Premium where offered).
@@ -3574,6 +3581,28 @@ public final class SpatchUi extends FrameLayout {
         TextView note = text("These are Spotify’s own settings: changing them here changes them in Spotify too.", 12, () -> inkDim, false);
         note.setPadding(dp(18), dp(4), dp(18), dp(10));
         box.addView(note);
+    }
+
+    /** Spotify's offline mode: it stops using the internet and plays only downloads, so turning it on asks first. */
+    private void offlineModeRow(LinearLayout box) {
+        boolean on = spotifyValue("offline_mode") != 0;
+        LinearLayout line = row();
+        line.setPadding(dp(18), dp(12), dp(16), dp(12));
+        LinearLayout words = column();
+        words.addView(text("Offline mode", 16, () -> ink, true));
+        TextView d = text("Play only what’s downloaded, without using the internet", 13, () -> inkDim, false);
+        d.setPadding(0, dp(2), dp(8), 0);
+        words.addView(d);
+        line.addView(words, weight());
+        Switch sw = new Switch(on);
+        line.addView(sw, lp(dp(52), dp(32)));
+        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(on ? "On" : "Off");
+        tappable(line, "Offline mode", () -> {
+            if (on) { setSpotify("offline_mode", 0); return; }
+            sheet("Turn on offline mode?", "Spotify stops using the internet and plays only what you’ve downloaded. Browsing and search won’t load anything new until you turn it off here.",
+                new Option[]{new Option("Turn on offline mode", "", "", "download", false)}, c -> setSpotify("offline_mode", 1));
+        });
+        box.addView(line, fill(-2));
     }
 
     private void spotifySwitch(LinearLayout box, String name, String detail, String key) {

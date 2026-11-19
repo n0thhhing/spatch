@@ -857,7 +857,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSpotifySettings(mut env: JNIEn
     let read: Result<Vec<i32>, String> = {
         let mut stored = PREVIEW_SETTINGS.lock().unwrap();
         if stored.is_empty() {
-            *stored = vec![1, 0, 3, 1, 0, 1, 1, 1, 1, 5, 0, 3];
+            *stored = vec![1, 0, 3, 1, 0, 1, 1, 1, 1, 5, 0, 3, 0];
         }
         Ok(stored.clone())
     };
