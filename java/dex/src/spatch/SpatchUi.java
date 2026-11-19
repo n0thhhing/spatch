@@ -67,6 +67,7 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
     private static native String nativeBuild();
+    private static native String[] nativeConnection();
     private static native byte[] nativeSearch(String query);
     private static native byte[] nativeCatalog(byte[] response);
     private static native void nativeDownloadsStart();
@@ -1429,6 +1430,30 @@ public final class SpatchUi extends FrameLayout {
         if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
     }
 
+    /** What Spatch knows about the connection to Spotify, with a button to copy it for whoever is helping. */
+    private void connectionCard(LinearLayout page) {
+        LinearLayout box = card(page, "Connection");
+        String[] c;
+        try { c = nativeConnection(); } catch (RuntimeException | LinkageError failed) { c = null; }
+        String library = c != null && c.length > 0 ? c[0] : "unknown";
+        String username = !profileUsername.isEmpty() ? "@" + profileUsername : c != null && c.length > 1 && !c[1].isEmpty() ? "@" + c[1] : "not found yet";
+        String lookup = c != null && c.length > 2 ? c[2] : "";
+        StringBuilder report = new StringBuilder("Spatch build ").append(nativeBuild())
+            .append("\nLibrary: ").append(library)
+            .append("\nUsername: ").append(username)
+            .append("\nProfile: ").append(profileError.isEmpty() ? (profileLoading ? "loading" : "ok") : profileError);
+        if (!lookup.isEmpty()) report.append("\nLast lookup: ").append(lookup);
+        TextView facts = text(report.toString(), 13, () -> inkDim, false);
+        facts.setPadding(dp(18), dp(14), dp(18), dp(6));
+        box.addView(facts, fill(-2));
+        final String copy = report.toString();
+        settingsAction(box, "Copy details", "For troubleshooting: paste it to whoever is helping you", () -> {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch connection details", copy));
+            Toast.makeText(activity, "Details copied", Toast.LENGTH_SHORT).show();
+        });
+    }
+
     private View profilePage() {
         LinearLayout page = column();
         page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
@@ -1457,6 +1482,7 @@ public final class SpatchUi extends FrameLayout {
         });
         settingsAction(identity, "Sign in or switch account", "Open Spotify’s login screen. If you’re already signed in, you don’t need this.", this::openLogin);
         settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
+        connectionCard(page);
         LinearLayout music = card(page, "Your music");
         settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
         settingsAction(music, "Create a playlist", "Start a new collection", () -> { creation.pendingPlaylistSong = null; creation.openCreatePlaylist(false); });

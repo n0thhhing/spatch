@@ -236,6 +236,16 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeProfile(mut env: JNIEnv, _: JC
     strings(&mut env, profile_fields())
 }
 
+/// What the account lookup knows, for troubleshooting: how much of the library has loaded, the username if it has
+/// been learned, and what the last username lookup reported.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeConnection(mut env: JNIEnv, _: JClass) -> jobjectArray {
+    let library = LIBRARY.lock().unwrap().as_ref().map_or_else(|| "not loaded yet".to_string(), |l| format!("{} items", l.len()));
+    let username = USERNAME.lock().unwrap().clone().unwrap_or_default();
+    let note = LIKED_NOTE.lock().unwrap().clone();
+    strings(&mut env, vec![library, username, note])
+}
+
 /// Creates a playlist (optionally from the current queue): `[created_playlist_uri, error]`.
 /// Blocks: run on a worker thread.
 #[unsafe(no_mangle)]
