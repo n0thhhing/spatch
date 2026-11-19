@@ -554,7 +554,7 @@ public final class SpatchUi extends FrameLayout {
         else if (playlist != null) { playlist = null; showPage(); updateDock(); enter(-dp(44), 0); }
         else if (tab == SETTINGS && settingsSection == 2 && soundPanel >= 0) { soundPanel = soundPanel >= 6 ? 1 : -1; showPage(); }
         else if (tab == SETTINGS && settingsSection >= 0) { settingsSection = -1; showPage(); }
-        else if (tab == SETTINGS || tab == PROFILE) go(lastMainTab);
+        else if (tab == CREATE || tab == PROFILE) go(lastMainTab);
         else if (tab != HOME) go(HOME);
         else activity.moveTaskToBack(true);
     }
@@ -1336,53 +1336,222 @@ public final class SpatchUi extends FrameLayout {
 
     private View createPage() {
         LinearLayout page = column();
-        pageHeading(page, "Create", false);
-        TextView intro = text("Make something yours.", 26, () -> ink, true);
-        intro.setPadding(dp(2), dp(8), 0, dp(6));
-        page.addView(intro);
-        TextView hint = text(pendingPlaylistSong == null ? "A fresh start, or the songs you’re enjoying right now." : "Your new playlist will include “" + pendingPlaylistSong.title + "”.", 14, () -> inkDim, false);
-        hint.setPadding(dp(2), 0, dp(2), dp(22));
-        page.addView(hint);
-        LinearLayout options = card(page, "Start with");
-        segmented(options, "Playlist", new String[]{"A blank canvas", "Current queue"}, createFromQueue ? 1 : 0, selected -> {
-            createFromQueue = selected == 1;
-            showPage();
-        });
-        android.widget.EditText name = createField("Playlist name", createName, false);
-        android.widget.EditText description = createField("Description (optional)", createDescription, true);
-        page.addView(name, fill(-2));
-        LinearLayout.LayoutParams descriptionParams = fill(-2);
-        descriptionParams.topMargin = dp(10);
-        page.addView(description, descriptionParams);
+        LinearLayout top = row();
+        top.setPadding(0, dp(4), 0, dp(16));
+        LinearLayout backRow = row();
+        backRow.setPadding(dp(2), dp(6), dp(12), dp(6));
+        backRow.addView(icon("back", () -> accent), lp(dp(20), dp(20)));
+        TextView backLabel = text("Back", 15, () -> accent, true);
+        backLabel.setPadding(dp(6), 0, 0, 0);
+        backRow.addView(backLabel);
+        tappable(backRow, "Back", this::back);
+        top.addView(backRow, lp(-2, dp(40)));
+        page.addView(top, fill(-2));
+
+        int queueCount = (!uri.isEmpty() ? 1 : 0) + upcoming.size();
+        String coverUrl = createFromQueue && !image.isEmpty() ? image
+            : (pendingPlaylistSong != null && !pendingPlaylistSong.image.isEmpty() ? pendingPlaylistSong.image : "");
+
+        LinearLayout composer = column();
+        composer.setPadding(dp(20), dp(22), dp(20), dp(20));
+        bgRound(composer, 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+
+        FrameLayout cover = new FrameLayout(activity);
+        if (!coverUrl.isEmpty()) {
+            Art art = new Art(Art.ROUNDED, false);
+            art.bind(coverUrl);
+            cover.addView(art, new FrameLayout.LayoutParams(-1, -1));
+        } else {
+            bgRound(cover, 24, () -> blend(surfHi, accent, .2f)).setStroke(Math.max(1, dp(.8f)), (accent & 0x00ffffff) | 0x33000000);
+            Icon emblem = icon("note", () -> accent);
+            FrameLayout.LayoutParams ep = new FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER);
+            cover.addView(emblem, ep);
+        }
+        int seedCount = createFromQueue ? queueCount : (pendingPlaylistSong != null ? 1 : 0);
+        if (seedCount > 0) {
+            TextView badge = text(seedCount == 1 ? "1 song" : seedCount + " songs", 11, () -> onAccent, true);
+            badge.setPadding(dp(8), dp(3), dp(8), dp(3));
+            bgRound(badge, 999, () -> accent);
+            FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            bp.bottomMargin = dp(8);
+            cover.addView(badge, bp);
+        }
+        LinearLayout.LayoutParams cp = lp(dp(104), dp(104));
+        cp.gravity = Gravity.CENTER_HORIZONTAL;
+        cp.bottomMargin = dp(18);
+        composer.addView(cover, cp);
+
+        android.widget.EditText name = new android.widget.EditText(activity);
+        name.setHint("New playlist");
+        name.setText(createName);
+        name.setTextSize(24);
+        name.setGravity(Gravity.CENTER_HORIZONTAL);
+        name.setSingleLine(true);
+        name.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_NEXT);
+        name.setBackground(null);
+        name.setPadding(dp(8), dp(6), dp(8), dp(8));
+        if (android.os.Build.VERSION.SDK_INT >= 28) name.setTypeface(Typeface.create(Typeface.SANS_SERIF, 700, false));
+        colored(name, () -> { name.setTextColor(ink); name.setHintTextColor(inkDim); });
+        name.setContentDescription("Playlist name");
+        composer.addView(name, fill(-2));
+
+        View underline = new View(activity);
+        colored(underline, () -> underline.setBackgroundColor(name.hasFocus() ? accent : ((ink & 0x00ffffff) | 0x26000000)));
+        LinearLayout.LayoutParams up = fill(Math.max(2, dp(1.5f)));
+        up.leftMargin = dp(24); up.rightMargin = dp(24); up.bottomMargin = dp(16);
+        composer.addView(underline, up);
+        name.setOnFocusChangeListener((v, focused) -> underline.setBackgroundColor(focused ? accent : ((ink & 0x00ffffff) | 0x26000000)));
+
+        TextView nameCount = text("", 11, () -> inkDim, false);
+        nameCount.setGravity(Gravity.CENTER_HORIZONTAL);
+        nameCount.setVisibility(createName.isEmpty() ? GONE : VISIBLE);
+        if (!createName.isEmpty()) nameCount.setText(createName.length() + " / 100");
+        LinearLayout.LayoutParams ncp = fill(-2);
+        ncp.topMargin = -dp(10);
+        ncp.bottomMargin = dp(14);
+        composer.addView(nameCount, ncp);
+
+        android.widget.EditText description = new android.widget.EditText(activity);
+        description.setHint("Add a description (optional)");
+        description.setText(createDescription);
+        description.setTextSize(14);
+        description.setMinLines(2);
+        description.setMaxLines(3);
+        description.setGravity(Gravity.TOP | Gravity.START);
+        description.setPadding(dp(16), dp(12), dp(16), dp(12));
+        bgRound(description, 16, () -> surfHi).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
+        colored(description, () -> { description.setTextColor(ink); description.setHintTextColor(inkDim); });
+        description.setContentDescription("Description (optional)");
+        LinearLayout.LayoutParams dpBox = fill(-2);
+        dpBox.bottomMargin = dp(16);
+        composer.addView(description, dpBox);
+
+        LinearLayout toggleRow = row();
+        toggleRow.setPadding(dp(4), dp(4), dp(4), dp(4));
+        bgRound(toggleRow, 22, () -> surfHi);
+        String[] modes = {"Empty", queueCount > 0 ? "From queue · " + queueCount : "From queue"};
+        for (int i = 0; i < 2; i++) {
+            final boolean wantQueue = i == 1;
+            boolean active = createFromQueue == wantQueue;
+            TextView chip = text(modes[i], 13, active ? onAccent : ink, true);
+            chip.setGravity(Gravity.CENTER);
+            chip.setSingleLine(true);
+            chip.setPadding(dp(12), dp(10), dp(12), dp(10));
+            if (active) bgRound(chip, 18, () -> accent);
+            tappable(chip, modes[i], () -> {
+                if (createFromQueue == wantQueue) return;
+                createFromQueue = wantQueue;
+                showPage();
+            });
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(40), 1);
+            if (i == 0) mp.rightMargin = dp(4);
+            toggleRow.addView(chip, mp);
+        }
+        composer.addView(toggleRow, fill(-2));
+
+        String sourceSummary = "";
+        if (createFromQueue) {
+            if (queueCount == 0) sourceSummary = "Play something first to save the current queue.";
+            else {
+                StringBuilder sb = new StringBuilder("Saves ");
+                if (!title.isEmpty()) sb.append(title);
+                if (!upcoming.isEmpty() && !upcoming.get(0).title.isEmpty()) {
+                    if (sb.length() > 6) sb.append(", ");
+                    sb.append(upcoming.get(0).title);
+                }
+                int more = queueCount - ((!title.isEmpty() ? 1 : 0) + (!upcoming.isEmpty() && !upcoming.get(0).title.isEmpty() ? 1 : 0));
+                if (more > 0) sb.append(" + ").append(more).append(" more");
+                sourceSummary = sb.toString();
+            }
+        } else if (pendingPlaylistSong != null) {
+            sourceSummary = "Includes “" + pendingPlaylistSong.title + "”";
+        }
+        if (!sourceSummary.isEmpty()) {
+            TextView summary = text(sourceSummary, 12, () -> inkDim, false);
+            summary.setGravity(Gravity.CENTER_HORIZONTAL);
+            summary.setPadding(dp(8), dp(10), dp(8), 0);
+            oneLine(summary);
+            composer.addView(summary, fill(-2));
+        }
+
+        page.addView(composer, fill(-2));
+
+        TextView error = text("", 13, () -> 0xffff8a80, true);
+        error.setGravity(Gravity.CENTER_HORIZONTAL);
+        error.setPadding(dp(8), dp(12), dp(8), 0);
+        error.setVisibility(GONE);
+        page.addView(error, fill(-2));
+
         name.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) { createName = s.toString(); }
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                createName = s.toString();
+                if (createName.isEmpty()) nameCount.setVisibility(GONE);
+                else {
+                    nameCount.setVisibility(VISIBLE);
+                    nameCount.setText(createName.length() + " / 100");
+                    nameCount.setTextColor(createName.length() > 100 ? 0xffff8a80 : inkDim);
+                }
+                if (error.getVisibility() == VISIBLE) { error.setText(""); error.setVisibility(GONE); }
+            }
             public void afterTextChanged(android.text.Editable e) {}
         });
         description.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) { createDescription = s.toString(); }
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                createDescription = s.toString();
+                if (error.getVisibility() == VISIBLE) { error.setText(""); error.setVisibility(GONE); }
+            }
             public void afterTextChanged(android.text.Editable e) {}
         });
-        TextView error = text("", 13, () -> inkDim, false);
-        error.setPadding(dp(4), dp(12), dp(4), 0);
-        page.addView(error);
-        TextView make = pill(creating ? "Creating…" : "Create playlist", () -> {});
+
+        LinearLayout actions = row();
+        LinearLayout.LayoutParams ap = fill(-2);
+        ap.topMargin = dp(18);
+        TextView cancel = text("Cancel", 15, () -> ink, true);
+        cancel.setGravity(Gravity.CENTER);
+        bgRound(cancel, 25, () -> surfHi).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+        tappable(cancel, "Cancel", this::back);
+        LinearLayout.LayoutParams cancelP = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        cancelP.rightMargin = dp(10);
+        actions.addView(cancel, cancelP);
+
+        TextView make = text(creating ? "Creating…" : "Create", 15, () -> onAccent, true);
+        make.setGravity(Gravity.CENTER);
+        bgRound(make, 25, () -> accent);
         make.setEnabled(!creating);
         make.setAlpha(creating ? .55f : 1f);
         tappable(make, "Create playlist", () -> {
             if (creating) return;
-            String title = createName.trim(), detail = createDescription.trim();
-            if (title.isEmpty()) { name.setError("Give your playlist a name"); name.requestFocus(); return; }
+            String trimmed = createName.trim(), detail = createDescription.trim();
+            if (trimmed.isEmpty()) {
+                error.setText("Give your playlist a name");
+                error.setVisibility(VISIBLE);
+                name.requestFocus();
+                return;
+            }
+            if (createName.length() > 100) {
+                error.setText("Playlist name is too long (max 100 characters)");
+                error.setVisibility(VISIBLE);
+                name.requestFocus();
+                return;
+            }
+            if (createDescription.length() > 300) {
+                error.setText("Description is too long (max 300 characters)");
+                error.setVisibility(VISIBLE);
+                description.requestFocus();
+                return;
+            }
             hideKeyboard();
             creating = true;
-            make.setEnabled(false); make.setText("Creating…"); error.setText("");
+            make.setEnabled(false); make.setAlpha(.55f); make.setText("Creating…");
+            error.setText(""); error.setVisibility(GONE);
             boolean fromQueue = createFromQueue;
             Entry pending = pendingPlaylistSong;
             COMMANDS.execute(() -> {
                 String[] response;
                 try {
-                    response = nativeCreatePlaylist(title, detail, fromQueue);
+                    response = nativeCreatePlaylist(trimmed, detail, fromQueue);
                     if (pending != null && response != null && response.length >= 2 && !response[0].isEmpty()) {
                         String addError;
                         try { addError = nativeAddToPlaylist(response[0], new String[]{pending.uri}); }
@@ -1394,19 +1563,21 @@ public final class SpatchUi extends FrameLayout {
                 final String[] result = response;
                 post(() -> {
                     creating = false;
-                    make.setEnabled(true); make.setText("Create playlist");
+                    make.setEnabled(true); make.setAlpha(1f); make.setText("Create");
                     if (result == null || result.length < 2 || result[0].isEmpty()) {
                         error.setText(result != null && result.length >= 2 ? result[1] : "Couldn’t create the playlist. Please try again.");
+                        error.setVisibility(VISIBLE);
                         return;
                     }
                     createName = createDescription = "";
                     pendingPlaylistSong = null;
-                    Toast.makeText(activity, result[1].isEmpty() ? "Created “" + title + "”" : result[1], result[1].isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
-                    if (tab == CREATE && playlist == null) openPlaylist(new Entry(title, "Your playlist", result[0], "", 0));
+                    Toast.makeText(activity, result[1].isEmpty() ? "Created “" + trimmed + "”" : result[1], result[1].isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
+                    if (tab == CREATE && playlist == null) openPlaylist(new Entry(trimmed, "Your playlist", result[0], "", 0));
                 });
             });
         });
-        page.addView(make, fill(dp(50)));
+        actions.addView(make, new LinearLayout.LayoutParams(0, dp(50), 1.6f));
+        page.addView(actions, ap);
         return scrolling(page);
     }
 
@@ -1654,7 +1825,7 @@ public final class SpatchUi extends FrameLayout {
         playlist = null;
         pageStack.clear();
         tab = next;
-        if (next == HOME || next == SEARCH || next == LIBRARY || next == CREATE) lastMainTab = next;
+        if (next == HOME || next == SEARCH || next == LIBRARY || next == SETTINGS) lastMainTab = next;
         setDockHidden(false);
         showPage();
         updateDock();

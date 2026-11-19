@@ -161,7 +161,13 @@ public class MacPreviewTest {
         find(menu, "Playlist").performClick();
         assertEquals("Create icon rotates back to + when closed", 0f, addIcon.getRotation(), .01f);
         assertEquals(4, field(ui, "tab"));
-        assertNotNull(find(root, "Make something yours."));
+        assertNotNull(find(root, "Playlist name"));
+        assertNotNull(find(root, "Cancel"));
+        assertNotNull(find(root, "Create playlist"));
+        settle();
+        root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, width, height);
+        screenshot(root, width, height, "create-playlist");
         java.util.Map<?, ?> glyphs = (java.util.Map<?, ?>) field(ui, "GLYPHS");
         assertTrue(((float[]) glyphs.get("add")).length > 0);
         drag(nav, 20, -30);
