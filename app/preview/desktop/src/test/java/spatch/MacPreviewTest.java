@@ -143,6 +143,27 @@ public class MacPreviewTest {
         find(nav, "Settings").performClick();
         assertEquals(3, field(ui, "tab"));
         settle();
+        // Settings -> Profile -> Your playlists -> Back -> Profile -> Back -> Settings
+        find(root, "Account menu").performClick();
+        settle();
+        popup = (android.widget.PopupWindow) popupField.get(ui);
+        View profileRow = find(popup.getContentView(), "Profile");
+        if (!profileRow.isClickable()) profileRow = (View) profileRow.getParent();
+        profileRow.performClick();
+        settle();
+        assertEquals("Opened Profile from Settings", 5, field(ui, "tab"));
+        View playlistsRow = find(root, "Your playlists");
+        if (!playlistsRow.isClickable()) playlistsRow = (View) playlistsRow.getParent();
+        playlistsRow.performClick();
+        settle();
+        assertEquals("Your playlists opens Library", 2, field(ui, "tab"));
+        assertNotNull("Library shows a back link to Profile", find(root, "Back to Profile"));
+        ((SpatchUi) ui).back();
+        settle();
+        assertEquals("Back from Your playlists returns to Profile", 5, field(ui, "tab"));
+        ((SpatchUi) ui).back();
+        settle();
+        assertEquals("Back from Profile returns to Settings", 3, field(ui, "tab"));
         android.content.SharedPreferences prefs = activity.getSharedPreferences("spatch_ui", 0);
         prefs.edit().putBoolean("reduce_motion", true).apply();
         drag(nav, nav.getWidth() - 20, nav.getHeight() / 2f);

@@ -135,7 +135,8 @@ public final class SpatchUi extends FrameLayout {
 
     // navigation
     private int tab = HOME, filter = -1;
-    private int lastMainTab = HOME, settingsSection = -1, navHover = -1;
+    private int settingsSection = -1, navHover = -1;
+    private final java.util.ArrayDeque<Integer> tabHistory = new java.util.ArrayDeque<>();
     private int soundPanel = -1, headphoneRequest;
     private List<AutoEqCatalog.Headphone> headphones;
     private String headphoneQuery = "", headphoneError = "", headphoneLoading = "";
@@ -561,8 +562,8 @@ public final class SpatchUi extends FrameLayout {
         else if (playlist != null) { playlist = null; showPage(); updateDock(); enter(-dp(44), 0); }
         else if (tab == SETTINGS && settingsSection == 2 && soundPanel >= 0) { soundPanel = soundPanel >= 6 ? 1 : -1; showPage(); }
         else if (tab == SETTINGS && settingsSection >= 0) { settingsSection = -1; showPage(); }
-        else if (tab == CREATE || tab == PROFILE) go(lastMainTab);
-        else if (tab != HOME) go(HOME);
+        else if (!tabHistory.isEmpty()) go(tabHistory.pop(), false);
+        else if (tab != HOME) go(HOME, false);
         else activity.moveTaskToBack(true);
     }
 
@@ -1190,10 +1191,10 @@ public final class SpatchUi extends FrameLayout {
         popup.setOutsideTouchable(true);
         popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
         popup.setOnDismissListener(() -> { if (accountMenu == popup) accountMenu = null; });
-        menuAction(menu, "Profile", "artist", () -> { popup.dismiss(); go(PROFILE); });
-        menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(); });
+        menuAction(menu, "Profile", "artist", () -> { popup.dismiss(); goFromLink(PROFILE); });
+        menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(true); });
         menuAction(menu, "Queue", "queue", () -> { popup.dismiss(); openQueue(); });
-        menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); updateDock(); } else go(LIBRARY); });
+        menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); updateDock(); } else goFromLink(LIBRARY); });
         popup.showAsDropDown(anchor, 0, dp(8), Gravity.END);
         if (motion()) {
             menu.setAlpha(0f);
@@ -1224,14 +1225,39 @@ public final class SpatchUi extends FrameLayout {
         menu.addView(item, fill(dp(48)));
     }
 
-    private void openSettings() {
+    private void openSettings(boolean fromLink) {
         settingsSection = -1;
         soundPanel = -1;
-        if (tab == SETTINGS && playlist == null) showPage(); else go(SETTINGS);
+        if (tab == SETTINGS && playlist == null) showPage();
+        else if (fromLink) goFromLink(SETTINGS);
+        else { tabHistory.clear(); go(SETTINGS, false); }
+    }
+
+    private String tabLabel(int t) {
+        switch (t) {
+            case HOME: return "Home";
+            case SEARCH: return "Search";
+            case LIBRARY: return "Library";
+            case SETTINGS: return "Settings";
+            case PROFILE: return "Profile";
+            default: return "Back";
+        }
+    }
+
+    private View backHeader(String label, boolean horizontalPad) {
+        LinearLayout row = row();
+        row.setPadding(horizontalPad ? dp(16) : dp(2), dp(6), dp(12), dp(2));
+        row.addView(icon("back", () -> accent), lp(dp(20), dp(20)));
+        TextView text = text(label, 15, () -> accent, true);
+        text.setPadding(dp(6), 0, 0, 0);
+        row.addView(text);
+        tappable(row, "Back to " + label, this::back);
+        return row;
     }
 
     private View profilePage() {
         LinearLayout page = column();
+        page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
         pageHeading(page, "Your profile", false);
         LinearLayout identity = card(page, "Spotify account");
         LinearLayout photo = row();
@@ -1251,9 +1277,9 @@ public final class SpatchUi extends FrameLayout {
         });
         settingsAction(identity, "Refresh profile", profileError.isEmpty() ? "Reload your name and photo from Spotify" : "Your profile hasn’t loaded yet. Tap to retry.", () -> loadProfile(true));
         LinearLayout music = card(page, "Your music");
-        settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; go(LIBRARY); });
+        settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
         settingsAction(music, "Create a playlist", "Start a new collection", () -> { pendingPlaylistSong = null; openCreatePlaylist(false); });
-        settingsAction(music, "Settings", "Personalise Spatch", this::openSettings);
+        settingsAction(music, "Settings", "Personalise Spatch", () -> openSettings(true));
         return scrolling(page);
     }
 
@@ -1936,15 +1962,24 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
+    private void goFromLink(int next) {
+        if (next != tab && (tabHistory.isEmpty() || tabHistory.peek() != tab)) tabHistory.push(tab);
+        go(next, true);
+    }
+
     private void go(int next) {
+        tabHistory.clear();
+        go(next, false);
+    }
+
+    private void go(int next, boolean pushForward) {
         closeCreateMenu();
         hideKeyboard();
         if (next == tab && playlist == null) return;
-        boolean forward = next > tab;
+        boolean forward = pushForward || next > tab;
         playlist = null;
         pageStack.clear();
         tab = next;
-        if (next == HOME || next == SEARCH || next == LIBRARY || next == SETTINGS) lastMainTab = next;
         setDockHidden(false);
         showPage();
         updateDock();
@@ -1990,7 +2025,7 @@ public final class SpatchUi extends FrameLayout {
     private void navigate(int destination) {
         if (destination == CREATE) {
             if (createOverlay == null) openCreateMenu(); else closeCreateMenu();
-        } else if (destination == SETTINGS) openSettings();
+        } else if (destination == SETTINGS) openSettings(false);
         else go(destination);
     }
 
@@ -2310,7 +2345,7 @@ public final class SpatchUi extends FrameLayout {
         for (int c = 0; c < SECTIONS.length; c++) {
             final int category = c;
             if (!pref("home_shelf_" + c, true)) { hidden = true; continue; }
-            any |= shelf(page, SECTIONS[c], entries(c, 14), () -> { filter = category; go(LIBRARY); });
+            any |= shelf(page, SECTIONS[c], entries(c, 14), () -> { filter = category; goFromLink(LIBRARY); });
         }
         if (!any && !hidden) {
             TextView note = text(libraryStatus, 14, () -> inkDim, false);
@@ -2457,6 +2492,9 @@ public final class SpatchUi extends FrameLayout {
     private View libraryPage() {
         LinearLayout page = column();
         page.setPadding(0, inset.top, 0, 0);
+        if (!tabHistory.isEmpty() && tabHistory.peek() == PROFILE) {
+            page.addView(backHeader("Profile", true), lp(-2, dp(36)));
+        }
         pageHeading(page, "Library", true);
 
         LinearLayout search = row();
