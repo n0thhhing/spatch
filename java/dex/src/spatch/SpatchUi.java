@@ -67,6 +67,8 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
     private static native String nativeBuild();
+    private static native int nativeVolume();
+    private static native String nativeSetVolume(int level);
     private static native String[] nativeConnection();
     private static native byte[] nativeSearch(String query);
     private static native byte[] nativeCatalog(byte[] response);
@@ -3842,6 +3844,75 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
+    /** A view shown under the next sheet's note, then forgotten (the devices sheet's volume bar). */
+    private View sheetExtra;
+
+    /** The volume of the device that's playing: a track you drag, with a speaker and the percentage. */
+    private final class VolumeBar extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path glyph = new Path();
+        private float value;
+        private boolean dragging;
+        private long sentAt;
+        private boolean failed;
+
+        VolumeBar(int level) {
+            super(activity);
+            value = Math.max(0, Math.min(1, level / 65535f));
+            setContentDescription("Volume");
+        }
+
+        @Override protected void onMeasure(int w, int h) { setMeasuredDimension(MeasureSpec.getSize(w), dp(52)); }
+
+        private float left() { return dp(40); }
+        private float right() { return getWidth() - dp(52); }
+
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), cy = getHeight() / 2f, x0 = left(), x1 = right(), x = x0 + (x1 - x0) * value;
+            c.save();
+            c.translate(dp(4), cy - dp(11));
+            drawGlyph(c, paint, glyph, "volume", ink, dp(22));
+            c.restore();
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor((ink & 0x00ffffff) | 0x30000000);
+            c.drawRoundRect(x0, cy - dp(3), x1, cy + dp(3), dp(3), dp(3), paint);
+            paint.setColor(accent);
+            c.drawRoundRect(x0, cy - dp(3), Math.max(x0 + dp(3), x), cy + dp(3), dp(3), dp(3), paint);
+            c.drawCircle(x, cy, dragging ? dp(13) : dp(10), paint);
+            paint.setColor(inkDim);
+            paint.setTextSize(dp(13));
+            paint.setTextAlign(Paint.Align.RIGHT);
+            c.drawText(Math.round(value * 100) + "%", w - dp(2), cy + dp(5), paint);
+        }
+
+        @Override public boolean onTouchEvent(MotionEvent e) {
+            int action = e.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) { dragging = true; getParent().requestDisallowInterceptTouchEvent(true); }
+            if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP) {
+                value = Math.max(0, Math.min(1, (e.getX() - left()) / Math.max(1, right() - left())));
+                long now = SystemClock.uptimeMillis();
+                if (action == MotionEvent.ACTION_UP || now - sentAt > 120) { sentAt = now; send(); }
+                if (action == MotionEvent.ACTION_UP) dragging = false;
+                invalidate();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_CANCEL) { dragging = false; invalidate(); return true; }
+            return false;
+        }
+
+        /** Sent in order, a little apart while dragging; the last position always goes. */
+        private void send() {
+            final int level = Math.round(value * 65535);
+            submit(COMMANDS, () -> {
+                String error = nativeSetVolume(level);
+                if (error != null && !error.isEmpty() && !failed) {
+                    failed = true;
+                    post(() -> Toast.makeText(activity, "Couldn’t change the volume: " + error, Toast.LENGTH_SHORT).show());
+                }
+            });
+        }
+    }
+
     void sheet(String heading, String note, String[] options, Choice choice) {
         Option[] plain = new Option[options.length];
         for (int i = 0; i < options.length; i++) plain[i] = new Option(options[i], "", "", "", false);
@@ -3874,6 +3945,10 @@ public final class SpatchUi extends FrameLayout {
         TextView n = text(note, 14, () -> inkDim, false);
         n.setPadding(0, dp(4), 0, dp(14));
         card.addView(n);
+        if (sheetExtra != null) {
+            card.addView(sheetExtra, fill(-2));
+            sheetExtra = null;
+        }
         // A long list scrolls inside the sheet instead of running off the screen.
         int most = Math.round(getHeight() * .62f);
         ScrollView choices = new ScrollView(activity) {
@@ -4422,8 +4497,10 @@ public final class SpatchUi extends FrameLayout {
         Toast.makeText(activity, "Looking for devices…", Toast.LENGTH_SHORT).show();
         submit(PLAYLISTS, () -> {
             String[] f = nativeDevices();
+            final int level = nativeVolume();
             post(() -> {
                 if (f == null || f.length < 5) { Toast.makeText(activity, "No devices found", Toast.LENGTH_SHORT).show(); return; }
+                if (level >= 0) sheetExtra = new VolumeBar(level);
                 int count = f.length / 5;
                 Option[] devices = new Option[count];
                 for (int i = 0; i < count; i++) {

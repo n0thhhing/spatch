@@ -908,6 +908,34 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeDevices(mut env: JNIEnv, _: JC
     strings(&mut env, fields)
 }
 
+#[cfg(feature = "preview")]
+static PREVIEW_VOLUME: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(40_000);
+
+/// The volume of the device that's playing, 0 to 65535, or -1 if Spotify couldn't say. Blocks briefly.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeVolume(_: JNIEnv, _: JClass) -> jint {
+    #[cfg(feature = "preview")]
+    return PREVIEW_VOLUME.load(Ordering::Relaxed);
+    #[cfg(not(feature = "preview"))]
+    crate::spotify::volume::get(std::time::Duration::from_secs(3)).unwrap_or_else(|error| {
+        log::warn!("Volume: {error}");
+        -1
+    })
+}
+
+/// Sets the volume of the device that's playing (0 to 65535); "" on success, else why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSetVolume(mut env: JNIEnv, _: JClass, volume: jint) -> jstring {
+    #[cfg(feature = "preview")]
+    let result: Result<(), String> = {
+        PREVIEW_VOLUME.store(volume.clamp(0, crate::spotify::volume::MAX), Ordering::Relaxed);
+        Ok(())
+    };
+    #[cfg(not(feature = "preview"))]
+    let result = crate::spotify::volume::set(volume);
+    string(&mut env, &result.err().unwrap_or_default())
+}
+
 /// Moves playback to a device; "" on success, else why not.
 #[unsafe(no_mangle)]
 #[allow(unused_variables)]
