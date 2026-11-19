@@ -113,7 +113,9 @@ public class MacPreviewTest {
         View ui = findType(root, SpatchUi.class);
         android.widget.PopupWindow popup = (android.widget.PopupWindow) popupField.get(ui);
         assertNotNull(popup);
-        View settings = find(popup.getContentView(), "Settings");
+        ViewGroup popupList = (ViewGroup) popup.getContentView();
+        assertEquals("Settings is at the bottom of the account menu", "Settings", popupList.getChildAt(popupList.getChildCount() - 1).getContentDescription());
+        View settings = find(popupList, "Settings");
         assertNotNull(settings);
         // The whole menu row owns the click, while find() can return its text child.
         if (!settings.isClickable()) settings = (View) settings.getParent();
@@ -136,13 +138,8 @@ public class MacPreviewTest {
         }
         // Use real touch dispatch: dragging across children must cancel their original click.
         ViewGroup nav = (ViewGroup) field(ui, "dockBar");
-        assertEquals("Bottom navigator has Home, Search, Library, Settings and +", 5, nav.getChildCount());
-        assertNotNull("Settings is on the bottom navigator", find(nav, "Settings"));
-        find(nav, "Home").performClick();
-        assertEquals(0, field(ui, "tab"));
-        find(nav, "Settings").performClick();
-        assertEquals(3, field(ui, "tab"));
-        settle();
+        assertEquals("Bottom navigator has Home, Search, Library and +", 4, nav.getChildCount());
+        assertNull("Settings is in the account menu, not the bottom navigator", find(nav, "Settings"));
         // Settings -> Profile -> Your playlists -> Back -> Profile -> Back -> Settings
         find(root, "Account menu").performClick();
         settle();
@@ -170,7 +167,7 @@ public class MacPreviewTest {
         assertEquals("Create menu keeps the current screen behind it", 3, field(ui, "tab"));
         View menu = (View) field(ui, "createOverlay");
         assertNotNull(menu);
-        View addIcon = ((ViewGroup) nav.getChildAt(4)).getChildAt(0);
+        View addIcon = ((ViewGroup) nav.getChildAt(3)).getChildAt(0);
         assertEquals("Create icon rotates to x when open", 45f, addIcon.getRotation(), .01f);
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
@@ -197,6 +194,8 @@ public class MacPreviewTest {
         assertTrue(((float[]) glyphs.get("add")).length > 0);
         drag(nav, 20, -30);
         assertEquals("Releasing outside the bar cancels navigation", 3, field(ui, "tab"));
+        find(nav, "Library").performClick();
+        settle();
         prefs.edit().putBoolean("reduce_motion", false).apply();
         java.lang.reflect.Field position = nav.getClass().getDeclaredField("indicatorX"); position.setAccessible(true);
         float before = position.getFloat(nav);
@@ -216,6 +215,13 @@ public class MacPreviewTest {
         assertTrue("Indicator keeps advancing across frames", position.getFloat(nav) < midway);
         touch(nav, gesture, 3, 45, -10);
         prefs.edit().putBoolean("reduce_motion", true).apply();
+        find(root, "Account menu").performClick();
+        settle();
+        popup = (android.widget.PopupWindow) popupField.get(ui);
+        View backToSettings = find(popup.getContentView(), "Settings");
+        if (!backToSettings.isClickable()) backToSettings = (View) backToSettings.getParent();
+        backToSettings.performClick();
+        settle();
         java.lang.reflect.Method scroll = SpatchUi.class.getDeclaredMethod("scrollDock", int.class, boolean.class);
         scroll.setAccessible(true);
         scroll.invoke(ui, 100, false);

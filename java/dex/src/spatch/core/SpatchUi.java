@@ -98,7 +98,7 @@ public final class SpatchUi extends FrameLayout {
 
     private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
     private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5;
-    private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, SETTINGS, CREATE};
+    private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, CREATE};
     private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
     private static final String[] SOUND_GROUPS = {"Graphic equalizer", "Headphone correction", "Loudness & bass", "Space", "Gain & dynamics", "Compatibility", "Find headphones", "Import profile"};
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
@@ -1192,9 +1192,9 @@ public final class SpatchUi extends FrameLayout {
         popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
         popup.setOnDismissListener(() -> { if (accountMenu == popup) accountMenu = null; });
         menuAction(menu, "Profile", "artist", () -> { popup.dismiss(); goFromLink(PROFILE); });
-        menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(true); });
         menuAction(menu, "Queue", "queue", () -> { popup.dismiss(); openQueue(); });
         menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); updateDock(); } else goFromLink(LIBRARY); });
+        menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(true); });
         popup.showAsDropDown(anchor, 0, dp(8), Gravity.END);
         if (motion()) {
             menu.setAlpha(0f);
@@ -2031,7 +2031,7 @@ public final class SpatchUi extends FrameLayout {
 
     private void updateDock() {
         if (dockBar == null) return;
-        String[] names = {"Home", "Search", "Library", "Settings", "Create"}, glyphs = {"home", "search", "library", "settings", "add"};
+        String[] names = {"Home", "Search", "Library", "Create"}, glyphs = {"home", "search", "library", "add"};
         if (dockBar.getChildCount() == 0) {
             for (int i = 0; i < names.length; i++) {
                 final int index = NAV_TABS[i];
