@@ -213,32 +213,74 @@ public final class CoreBridge implements Transport {
         }
     }
 
-    static final String LOGIN_ACTION = "com.spotify.mobile.android.service.action.session.LOGIN";
+    static final String MAIN_ACTIVITY = "com.spotify.music.SpotifyMainActivity";
     static final String LOGIN_ACTIVITY = "com.spotify.login.loginflowimpl.LoginActivity";
+    static final String DELEGATING_LOGIN_ACTIVITY = "com.spotify.login.loginflowimpl.DelegatingLoginActivity";
+    static final int LOGIN_TASK_FLAGS =
+        android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 
     /**
-     * Opens Spotify's native login flow (verified in Spotify 9.2.0.26 AndroidManifest.xml).
-     * SpatchApp leaves auth activities uncovered so the user can sign in and return to Spatch.
-     * Falls back to revealing Spotify's native UI if the login activity cannot be resolved directly.
+     * Builds Spotify 9.2.0.26's exact LoginActivity Intent (matching p.iwe0.b / p.vxf0.a):
+     * - explicit LoginActivity class
+     * - "intent" extra targeting SpotifyMainActivity ("spotify:home") so login returns to the app
+     * - "previously_logged_in" = false, "is_web_login_flow_supported" = true, "extra_start_on_login" = false
+     * - FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK (268468224) so singleTask LoginActivity
+     *   starts fresh instead of hitting onNewIntent(data==null) -> finish()
+     */
+    static android.content.Intent loginIntent(String packageName) {
+        android.content.Intent home = new android.content.Intent(
+            android.content.Intent.ACTION_VIEW, android.net.Uri.parse("spotify:home"));
+        home.setClassName(packageName, MAIN_ACTIVITY);
+        android.content.Intent login = new android.content.Intent();
+        login.setClassName(packageName, LOGIN_ACTIVITY);
+        login.putExtra("intent", home);
+        login.putExtra("previously_logged_in", false);
+        login.putExtra("is_web_login_flow_supported", true);
+        login.putExtra("extra_start_on_login", false);
+        login.setFlags(LOGIN_TASK_FLAGS);
+        return login;
+    }
+
+    /**
+     * Opens Spotify's native login flow using Spotify 9.2.0.26's verified iwe0/vxf0 intent contract.
+     * Falls back to DelegatingLoginActivity, then to revealing Spotify's native UI if needed.
      */
     public static String openLogin(android.app.Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
             return "Spotify screen isn’t ready yet";
         }
+        String pkg = activity.getPackageName();
         android.content.pm.PackageManager pm = activity.getPackageManager();
-        android.content.Intent intent = new android.content.Intent(LOGIN_ACTION);
-        intent.setPackage(activity.getPackageName());
-        if (pm == null || pm.resolveActivity(intent, 0) == null) {
-            intent = new android.content.Intent();
-            intent.setClassName(activity.getPackageName(), LOGIN_ACTIVITY);
-        }
-        if (pm != null && pm.resolveActivity(intent, 0) != null) {
+        android.content.Intent login = loginIntent(pkg);
+        if (pm != null && pm.resolveActivity(login, 0) != null) {
             try {
-                activity.startActivity(intent);
+                activity.startActivity(login);
+                activity.overridePendingTransition(0, 0);
                 return "";
             } catch (Throwable t) {
-                android.util.Log.w("SpatchCore", "Direct login launch failed, falling back to native UI", t);
+                android.util.Log.w("SpatchCore", "Direct LoginActivity launch failed, trying delegate", t);
             }
+        }
+        android.content.Intent delegate = new android.content.Intent();
+        delegate.setClassName(pkg, DELEGATING_LOGIN_ACTIVITY);
+        delegate.setFlags(LOGIN_TASK_FLAGS);
+        if (pm != null && pm.resolveActivity(delegate, 0) != null) {
+            try {
+                activity.startActivity(delegate);
+                activity.overridePendingTransition(0, 0);
+                return "";
+            } catch (Throwable t) {
+                android.util.Log.w("SpatchCore", "DelegatingLoginActivity launch failed, falling back to native UI", t);
+            }
+        }
+        SpatchApp.enterNativeFeature(activity);
+        return "";
+    }
+
+    /** Reveals Spotify's underlying native screen with a "Back to Spatch" return pill. */
+    public static String openNativeSpotify(android.app.Activity activity) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            return "Spotify screen isn’t ready yet";
         }
         SpatchApp.enterNativeFeature(activity);
         return "";

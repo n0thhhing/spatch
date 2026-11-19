@@ -33,6 +33,10 @@ final class CoreBridge {
         return "Spotify login runs inside the Android Spotify app.";
     }
 
+    public static String openNativeSpotify(android.app.Activity activity) {
+        return "Native Spotify UI is only available in the Android Spotify app.";
+    }
+
     static volatile java.io.File cacheDir;
 
     static void pruneCache() {}

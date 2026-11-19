@@ -31,18 +31,32 @@ public class MacPreviewTest {
         }
     }
     public static final class FakeLoginActivity extends android.app.Activity {}
+    public static final class FakeConsentActivity extends android.app.Activity {}
 
-    @Test public void authActivitiesAreNeverCoveredByOverlay() {
-        org.robolectric.android.controller.ActivityController<FakeLoginActivity> controller =
+    @Test public void authAndSecondaryActivitiesAreNeverCoveredByOverlay() {
+        org.robolectric.android.controller.ActivityController<android.app.Activity> mainCtrl =
+            Robolectric.buildActivity(android.app.Activity.class).setup();
+        SpatchApp.resumed(mainCtrl.get());
+
+        org.robolectric.android.controller.ActivityController<FakeLoginActivity> loginCtrl =
             Robolectric.buildActivity(FakeLoginActivity.class).setup();
-        FakeLoginActivity login = controller.get();
+        FakeLoginActivity login = loginCtrl.get();
         login.setContentView(new TextView(login));
-        ViewGroup decor = (ViewGroup) login.getWindow().getDecorView();
-        SpatchApp.resumed(login);
-        View nativeContent = decor.findViewById(android.R.id.content);
-        assertEquals("Login activity content must stay visible on fresh install", View.VISIBLE, nativeContent.getVisibility());
-        assertNull("Spatch overlay must not mount over login activities", decor.findViewWithTag("spatch-root"));
-        controller.pause().stop().destroy();
+        ViewGroup loginDecor = (ViewGroup) login.getWindow().getDecorView();
+        assertEquals("Login activity content must stay visible on fresh install", View.VISIBLE, loginDecor.findViewById(android.R.id.content).getVisibility());
+        assertNull("Spatch overlay must not mount over login activities", loginDecor.findViewWithTag("spatch-root"));
+
+        org.robolectric.android.controller.ActivityController<FakeConsentActivity> consentCtrl =
+            Robolectric.buildActivity(FakeConsentActivity.class).setup();
+        FakeConsentActivity consent = consentCtrl.get();
+        consent.setContentView(new TextView(consent));
+        ViewGroup consentDecor = (ViewGroup) consent.getWindow().getDecorView();
+        assertEquals("Secondary consent/onboarding activities must stay visible", View.VISIBLE, consentDecor.findViewById(android.R.id.content).getVisibility());
+        assertNull("Spatch overlay must only mount on the main host activity", consentDecor.findViewWithTag("spatch-root"));
+
+        consentCtrl.pause().stop().destroy();
+        loginCtrl.pause().stop().destroy();
+        mainCtrl.pause().stop().destroy();
     }
 
     @Test public void nativeCreationRestoresViewsAndBackHandling() throws Exception {

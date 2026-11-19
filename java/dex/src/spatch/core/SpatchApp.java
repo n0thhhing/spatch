@@ -18,8 +18,10 @@ public final class SpatchApp {
     private static final String LIBRARY_ASSET = "spatch/libspatch_app.so";
     private static final String ROOT_TAG = "spatch-root";
     private static final String RETURN_TAG = "spatch-return";
+    private static final String MAIN_ACTIVITY = "com.spotify.music.SpotifyMainActivity";
     private static boolean loaded;
     private static volatile boolean nativeFeatureMode;
+    private static volatile String mainActivityClass;
     private static String loadError;
     private static final java.util.WeakHashMap<Application, Boolean> WATCHED_APPS = new java.util.WeakHashMap<Application, Boolean>();
     private static final java.util.WeakHashMap<Activity, Object> BACK_CALLBACKS = new java.util.WeakHashMap<Activity, Object>();
@@ -66,7 +68,10 @@ public final class SpatchApp {
 
     /** Hook: the launcher activity's onResume, before Spotify resumes its own screen. */
     public static void resumed(Activity activity) {
-        Application app = activity.getApplication();
+        if (activity != null && !isAuthActivity(activity)) {
+            mainActivityClass = activity.getClass().getName();
+        }
+        Application app = activity == null ? null : activity.getApplication();
         if (app != null) {
             boolean register;
             synchronized (WATCHED_APPS) {
@@ -75,7 +80,7 @@ public final class SpatchApp {
             }
             if (register) {
                 app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-                    @Override public void onActivityResumed(Activity resumed) { mount(resumed); }
+                    @Override public void onActivityResumed(Activity resumed) { onAnyActivityResumed(resumed); }
                     @Override public void onActivityCreated(Activity a, Bundle state) {}
                     @Override public void onActivityStarted(Activity a) {}
                     @Override public void onActivityPaused(Activity a) {}
@@ -90,7 +95,30 @@ public final class SpatchApp {
                 });
             }
         }
-        mount(activity);
+        if (activity != null) mount(activity);
+    }
+
+    /**
+     * Only mount Spatch's overlay on the main host activity (SpotifyMainActivity).
+     * Auth, consent, onboarding, permission, and other secondary Spotify activities stay native and uncovered.
+     */
+    static boolean isMainHostActivity(Activity activity) {
+        if (activity == null || isAuthActivity(activity)) return false;
+        String name = activity.getClass().getName();
+        String host = mainActivityClass;
+        return MAIN_ACTIVITY.equals(name) || (host != null && host.equals(name));
+    }
+
+    private static void onAnyActivityResumed(Activity resumed) {
+        if (resumed == null || resumed.isFinishing() || resumed.isDestroyed()) return;
+        if (isAuthActivity(resumed)) return;
+        if (nativeFeatureMode) {
+            applyNativeMode(resumed);
+            return;
+        }
+        if (isMainHostActivity(resumed)) {
+            mount(resumed);
+        }
     }
 
     static boolean isNativeFeatureMode() {
@@ -195,6 +223,7 @@ public final class SpatchApp {
     private static void applyNativeMode(final Activity activity) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
         try {
+            activity.setVisible(true);
             ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
             setBackRegistered(activity, false);
             View root = decor.findViewWithTag(ROOT_TAG);

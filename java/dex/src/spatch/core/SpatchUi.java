@@ -1354,6 +1354,11 @@ public final class SpatchUi extends FrameLayout {
         if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
     }
 
+    private void openNativeSpotify() {
+        String error = CoreBridge.openNativeSpotify(activity);
+        if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
+    }
+
     private View profilePage() {
         LinearLayout page = column();
         page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
@@ -1378,6 +1383,7 @@ public final class SpatchUi extends FrameLayout {
         settingsAction(identity, profileUsername.isEmpty() ? "Sign in to Spotify" : "Switch Spotify account",
             profileUsername.isEmpty() ? "Open Spotify’s login screen to connect your account" : "Open Spotify’s login screen to sign in again",
             this::openLogin);
+        settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
         LinearLayout music = card(page, "Your music");
         settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
         settingsAction(music, "Create a playlist", "Start a new collection", () -> { pendingPlaylistSong = null; openCreatePlaylist(false); });
@@ -2449,13 +2455,15 @@ public final class SpatchUi extends FrameLayout {
             if (!pref("home_shelf_" + c, true)) { hidden = true; continue; }
             any |= shelf(page, SECTIONS[c], entries(c, 14), () -> { filter = category; goFromLink(LIBRARY); });
         }
-        if (!any && !hidden) {
+        if (!any && (!hidden || !libraryReady)) {
             TextView note = text(libraryStatus, 14, () -> inkDim, false);
             note.setPadding(dp(4), dp(24), 0, 0);
             page.addView(note);
             if (!libraryReady) {
                 LinearLayout actions = row();
                 actions.addView(pill("Sign in to Spotify", this::openLogin));
+                actions.addView(space(dp(10), 1));
+                actions.addView(pill("Native Spotify", this::openNativeSpotify));
                 if (!libraryStatus.startsWith("Connecting")) {
                     actions.addView(space(dp(10), 1));
                     actions.addView(pill("Retry", () -> { if (!fetching) loadLibrary(); }));
@@ -2674,6 +2682,8 @@ public final class SpatchUi extends FrameLayout {
                 LinearLayout actions = row();
                 actions.setPadding(dp(22), 0, dp(22), 0);
                 actions.addView(pill("Sign in to Spotify", this::openLogin));
+                actions.addView(space(dp(10), 1));
+                actions.addView(pill("Native Spotify", this::openNativeSpotify));
                 page.addView(actions, lp(-2, -2));
             }
         } else {
