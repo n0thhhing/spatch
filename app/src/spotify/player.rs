@@ -21,6 +21,8 @@ pub struct NowPlaying {
     pub quality: String,
     /// Spotify is fetching audio and can't play yet.
     pub buffering: bool,
+    /// Playback speed (1.0 normal), for podcasts; 0 when the state doesn't say.
+    pub speed: f32,
     /// Whether Spotify allows skipping forward / back right now (not during an ad, for instance).
     pub can_next: bool,
     pub can_previous: bool,
@@ -174,6 +176,7 @@ impl NowPlaying {
             explicit: matches!(meta(&track, &["is_explicit", "explicit"]), "true" | "1"),
             quality: quality_label(state.playback_quality.as_ref()),
             buffering: state.is_buffering,
+            speed: state.playback_speed.as_ref().map(|v| v.value as f32).filter(|v| *v > 0.0).or_else(|| options.map(|o| o.playback_speed).filter(|v| *v > 0.0)).unwrap_or(0.0),
             can_next: state.restrictions.as_ref().is_none_or(|r| r.disallow_skipping_next_reasons.is_empty()),
             album_uri: meta(&track, &["album_uri"]).into(),
             artist_uri: meta(&track, &["artist_uri"]).into(),
@@ -231,6 +234,8 @@ pub enum Command {
     AddToQueue(String),
     /// Puts a song at the front of Up Next (ahead of what's already queued), as Spotify's "Play next".
     PlayNext(String),
+    /// Playback speed, 0.25 to 4 (podcasts and audiobooks).
+    Speed(f32),
 }
 
 fn logging_params() -> Option<es::LoggingParams> {
@@ -315,6 +320,7 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
             .encode_to_vec(),
         ),
         Command::SkipTo { uri, uid } => ("SkipNext", es::SkipNextRequest { track: track(uri, uid), logging_params: log, ..Default::default() }.encode_to_vec()),
+        Command::Speed(speed) => ("SetOptions", es::SetOptionsRequest { playback_speed: speed, logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::PlayNext(uri) => (
             "PlayAsNextInQueue",
             es::PlayAsNextInQueueRequest { tracks: vec![es::ContextTrack { uri, ..Default::default() }], logging_params: log, ..Default::default() }.encode_to_vec(),
@@ -436,6 +442,8 @@ mod tests {
         let (method, bytes) = command(Command::SkipTo { uri: "spotify:track:2".into(), uid: "u2".into() });
         let skip = es::SkipNextRequest::decode(bytes.as_slice()).unwrap().track.unwrap();
         assert_eq!((method, skip.uri.as_str(), skip.uid.as_str()), ("SkipNext", "spotify:track:2", "u2"));
+        let (method, speed) = command(Command::Speed(1.5));
+        assert_eq!((method, es::SetOptionsRequest::decode(speed.as_slice()).unwrap().playback_speed), ("SetOptions", 1.5));
         let (method, next) = command(Command::PlayNext("spotify:track:4".into()));
         let sent = es::PlayAsNextInQueueRequest::decode(next.as_slice()).unwrap();
         assert_eq!((method, sent.tracks.len(), sent.tracks[0].uri.as_str()), ("PlayAsNextInQueue", 1, "spotify:track:4"));

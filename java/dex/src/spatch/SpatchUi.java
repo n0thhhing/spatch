@@ -67,6 +67,7 @@ public final class SpatchUi extends FrameLayout {
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
     private static native String nativeBuild();
+    private static native float nativePlaybackSpeed();
     private static native int nativeVolume();
     private static native String nativeSetVolume(int level);
     private static native String[] nativeConnection();
@@ -103,7 +104,7 @@ public final class SpatchUi extends FrameLayout {
     static native String[] nativeCreatePlaylist(String name, String description, boolean fromQueue);
     static native String nativeAddToPlaylist(String playlistUri, String[] uris);
 
-    private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9, QUEUE_NEXT = 13;
+    private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9, QUEUE_NEXT = 13, SPEED = 14;
     private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5;
     private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, CREATE};
     private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
@@ -217,7 +218,8 @@ public final class SpatchUi extends FrameLayout {
     private Runnable cancelHeldSeek;
     private Backdrop backdrop;
     private Motes motes;
-    private TextView pQuality;
+    private TextView pQuality, pSpeed;
+    private float speed = 1f;
     /** Last backdrop blur and cover kept across switches so transitions start from the previous track's art. */
     Bitmap lastBlur, lastCover;
     String lastCoverUrl = "", nextKey = "";
@@ -823,6 +825,7 @@ public final class SpatchUi extends FrameLayout {
         // Home and Library mark what's playing; redraw them in place when that changes.
         if (contextChanged && playlist == null && sheetClose == null && !playerOpen && tab != SETTINGS && tab != SEARCH && !(findFocus() instanceof android.widget.EditText)) post(this::showPageKeepingPlace);
         quality = s[14];
+        speed = nativePlaybackSpeed();
         boolean wasBuffering = buffering;
         buffering = Boolean.parseBoolean(s[15]);
         canNext = Boolean.parseBoolean(s[16]);
@@ -4114,7 +4117,7 @@ public final class SpatchUi extends FrameLayout {
         else removeView(p);
         player = null;
         disc = null; wave = null; backdrop = null; motes = null; nextPill = null;
-        pTitle = pArtist = pSource = pBadge = pQuality = null;
+        pTitle = pArtist = pSource = pBadge = pQuality = pSpeed = null;
         pLike = pShuffle = pRepeat = pSparkle = null;
         pPlay = null;
         nextKey = "";
@@ -4164,6 +4167,16 @@ public final class SpatchUi extends FrameLayout {
             }
         };
         sleepBadge.run();
+        // Playback speed, for podcasts: a small chip that opens the choices.
+        pSpeed = text("1×", 13, () -> ink, true);
+        pSpeed.setGravity(Gravity.CENTER);
+        pSpeed.setPadding(dp(12), 0, dp(12), 0);
+        bgRound(pSpeed, 16, () -> surfHi);
+        tappable(pSpeed, "Playback speed", this::openSpeed);
+        pSpeed.setVisibility(GONE);
+        LinearLayout.LayoutParams speedParams = lp(-2, dp(32));
+        speedParams.rightMargin = dp(6);
+        top.addView(pSpeed, speedParams);
         top.addView(timerBox, lp(dp(48), dp(48)));
         top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
         top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
@@ -4508,6 +4521,21 @@ public final class SpatchUi extends FrameLayout {
         MAIN.removeCallbacks(SLEEP);
     }
 
+    private static String speedLabel(float v) {
+        return (Math.abs(v - Math.round(v)) < .01f ? String.valueOf(Math.round(v)) : String.format(java.util.Locale.ROOT, "%s", Float.toString(Math.round(v * 100) / 100f))) + "×";
+    }
+
+    private void openSpeed() {
+        float[] speeds = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f};
+        Option[] options = new Option[speeds.length];
+        for (int i = 0; i < speeds.length; i++) options[i] = new Option(speedLabel(speeds[i]) + (speeds[i] == 1f ? "  (normal)" : ""), "", "", "play", Math.abs(speed - speeds[i]) < .01f);
+        sheet("Playback speed", "For podcasts and audiobooks", options, c -> {
+            speed = speeds[c];
+            if (pSpeed != null) pSpeed.setText(speedLabel(speed));
+            command(SPEED, Math.round(speeds[c] * 100), "");
+        });
+    }
+
     private int sleepChoice;
     private Runnable sleepBadge;
 
@@ -4732,6 +4760,12 @@ public final class SpatchUi extends FrameLayout {
         if (pArtist != null) pArtist.setText(artist);
         if (pSource != null) pSource.setText(source.isEmpty() ? album : source);
         if (pBadge != null) pBadge.setVisibility(rating.isEmpty() ? GONE : VISIBLE);
+        if (pSpeed != null) {
+            // Spoken word only: demo songs stand in for episodes in the preview app.
+            boolean spoken = uri.startsWith("spotify:episode:") || uri.startsWith("spotify:preview:");
+            pSpeed.setVisibility(spoken ? VISIBLE : GONE);
+            pSpeed.setText(speedLabel(speed));
+        }
         if (pQuality != null) {
             String label = quality.toUpperCase(java.util.Locale.ROOT);
             if (!(label.isEmpty() ? " " : label).contentEquals(pQuality.getText())) {

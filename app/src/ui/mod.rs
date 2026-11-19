@@ -936,6 +936,12 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSetVolume(mut env: JNIEnv, _: 
     string(&mut env, &result.err().unwrap_or_default())
 }
 
+/// The playback speed (1.0 normal) of what's playing.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaybackSpeed(_: JNIEnv, _: JClass) -> jni::sys::jfloat {
+    PLAYER.lock().unwrap().1.as_ref().map_or(1.0, |now| if now.speed > 0.0 { now.speed } else { 1.0 })
+}
+
 /// Moves playback to a device; "" on success, else why not.
 #[unsafe(no_mangle)]
 #[allow(unused_variables)]
@@ -951,7 +957,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeTransfer(mut env: JNIEnv, _: J
 /// Sends a player command; true if Spotify accepted it.
 /// 0 pause, 1 resume, 2 previous, 3 next, 4 seek to `value` ms, 5 shuffle on/off, 6 repeat mode,
 /// 7 play the context `uri`, 8 skip to queue entry `value` (which must still hold `uri`), 9 add `uri` to the queue,
-/// 10 to 12 edit the queue, 13 put `uri` at the front of Up Next.
+/// 10 to 12 edit the queue, 13 put `uri` at the front of Up Next, 14 playback speed `value` / 100 (25 to 400).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JClass, action: jint, value: jlong, uri: JString) -> jboolean {
     use player::Command;
@@ -1013,6 +1019,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
         }
         9 if spotify_uri => Command::AddToQueue(target),
         13 if spotify_uri => Command::PlayNext(target),
+        14 if (25..=400).contains(&value) => Command::Speed(value as f32 / 100.0),
         _ => return JNI_FALSE,
     };
     #[cfg(feature = "preview")]

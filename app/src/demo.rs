@@ -181,7 +181,7 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
     let here = index_of(&now.uri);
     let (shuffle, repeat) = (now.shuffle, now.repeat);
     let at = now.position_at(now_ms());
-    let keeps_options = matches!(command, Command::Shuffle(_) | Command::Repeat(_) | Command::AddToQueue(_) | Command::PlayNext(_));
+    let keeps_options = matches!(command, Command::Shuffle(_) | Command::Repeat(_) | Command::AddToQueue(_) | Command::PlayNext(_) | Command::Speed(_));
     match command {
         Command::Pause | Command::Resume => {
             now.position_ms = at;
@@ -224,6 +224,7 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
         }
         Command::Shuffle(on) => now.shuffle = on,
         Command::Repeat(mode) => now.repeat = mode,
+        Command::Speed(speed) => now.speed = speed,
         Command::PlayNext(uri) => {
             let mut track = next_track(index_of(&uri));
             now.queue_revision += 1;
