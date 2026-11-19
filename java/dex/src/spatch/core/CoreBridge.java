@@ -213,6 +213,37 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    static final String LOGIN_ACTION = "com.spotify.mobile.android.service.action.session.LOGIN";
+    static final String LOGIN_ACTIVITY = "com.spotify.login.loginflowimpl.LoginActivity";
+
+    /**
+     * Opens Spotify's native login flow (verified in Spotify 9.2.0.26 AndroidManifest.xml).
+     * SpatchApp leaves auth activities uncovered so the user can sign in and return to Spatch.
+     * Falls back to revealing Spotify's native UI if the login activity cannot be resolved directly.
+     */
+    public static String openLogin(android.app.Activity activity) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            return "Spotify screen isn’t ready yet";
+        }
+        android.content.pm.PackageManager pm = activity.getPackageManager();
+        android.content.Intent intent = new android.content.Intent(LOGIN_ACTION);
+        intent.setPackage(activity.getPackageName());
+        if (pm == null || pm.resolveActivity(intent, 0) == null) {
+            intent = new android.content.Intent();
+            intent.setClassName(activity.getPackageName(), LOGIN_ACTIVITY);
+        }
+        if (pm != null && pm.resolveActivity(intent, 0) != null) {
+            try {
+                activity.startActivity(intent);
+                return "";
+            } catch (Throwable t) {
+                android.util.Log.w("SpatchCore", "Direct login launch failed, falling back to native UI", t);
+            }
+        }
+        SpatchApp.enterNativeFeature(activity);
+        return "";
+    }
+
     /** Where downloaded covers are kept between launches (set by the UI). */
     static volatile java.io.File cacheDir;
 

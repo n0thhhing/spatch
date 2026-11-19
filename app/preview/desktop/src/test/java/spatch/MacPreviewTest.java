@@ -30,6 +30,21 @@ public class MacPreviewTest {
             System.exit(1);
         }
     }
+    public static final class FakeLoginActivity extends android.app.Activity {}
+
+    @Test public void authActivitiesAreNeverCoveredByOverlay() {
+        org.robolectric.android.controller.ActivityController<FakeLoginActivity> controller =
+            Robolectric.buildActivity(FakeLoginActivity.class).setup();
+        FakeLoginActivity login = controller.get();
+        login.setContentView(new TextView(login));
+        ViewGroup decor = (ViewGroup) login.getWindow().getDecorView();
+        SpatchApp.resumed(login);
+        View nativeContent = decor.findViewById(android.R.id.content);
+        assertEquals("Login activity content must stay visible on fresh install", View.VISIBLE, nativeContent.getVisibility());
+        assertNull("Spatch overlay must not mount over login activities", decor.findViewWithTag("spatch-root"));
+        controller.pause().stop().destroy();
+    }
+
     @Test public void nativeCreationRestoresViewsAndBackHandling() throws Exception {
         org.robolectric.android.controller.ActivityController<android.app.Activity> controller = Robolectric.buildActivity(android.app.Activity.class).setup();
         android.app.Activity activity = controller.get();
@@ -201,6 +216,8 @@ public class MacPreviewTest {
         profileRow.performClick();
         settle();
         assertEquals("Opened Profile from Settings", 5, field(ui, "tab"));
+        assertTrue("Profile exposes sign-in/switch-account option",
+            find(root, "Switch Spotify account") != null || find(root, "Sign in to Spotify") != null);
         View playlistsRow = find(root, "Your playlists");
         if (!playlistsRow.isClickable()) playlistsRow = (View) playlistsRow.getParent();
         playlistsRow.performClick();

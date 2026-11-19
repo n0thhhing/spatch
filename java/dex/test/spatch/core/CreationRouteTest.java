@@ -40,6 +40,30 @@ public final class CreationRouteTest {
         SpatchApp.exitNativeFeature(null);
         check(!SpatchApp.isNativeFeatureMode(), "exitNativeFeature clears mode");
 
+        // Fresh-install login/auth activities must never be covered by SpatchApp
+        String[] authActivities = {
+            "com.spotify.login.loginflowimpl.LoginActivity",
+            "com.spotify.login.loginflowimpl.DelegatingLoginActivity",
+            "com.spotify.login.loginflowimpl.QuickLoginActivity",
+            "com.spotify.login.adaptiveauthentication.challenge.web.NoAnimLauncherActivity",
+            "com.spotify.login.phonenumbersignup.callingcode.CallingCodePickerActivity",
+            "com.spotify.appauthorization.sso.AuthorizationActivity",
+            "com.spotify.appauthorization.externallogin.LoginRedirectActivity",
+            "com.spotify.accountswitching.accountpickerimpl.AccountPickerActivity",
+            "com.spotify.accountswitching.switcheruiimpl.AccountSwitcherActivity",
+            "com.spotify.ageverification.ageassurancewebview.AgeAssuranceWebViewActivity",
+            "com.spotify.genalphaauthentication.parentalconsentwebview.ParentalConsentWebActivity",
+            "com.google.android.gms.auth.api.signin.internal.SignInHubActivity",
+            "com.facebook.CustomTabMainActivity",
+            "androidx.browser.customtabs.CustomTabsActivity"
+        };
+        for (String name : authActivities) {
+            check(SpatchApp.isAuthClassName(name), "must treat as auth activity: " + name);
+        }
+        check(!SpatchApp.isAuthClassName("com.spotify.music.SpotifyMainActivity"), "main activity is not auth");
+        check(!SpatchApp.isAuthClassName("android.app.Activity"), "generic activity is not auth");
+        check(!CoreBridge.openLogin(null).isEmpty(), "openLogin(null) returns actionable message");
+
         System.out.println("CreationRouteTest: all checks passed");
     }
 

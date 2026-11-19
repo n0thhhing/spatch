@@ -29,6 +29,10 @@ final class CoreBridge {
         }
     }
 
+    public static String openLogin(android.app.Activity activity) {
+        return "Spotify login runs inside the Android Spotify app.";
+    }
+
     static volatile java.io.File cacheDir;
 
     static void pruneCache() {}

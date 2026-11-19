@@ -532,6 +532,10 @@ public final class SpatchUi extends FrameLayout {
         if (visibility == VISIBLE && isAttachedToWindow()) {
             activeUi = new java.lang.ref.WeakReference<>(this);
             nativeAttachUi();
+            if (!libraryReady) {
+                libraryRetry = 0;
+                lastConnect = 0;
+            }
             post(poll);
         }
     }
@@ -1345,6 +1349,11 @@ public final class SpatchUi extends FrameLayout {
         return row;
     }
 
+    private void openLogin() {
+        String error = CoreBridge.openLogin(activity);
+        if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
+    }
+
     private View profilePage() {
         LinearLayout page = column();
         page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
@@ -1366,6 +1375,9 @@ public final class SpatchUi extends FrameLayout {
             Toast.makeText(activity, "Profile link copied", Toast.LENGTH_SHORT).show();
         });
         settingsAction(identity, "Refresh profile", profileError.isEmpty() ? "Reload your name and photo from Spotify" : "Your profile hasn’t loaded yet. Tap to retry.", () -> loadProfile(true));
+        settingsAction(identity, profileUsername.isEmpty() ? "Sign in to Spotify" : "Switch Spotify account",
+            profileUsername.isEmpty() ? "Open Spotify’s login screen to connect your account" : "Open Spotify’s login screen to sign in again",
+            this::openLogin);
         LinearLayout music = card(page, "Your music");
         settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
         settingsAction(music, "Create a playlist", "Start a new collection", () -> { pendingPlaylistSong = null; openCreatePlaylist(false); });
@@ -2441,7 +2453,15 @@ public final class SpatchUi extends FrameLayout {
             TextView note = text(libraryStatus, 14, () -> inkDim, false);
             note.setPadding(dp(4), dp(24), 0, 0);
             page.addView(note);
-            if (!libraryReady && !libraryStatus.startsWith("Connecting")) page.addView(pill("Retry", () -> { if (!fetching) loadLibrary(); }));
+            if (!libraryReady) {
+                LinearLayout actions = row();
+                actions.addView(pill("Sign in to Spotify", this::openLogin));
+                if (!libraryStatus.startsWith("Connecting")) {
+                    actions.addView(space(dp(10), 1));
+                    actions.addView(pill("Retry", () -> { if (!fetching) loadLibrary(); }));
+                }
+                page.addView(actions, lp(-2, -2));
+            }
         }
         return scrolling(page);
     }
@@ -2650,6 +2670,12 @@ public final class SpatchUi extends FrameLayout {
             TextView note = text(filter == DOWNLOADED && libraryReady ? "Nothing downloaded yet. Open a playlist, album or podcast and tap its download button." : libraryStatus, 14, () -> inkDim, false);
             note.setPadding(dp(22), dp(20), dp(22), 0);
             page.addView(note);
+            if (!libraryReady) {
+                LinearLayout actions = row();
+                actions.setPadding(dp(22), 0, dp(22), 0);
+                actions.addView(pill("Sign in to Spotify", this::openLogin));
+                page.addView(actions, lp(-2, -2));
+            }
         } else {
             TextView noMatch = text("", 15, () -> inkDim, false);
             noMatch.setPadding(dp(22), dp(18), dp(22), 0);

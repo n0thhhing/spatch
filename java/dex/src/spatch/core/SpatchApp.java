@@ -18,9 +18,10 @@ public final class SpatchApp {
     private static final String LIBRARY_ASSET = "spatch/libspatch_app.so";
     private static final String ROOT_TAG = "spatch-root";
     private static final String RETURN_TAG = "spatch-return";
-    private static boolean loaded, watching;
+    private static boolean loaded;
     private static volatile boolean nativeFeatureMode;
     private static String loadError;
+    private static final java.util.WeakHashMap<Application, Boolean> WATCHED_APPS = new java.util.WeakHashMap<Application, Boolean>();
     private static final java.util.WeakHashMap<Activity, Object> BACK_CALLBACKS = new java.util.WeakHashMap<Activity, Object>();
     private static final java.util.WeakHashMap<Activity, Boolean> BACK_REGISTERED = new java.util.WeakHashMap<Activity, Boolean>();
 
@@ -65,28 +66,68 @@ public final class SpatchApp {
 
     /** Hook: the launcher activity's onResume, before Spotify resumes its own screen. */
     public static void resumed(Activity activity) {
-        if (!watching) {
-            watching = true;
-            activity.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-                @Override public void onActivityResumed(Activity resumed) { mount(resumed); }
-                @Override public void onActivityCreated(Activity a, Bundle state) {}
-                @Override public void onActivityStarted(Activity a) {}
-                @Override public void onActivityPaused(Activity a) {}
-                @Override public void onActivityStopped(Activity a) {}
-                @Override public void onActivitySaveInstanceState(Activity a, Bundle state) {}
-                @Override public void onActivityDestroyed(Activity a) {
-                    synchronized (BACK_CALLBACKS) {
-                        BACK_CALLBACKS.remove(a);
-                        BACK_REGISTERED.remove(a);
+        Application app = activity.getApplication();
+        if (app != null) {
+            boolean register;
+            synchronized (WATCHED_APPS) {
+                register = !Boolean.TRUE.equals(WATCHED_APPS.get(app));
+                if (register) WATCHED_APPS.put(app, Boolean.TRUE);
+            }
+            if (register) {
+                app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+                    @Override public void onActivityResumed(Activity resumed) { mount(resumed); }
+                    @Override public void onActivityCreated(Activity a, Bundle state) {}
+                    @Override public void onActivityStarted(Activity a) {}
+                    @Override public void onActivityPaused(Activity a) {}
+                    @Override public void onActivityStopped(Activity a) {}
+                    @Override public void onActivitySaveInstanceState(Activity a, Bundle state) {}
+                    @Override public void onActivityDestroyed(Activity a) {
+                        synchronized (BACK_CALLBACKS) {
+                            BACK_CALLBACKS.remove(a);
+                            BACK_REGISTERED.remove(a);
+                        }
                     }
-                }
-            });
+                });
+            }
         }
         mount(activity);
     }
 
     static boolean isNativeFeatureMode() {
         return nativeFeatureMode;
+    }
+
+    /**
+     * Activities that handle Spotify sign-in, sign-up, OAuth, account switching, or verification.
+     * Spatch must never cover these or hide their content, otherwise fresh installs cannot log in.
+     */
+    static boolean isAuthClassName(String name) {
+        if (name == null || name.isEmpty()) return false;
+        if ("com.spotify.music.SpotifyMainActivity".equals(name)) return false;
+        if (name.startsWith("com.spotify.login.")
+            || name.startsWith("com.spotify.appauthorization.")
+            || name.startsWith("com.spotify.accountswitching.")
+            || name.startsWith("com.spotify.ageverification.")
+            || name.startsWith("com.spotify.genalpha")
+            || name.startsWith("com.spotify.mediasession.mediasession.login.")
+            || name.startsWith("com.google.android.gms.auth.")
+            || name.startsWith("com.facebook.")
+            || name.startsWith("androidx.browser.customtabs.")) {
+            return true;
+        }
+        int dot = name.lastIndexOf('.');
+        String simple = (dot >= 0 ? name.substring(dot + 1) : name).toLowerCase(java.util.Locale.ROOT);
+        return simple.contains("login")
+            || simple.contains("signin")
+            || simple.contains("signup")
+            || simple.contains("auth")
+            || simple.contains("accountpicker")
+            || simple.contains("accountswitch")
+            || simple.contains("credential");
+    }
+
+    static boolean isAuthActivity(Activity activity) {
+        return activity != null && isAuthClassName(activity.getClass().getName());
     }
 
     /** Temporarily hides Spatch's overlay so a launched native Spotify flow is visible and usable. */
@@ -229,6 +270,7 @@ public final class SpatchApp {
 
     private static void mount(Activity activity) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
+        if (isAuthActivity(activity)) return;
         if (nativeFeatureMode) {
             applyNativeMode(activity);
             return;
