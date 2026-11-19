@@ -360,6 +360,20 @@ mod tests {
     }
 
     #[test]
+    fn fallback_centres_require_their_own_headroom() {
+        let mut gains = [0.0; 10];
+        gains[5] = 12.0;
+        let dense: Vec<f32> = (0..64).map(|i| 20.0 * 1000_f32.powf(i as f32 / 63.0)).collect();
+        let mut dense_gains = [0.0; 64];
+        let dense_peak = evaluate_bands(&dense, true, Some(&gains), None, None, 100.0, false, 1.0, 0.6, &mut dense_gains);
+        let actual = [1000.0];
+        let mut actual_gains = [0.0];
+        let actual_peak = evaluate_bands(&actual, true, Some(&gains), None, None, 100.0, false, 1.0, 0.6, &mut actual_gains);
+        assert!(actual_peak > dense_peak + 0.5);
+        assert_eq!(actual_gains[0] - actual_peak, 0.0);
+    }
+
+    #[test]
     fn iso226_and_batch_eval_match_spec() {
         assert_eq!(iso226_db(40.0, 0.6, 0.6), 0.0);
         assert!(iso226_db(1000.0, 0.2, 0.6).abs() < 1e-4);

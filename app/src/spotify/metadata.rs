@@ -92,7 +92,10 @@ fn album_page(a: &md::Album) -> AlbumPage {
         .disc
         .iter()
         .flat_map(|d| d.track.iter())
-        .map(|t| Track { title: t.name.clone(), artist: if t.artist.is_empty() { by.clone() } else { artists(&t.artist) }, uri: link("track", &t.gid), image: image.clone(), ..Default::default() })
+        .map(|t| Track { title: t.name.clone(), artist: if t.artist.is_empty() { by.clone() } else { artists(&t.artist) }, uri: link("track", &t.gid), image: image.clone(),
+            album: a.name.clone(), album_uri: link("album", &a.gid),
+            artist_uri: t.artist.first().or_else(|| a.artist.first()).map_or_else(String::new, |artist| link("artist", &artist.gid)),
+            duration_ms: t.duration.max(0) as u32, explicit: t.explicit, ..Default::default() })
         .collect();
     AlbumPage { name: a.name.clone(), subtitle: [by, if year > 0 { year.to_string() } else { String::new() }].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" • "), image, tracks }
 }
@@ -127,6 +130,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Found>, String> {
                         artist: e.publish_time.as_ref().map_or(String::new(), |d| if d.year > 0 { format!("{}-{:02}-{:02}", d.year, d.month, d.day) } else { String::new() }),
                         uri: link("episode", &e.gid),
                         image: if e.cover_image.is_some() { cover(&e.cover_image, &[]) } else { image.clone() },
+                        duration_ms: e.duration.max(0) as u32, explicit: e.explicit,
                         ..Default::default()
                     })
                     .collect();
@@ -137,11 +141,16 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Found>, String> {
                 artist: e.show.as_ref().map_or(String::new(), |s| s.name.clone()),
                 uri: link("episode", &e.gid),
                 image: cover(&e.cover_image, &[]),
+                duration_ms: e.duration.max(0) as u32, explicit: e.explicit,
                 ..Default::default()
             })),
             Entity::Track(t) => {
                 let image = t.album.as_ref().map_or_else(String::new, |al| cover(&al.cover_group, &al.cover));
-                Some(Found::Track(Track { title: t.name.clone(), artist: artists(&t.artist), uri: link("track", &t.gid), image, ..Default::default() }))
+                Some(Found::Track(Track { title: t.name.clone(), artist: artists(&t.artist), uri: link("track", &t.gid), image,
+                    album: t.album.as_ref().map_or_else(String::new, |a| a.name.clone()),
+                    album_uri: t.album.as_ref().map_or_else(String::new, |a| link("album", &a.gid)),
+                    artist_uri: t.artist.first().map_or_else(String::new, |a| link("artist", &a.gid)),
+                    duration_ms: t.duration.max(0) as u32, explicit: t.explicit, ..Default::default() }))
             }
             _ => None,
         })
@@ -164,7 +173,7 @@ pub struct Page {
 }
 
 fn resolve_tracks(tracks: &mut [Track], fetch_fn: impl Fn(&[String]) -> Result<Vec<Found>, String>) {
-    let missing: Vec<String> = tracks.iter().filter(|t| t.title.is_empty() && !t.uri.is_empty()).map(|t| t.uri.clone()).collect();
+    let missing: Vec<String> = tracks.iter().filter(|t| (t.title.is_empty() || t.duration_ms == 0) && !t.uri.is_empty()).map(|t| t.uri.clone()).collect();
     if missing.is_empty() {
         return;
     }
@@ -179,16 +188,12 @@ fn resolve_tracks(tracks: &mut [Track], fetch_fn: impl Fn(&[String]) -> Result<V
         }
     }
     for t in tracks.iter_mut() {
-        if t.title.is_empty() {
-            if let Some(resolved) = by_uri.get(&t.uri) {
-                t.title = resolved.title.clone();
-                if !resolved.artist.is_empty() {
-                    t.artist = resolved.artist.clone();
-                }
-                if !resolved.image.is_empty() {
-                    t.image = resolved.image.clone();
-                }
-            }
+        if let Some(resolved) = by_uri.get(&t.uri) {
+            let image = if resolved.image.is_empty() { t.image.clone() } else { resolved.image.clone() };
+            let artist = if resolved.artist.is_empty() { t.artist.clone() } else { resolved.artist.clone() };
+            *t = resolved.clone();
+            t.image = image;
+            t.artist = artist;
         }
     }
 }
@@ -314,7 +319,7 @@ mod tests {
                 number: 1,
                 track: vec![
                     md::Track { gid: vec![1; 16], ..Default::default() },
-                    md::Track { gid: vec![2; 16], name: "Already Named".into(), ..Default::default() },
+                    md::Track { gid: vec![2; 16], name: "Already Named".into(), duration: 180_000, ..Default::default() },
                 ],
                 ..Default::default()
             }],

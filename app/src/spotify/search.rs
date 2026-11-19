@@ -201,8 +201,8 @@ mod tests {
     #[test]
     fn merge_puts_the_library_first_and_never_repeats_it() {
         let items = vec![
-            library::Item { name: "Blue Hour".into(), uri: "spotify:album:1".into(), subtitle: "Album • Low Tide".into(), image: String::new(), kind: library::Kind::Album },
-            library::Item { name: "Deep Blue".into(), uri: "spotify:playlist:2".into(), subtitle: "Playlist".into(), image: String::new(), kind: library::Kind::Playlist },
+            library::Item { name: "Blue Hour".into(), uri: "spotify:album:1".into(), subtitle: "Album • Low Tide".into(), image: String::new(), kind: library::Kind::Album, ..Default::default() },
+            library::Item { name: "Deep Blue".into(), uri: "spotify:playlist:2".into(), subtitle: "Playlist".into(), image: String::new(), kind: library::Kind::Playlist, ..Default::default() },
         ];
         let song = |title: &str, uri: &str| Hit { section: "Songs", title: title.into(), uri: uri.into(), category: -1, ..Default::default() };
         let offline = vec![song("Feeling Blue", "spotify:track:1"), song("Blue Monday", "spotify:track:2"), Hit { section: "Albums", title: "Blue Hour".into(), uri: "spotify:album:1".into(), category: 1, ..Default::default() }];

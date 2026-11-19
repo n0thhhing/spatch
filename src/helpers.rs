@@ -1,7 +1,8 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes, shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 6] = [
+pub const HELPERS: [(&str, &str); 7] = [
+    ("Subscriptions", include_str!("../java/dex/src/spatch/core/Subscriptions.java")),
     (
         "AutoEqCatalog",
         include_str!("../java/dex/src/spatch/core/AutoEqCatalog.java"),
@@ -29,7 +30,8 @@ pub const HELPERS: [(&str, &str); 6] = [
 ];
 
 /// Compile-only stand-ins for Spotify dependencies, never packaged.
-pub const STUBS: [(&str, &str); 5] = [
+pub const STUBS: [(&str, &str); 6] = [
+    ("Action.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/functions/Action.java")),
     (
         "Transport.java",
         include_str!("../java/dex/stubs/com/spotify/esperanto/esperanto/Transport.java"),

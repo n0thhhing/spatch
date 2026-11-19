@@ -1,0 +1,95 @@
+# Working on fresh
+
+This branch replaces Spotify’s screen with shared Android views backed by Rust. `main` contains
+the earlier Spotify-UI patch. Start changes from `fresh`; keep the pinned input hashes intact.
+
+## Source map
+
+| Location | Responsibility |
+| --- | --- |
+| `src/` | Desktop patcher, guarded edits, DEX compilation, bundles and source staging |
+| `app/src/spotify/` | Spotify protobuf requests, decoders and domain operations |
+| `app/src/ui.rs` | JNI screen contracts, revision counters and current account state |
+| `app/src/bridge.rs` | JNI transport, Rust stream handlers, session generations and UI pushes |
+| `app/src/cache.rs` | Bounded account-scoped screen answers and packed string encoding |
+| `app/src/eq.rs`, `spectrum.rs`, `autoeq.rs` | DSP math, FFT analysis and headphone catalog parsing |
+| `java/dex/src/spatch/core/SpatchUi.java` | Production Android views and interaction state |
+| `SpatchApp.java` in the same directory | Async native loading, overlay/auth lifecycle and native return control |
+| `CoreBridge.java`, `Subscriptions.java` | Spotify transports, stream disposal, catalog calls and artwork IO |
+| `Audio.java` in the same directory | Android audio sessions/effects, capture and retry scheduling |
+| `java/dex/stubs/` | Compile-only Spotify/RxJava signatures; never package them |
+| `app/preview/` | Shared UI preview hosts and offline boundary adapters |
+| `java/dex/test/`, `app/preview/desktop/src/test/` | Java contract/math and rendered UI regression checks |
+| `tests/` | Desktop contract runners and nightly input selection checks |
+| `manager/`, `source/cloudflare/` | Android installer and optional private source service |
+
+Register production Java helpers in `src/helpers.rs`. The preview excludes Spotify-only bridges
+and compiles the actual UI/audio sources; do not create a second implementation of a screen.
+Update both preview build source lists when introducing another Spotify-only helper.
+
+## Lifecycle rules
+
+- Never block the UI thread on Spotify requests. `DATA` handles connection maintenance, `PLAYLISTS`
+  handles independent page work, `COMMANDS` orders mutations, and `WATCHES` orders playlist stream
+  open/close operations. Submit UI jobs through the lifetime guard so detached account screens
+  cannot perform queued edits in a subsequent account.
+- Rust creates a stream token; Java uses that same token. Register the disposable slot before
+  subscribing because Rx can complete synchronously. Completion, error and cancellation must
+  remove ownership on both sides. Invoke Rust handlers outside the handler-map lock.
+- Stream callbacks commit under the session gate. For blocking requests, capture `bridge::session()`
+  before the request and use `bridge::in_session` for account-state writes. Never make a network
+  request from inside that gate or a stream callback.
+- Authentication removes the old screen and Back callback, cancels subscriptions and clears
+  account state. Private disk answers require a verified username; an editable collaboration’s
+  owner is not the current user. The previous unscoped cache format is ignored.
+- Keep page and request-generation checks before applying results or starting a watch. Playlist
+  loading timeouts must offer a useful retry message. Preserve open forms/sheets when insets change.
+- Use keyed view tags for palette callbacks. A normal tag may already store interaction state.
+- Recalculate EQ gains and peak attenuation for the actual hardware band centres, including
+  fallback bands. Unsupported effects retry with backoff; failed visualizer captures clear stale
+  levels and use the slower retry loop.
+
+## Checks
+
+From the repository root:
+
+```sh
+cargo test --locked
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked --manifest-path app/Cargo.toml
+cargo clippy --all-targets --locked --manifest-path app/Cargo.toml -- -D warnings
+cargo test --locked --manifest-path app/Cargo.toml --features preview
+cargo clippy --all-targets --locked --manifest-path app/Cargo.toml --features preview -- -D warnings
+python3 tests/nightly-inputs.py
+JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 tests/java-contracts.py
+node --test source/cloudflare/worker.test.mjs
+```
+
+On Mac, `app/preview/mac.sh --check` runs the shared Android UI under Robolectric and writes PNGs
+to `app/preview/desktop/build/reports/preview/`. The suite covers navigation/animation, creation,
+EQ editing, playlist picking/filtering, inset preservation and detached-screen job cancellation.
+Use `app/preview/mac.sh` to rebuild/open the native Mac app. Close an existing preview before
+replacing its bundle. The Android preview APK is built by `app/preview/build.sh`.
+
+For patch packaging, build the ARM64 library using [the app prerequisites](../app/README.md#build),
+then run the patcher with the pinned APKM and a fresh output directory:
+
+```sh
+cargo ndk -t arm64-v8a -P 29 build --release --locked --manifest-path app/Cargo.toml
+cargo build --release --locked
+./target/release/spatch patch /path/to/pinned.apkm --out /tmp/spatch-check-new --dry-run
+```
+
+The dry run verifies exact inputs, smali anchors, Java compilation and allowed helper DEX classes.
+It does not establish authenticated Spotify acceptance or acoustic behavior on a phone. See
+[the hook map](spotify-map.md) for protocol evidence and [Manager checks](../manager/README.md#checking)
+for signed bundle round trips.
+
+## Device follow-up
+
+Use an in-place update signed by the existing key. Verify fresh sign-in and switching accounts,
+live search/paging, song addition to owned and collaborative playlists, new-playlist seeding,
+playlist Back/open races, playback pause/resume and visualizer recovery. Check EQ on the device’s
+actual effects backend and verify its reported fallback/availability. Native creation gates remain
+Spotify/account dependent. Device storage comes from Android byte counts; raw Spotify download
+storage counters are not labeled as bytes until their unit conversion is verified.

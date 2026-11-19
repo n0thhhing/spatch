@@ -15,6 +15,8 @@ pub struct Item {
     pub subtitle: String,
     pub image: String,
     pub kind: Kind,
+    /// Spotify grants item editing, including collaborative playlists.
+    pub can_add: bool,
 }
 
 /// What an item is, in the order of the Library's filter chips.
@@ -72,9 +74,21 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Item>, String> {
                 _ => (Kind::Other, String::new()),
             };
             let kind = if is_playlist(&info.uri) { Kind::Playlist } else { kind };
-            Some(Item { name: info.name.clone(), uri: info.uri.clone(), subtitle, image: image_url(&info.image_uri), kind })
+            Some(Item { name: info.name.clone(), uri: info.uri.clone(), subtitle, image: image_url(&info.image_uri), kind,
+                can_add: matches!(&e.entity, Some(Entity::Playlist(p)) if p.can_add || p.owned_by_self) })
         })
         .collect())
+}
+
+/// An owned playlist's creator URI is an account identity, unlike its display name.
+pub fn username(bytes: &[u8]) -> Option<String> {
+    let reply = es::YourLibraryResponse::decode(bytes).ok()?;
+    reply.pinned_entity.iter().chain(&reply.entity).find_map(|entity| {
+        let Some(Entity::Playlist(playlist)) = &entity.entity else { return None };
+        if !playlist.owned_by_self { return None; }
+        playlist.creator_uri.strip_prefix("spotify:user:")
+            .filter(|name| !name.is_empty() && !name.contains(':')).map(str::to_string)
+    })
 }
 
 /// What the Library page shows: items under chip `chip` (-1 for all) whose name or subtitle contains
@@ -137,6 +151,28 @@ mod tests {
     }
 
     #[test]
+    fn playlist_permissions_and_identity_come_from_spotify() {
+        let extra = |creator: &str, owned, can_add| yl::YourLibraryPlaylistExtraInfo {
+            creator_uri: format!("spotify:user:{creator}"), owned_by_self: owned, can_add,
+            ..Default::default()
+        };
+        let reply = es::YourLibraryResponse {
+            entity: vec![
+                entity("Saved", "spotify:playlist:read", Some(Entity::Playlist(extra("other", false, false)))),
+                entity("Together", "spotify:playlist:collab", Some(Entity::Playlist(extra("friend", false, true)))),
+                entity("Mine", "spotify:playlist:mine", Some(Entity::Playlist(extra("alice", true, false)))),
+            ], ..Default::default()
+        }.encode_to_vec();
+        assert_eq!(decode(&reply).unwrap().iter().map(|i| i.can_add).collect::<Vec<_>>(), [false, true, true]);
+        assert_eq!(username(&reply).as_deref(), Some("alice"));
+        let other = es::YourLibraryResponse {
+            entity: vec![entity("Saved", "spotify:playlist:read", Some(Entity::Playlist(extra("other", false, true))))],
+            ..Default::default()
+        }.encode_to_vec();
+        assert_eq!(username(&other), None, "An editable collaboration does not identify the current account");
+    }
+
+    #[test]
     fn undecorated_playlists_are_still_playlists() {
         let reply = es::YourLibraryResponse { entity: vec![entity("P", "spotify:user:test:playlist:123", None)], ..Default::default() };
         assert_eq!(decode(&reply.encode_to_vec()).unwrap()[0].kind, Kind::Playlist);
@@ -146,7 +182,7 @@ mod tests {
 
     #[test]
     fn select_filters_searches_and_sorts() {
-        let item = |name: &str, uri: &str, kind| Item { name: name.into(), uri: uri.into(), subtitle: "x".into(), image: String::new(), kind };
+        let item = |name: &str, uri: &str, kind| Item { name: name.into(), uri: uri.into(), subtitle: "x".into(), image: String::new(), kind, ..Default::default() };
         let items = vec![
             item("zebra", "spotify:playlist:1", Kind::Playlist),
             item("Liked Songs", "spotify:user:me:collection", Kind::Playlist),

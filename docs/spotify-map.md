@@ -14,9 +14,10 @@ exactly one anchor match.
 
 `RetrofitMaker` and `ClientBase` move out of `classes.dex` and `AudioEffectsListener` moves out of `classes2.dex` to
 make room for their new calls. They keep their original class names in `classes16.dex`, where the
-six Java helpers also live.
+seven Java helpers also live.
 
 - [CoreBridge.java](../java/dex/src/spatch/core/CoreBridge.java) bridges calls and subscriptions between Rust and Spotify's transport.
+- [Subscriptions.java](../java/dex/src/spatch/core/Subscriptions.java) owns Rx disposables, including synchronous termination and cancellation races.
 - [SpatchApp.java](../java/dex/src/spatch/core/SpatchApp.java) loads the Rust library and mounts the UI on the activity.
 - [SpatchUi.java](../java/dex/src/spatch/core/SpatchUi.java) hosts Android views and renders the UI.
 - [Audio.java](../java/dex/src/spatch/core/Audio.java) captures FFT samples and manages the active session’s audio effects.
@@ -68,9 +69,9 @@ The temporary `Radiohead` request logger and its proxy hook have been removed. S
 still use the existing [catalog decoder](../app/src/spotify/catalog.rs) and Search screen; failed
 requests remain available in Settings → Developer → Playback diagnostics.
 
-`python3 tests/catalog-request.py` (with `JAVA_HOME` and `ANDROID_HOME` set) runs the production
+`python3 tests/java-contracts.py` (with `JAVA_HOME` and `ANDROID_HOME` set) runs the production
 Java bridge against local fixtures. It checks factory selection, complete metadata, canonical
-locale use, Unicode queries, opaque paging tokens and reply serialization. These checks also
+locale use, Unicode queries, opaque paging tokens, reply serialization, native routes and subscription cancellation races. These checks also
 run in CI; the fixtures do not establish authentication or live server acceptance.
 
 ## Profile and playlist mutations
@@ -100,3 +101,24 @@ The shared + menu opens the existing Spatch form for a normal playlist. `CoreBri
 Collaborative and Mixed have no separately verified standalone URI: they open the native menu, where the user chooses the account-eligible action. Their internal creator uses `create_playlist_page_parameters` (`p.spn`), and Mixed is gated by `mixed_playlist_create_menu_item_enabled` (`p.ew4`). Spatch does not override those gates.
 
 `SpatchApp` temporarily reveals native content and hides its own root during these flows, unregistering its overlay Back callback. An inset-aware Back to Spatch button restores the overlay; native secondary activities are finished on return. The host tests exercise visibility, accessibility flags, callback registration and cleanup. Routes are statically confirmed against the pinned APK; account acceptance and actual device navigation remain unverified.
+
+## Account lifecycle and private answers
+
+An owned library playlist’s `creator_uri` identifies the account only when `owned_by_self` is true.
+Editable collaborations (`can_add`) do not identify the current user. A bounded owned-playlist
+lookup remains a fallback (six seconds overall, at most 1.5 seconds per candidate).
+
+The library request/stream caches answers only under a verified account namespace. Unverified
+answers are held in memory; the old unscoped on-disk format is never read. Authentication activities
+reset core subscriptions, library/player/queue/download state and username resolution. Cached
+transport routes are discarded. A session generation and short commit lock reject late replies;
+the lock is never held across a network request. Rx stream tokens are assigned by Rust and used
+unchanged in Java. Cancellation, completion and errors release both callback and disposable state.
+
+`YourLibraryPlaylistExtraInfo.can_add` or `owned_by_self` controls the add-to-playlist picker.
+Album, artist and show pages carry the same twelve song fields as playlists, including length,
+explicit status and available album/artist links. Catalog durations survive grouping and paging.
+
+Storage `GetStats` field numbers are known, but the counters’ unit conversion is not established
+from the pinned client. Device space displayed in Settings comes from `StatFs` in bytes; raw core
+counters are not presented as byte totals.

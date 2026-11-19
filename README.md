@@ -1,11 +1,11 @@
 # Spatch
 
 Spatch runs a Rust-driven Android UI over Spotify's existing playback, cache and Connect services.
-This branch supports Spotify **9.2.0.26** (version code **148373686**) and expects an existing
-Spotify session. APKM and split hashes are pinned in [src/input.rs](src/input.rs).
+This branch supports Spotify **9.2.0.26** (version code **148373686**) and supports Spotify’s native sign-in flow on fresh installs. APKM and split hashes are pinned in [src/input.rs](src/input.rs).
 
 See [the app README](app/README.md) for UI features and the standalone preview, and
 [Spatch Manager](manager/README.md) for applying and signing bundles on Android.
+[Development notes](docs/development.md) map the sources, lifecycle rules and validation commands.
 The earlier redesign lives on the `main` branch.
 
 ## Requirements
@@ -63,7 +63,7 @@ adb install-multiple -r base.apk split_config.*.apk
 
 ## How it works
 
-The patcher checks the input hashes, applies five guarded smali edits, then builds the Java helper
+The patcher checks the input hashes, applies six guarded smali edits, then builds the Java helper
 DEX. Signed patches and Manager bundles also include the ARM64 Rust library. See the
 [hook map](docs/spotify-map.md) and [porting notes](docs/targets.md).
 
@@ -84,6 +84,8 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --manifest-path app/Cargo.toml --locked
 cargo test --manifest-path app/Cargo.toml --features preview --locked
 python3 tests/nightly-inputs.py
+JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 tests/java-contracts.py
+app/preview/mac.sh --check
 ```
 
 Run the real-APKM smoke test with the pinned archive and Android tools installed:

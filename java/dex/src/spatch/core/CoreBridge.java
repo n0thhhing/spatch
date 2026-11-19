@@ -7,7 +7,6 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Spatch's door into Spotify's core. Every Esperanto client is built around a transport that carries
@@ -17,8 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class CoreBridge implements Transport {
     private static final ConcurrentHashMap<String, Transport> SERVICES = new ConcurrentHashMap<String, Transport>();
-    private static final ConcurrentHashMap<Long, Disposable> STREAMS = new ConcurrentHashMap<Long, Disposable>();
-    private static final AtomicLong NEXT = new AtomicLong(1);
+    private static final Subscriptions STREAMS = new Subscriptions();
     /** The first native transport seen: serves services Spotify hasn't called yet. */
     private static volatile Transport fallback;
     /** A service every signed-in session uses, so its transport is known to reach the account. */
@@ -69,7 +67,12 @@ public final class CoreBridge implements Transport {
      * used yet go over the account's transport (the library's) rather than whichever native one came first.
      */
     public static byte[] call(String service, String method, byte[] request) {
-        return (byte[]) pick(service).callSingle(service, method, request).timeout(8, TimeUnit.SECONDS).blockingGet();
+        return callTimed(service, method, request, 8000);
+    }
+
+    public static byte[] callTimed(String service, String method, byte[] request, long timeoutMs) {
+        return (byte[]) pick(service).callSingle(service, method, request)
+            .timeout(Math.max(1, Math.min(8000, timeoutMs)), TimeUnit.MILLISECONDS).blockingGet();
     }
 
     /** The transport Spotify used for this service, else the account's (the library's), else the first one seen. */
@@ -79,27 +82,42 @@ public final class CoreBridge implements Transport {
         return t != null ? t : transport(service);
     }
 
-    /** From Rust: replies stream to nativeNext(token, bytes) until cancel(id) or an error (nativeError). */
-    public static long subscribe(String service, String method, byte[] request, final long token) {
-        final long id = NEXT.getAndIncrement();
-        Disposable d = pick(service).callStream(service, method, request).subscribe(new Consumer() {
-            public void accept(Object value) {
-                nativeNext(token, (byte[]) value);
-            }
-        }, new Consumer() {
-            public void accept(Object error) {
-                STREAMS.remove(id);
-                nativeError(token, String.valueOf(error));
-            }
-        });
-        STREAMS.put(id, d);
-        return id;
+    /** Rust owns the token; completion, error and cancellation release both sides. */
+    public static synchronized long subscribe(String service, String method, byte[] request, final long token) {
+        Subscriptions.Slot slot = STREAMS.open(token);
+        try {
+            Disposable d = pick(service).callStream(service, method, request).subscribe(new Consumer() {
+                public void accept(Object value) {
+                    nativeNext(token, (byte[]) value);
+                }
+            }, new Consumer() {
+                public void accept(Object error) {
+                    STREAMS.cancel(token);
+                    nativeError(token, String.valueOf(error));
+                }
+            }, () -> {
+                STREAMS.cancel(token);
+                nativeError(token, "Stream completed");
+            });
+            slot.set(d);
+            return token;
+        } catch (RuntimeException | Error failed) {
+            STREAMS.cancel(token);
+            throw failed;
+        }
     }
 
     public static void cancel(long id) {
-        Disposable d = STREAMS.remove(id);
-        if (d != null) d.dispose();
+        STREAMS.cancel(id);
     }
+
+    static synchronized void resetSession() {
+        STREAMS.clear();
+        SERVICES.clear();
+        try { nativeResetSession(); } catch (UnsatisfiedLinkError ignored) { /* before first mount */ }
+    }
+
+    static native void nativeResetSession();
 
     private static volatile Object webgate;
 
@@ -288,6 +306,7 @@ public final class CoreBridge implements Transport {
 
     /** Where downloaded covers are kept between launches (set by the UI). */
     static volatile java.io.File cacheDir;
+    private static final java.util.concurrent.atomic.AtomicInteger COVER_WRITES = new java.util.concurrent.atomic.AtomicInteger();
 
     private static java.io.File cacheFile(String url) throws java.security.NoSuchAlgorithmException {
         java.io.File dir = cacheDir;
@@ -301,7 +320,7 @@ public final class CoreBridge implements Transport {
     /** Keeps the cover cache under about 60 MB, dropping the least recently written files first. */
     static void pruneCache() {
         java.io.File dir = cacheDir;
-        java.io.File[] files = dir == null ? null : dir.listFiles();
+        java.io.File[] files = dir == null ? null : dir.listFiles(f -> f.isFile() && !f.getName().endsWith(".part"));
         if (files == null) return;
         long total = 0;
         for (java.io.File f : files) total += f.length();
@@ -309,8 +328,8 @@ public final class CoreBridge implements Transport {
         java.util.Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
         for (java.io.File f : files) {
             if (total < 60L * 1024 * 1024) break;
-            total -= f.length();
-            f.delete();
+            long length = f.length();
+            if (f.delete()) total -= length;
         }
     }
 
@@ -320,7 +339,7 @@ public final class CoreBridge implements Transport {
         try {
             java.io.File file = cacheFile(url);
             byte[] data = null;
-            if (file != null && file.isFile()) {
+            if (file != null && file.isFile() && file.length() > 0 && file.length() <= 8 * 1024 * 1024) {
                 try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
                     data = new byte[(int) file.length()];
                     int got = 0;
@@ -345,16 +364,23 @@ public final class CoreBridge implements Transport {
                     c.disconnect();
                 }
                 if (file != null) {
-                    java.io.File part = new java.io.File(file.getPath() + ".part");
-                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
-                        out.write(data);
+                    java.io.File part = java.io.File.createTempFile(file.getName(), ".part", file.getParentFile());
+                    try {
+                        try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) { out.write(data); }
+                        part.renameTo(file);
+                    } finally {
+                        part.delete();
                     }
-                    if (!part.renameTo(file)) part.delete();
+                    if ((COVER_WRITES.incrementAndGet() & 31) == 0) pruneCache();
                 }
             }
             android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
             android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                if (file != null) file.delete();
+                return null;
+            }
             android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
             opts.inSampleSize = 1;
             int longest = Math.max(bounds.outWidth, bounds.outHeight);

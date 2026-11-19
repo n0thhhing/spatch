@@ -11,6 +11,7 @@ import android.graphics.Shader;
 final class CoreBridge {
     // PreviewActivity has already initialized the sample core.
     static void nativeInit() {}
+    static void resetSession() {}
     static String diagnostics() { return "Offline preview"; }
     // The preview nativeCatalog adapter reads this query and uses the existing Rust demo data.
     static byte[] search(String query, String pageToken) { return query.getBytes(java.nio.charset.StandardCharsets.UTF_8); }

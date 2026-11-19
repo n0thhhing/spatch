@@ -66,6 +66,11 @@ public class MacPreviewTest {
         ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
         android.widget.FrameLayout overlay = new android.widget.FrameLayout(activity);
         overlay.setTag("spatch-root"); decor.addView(overlay);
+        java.lang.reflect.Field sessionsField = SpatchApp.class.getDeclaredField("ROOT_SESSIONS");
+        sessionsField.setAccessible(true);
+        java.lang.reflect.Field sessionField = SpatchApp.class.getDeclaredField("accountSession");
+        sessionField.setAccessible(true);
+        ((java.util.Map<View,Long>) sessionsField.get(null)).put(overlay, sessionField.getLong(null));
         java.lang.reflect.Field callbacksField = SpatchApp.class.getDeclaredField("BACK_CALLBACKS");
         callbacksField.setAccessible(true);
         java.util.Map<android.app.Activity,Object> callbacks = (java.util.Map<android.app.Activity,Object>) callbacksField.get(null);
@@ -89,6 +94,15 @@ public class MacPreviewTest {
         assertEquals(View.INVISIBLE, nativeContent.getVisibility());
         assertEquals(Boolean.TRUE, registered.get(activity));
         assertNull(decor.findViewWithTag("spatch-return"));
+        org.robolectric.android.controller.ActivityController<FakeLoginActivity> login =
+            Robolectric.buildActivity(FakeLoginActivity.class).setup();
+        java.lang.reflect.Method resumed = SpatchApp.class.getDeclaredMethod("onAnyActivityResumed", android.app.Activity.class);
+        resumed.setAccessible(true);
+        resumed.invoke(null, login.get());
+        assertNull("Authentication detaches the previous account's root", overlay.getParent());
+        assertFalse("Authentication releases the old Back callback", callbacks.containsKey(activity));
+        assertEquals(Boolean.FALSE, registered.get(activity));
+        login.pause().stop().destroy();
         controller.pause().stop().destroy();
         assertFalse(callbacks.containsKey(activity));
         assertFalse(registered.containsKey(activity));

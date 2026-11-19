@@ -221,6 +221,13 @@ fn record(downloads: &[Download]) {
     bump_revision(changed);
 }
 
+pub fn reset() {
+    *SHARED.lock().unwrap() = None;
+    #[cfg(not(feature = "preview"))]
+    core::reset_watches();
+    bump_revision(true);
+}
+
 pub fn revision() -> u64 {
     REVISION.load(Ordering::SeqCst)
 }
@@ -245,83 +252,99 @@ mod core {
     use std::sync::atomic::AtomicBool;
 
     static WATCHING: AtomicBool = AtomicBool::new(false);
+    static PROGRESS_WATCHING: AtomicBool = AtomicBool::new(false);
+
+    pub(super) fn reset_watches() {
+        WATCHING.store(false, Ordering::Release);
+        PROGRESS_WATCHING.store(false, Ordering::Release);
+    }
 
     /// This phone's DeviceKey, asked of the core once (empty if it won't say: the core then assumes this phone).
     fn device() -> Vec<u8> {
         if let Some(known) = with(|s| s.device.clone()) {
             return known;
         }
+        let epoch = bridge::session();
         let key = bridge::call(SERVICE, "GetLocalDevice", &[]).map(|bytes| device_key(&bytes)).unwrap_or_default();
-        with(|s| s.device = Some(key.clone()));
+        bridge::in_session(epoch, || with(|s| s.device = Some(key.clone())));
         key
     }
 
     /// Replaces what's known with the core's full answer. If it won't list everything when asked for no uris in
     /// particular, it's asked about each library item instead.
     pub fn refresh(library_uris: &[String]) -> Result<(), String> {
+        let epoch = bridge::session();
         let device = device();
         let mut found = decode_contexts(&bridge::call(SERVICE, "GetContexts", &contexts_request(&device, &[]))?);
         if found.is_empty() && !library_uris.is_empty() {
             found = decode_contexts(&bridge::call(SERVICE, "GetContexts", &contexts_request(&device, library_uris))?);
         }
         found.retain(|d| d.state != State::NotDownloaded);
-        with(|s| s.map = found.iter().map(|d| (d.uri.clone(), (d.state, d.percent))).collect());
-        bump_revision(true);
-        Ok(())
+        bridge::in_session(epoch, || {
+            with(|s| s.map = found.iter().map(|d| (d.uri.clone(), (d.state, d.percent))).collect());
+            bump_revision(true);
+        }).ok_or_else(|| "Account session changed".into())
     }
 
     /// Follows the core's own streams so states and progress stay live.
     pub fn watch() {
-        if WATCHING.swap(true, Ordering::Relaxed) {
-            return;
-        }
-        let device = device();
-        let opened = bridge::subscribe(SERVICE, "SubscribeContexts", &contexts_request(&device, &[]), |reply| match reply {
-            Ok(bytes) => record(&decode_contexts(bytes)),
-            Err(error) => {
-                log::warn!("Downloads stream ended: {error}");
+        if !WATCHING.swap(true, Ordering::Relaxed) {
+            let device = device();
+            let opened = bridge::subscribe(SERVICE, "SubscribeContexts", &contexts_request(&device, &[]), |reply| match reply {
+                Ok(bytes) => record(&decode_contexts(bytes)),
+                Err(error) => {
+                    log::warn!("Downloads stream ended: {error}");
+                    WATCHING.store(false, Ordering::Relaxed);
+                }
+            });
+            if let Err(error) = opened {
+                log::warn!("Downloads stream: {error}");
                 WATCHING.store(false, Ordering::Relaxed);
             }
-        });
-        if let Err(error) = opened {
-            log::warn!("Downloads stream: {error}");
-            WATCHING.store(false, Ordering::Relaxed);
         }
-        let _ = bridge::subscribe(SERVICE, "SubscribeTotalProgress", &[], |reply| {
-            if let Ok(bytes) = reply {
-                with(|s| s.total = decode_total(bytes));
-                bump_revision(false);
-            }
-        });
+        if !PROGRESS_WATCHING.swap(true, Ordering::Relaxed) {
+            let opened = bridge::subscribe(SERVICE, "SubscribeTotalProgress", &[], |reply| match reply {
+                Ok(bytes) => {
+                    with(|s| s.total = decode_total(bytes));
+                    bump_revision(false);
+                }
+                Err(_) => { PROGRESS_WATCHING.store(false, Ordering::Relaxed); }
+            });
+            if opened.is_err() { PROGRESS_WATCHING.store(false, Ordering::Relaxed); }
+        }
     }
 
     pub fn add(uri: &str) -> Result<(), String> {
+        let epoch = bridge::session();
         let reply = bridge::call(SERVICE, "AddDownload", &download_request(&device(), uri))?;
         match error_message(&reply) {
             m if m.is_empty() => {
-                record(&[Download { uri: uri.into(), state: State::Requested, percent: 0.0 }]);
-                Ok(())
+                bridge::in_session(epoch, || record(&[Download { uri: uri.into(), state: State::Requested, percent: 0.0 }]))
+                    .ok_or_else(|| "Account session changed".into())
             }
             m => Err(m),
         }
     }
 
     pub fn remove(uri: &str) -> Result<(), String> {
+        let epoch = bridge::session();
         let reply = bridge::call(SERVICE, "RemoveDownload", &download_request(&device(), uri))?;
         match error_message(&reply) {
             m if m.is_empty() => {
-                record(&[Download { uri: uri.into(), state: State::NotDownloaded, percent: 0.0 }]);
-                Ok(())
+                bridge::in_session(epoch, || record(&[Download { uri: uri.into(), state: State::NotDownloaded, percent: 0.0 }]))
+                    .ok_or_else(|| "Account session changed".into())
             }
             m => Err(m),
         }
     }
 
     pub fn remove_all() -> Result<(), String> {
+        let epoch = bridge::session();
         bridge::call(SERVICE, "RemoveAllDownloads", &[])?;
-        with(|s| s.map.clear());
-        bump_revision(true);
-        Ok(())
+        bridge::in_session(epoch, || {
+            with(|s| s.map.clear());
+            bump_revision(true);
+        }).ok_or_else(|| "Account session changed".into())
     }
 
     pub fn storage() -> Result<Storage, String> {

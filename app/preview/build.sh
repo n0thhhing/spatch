@@ -28,7 +28,7 @@ cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked --features 
 mkdir -p "$work/classes" "$work/dex" "$(dirname "$out")"
 helpers=()
 for file in "$repo/java/dex/src/spatch/core/"*.java; do
-    case "${file##*/}" in CoreBridge.java|SpatchApp.java) continue ;; esac
+    case "${file##*/}" in CoreBridge.java|SpatchApp.java|Subscriptions.java) continue ;; esac
     helpers+=("$file")
 done
 javac --release 11 -cp "$android" -d "$work/classes" "$here/PreviewActivity.java" "$here/CoreBridge.java" "${helpers[@]}"

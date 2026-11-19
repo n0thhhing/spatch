@@ -83,7 +83,10 @@ public final class Audio {
         refreshEqualizer();
     }
 
+    private static volatile int equalizerRetryMs = 2000;
+
     static synchronized void refreshEqualizer() {
+        equalizerRetryMs = 2000;
         if (eqPrefs == null) return;
         Handler handler = worker();
         handler.removeCallbacks(EQUALIZE);
@@ -225,8 +228,11 @@ public final class Audio {
         } else {
             eqStatus = formatActiveStatus(current, cfg);
         }
-        lastCapabilities = Capabilities.from(support, cfg, current, active, usingLegacy, baseInputGainDb, eqStatus, eqError);
-        if (effects.size() < targetSessions.size()) worker().postDelayed(Audio.EQUALIZE, 2000);
+        lastCapabilities = Capabilities.from(support, cfg, current, active, usingLegacy, current == null ? baseInputGainDb : current.inputGainDb, eqStatus, eqError);
+        if (effects.size() < targetSessions.size()) {
+            worker().postDelayed(Audio.EQUALIZE, equalizerRetryMs);
+            equalizerRetryMs = Math.min(30_000, equalizerRetryMs * 2);
+        } else equalizerRetryMs = 2000;
     };
 
     private static float[] buildBandFrequencies(boolean hiRes) {
@@ -331,23 +337,20 @@ public final class Audio {
                 DynamicsProcessing dp = (DynamicsProcessing) chain.main;
                 int bandCount = chain.dpPreEqBands;
 
-                float leftGain = baseInputGainDb + (cfg.balanceEnabled ? cfg.balanceLeftDb : 0f);
-                float rightGain = baseInputGainDb + (cfg.balanceEnabled ? cfg.balanceRightDb : 0f);
-                dp.setInputGainbyChannel(0, leftGain);
-                dp.setInputGainbyChannel(1, rightGain);
-
+                float[] actualHz = bandCount == eqHz.length ? eqHz : bandCount == EQ_HZ.length
+                    ? buildBandFrequencies(false) : logSpacedFrequencies(bandCount, HI_RES_MIN_HZ, HI_RES_MAX_HZ);
+                float[] actualGains = bandCount == eqHz.length ? eqGains : new float[bandCount];
+                float actualPeak = bandCount == eqHz.length ? peakEqBoostDb : evaluateBands(
+                    actualHz, cfg.geqEnabled, cfg.geqGains, cfg.autoEqEnabled ? cfg.autoEqProfile : null,
+                    cfg.autoEqIntensity, cfg.loudnessEnabled, cfg.volumeFraction,
+                    cfg.loudnessThreshold / 100f, actualGains);
+                chain.inputGainDb = cfg.attenuatorAuto
+                    ? baseInputGainDb + peakEqBoostDb - actualPeak : baseInputGainDb;
+                dp.setInputGainbyChannel(0, chain.inputGainDb + (cfg.balanceEnabled ? cfg.balanceLeftDb : 0f));
+                dp.setInputGainbyChannel(1, chain.inputGainDb + (cfg.balanceEnabled ? cfg.balanceRightDb : 0f));
                 DynamicsProcessing.Eq eq = new DynamicsProcessing.Eq(true, wantPreEq, bandCount);
-                if (bandCount == eqHz.length) {
-                    for (int i = 0; i < bandCount; i++) {
-                        eq.setBand(i, new DynamicsProcessing.EqBand(true, eqHz[i], eqGains[i]));
-                    }
-                } else {
-                    float[] resampledHz = bandCount == EQ_HZ.length
-                        ? buildBandFrequencies(false)
-                        : logSpacedFrequencies(bandCount, HI_RES_MIN_HZ, HI_RES_MAX_HZ);
-                    for (int i = 0; i < bandCount; i++) {
-                        eq.setBand(i, new DynamicsProcessing.EqBand(true, resampledHz[i], evaluateCombinedEqGain(resampledHz[i], cfg)));
-                    }
+                for (int i = 0; i < bandCount; i++) {
+                    eq.setBand(i, new DynamicsProcessing.EqBand(true, actualHz[i], actualGains[i]));
                 }
                 dp.setPreEqAllChannelsTo(eq);
 
@@ -383,10 +386,16 @@ public final class Audio {
         short count = equalizer.getNumberOfBands();
         if (count <= 0) throw new IllegalStateException("The device equalizer exposes no bands");
         chain.eqBandCount = count;
-        float fallbackAtten = cfg.attenuatorAuto ? -peakEqBoostDb : cfg.attenuatorManualDb;
+        float[] deviceGains = new float[count];
+        float devicePeak = 0;
         for (short band = 0; band < count; band++) {
-            float hz = equalizer.getCenterFreq(band) / 1000f;
-            float targetDb = evaluateCombinedEqGain(hz, cfg) + fallbackAtten;
+            deviceGains[band] = evaluateCombinedEqGain(equalizer.getCenterFreq(band) / 1000f, cfg);
+            devicePeak = Math.max(devicePeak, deviceGains[band]);
+        }
+        float fallbackAtten = cfg.attenuatorAuto ? -devicePeak : cfg.attenuatorManualDb;
+        chain.inputGainDb = fallbackAtten;
+        for (short band = 0; band < count; band++) {
+            float targetDb = deviceGains[band] + fallbackAtten;
             int levelMb = Math.round(targetDb * 100f);
             equalizer.setBandLevel(band, (short) Math.max(range[0], Math.min(range[1], levelMb)));
         }
@@ -888,7 +897,7 @@ public final class Audio {
         int dpPreEqBands;
         boolean dpMbcInUse;
         boolean dpLimiterInUse;
-        float dpFrameMs;
+        float dpFrameMs, inputGainDb;
         int eqBandCount;
         boolean bassTunerActive;
         boolean limiterActive;
@@ -1086,6 +1095,7 @@ public final class Audio {
         private boolean registered;
         private Context registeredContext;
         private ContentObserver observer;
+        private float lastVolume = -1;
 
         void update(Context app, boolean want) {
             if (app == null) return;
@@ -1094,11 +1104,16 @@ public final class Audio {
                     if (observer == null) {
                         observer = new ContentObserver(new Handler(Looper.getMainLooper())) {
                             @Override public void onChange(boolean selfChange) {
-                                refreshEqualizer();
+                                float volume = DspSettings.readMediaVolumeFraction(app, 1f);
+                                if (volume != lastVolume) {
+                                    lastVolume = volume;
+                                    refreshEqualizer();
+                                }
                             }
                         };
                     }
                     app.getContentResolver().registerContentObserver(Settings.System.CONTENT_URI, true, observer);
+                    lastVolume = DspSettings.readMediaVolumeFraction(app, 1f);
                     registered = true;
                     registeredContext = app;
                 } catch (RuntimeException ignored) { /* preview/test context */ }
@@ -1182,13 +1197,13 @@ public final class Audio {
         }
     };
 
-    /** One capture; false stops the loop (nothing playing, no permission, or the session refused). */
+    /** One capture; false clears stale levels and schedules a slower retry. */
     private static boolean sample(long now) {
         int id = session;
         if (context == null || !permitted(context)) { say("Needs the microphone permission"); return false; }
         if (id <= 0) { say("Waiting for Spotify to start playing"); return false; }
         if (capturing != id) { release(); capturing = id; retryAt = 0; }
-        if (visualizer == null && now < retryAt) return true;
+        if (visualizer == null && now < retryAt) return false;
         try {
             if (visualizer == null) {
                 visualizer = new Visualizer(id);
@@ -1213,7 +1228,7 @@ public final class Audio {
             say("Couldn’t read the audio: " + e);
             release();
             retryAt = now + 2000;
-            return true;
+            return false;
         }
     }
 

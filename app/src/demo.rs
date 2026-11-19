@@ -108,13 +108,14 @@ pub fn library() -> Vec<Item> {
             names.into_iter().enumerate().map(move |(i, name)| Item {
                 name: name.into(),
                 kind,
+                can_add: group == 0 && i != 0,
                 subtitle: subtitle.into(),
                 uri: match (group, i) {
                     (0, 0) => "spotify:preview:collection".into(),
                     (1, _) => format!("spotify:album:{i}"),
                     (2, _) => format!("spotify:artist:{i}"),
                     (3, _) => format!("spotify:show:{i}"),
-                    _ => format!("spotify:preview:{i}"),
+                    _ => format!("spotify:playlist:demo-{i}"),
                 },
                 // Liked Songs has no cover in Spotify's library either.
                 image: if (group, i) == (0, 0) { String::new() } else { format!("demo:{}", i + group * 5) },

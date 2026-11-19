@@ -6,20 +6,39 @@ use jni::sys::jlong;
 use jni::{JNIEnv, JavaVM};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 struct Java {
     vm: JavaVM,
     class: GlobalRef,
 }
 
-type Handler = Box<dyn Fn(Result<&[u8], &str>) + Send + Sync>;
+type Handler = Arc<dyn Fn(Result<&[u8], &str>) + Send + Sync>;
 
 static JAVA: OnceLock<Java> = OnceLock::new();
 static UI_HOST: OnceLock<Java> = OnceLock::new();
 static UI_QUEUED: AtomicBool = AtomicBool::new(false);
 static HANDLERS: Mutex<Option<HashMap<i64, Handler>>> = Mutex::new(None);
 static NEXT: AtomicI64 = AtomicI64::new(1);
+static SESSION: AtomicI64 = AtomicI64::new(0);
+static SESSION_GATE: Mutex<()> = Mutex::new(());
+
+pub fn session() -> i64 { SESSION.load(Ordering::SeqCst) }
+
+/// Commit a reply only if its account is still current; never hold this gate over network calls.
+pub fn in_session<R>(epoch: i64, commit: impl FnOnce() -> R) -> Option<R> {
+    let _gate = SESSION_GATE.lock().unwrap();
+    (session() == epoch).then(commit)
+}
+
+/// Invalidates replies already in flight before the account's transport was reset.
+pub fn reset_session(reset: impl FnOnce()) {
+    let _gate = SESSION_GATE.lock().unwrap();
+    SESSION.fetch_add(1, Ordering::SeqCst);
+    UI_QUEUED.store(false, Ordering::SeqCst);
+    handlers(|h| h.clear());
+    reset();
+}
 
 fn handlers<R>(f: impl FnOnce(&mut HashMap<i64, Handler>) -> R) -> R {
     f(HANDLERS.lock().unwrap().get_or_insert_with(HashMap::new))
@@ -64,6 +83,11 @@ fn describe(env: &mut JNIEnv, error: jni::errors::Error) -> String {
 
 /// One request to a core service; blocks until it answers. Never call on the UI thread.
 pub fn call(service: &str, method: &str, request: &[u8]) -> Result<Vec<u8>, String> {
+    call_with_timeout(service, method, request, std::time::Duration::from_secs(8))
+}
+
+pub fn call_with_timeout(service: &str, method: &str, request: &[u8], wait: std::time::Duration) -> Result<Vec<u8>, String> {
+    let session = SESSION.load(Ordering::SeqCst);
     let java = java()?;
     let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
     let result = (|| -> jni::errors::Result<Vec<u8>> {
@@ -73,14 +97,17 @@ pub fn call(service: &str, method: &str, request: &[u8]) -> Result<Vec<u8>, Stri
         let reply = env
             .call_static_method(
                 class,
-                "call",
-                "(Ljava/lang/String;Ljava/lang/String;[B)[B",
-                &[JValue::Object(&service), JValue::Object(&method), JValue::Object(&body)],
+                "callTimed",
+                "(Ljava/lang/String;Ljava/lang/String;[BJ)[B",
+                &[JValue::Object(&service), JValue::Object(&method), JValue::Object(&body),
+                    JValue::Long(wait.as_millis().clamp(1, 8000) as i64)],
             )?
             .l()?;
         env.convert_byte_array(JByteArray::from(reply))
     })();
-    result.map_err(|e| describe(&mut env, e))
+    let bytes = result.map_err(|e| describe(&mut env, e))?;
+    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
+    Ok(bytes)
 }
 
 /// Opens a stream; `handler` gets every reply (or the error that ended it) on Spotify's threads.
@@ -92,9 +119,12 @@ pub fn subscribe(
     handler: impl Fn(Result<&[u8], &str>) + Send + Sync + 'static,
 ) -> Result<i64, String> {
     let java = java()?;
-    let token = NEXT.fetch_add(1, Ordering::Relaxed);
-    handlers(|h| h.insert(token, Box::new(handler)));
     let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
+    let token = NEXT.fetch_add(1, Ordering::Relaxed);
+    let session = SESSION.load(Ordering::SeqCst);
+    handlers(|h| h.insert(token, Arc::new(move |reply| {
+        in_session(session, || handler(reply));
+    })));
     let result = (|| -> jni::errors::Result<i64> {
         let (service, method) = (env.new_string(service)?, env.new_string(method)?);
         let body = env.byte_array_from_slice(request)?;
@@ -107,13 +137,19 @@ pub fn subscribe(
         )?
         .j()
     })();
-    result.map_err(|e| {
+    let id = result.map_err(|e| {
         handlers(|h| h.remove(&token));
         describe(&mut env, e)
-    })
+    })?;
+    if SESSION.load(Ordering::SeqCst) != session {
+        cancel(id);
+        return Err("Account session changed".into());
+    }
+    Ok(id)
 }
 
 pub fn cancel(id: i64) {
+    handlers(|h| h.remove(&id));
     let Ok(java) = java() else { return };
     let Ok(mut env) = java.vm.attach_current_thread_permanently() else { return };
     let class: &JClass = java.class.as_obj().into();
@@ -125,11 +161,9 @@ pub fn cancel(id: i64) {
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_CoreBridge_nativeNext<'l>(env: JNIEnv<'l>, _: JClass<'l>, token: jlong, value: JByteArray<'l>) {
     let Ok(bytes) = env.convert_byte_array(&value) else { return };
-    handlers(|h| {
-        if let Some(handler) = h.get(&token) {
-            handler(Ok(&bytes));
-        }
-    });
+    if let Some(handler) = handlers(|h| h.get(&token).cloned()) {
+        handler(Ok(&bytes));
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -177,5 +211,32 @@ pub fn notify_ui() {
         });
     if !handled {
         UI_QUEUED.store(false, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    #[test]
+    fn cancellation_releases_handlers_and_callbacks_can_cancel_themselves() {
+        let token = NEXT.fetch_add(1, Ordering::Relaxed);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = calls.clone();
+        handlers(|h| h.insert(token, Arc::new(move |_| {
+            counted.fetch_add(1, Ordering::Relaxed);
+            cancel(token);
+        })));
+        let handler = handlers(|h| h.get(&token).cloned()).unwrap();
+        handler(Ok(b"reply"));
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert!(handlers(|h| !h.contains_key(&token)));
+        assert_eq!(Arc::strong_count(&handler), 1);
+        let epoch = session();
+        assert_eq!(in_session(epoch, || 7), Some(7));
+        reset_session(|| {});
+        assert_eq!(in_session(epoch, || panic!("stale account reply was committed")), None::<()>);
+        assert_eq!(in_session(session(), || 9), Some(9));
     }
 }

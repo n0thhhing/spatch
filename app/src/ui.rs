@@ -73,6 +73,38 @@ static LIKED_NOTE: Mutex<String> = Mutex::new(String::new());
 /// The Liked Songs link the playlist service accepted, once one has worked.
 static LIKED_WORKING: Mutex<Option<String>> = Mutex::new(None);
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_CoreBridge_nativeResetSession(_: JNIEnv, _: JClass) {
+    bridge::reset_session(|| {
+        stop_watching_playlist();
+        crate::cache::set_account(None);
+        crate::spotify::downloads::reset();
+        *USERNAME.lock().unwrap() = None;
+        *LIKED_WORKING.lock().unwrap() = None;
+        LIKED_NOTE.lock().unwrap().clear();
+        *LIBRARY.lock().unwrap() = None;
+        *QUEUE_STATE.lock().unwrap() = None;
+        let mut player = PLAYER.lock().unwrap();
+        player.0 += 1;
+        player.1 = None;
+        drop(player);
+        SONGS.lock().unwrap().clear();
+        CONNECTED.store(false, Ordering::Release);
+        LIBRARY_LIVE.store(false, Ordering::Release);
+        #[cfg(not(feature = "preview"))]
+        {
+            QUEUE_CONNECTED.store(false, Ordering::Release);
+            LIBRARY_WATCHED.store(false, Ordering::Release);
+        }
+        LIBRARY_REVISION.fetch_add(1, Ordering::SeqCst);
+    });
+}
+
+fn remember_username(name: &str) {
+    crate::cache::set_account(Some(name));
+    *USERNAME.lock().unwrap() = Some(name.to_string());
+}
+
 /// Every spelling of the Liked Songs link, most likely first: what the library lists, what the username
 /// gives, then the two names Spotify's own code compares against.
 #[cfg_attr(feature = "preview", allow(dead_code))]
@@ -91,7 +123,7 @@ fn liked_candidates(first: &str) -> Vec<String> {
 /// `spotify:user:<name>:collection` (Liked Songs playing) names the account; remember it.
 fn learn_username(context: &str) {
     if let Some(name) = context.strip_prefix("spotify:user:").and_then(|rest| rest.strip_suffix(":collection")).filter(|n| !n.is_empty() && !n.contains(':')) {
-        *USERNAME.lock().unwrap() = Some(name.to_string());
+        remember_username(name);
     }
 }
 #[cfg(feature = "preview")]
@@ -224,11 +256,15 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(env: JNIEnv, _: JClass,
     packed_strings(&env, &fields)
 }
 
-fn fetch_library() -> Result<Vec<library::Item>, String> {
+fn fetch_library() -> Result<bool, String> {
+    let epoch = bridge::session();
     let bytes = bridge::call(library::SERVICE, "All", &library::request(300))?;
     let items = library::decode(&bytes)?;
-    crate::cache::put("library", &bytes);
-    Ok(items)
+    bridge::in_session(epoch, || {
+        if let Some(name) = library::username(&bytes) { remember_username(&name); }
+        crate::cache::put("library", &bytes);
+        set_library(items)
+    }).ok_or_else(|| "Account session changed".into())
 }
 
 static LIBRARY_REVISION: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
@@ -261,6 +297,7 @@ fn watch_library() {
     let opened = bridge::subscribe(library::SERVICE, "StreamAll", &library::request(300), |reply| match reply {
         Ok(bytes) => {
             if let Ok(items) = library::decode(bytes) {
+                if let Some(name) = library::username(bytes) { remember_username(&name); }
                 crate::cache::put("library", bytes);
                 LIBRARY_LIVE.store(true, Ordering::Relaxed);
                 set_library(items);
@@ -456,8 +493,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLibraryRevision(_: JNIEnv, _: 
     LIBRARY_REVISION.load(Ordering::Relaxed)
 }
 
-/// Loads the library once; "" on success, "cached" if it came from the last launch's copy (refresh it soon),
-/// else Spotify's error.
+/// Loads the current account's library; "" on success, otherwise Spotify's error.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JClass) -> jstring {
     #[cfg(not(feature = "preview"))]
@@ -465,17 +501,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JC
     if LIBRARY.lock().unwrap().is_some() {
         return string(&mut env, "");
     }
-    if !cfg!(feature = "preview") {
-        if let Some(items) = crate::cache::get("library").and_then(|bytes| library::decode(&bytes).ok()) {
-            *LIBRARY.lock().unwrap() = Some(items);
-            return string(&mut env, "cached");
-        }
-    }
     let status = match fetch_library() {
-        Ok(items) => {
-            *LIBRARY.lock().unwrap() = Some(items);
-            String::new()
-        }
+        Ok(_) => String::new(),
         Err(error) => error,
     };
     string(&mut env, &status)
@@ -493,8 +520,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRefreshLibrary(_: JNIEnv, _: J
     if LIBRARY_LIVE.load(Ordering::Relaxed) {
         return JNI_FALSE;
     }
-    let Ok(items) = fetch_library() else { return JNI_FALSE };
-    set_library(items) as jboolean
+    fetch_library().unwrap_or(false) as jboolean
 }
 
 fn item_fields<'a>(items: impl IntoIterator<Item = &'a library::Item>) -> Vec<String> {
@@ -523,6 +549,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeEntries(
     packed_strings(&env, &fields)
 }
 
+/// Playlists Spotify says this account can add to, in library order.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistTargets(env: JNIEnv, _: JClass) -> jbyteArray {
+    let items = LIBRARY.lock().unwrap();
+    let fields = item_fields(items.iter().flatten().filter(|i| i.can_add && !library::is_liked(&i.uri)));
+    packed_strings(&env, &fields)
+}
+
 /// What you played lately, from Spotify's own history, as five strings each (like `nativeEntries`).
 /// Blocks for up to a few seconds; empty if Spotify has nothing or didn't answer.
 #[unsafe(no_mangle)]
@@ -544,6 +578,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRecent(env: JNIEnv, _: JClass)
 /// Learns your username from the first of your own playlists that Spotify says you own.
 #[cfg(not(feature = "preview"))]
 fn find_username() -> Option<String> {
+    let epoch = bridge::session();
     let candidates: Vec<String> = LIBRARY
         .lock()
         .unwrap()
@@ -554,12 +589,16 @@ fn find_username() -> Option<String> {
         .map(|i| i.uri.clone())
         .collect();
     if candidates.is_empty() {
-        *LIKED_NOTE.lock().unwrap() = "No playlists with a spotify:playlist: link to ask about".into();
+        bridge::in_session(epoch, || *LIKED_NOTE.lock().unwrap() = "No playlists with a spotify:playlist: link to ask about".into());
         return None;
     }
     let mut note = format!("Looked at {} of your playlists:", candidates.len());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
     let found = candidates.iter().find_map(|uri| {
-        match bridge::call(playlist::SERVICE, "Get", &playlist::request_range(uri, 0, 1)).and_then(|bytes| playlist::decode(&bytes, 0)) {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() { return None; }
+        match bridge::call_with_timeout(playlist::SERVICE, "Get", &playlist::request_range(uri, 0, 1), remaining.min(std::time::Duration::from_millis(1500)))
+            .and_then(|bytes| playlist::decode(&bytes, 0)) {
             Ok(playlist::Reply::Page { owner: Some(name), .. }) => Some(name),
             Ok(playlist::Reply::Page { owner: None, .. }) => {
                 note.push_str(" not yours;");
@@ -576,7 +615,7 @@ fn find_username() -> Option<String> {
         }
     });
     log::warn!("Username lookup: {note}");
-    *LIKED_NOTE.lock().unwrap() = note;
+    bridge::in_session(epoch, || *LIKED_NOTE.lock().unwrap() = note);
     found
 }
 
@@ -591,12 +630,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLikedNote(mut env: JNIEnv, _: 
 /// `spotify:user:<username>:collection`. Blocks (it may need a playlist request): never on the UI thread.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JClass) -> jstring {
+    #[cfg(not(feature = "preview"))]
+    let epoch = bridge::session();
     let listed = LIBRARY.lock().unwrap().iter().flatten().find(|i| library::is_liked(&i.uri)).map(|i| i.uri.clone());
     #[cfg(not(feature = "preview"))]
     let user = {
         if USERNAME.lock().unwrap().is_none() && listed.is_none() {
             let found = find_username();
-            *USERNAME.lock().unwrap() = found;
+            if let Some(name) = found { bridge::in_session(epoch, || remember_username(&name)); }
         }
         USERNAME.lock().unwrap().clone()
     };
@@ -610,6 +651,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JCla
 /// A page of a playlist: ["loading"], [error], or ["", next offset or "0", then title, artist, uri, image per track].
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: JClass, uri: JString, #[allow(unused_variables)] offset: jint) -> jbyteArray {
+    let epoch = bridge::session();
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
     if !cfg!(feature = "preview") && !library::is_playlist(&uri) {
         return std::ptr::null_mut();
@@ -641,14 +683,15 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
         }
         match won {
             Some((candidate, reply)) => {
-                *LIKED_WORKING.lock().unwrap() = Some(candidate);
+                bridge::in_session(epoch, || *LIKED_WORKING.lock().unwrap() = Some(candidate));
                 Ok(reply)
             }
             None => {
-                let mut note = LIKED_NOTE.lock().unwrap();
-                // Keep what the username lookup said, and put each link's answer under it.
-                let lookup = note.lines().find(|l| l.starts_with("Looked at") || l.starts_with("No playlists")).unwrap_or("Username unknown").to_string();
-                *note = format!("{lookup}\n{}", attempts.join("\n"));
+                bridge::in_session(epoch, || {
+                    let mut note = LIKED_NOTE.lock().unwrap();
+                    let lookup = note.lines().find(|l| l.starts_with("Looked at") || l.starts_with("No playlists")).unwrap_or("Username unknown").to_string();
+                    *note = format!("{lookup}\n{}", attempts.join("\n"));
+                });
                 Err(attempts.first().cloned().unwrap_or_else(|| "No Liked Songs link worked".into()))
             }
         }
@@ -657,7 +700,12 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
     };
     let fields = match reply {
         Ok(playlist::Reply::Loading) => vec!["loading".into()],
-        Ok(page) => page_fields(page),
+        Ok(page) => {
+            bridge::in_session(epoch, || {
+                if let playlist::Reply::Page { owner: Some(ref name), .. } = page { remember_username(name); }
+            });
+            page_fields(page)
+        },
         Err(error) => vec![if error.is_empty() { "Couldn’t load playlist".into() } else { error }],
     };
     packed_strings(&env, &fields)
@@ -665,10 +713,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
 
 /// A playlist page as the UI reads it: "", the next offset, then title, artist, uri and image per track.
 fn page_fields(page: playlist::Reply) -> Vec<String> {
-    let playlist::Reply::Page { tracks, next, owner } = page else { return vec!["loading".into()] };
-    if let Some(name) = owner {
-        *USERNAME.lock().unwrap() = Some(name);
-    }
+    let playlist::Reply::Page { tracks, next, .. } = page else { return vec!["loading".into()] };
     ["".to_string(), next.unwrap_or(0).to_string()].into_iter().chain(tracks.into_iter().flat_map(playlist::Track::fields)).collect()
 }
 
@@ -775,7 +820,8 @@ static WATCHED_PLAYLIST: Mutex<Option<(String, i64)>> = Mutex::new(None);
 static PLAYLIST_REVISION: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
 
 fn stop_watching_playlist() {
-    if let Some((_, id)) = WATCHED_PLAYLIST.lock().unwrap().take() {
+    let watched = WATCHED_PLAYLIST.lock().unwrap().take();
+    if let Some((_, id)) = watched {
         if id != 0 {
             bridge::cancel(id);
         }
@@ -831,8 +877,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRevision(_: JNIEnv, _:
     PLAYLIST_REVISION.load(Ordering::Relaxed)
 }
 
-/// An album or artist page: [error], or "", name, subtitle, image, track count, release count, then four
-/// strings per track (title, artist, uri, image) and four per release (name, subtitle, uri, image).
+/// An album or artist page: [error], or "", name, subtitle, image, track count, release count, then twelve
+/// strings per track (playlist::Track::fields) and four per release (name, subtitle, uri, image).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClass, uri: JString) -> jbyteArray {
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
@@ -843,7 +889,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePage(mut env: JNIEnv, _: JClas
     let fields = match page {
         Ok(p) => {
             let mut f = vec!["".to_string(), p.name, p.subtitle, p.image, p.tracks.len().to_string(), p.releases.len().to_string()];
-            f.extend(p.tracks.into_iter().flat_map(|t| [t.title, t.artist, t.uri, t.image]));
+            f.extend(p.tracks.into_iter().flat_map(playlist::Track::fields));
             f.extend(p.releases.into_iter().flat_map(|(name, sub, uri, image)| [name, sub, uri, image]));
             f
         }
@@ -1117,32 +1163,22 @@ fn current_queue_entries() -> Vec<QueuedEntry> {
 
 #[cfg(not(feature = "preview"))]
 fn resolve_username() -> Option<String> {
+    let epoch = bridge::session();
     if let Some(name) = USERNAME.lock().unwrap().clone() {
         return Some(name);
     }
     if LIBRARY.lock().unwrap().is_none() {
-        if let Ok(items) = fetch_library() {
-            set_library(items);
-        } else if let Some(items) = crate::cache::get("library").and_then(|bytes| library::decode(&bytes).ok()) {
-            *LIBRARY.lock().unwrap() = Some(items);
-        }
+        let _ = fetch_library();
     }
-    if let Some(uri) = LIBRARY
-        .lock()
-        .unwrap()
-        .iter()
-        .flatten()
-        .find(|i| library::is_liked(&i.uri))
-        .map(|i| i.uri.clone())
-    {
-        learn_username(&uri);
-    }
+    let listed = LIBRARY.lock().unwrap().iter().flatten()
+        .find(|i| library::is_liked(&i.uri)).map(|i| i.uri.clone());
+    if let Some(uri) = listed { bridge::in_session(epoch, || learn_username(&uri)); }
     if let Some(name) = USERNAME.lock().unwrap().clone() {
         return Some(name);
     }
     let found = find_username();
     if let Some(ref name) = found {
-        *USERNAME.lock().unwrap() = Some(name.clone());
+        bridge::in_session(epoch, || remember_username(name));
     }
     found
 }
@@ -1209,6 +1245,7 @@ fn preview_create_playlist(name: &str, description: &str, from_queue: bool) -> V
         items.push(library::Item {
             name,
             kind: library::Kind::Playlist,
+            can_add: true,
             subtitle: if description.is_empty() { "Playlist".into() } else { description },
             uri: uri.clone(),
             image,
@@ -1236,9 +1273,7 @@ fn real_create_playlist(name: &str, description: &str, from_queue: bool) -> Vec<
     };
     match playlist::create(&name, &description, &uris) {
         Ok((uri, warning)) => {
-            if let Ok(items) = fetch_library() {
-                set_library(items);
-            }
+            let _ = fetch_library();
             vec![uri, warning.unwrap_or_default()]
         }
         Err(e) => vec![String::new(), e],
@@ -1261,10 +1296,14 @@ fn preview_add_to_playlist(playlist_uri: &str, uris: &[String]) -> String {
     if let Err(e) = playlist::validate_add_items(playlist_uri, uris) {
         return e;
     }
+    let editable = LIBRARY.lock().unwrap().iter().flatten().any(|item| item.uri == playlist_uri && item.can_add);
     let mut playlists = PREVIEW_PLAYLISTS.lock().unwrap();
-    let Some(tracks) = playlists.as_mut().and_then(|map| map.get_mut(playlist_uri)) else {
-        return "Preview mode only supports adding songs to playlists you created".into();
-    };
+    let map = playlists.get_or_insert_with(std::collections::HashMap::new);
+    if !map.contains_key(playlist_uri) {
+        if !editable { return "This playlist is not editable in the preview".into(); }
+        map.insert(playlist_uri.to_string(), crate::demo::playlist());
+    }
+    let tracks = map.get_mut(playlist_uri).unwrap();
     let added: Vec<playlist::Track> = uris
         .iter()
         .map(|u| crate::demo::track_from_entry(u, "", "", ""))

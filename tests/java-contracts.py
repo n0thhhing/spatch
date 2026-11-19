@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the production catalog bridge against Spotify 9.2.0.26's request contract.
+"""Exercise production catalog, creation-route and stream lifecycle contracts.
 
 Requires JAVA_HOME and ANDROID_HOME, as used by the Android build. Fixtures replace
 Spotify/RxJava at the boundary; they do not contact Spotify or test authentication.
@@ -22,7 +22,8 @@ public class Single {
     private final Object value;
     public Single(Object value) { this.value = value; }
     public final Single timeout(long seconds, java.util.concurrent.TimeUnit unit) {
-        assert seconds == 12 && unit == java.util.concurrent.TimeUnit.SECONDS;
+        assert (seconds == 12 && unit == java.util.concurrent.TimeUnit.SECONDS)
+            || (seconds >= 1 && seconds <= 8000 && unit == java.util.concurrent.TimeUnit.MILLISECONDS);
         return this;
     }
     public final Object blockingGet() { return value; }
@@ -86,7 +87,8 @@ public class CatalogRequestCheck {
 with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     work = Path(temporary)
     sources = sorted((REPO / "java/dex/src/spatch/core").glob("*.java"))
-    sources.append(REPO / "java/dex/test/spatch/core/CreationRouteTest.java")
+    sources += [REPO / f"java/dex/test/spatch/core/{name}.java"
+                for name in ("CreationRouteTest", "SubscriptionsTest")]
     sources += [p for p in (REPO / "java/dex/stubs").rglob("*.java") if p.name != "Single.java"]
     for name, source in FIXTURES.items():
         file = work / name
@@ -96,8 +98,6 @@ with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     classes = work / "classes"
     subprocess.run([str(JAVA / "javac"), "--release", "11", "-cp", str(ANDROID),
                     "-d", str(classes), *map(str, sources)], check=True)
-    subprocess.run([str(JAVA / "java"), "-ea", "-cp", os.pathsep.join([str(classes), str(ANDROID)]),
-                    "spatch.CatalogRequestCheck"], check=True)
-
-    subprocess.run([str(JAVA / "java"), "-ea", "-cp", os.pathsep.join([str(classes), str(ANDROID)]),
-                    "spatch.CreationRouteTest"], check=True)
+    for check in ("CatalogRequestCheck", "CreationRouteTest", "SubscriptionsTest"):
+        subprocess.run([str(JAVA / "java"), "-ea", "-cp", os.pathsep.join([str(classes), str(ANDROID)]),
+                        f"spatch.{check}"], check=True)

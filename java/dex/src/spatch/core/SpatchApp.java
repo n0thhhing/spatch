@@ -19,10 +19,13 @@ public final class SpatchApp {
     private static final String ROOT_TAG = "spatch-root";
     private static final String RETURN_TAG = "spatch-return";
     private static final String MAIN_ACTIVITY = "com.spotify.music.SpotifyMainActivity";
-    private static boolean loaded;
+    private static volatile boolean loaded, loading;
+    private static boolean authVisible;
+    private static long accountSession;
+    private static final java.util.WeakHashMap<View, Long> ROOT_SESSIONS = new java.util.WeakHashMap<>();
     private static volatile boolean nativeFeatureMode;
     private static volatile String mainActivityClass;
-    private static String loadError;
+    private static volatile String loadError;
     private static final java.util.WeakHashMap<Application, Boolean> WATCHED_APPS = new java.util.WeakHashMap<Application, Boolean>();
     private static final java.util.WeakHashMap<Activity, Object> BACK_CALLBACKS = new java.util.WeakHashMap<Activity, Object>();
     private static final java.util.WeakHashMap<Activity, Boolean> BACK_REGISTERED = new java.util.WeakHashMap<Activity, Boolean>();
@@ -66,10 +69,29 @@ public final class SpatchApp {
         }
     }
 
+    private static void prepare(Activity activity) {
+        if (loaded || loading || loadError != null) return;
+        loading = true;
+        Context app = activity.getApplicationContext();
+        new Thread(() -> {
+            load(app);
+            loading = false;
+            activity.runOnUiThread(() -> {
+                if (authVisible || activity.isFinishing() || activity.isDestroyed() || isAuthActivity(activity)) return;
+                ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+                View old = decor.findViewWithTag(ROOT_TAG);
+                if (old instanceof SpatchUi) return;
+                if (old != null) { decor.removeView(old); ROOT_SESSIONS.remove(old); }
+                mount(activity);
+            });
+        }, "SpatchLoader").start();
+    }
+
     /** Hook: the launcher activity's onResume, before Spotify resumes its own screen. */
     public static void resumed(Activity activity) {
         if (activity != null && !isAuthActivity(activity)) {
             mainActivityClass = activity.getClass().getName();
+            authVisible = false;
         }
         Application app = activity == null ? null : activity.getApplication();
         if (app != null) {
@@ -111,7 +133,26 @@ public final class SpatchApp {
 
     private static void onAnyActivityResumed(Activity resumed) {
         if (resumed == null || resumed.isFinishing() || resumed.isDestroyed()) return;
-        if (isAuthActivity(resumed)) return;
+        if (isAuthActivity(resumed)) {
+            if (!authVisible) {
+                authVisible = true;
+                accountSession++;
+                nativeFeatureMode = false;
+                for (View root : new java.util.ArrayList<View>(ROOT_SESSIONS.keySet())) {
+                    if (root.getContext() instanceof Activity) {
+                        Activity owner = (Activity) root.getContext();
+                        setBackRegistered(owner, false);
+                        synchronized (BACK_CALLBACKS) { BACK_CALLBACKS.remove(owner); }
+                    }
+                    if (root.getParent() instanceof ViewGroup) ((ViewGroup) root.getParent()).removeView(root);
+                }
+                ROOT_SESSIONS.clear();
+                if (loaded) SpatchUi.resetAccount();
+                CoreBridge.resetSession();
+            }
+            return;
+        }
+        if (isMainHostActivity(resumed)) authVisible = false;
         if (nativeFeatureMode) {
             applyNativeMode(resumed);
             return;
@@ -313,6 +354,13 @@ public final class SpatchApp {
                 spotify.setVisibility(View.INVISIBLE);
             }
             View existing = decor.findViewWithTag(ROOT_TAG);
+            if (existing != null && !Long.valueOf(accountSession).equals(ROOT_SESSIONS.get(existing))) {
+                setBackRegistered(activity, false);
+                synchronized (BACK_CALLBACKS) { BACK_CALLBACKS.remove(activity); }
+                decor.removeView(existing);
+                ROOT_SESSIONS.remove(existing);
+                existing = null;
+            }
             if (existing != null) {
                 existing.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
                 existing.setVisibility(View.VISIBLE);
@@ -320,7 +368,7 @@ public final class SpatchApp {
                 return;
             }
             View root;
-            if (load(activity)) {
+            if (loaded) {
                 SpatchUi ui = new SpatchUi(activity);
                 if (Build.VERSION.SDK_INT >= 33) {
                     synchronized (BACK_CALLBACKS) {
@@ -330,15 +378,17 @@ public final class SpatchApp {
                 }
                 root = ui;
             } else {
-                android.util.Log.e("SpatchApp", "load failed: " + loadError);
+                prepare(activity);
+                if (loadError != null) android.util.Log.e("SpatchApp", "load failed: " + loadError);
                 android.widget.TextView error = new android.widget.TextView(activity);
                 error.setGravity(android.view.Gravity.CENTER);
                 error.setTextColor(android.graphics.Color.WHITE);
                 error.setBackgroundColor(0xff111715);
-                error.setText("Spatch couldn’t start");
+                error.setText(loadError == null ? "Starting Spatch…" : "Spatch couldn’t start");
                 root = error;
             }
             root.setTag(ROOT_TAG);
+            ROOT_SESSIONS.put(root, accountSession);
             decor.addView(root, new FrameLayout.LayoutParams(-1, -1));
         } catch (Throwable t) {
             android.util.Log.e("SpatchApp", "mount failed", t);

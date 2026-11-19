@@ -26,6 +26,21 @@ Advanced EQ uses Android DynamicsProcessing with 64 bands for headphone correcti
 
 **Follow the music** makes the immersive glow, shockwaves and motes react to Spotify’s playback session; Android lists that capture as microphone access. Live Spotify search, profile and playlist mutation use the existing authenticated core session.
 
+Long-press a song in search, an album, a playlist or the queue and choose **Add to playlist**.
+The player also has an **Add current song to playlist** button. The sheet shows playlists Spotify
+marks editable (including collaborations), lets you search them, and offers **New playlist** with
+the song included. Liked Songs and read-only saved playlists are excluded. Adds append to the end;
+errors stay visible as feedback rather than reporting success.
+
+Private saved screen answers are namespaced by verified account identity. Before that identity is
+known they remain in memory only. Entering Spotify authentication closes subscriptions, discards
+account state and removes the old overlay; returning mounts a fresh screen. Network replies from
+an earlier account session cannot commit after the reset. The first library load requires Spotify’s
+core instead of showing a previous account’s unverified cached library.
+
+Downloads & storage uses Android’s filesystem byte counts for the app’s volume. Spotify’s raw
+storage counters are not displayed as a download byte total until their units are established.
+
 ## Preview without Spotify
 
 Run `app/preview/build.sh` to build `dist/spatch-preview.apk`. Install it on an ARM64 Android 10+ phone or emulator with `adb install -r dist/spatch-preview.apk` and open **Spatch Preview**. It uses the same Android views, Rust navigation, and renderer as the patched UI. Sample playback, seeking, and the library work offline.
@@ -52,4 +67,5 @@ the shared UI; live Spotify catalog requests, real audio processing and Android 
 still need the signed Android app. Robolectric's rendering can differ from a physical device.
 
 Run `app/preview/mac.sh --check` for the desktop smoke test. It navigates the shared screen and
-writes Settings, creation-menu and equalizer screenshots to `app/preview/desktop/build/reports/preview/`. It also checks band editing/save/reset, menu visibility, indicator transitions and native-flow accessibility/Back restoration.
+writes Settings, creation-menu, equalizer and add-to-playlist screenshots to `app/preview/desktop/build/reports/preview/`. It also checks band editing/save/reset, menu visibility, indicator transitions and native-flow accessibility/Back restoration, searchable playlist targets, and preserving open sheets across inset changes.
+See [development notes](../docs/development.md) for source ownership and the full checks.

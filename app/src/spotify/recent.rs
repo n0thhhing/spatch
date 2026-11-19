@@ -56,22 +56,22 @@ pub fn decode(bytes: &[u8]) -> Result<(Vec<Item>, bool), String> {
         .filter_map(|c| match c.context? {
             Context::Playlist(p) => {
                 let m = p.playlist_metadata?;
-                Some(Item { name: m.name, uri: m.link, subtitle: "Playlist".into(), image: cover(&m.pictures), kind: Kind::Playlist })
+                Some(Item { name: m.name, uri: m.link, subtitle: "Playlist".into(), image: cover(&m.pictures), kind: Kind::Playlist, ..Default::default() })
             }
             Context::Album(a) => {
                 let m = a.album_metadata?;
                 let by = m.artists.first().map(|x| x.name.clone()).unwrap_or_default();
-                Some(Item { name: m.name, uri: m.link, subtitle: if by.is_empty() { "Album".into() } else { format!("Album • {by}") }, image: cover(&m.covers), kind: Kind::Album })
+                Some(Item { name: m.name, uri: m.link, subtitle: if by.is_empty() { "Album".into() } else { format!("Album • {by}") }, image: cover(&m.covers), kind: Kind::Album, ..Default::default() })
             }
             Context::Artist(a) => {
                 let m = a.artist_metadata?;
-                Some(Item { name: m.name, uri: m.link, subtitle: "Artist".into(), image: cover(&m.portraits), kind: Kind::Artist })
+                Some(Item { name: m.name, uri: m.link, subtitle: "Artist".into(), image: cover(&m.portraits), kind: Kind::Artist, ..Default::default() })
             }
             Context::Show(s) => {
                 let m = s.show_metadata?;
-                Some(Item { name: m.name, uri: m.link, subtitle: "Podcast".into(), image: cover(&m.covers), kind: Kind::Podcast })
+                Some(Item { name: m.name, uri: m.link, subtitle: "Podcast".into(), image: cover(&m.covers), kind: Kind::Podcast, ..Default::default() })
             }
-            Context::CollectionTracks(t) => Some(Item { name: "Liked Songs".into(), uri: t.link, subtitle: "Playlist".into(), image: String::new(), kind: Kind::Playlist }),
+            Context::CollectionTracks(t) => Some(Item { name: "Liked Songs".into(), uri: t.link, subtitle: "Playlist".into(), image: String::new(), kind: Kind::Playlist, ..Default::default() }),
             _ => None,
         })
         .filter(|item| !item.uri.is_empty() && !item.name.is_empty())
