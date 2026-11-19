@@ -36,12 +36,16 @@ configurations.configureEach {
 sourceSets.main.java.setSrcDirs([])
 compileJava {
     // Compile the production screen and audio class directly. There is no second UI to maintain.
-    source = files('../../../java/dex/src/spatch/core/SpatchUi.java',
-                   '../../../java/dex/src/spatch/core/Audio.java',
+    source = files(fileTree('../../../java/dex/src/spatch/core') {
+                       exclude 'CoreBridge.java', 'SpatchApp.java'
+                   },
                    '../CoreBridge.java', '../PreviewActivity.java')
     options.release = 11
 }
-compileTestJava.options.release = 11
+compileTestJava {
+    source '../../../java/dex/test/spatch/core/AudioTest.java'
+    options.release = 11
+}
 
 def desktopJvmArgs = [
     '--add-opens=java.base/java.lang=ALL-UNNAMED',
@@ -91,8 +95,7 @@ tasks.register('macApp', Exec) {
         commandLine([new File(System.getProperty('java.home'), 'bin/jpackage'),
             '--type', 'app-image', '--name', 'Spatch Preview', '--app-version', '1.0',
             '--mac-package-identifier', 'dev.spatch.preview.mac', '--dest', destination,
-            '--input', input, '--main-jar', 'spatch-preview.jar', '--main-class', 'org.junit.runner.JUnitCore',
-            '--arguments', 'spatch.MacPreviewTest', '--add-modules', 'java.se,jdk.unsupported,jdk.compiler,jdk.zipfs,jdk.crypto.ec'] +
+            '--input', input, '--main-jar', 'spatch-preview.jar', '--main-class', 'spatch.MacPreviewTest', '--add-modules', 'java.se,jdk.unsupported,jdk.compiler,jdk.zipfs,jdk.crypto.ec'] +
             options.collectMany { ['--java-options', '"' + it.toString() + '"'] })
     }
 }

@@ -14,12 +14,12 @@ exactly one anchor match.
 
 `RetrofitMaker` and `ClientBase` move out of `classes.dex` and `AudioEffectsListener` moves out of `classes2.dex` to
 make room for their new calls. They keep their original class names in `classes16.dex`, where the
-four Java helpers also live.
+six Java helpers also live.
 
 - [CoreBridge.java](../java/dex/src/spatch/core/CoreBridge.java) bridges calls and subscriptions between Rust and Spotify's transport.
 - [SpatchApp.java](../java/dex/src/spatch/core/SpatchApp.java) loads the Rust library and mounts the UI on the activity.
 - [SpatchUi.java](../java/dex/src/spatch/core/SpatchUi.java) hosts Android views and renders the UI.
-- [Audio.java](../java/dex/src/spatch/core/Audio.java) captures FFT samples from the active playback session.
+- [Audio.java](../java/dex/src/spatch/core/Audio.java) captures FFT samples and manages the active session’s audio effects.
 
 For input hashes and version porting, see [Patch targets](targets.md). The earlier redesign lives on
 the `main` branch.
@@ -72,3 +72,16 @@ requests remain available in Settings → Developer → Playback diagnostics.
 Java bridge against local fixtures. It checks factory selection, complete metadata, canonical
 locale use, Unicode queries, opaque paging tokens and reply serialization. These checks also
 run in CI; the fixtures do not establish authentication or live server acceptance.
+
+## Profile and playlist mutations
+
+The pinned APK supplies these Esperanto contracts; Spatch calls them through the existing transport on worker threads:
+
+- Profile: `spotify.profile_esperanto.proto.v1.ProfileService.SubscribeToProfiles`, `GetProfilesRequest.usernames`. Confirmed in `p.be.i` / `p.v5n`; the response is a list of IdentityV3 profiles with a status code (`p.fjb`). The largest available image becomes the account avatar. Username discovery reuses the player/library/owned-playlist path.
+- Creation: `RootlistModificationService.Modify` with `operation="create"`, `playlist=true`, `before="start"`, name and optional initial URIs. Confirmed in `p.jn7`, `p.zn0` and `p.o130`. A successful response must contain the new playlist URI.
+- Description: `PlaylistService.Modify` with `operation="set"` and `attributes.description`, confirmed in `p.xyc0` / `p.oux0`. If this follow-up fails, creation still returns its URI with a warning to prevent accidental duplicate playlists.
+- Addition: `PlaylistService.Modify` with `operation="add"` and ordered `uris`; no before/after anchor appends to the end (`p.xyc0`, lines 305–383 in the decoded pinned APK).
+
+Protocol tests cover fields, status failures, blank/oversized names and invalid item types. The native preview retains created playlists and appended songs in memory through the same JNI APIs. Authenticated device acceptance still needs a phone test.
+
+The helper DEX validator also recognizes D8’s synthetic `-IA` constructor-access marker, only when its owner is a compiled helper and its class is flagged synthetic. Unknown classes remain rejected.

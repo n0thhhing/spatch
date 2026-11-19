@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package spotify.profile_esperanto.proto;
+import "com.spotify.identity.proto.v3.proto";
+
+message ChangeDisplayNameRequest {
+  string username = 1;
+  string display_name = 2;
+}
+
+message ChangeDisplayNameResponse {
+  int32 status_code = 1;
+}
+
+message GetProfilesRequest {
+  repeated string usernames = 1;
+}
+
+message GetProfilesResponse {
+  repeated .com.spotify.identity.proto.v3.IdentityV3_UserProfile profiles = 1;
+  int32 status_code = 2;
+}

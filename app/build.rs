@@ -10,6 +10,8 @@ fn main() {
         "proto/com.spotify.metadata.cosmos.proto.proto",
         "proto/com.spotify.connect.esperanto.proto.proto",
         "proto/com.spotify.settings.esperanto.proto.proto",
+        "proto/spotify.profile_esperanto.proto.proto",
+        "proto/com.spotify.identity.proto.v3.proto",
     ];
     for p in &protos {
         println!("cargo:rerun-if-changed={p}");

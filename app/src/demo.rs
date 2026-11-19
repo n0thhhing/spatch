@@ -77,6 +77,13 @@ pub fn search(query: &str) -> Vec<crate::spotify::search::Hit> {
         .collect()
 }
 
+/// Catalog adapter for the preview bridge; reuses the same example tracks as offline search.
+pub fn catalog(query: &str) -> Vec<String> {
+    std::iter::once(String::new()).chain(search(query).into_iter().flat_map(|hit| [
+        hit.title, hit.subtitle, hit.uri, hit.image, hit.category.to_string(), "0".into(),
+    ])).collect()
+}
+
 pub fn playlist() -> Vec<Track> {
     (0..40)
         .map(|n| {
@@ -140,6 +147,32 @@ pub fn devices() -> Vec<crate::spotify::connect::Device> {
 /// Spotify's recently played, as the demo imagines it: the library's playlists and albums, newest first.
 pub fn recent() -> Vec<Item> {
     library().into_iter().filter(|i| matches!(i.kind, Kind::Playlist | Kind::Album)).rev().take(6).collect()
+}
+
+pub fn profile() -> crate::spotify::profile::Profile {
+    crate::spotify::profile::Profile {
+        display_name: "Preview Listener".into(),
+        username: "preview".into(),
+        image_url: "demo:0".into(),
+        profile_uri: "spotify:user:preview".into(),
+    }
+}
+
+pub fn track_from_entry(uri: &str, title: &str, artist: &str, image: &str) -> Track {
+    let i = index_of(uri);
+    let known = uri.starts_with("spotify:preview:");
+    Track {
+        title: if title.is_empty() && known { TRACKS[i].0.into() } else { title.into() },
+        artist: if artist.is_empty() && known { TRACKS[i].1.into() } else { artist.into() },
+        uri: uri.into(),
+        image: if image.is_empty() && known { format!("demo:{i}") } else { image.into() },
+        album: if known { TRACKS[i].2.into() } else { String::new() },
+        album_uri: if known { format!("spotify:album:{i}") } else { String::new() },
+        artist_uri: if known { format!("spotify:artist:{i}") } else { String::new() },
+        duration_ms: if known { TRACKS[i].3 as u32 } else { 0 },
+        explicit: known && i % 3 == 1,
+        ..Default::default()
+    }
 }
 
 /// Plays a command against the demo player, as the real one would answer it.

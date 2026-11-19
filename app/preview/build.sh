@@ -26,7 +26,12 @@ export CARGO_TARGET_DIR="$repo/app/target/preview"
 cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked --features preview --manifest-path "$repo/app/Cargo.toml"
 
 mkdir -p "$work/classes" "$work/dex" "$(dirname "$out")"
-javac --release 11 -cp "$android" -d "$work/classes" "$here/PreviewActivity.java" "$here/CoreBridge.java"     "$repo/java/dex/src/spatch/core/SpatchUi.java" "$repo/java/dex/src/spatch/core/Audio.java"
+helpers=()
+for file in "$repo/java/dex/src/spatch/core/"*.java; do
+    case "${file##*/}" in CoreBridge.java|SpatchApp.java) continue ;; esac
+    helpers+=("$file")
+done
+javac --release 11 -cp "$android" -d "$work/classes" "$here/PreviewActivity.java" "$here/CoreBridge.java" "${helpers[@]}"
 "$bt/d8" --release --min-api 29 --lib "$android" --output "$work/dex" "$work/classes"/spatch/*.class
 "$bt/aapt2" link -I "$android" --manifest "$here/AndroidManifest.xml" --min-sdk-version 29     --target-sdk-version 35 --version-code 1 --version-name 0.1 -o "$work/app.apk"
 (cd "$work/dex" && zip -q "$work/app.apk" classes.dex)

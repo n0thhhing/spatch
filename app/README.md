@@ -16,9 +16,15 @@ cargo build --release --locked
 
 Set `ANDROID_NDK_HOME` to the installed NDK if cargo-ndk cannot locate it. The patcher reads `app/target/aarch64-linux-android/release/libspatch_app.so` or the file specified by `SPATCH_APP_SO`. It adds the library and the helper DEX to the base APK.
 
-Home and Library switch from the button group at the top, beside Settings. Tap the mini player to open the player, swipe it sideways to skip, or long-press a library item for Play, Shuffle play and Open. In the player, double-tap the artwork or use the corner button for immersive mode; pull the artwork down to close. In immersive mode a tap on the disc hides the controls.
+Home, Search, Library and Create live in the bottom navigator. Tap a destination or slide across the bar and release to switch. Your Spotify avatar at the top right opens a menu with Profile, Settings, Queue and Downloads. Create makes a blank playlist or saves the current queue. Long-press a song to add it to an existing or new playlist.
 
-Settings covers theme, accent colour, artwork colours, the player artwork shape, motion effects, keep-screen-on, the details card and haptics. **Follow the music** makes the immersive glow, shockwaves and motes react to Spotify's own playback session; Android lists that capture as microphone access.
+Settings groups appearance, playback, sound, navigation, storage and developer diagnostics. Navigation dragging and hiding the navigator/mini player while scrolling are configurable. Motion, haptics, player visuals and the legacy Spatch play/pause confetti can be tuned or disabled; Reduce motion suppresses the animations and confetti.
+
+Equalizer & sound includes a 10-band graphic EQ, searchable [AutoEq headphone corrections](https://github.com/jaakkopasanen/AutoEq), custom GraphicEQ text import, correction intensity, ISO 226 equal loudness, bass boost, natural/transient/sustain bass tuning, reverb, virtualizer, automatic/manual attenuation, limiter controls, independent left/right attenuation, preferred processing buffer and legacy output-mix compatibility. These controls cover the processing stages documented in [Wavelet’s feature guide](https://pittvandewitt.github.io/Wavelet/Features/); they use Android effects, not Wavelet’s proprietary implementation. AutoEq listings and the chosen profile download from the AutoEq project on GitHub; imported profiles are validated before replacing the saved curve.
+
+Advanced EQ uses Android DynamicsProcessing with 64 bands for headphone corrections, falling back to 32/10 bands or the device equalizer when needed. Advanced dynamics and channel balance need DynamicsProcessing; bass boost, virtualizer and insert reverb depend on the device’s effects. Settings reports unavailable effects instead of treating a successful toggle as proof of processing. Legacy mode may affect other apps’ audio. Spotify’s own session hooks provide detection without Wavelet’s cross-app DUMP/notification access setup. Acoustic results and manufacturer support still need testing on a physical phone.
+
+**Follow the music** makes the immersive glow, shockwaves and motes react to Spotify’s playback session; Android lists that capture as microphone access. Live Spotify search, profile and playlist mutation use the existing authenticated core session.
 
 ## Preview without Spotify
 
@@ -41,7 +47,7 @@ You need Rust, `protoc`, and JDK 21 (`brew install protobuf openjdk@21`). The Gr
 downloads its pinned build tools and Robolectric dependencies on first launch. `JAVA_HOME` can
 select a different compatible JDK. Closing the preview window quits the desktop host.
 
-Playback, seeking, library browsing, local search and queue controls use sample data. This previews
+Playback, seeking, library browsing, search and queue controls use sample data. Profile and playlist creation/addition use the same JNI contracts with an in-memory preview library. This previews
 the shared UI; live Spotify catalog requests, real audio processing and Android system integration
 still need the signed Android app. Robolectric's rendering can differ from a physical device.
 

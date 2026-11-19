@@ -1,7 +1,15 @@
 //! The Java that ships in the helper DEX, and the compile-only stubs it builds against.
 
 /// Helper classes, shipped together in `HELPER_DEX`.
-pub const HELPERS: [(&str, &str); 4] = [
+pub const HELPERS: [(&str, &str); 6] = [
+    (
+        "AutoEqCatalog",
+        include_str!("../java/dex/src/spatch/core/AutoEqCatalog.java"),
+    ),
+    (
+        "Confetti",
+        include_str!("../java/dex/src/spatch/core/Confetti.java"),
+    ),
     (
         "Audio",
         include_str!("../java/dex/src/spatch/core/Audio.java"),

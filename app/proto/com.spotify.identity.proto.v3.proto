@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.
+package com.spotify.identity.proto.v3;
+import "com.google.protobuf.proto";
+
+message IdentityV3_Image {
+  int32 max_width = 1;
+  int32 max_height = 2;
+  string url = 3;
+}
+
+message IdentityV3_UserProfile {
+  .com.google.protobuf.StringValue username = 1;
+  .com.google.protobuf.StringValue name = 2;
+  repeated IdentityV3_Image images = 3;
+  .com.google.protobuf.BoolValue verified = 4;
+  .com.google.protobuf.BoolValue edit_profile_disabled = 5;
+  .com.google.protobuf.BoolValue report_abuse_disabled = 6;
+  .com.google.protobuf.BoolValue abuse_reported_name = 7;
+  .com.google.protobuf.BoolValue abuse_reported_image = 8;
+  .com.google.protobuf.BoolValue has_spotify_name = 9;
+  .com.google.protobuf.BoolValue has_spotify_image = 10;
+  .com.google.protobuf.Int32Value color = 11;
+  .com.google.protobuf.BoolValue is_private = 12;
+  .com.google.protobuf.StringValue bio = 15;
+  .com.google.protobuf.BoolValue abuse_reported_bio = 17;
+  .com.google.protobuf.BoolValue edit_name_disabled = 18;
+  .com.google.protobuf.BoolValue edit_image_disabled = 19;
+  .com.google.protobuf.BoolValue edit_bio_disabled = 20;
+  .com.google.protobuf.BoolValue is_kid = 21;
+  .com.google.protobuf.StringValue social_handle = 22;
+  .com.google.protobuf.StringValue account_id = 24;
+}
+
+message Identity_Image {
+  int32 max_width = 1;
+  int32 max_height = 2;
+  string url = 3;
+}
+
+message Identity_UserProfile {
+  .com.google.protobuf.StringValue username = 1;
+  .com.google.protobuf.StringValue name = 2;
+  repeated Identity_Image images = 3;
+  .com.google.protobuf.BoolValue verified = 4;
+  .com.google.protobuf.BoolValue edit_profile_disabled = 5;
+  .com.google.protobuf.BoolValue report_abuse_disabled = 6;
+  .com.google.protobuf.BoolValue abuse_reported_name = 7;
+  .com.google.protobuf.BoolValue abuse_reported_image = 8;
+  .com.google.protobuf.BoolValue has_spotify_name = 9;
+  .com.google.protobuf.BoolValue has_spotify_image = 10;
+  .com.google.protobuf.Int32Value color = 11;
+  .com.google.protobuf.StringValue pronouns = 13;
+  .com.google.protobuf.StringValue location = 14;
+  .com.google.protobuf.BoolValue edit_name_disabled = 18;
+  .com.google.protobuf.BoolValue edit_image_disabled = 19;
+  .com.google.protobuf.BoolValue is_kid = 21;
+  .com.google.protobuf.StringValue social_handle = 22;
+  .com.google.protobuf.BoolValue social_handle_editable = 23;
+  .com.google.protobuf.StringValue account_id = 24;
+}
+
+message KidProfile {
+  string name = 1;
+  string date_of_birth = 2;
+  .com.google.protobuf.Int32Value color = 6;
+  string avatar = 7;
+}
+
+message KidProfileUpdateRequest {
+  KidProfile attributes = 2;
+}
+
+message SocialHandleRequest {
+  string social_handle = 1;
+}
+
+message SocialHandleResponse {
+  bool valid = 1;
+  int32 reason = 2;
+}
+
+message UserProfileUpdateRequest {
+  .com.google.protobuf.FieldMask mask = 1;
+  Identity_UserProfile user_profile = 2;
+}

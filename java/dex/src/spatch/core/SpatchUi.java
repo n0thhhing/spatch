@@ -92,9 +92,15 @@ public final class SpatchUi extends FrameLayout {
     private static native int nativeSaved(String uri);
     private static native boolean nativeSave(String uri, boolean save);
     private static native float[] nativeGeometry(String kind);
+    private static native String[] nativeProfile();
+    private static native String[] nativeCreatePlaylist(String name, String description, boolean fromQueue);
+    private static native String nativeAddToPlaylist(String playlistUri, String[] uris);
 
     private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9;
-    private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3;
+    private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5;
+    private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, CREATE};
+    private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
+    private static final String[] SOUND_GROUPS = {"Graphic equalizer", "Headphone correction", "Loudness & bass", "Space", "Gain & dynamics", "Compatibility", "Find headphones", "Import profile"};
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
     /** The Library filter after the four sections: what's downloaded. */
     private static final int DOWNLOADED = SECTIONS.length;
@@ -129,6 +135,20 @@ public final class SpatchUi extends FrameLayout {
 
     // navigation
     private int tab = HOME, filter = -1;
+    private int lastMainTab = HOME, settingsSection = -1, navHover = -1;
+    private int soundPanel = -1, headphoneRequest;
+    private List<AutoEqCatalog.Headphone> headphones;
+    private String headphoneQuery = "", headphoneError = "", headphoneLoading = "";
+    private boolean headphonesLoading;
+    private LinearLayout headphoneResults;
+    private android.widget.PopupWindow accountMenu;
+    private String profileName = "", profileUsername = "", profileImage = "", profileUri = "", profileError = "";
+    private boolean profileLoading, creating;
+    private long profileAt;
+    private String createName = "", createDescription = "";
+    private Entry pendingPlaylistSong;
+    private boolean createFromQueue;
+    private final Set<Art> avatars = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private Entry playlist;
     private List<Entry> playlistTracks = new ArrayList<>();
     private boolean playlistLoading, playlistFailed, playerOpen;
@@ -163,6 +183,9 @@ public final class SpatchUi extends FrameLayout {
     // views that live-update
     private FrameLayout pageHost, player;
     private LinearLayout dock, dockBar, nextPill;
+    private View dockFade;
+    private boolean dockHidden, navDragging;
+    private int scrollTravel;
     private ScrollView pageScroll;
     private ListView pageList;
     private Disc disc;
@@ -192,7 +215,7 @@ public final class SpatchUi extends FrameLayout {
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download"}) {
+                "queue", "home", "library", "settings", "add", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null);
@@ -497,6 +520,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     @Override protected void onDetachedFromWindow() {
+        if (accountMenu != null) accountMenu.dismiss();
         removeCallbacks(poll);
         if (paletteAnim != null) { paletteAnim.cancel(); paletteAnim = null; }
         super.onDetachedFromWindow();
@@ -518,11 +542,15 @@ public final class SpatchUi extends FrameLayout {
     void back() {
         // Spatch's back handler outranks the keyboard's, so close the keyboard here first.
         if (hideKeyboard()) return;
-        if (sheetClose != null) sheetClose.run();
+        if (accountMenu != null && accountMenu.isShowing()) accountMenu.dismiss();
+        else if (sheetClose != null) sheetClose.run();
         else if (queuePanel != null) closeQueue();
         else if (playerOpen) closePlayer();
         else if (!pageStack.isEmpty()) openPlaylist(pageStack.pop(), false);
         else if (playlist != null) { playlist = null; showPage(); updateDock(); enter(-dp(44), 0); }
+        else if (tab == SETTINGS && settingsSection == 2 && soundPanel >= 0) { soundPanel = soundPanel >= 6 ? 1 : -1; showPage(); }
+        else if (tab == SETTINGS && settingsSection >= 0) { settingsSection = -1; showPage(); }
+        else if (tab == SETTINGS || tab == PROFILE) go(lastMainTab);
         else if (tab != HOME) go(HOME);
         else activity.moveTaskToBack(true);
     }
@@ -532,7 +560,7 @@ public final class SpatchUi extends FrameLayout {
             if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
             String[] state = nativePlayer(revision);
             if (state != null) applyPlayer(state);
-            if (equalizerStatus != null && equalizerStatus.isAttachedToWindow()) equalizerStatus.setText(Audio.eqStatus);
+            if (equalizerStatus != null && equalizerStatus.isAttachedToWindow()) equalizerStatus.setText(soundStatus());
             long now = SystemClock.uptimeMillis();
             if (!polling && now - lastConnect > 2000) {
                 polling = true;
@@ -692,6 +720,7 @@ public final class SpatchUi extends FrameLayout {
 
     /** Rebuilds the whole tree: insets or font/motion settings changed. */
     private void build() {
+        if (accountMenu != null) accountMenu.dismiss();
         closeQueue();
         removeAllViews();
         sheetClose = null;
@@ -701,6 +730,7 @@ public final class SpatchUi extends FrameLayout {
         addView(pageHost, new LayoutParams(-1, -1));
         // Lists dim as they pass under the mini player and bar instead of showing through them.
         View fade = new View(activity);
+        dockFade = fade;
         GradientDrawable fadeBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg});
         fade.setBackground(fadeBg);
         colored(fade, () -> fadeBg.setColors(new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg}));
@@ -718,6 +748,8 @@ public final class SpatchUi extends FrameLayout {
         tf.topMargin = inset.top;
         addView(topFade, tf);
         dock = column();
+        dockHidden = false;
+        scrollTravel = 0;
         dock.setPadding(dp(12), 0, dp(12), dp(10) + inset.bottom);
         addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
         buildDock();
@@ -1074,6 +1106,220 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
+    // ================= account and creation =================
+
+    private TextView pageHeading(LinearLayout page, String title, boolean edgeToEdge) {
+        LinearLayout head = row();
+        head.setPadding(edgeToEdge ? dp(18) : 0, dp(16), edgeToEdge ? dp(18) : 0, dp(12));
+        TextView label = text(title, 34, () -> ink, true);
+        oneLine(label);
+        head.addView(label, weight());
+        head.addView(space(dp(12), 1));
+        FrameLayout account = new FrameLayout(activity);
+        bgRound(account, 24, () -> surfHi);
+        account.addView(profilePhoto(), new LayoutParams(-1, -1));
+        tappable(account, "Account menu", () -> accountMenu(account));
+        head.addView(account, lp(dp(42), dp(42)));
+        page.addView(head, fill(-2));
+        loadProfile(false);
+        return label;
+    }
+
+    private Art profilePhoto() {
+        Art photo = new Art(Art.CIRCLE, false);
+        photo.letter = initial(profileName.isEmpty() ? profileUsername.isEmpty() ? "You" : profileUsername : profileName);
+        photo.bind(profileImage);
+        avatars.add(photo);
+        return photo;
+    }
+
+    private void loadProfile(boolean force) {
+        if (profileLoading || !force && profileAt != 0 && SystemClock.uptimeMillis() - profileAt < 60_000) return;
+        profileLoading = true;
+        PLAYLISTS.execute(() -> {
+            String[] result;
+            try { result = nativeProfile(); }
+            catch (RuntimeException | LinkageError failed) { result = new String[]{"", "", "", "", failed.toString()}; }
+            final String[] info = result;
+            post(() -> {
+                profileLoading = false;
+                profileAt = SystemClock.uptimeMillis();
+                if (info != null && info.length >= 5) {
+                    profileName = info[0]; profileUsername = info[1]; profileImage = info[2]; profileUri = info[3]; profileError = info[4];
+                    if (!profileError.isEmpty() && profileUsername.isEmpty()) profileName = "";
+                    for (Art photo : avatars) {
+                        photo.letter = initial(profileName.isEmpty() ? profileUsername.isEmpty() ? "You" : profileUsername : profileName);
+                        photo.bind(profileImage);
+                        photo.invalidate();
+                    }
+                } else profileError = "Profile information is not available yet";
+                if (tab == PROFILE && playlist == null) showPage();
+            });
+        });
+    }
+
+    private void accountMenu(View anchor) {
+        hideKeyboard();
+        if (accountMenu != null) accountMenu.dismiss();
+        LinearLayout menu = column();
+        menu.setPadding(dp(8), dp(8), dp(8), dp(8));
+        LinearLayout identity = row();
+        identity.setPadding(dp(10), dp(10), dp(10), dp(14));
+        identity.addView(profilePhoto(), lp(dp(42), dp(42)));
+        LinearLayout words = column();
+        words.setPadding(dp(12), 0, 0, 0);
+        words.addView(text(profileName.isEmpty() ? "Your account" : profileName, 16, () -> ink, true));
+        words.addView(text(profileUsername.isEmpty() ? "Spotify profile" : "@" + profileUsername, 12, () -> inkDim, false));
+        identity.addView(words, weight());
+        menu.addView(identity, fill(-2));
+        android.widget.PopupWindow popup = new android.widget.PopupWindow(menu, dp(278), -2, true);
+        accountMenu = popup;
+        popup.setBackgroundDrawable(round(surf, 24));
+        popup.setElevation(dp(14));
+        popup.setOutsideTouchable(true);
+        popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
+        popup.setOnDismissListener(() -> { if (accountMenu == popup) accountMenu = null; });
+        menuAction(menu, "Profile", "artist", () -> { popup.dismiss(); go(PROFILE); });
+        menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(); });
+        menuAction(menu, "Queue", "queue", () -> { popup.dismiss(); openQueue(); });
+        menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); updateDock(); } else go(LIBRARY); });
+        popup.showAsDropDown(anchor, 0, dp(8), Gravity.END);
+    }
+
+    private void menuAction(LinearLayout menu, String title, String symbol, Runnable action) {
+        LinearLayout item = row();
+        item.setPadding(dp(14), dp(12), dp(14), dp(12));
+        item.addView(icon(symbol, () -> inkDim), lp(dp(22), dp(22)));
+        TextView label = text(title, 15, () -> ink, true);
+        label.setPadding(dp(14), 0, 0, 0);
+        item.addView(label, weight());
+        tappable(item, title, action);
+        menu.addView(item, fill(dp(48)));
+    }
+
+    private void openSettings() {
+        settingsSection = -1;
+        soundPanel = -1;
+        if (tab == SETTINGS && playlist == null) showPage(); else go(SETTINGS);
+    }
+
+    private View profilePage() {
+        LinearLayout page = column();
+        pageHeading(page, "Your profile", false);
+        LinearLayout identity = card(page, "Spotify account");
+        LinearLayout photo = row();
+        photo.setPadding(dp(18), dp(16), dp(18), dp(16));
+        photo.addView(profilePhoto(), lp(dp(88), dp(88)));
+        LinearLayout words = column();
+        words.setPadding(dp(18), 0, 0, 0);
+        words.addView(text(profileName.isEmpty() ? "Your profile" : profileName, 24, () -> ink, true));
+        words.addView(text(profileUsername.isEmpty() ? "Waiting for Spotify’s account information" : "@" + profileUsername, 13, () -> inkDim, false));
+        photo.addView(words, weight());
+        identity.addView(photo, fill(-2));
+        if (!profileUri.isEmpty()) settingsAction(identity, "Copy profile link", "Share your Spotify profile", () -> {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+            String link = profileUri.startsWith("spotify:user:") ? "https://open.spotify.com/user/" + android.net.Uri.encode(profileUri.substring(13)) : profileUri;
+            if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spotify profile", link));
+            Toast.makeText(activity, "Profile link copied", Toast.LENGTH_SHORT).show();
+        });
+        settingsAction(identity, "Refresh profile", profileError.isEmpty() ? "Reload your name and photo from Spotify" : "Your profile hasn’t loaded yet. Tap to retry.", () -> loadProfile(true));
+        LinearLayout music = card(page, "Your music");
+        settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; go(LIBRARY); });
+        settingsAction(music, "Create a playlist", "Start a new collection", () -> go(CREATE));
+        settingsAction(music, "Settings", "Personalise Spatch", this::openSettings);
+        return scrolling(page);
+    }
+
+    private android.widget.EditText createField(String hint, String value, boolean multiline) {
+        android.widget.EditText field = new android.widget.EditText(activity);
+        field.setHint(hint);
+        field.setText(value);
+        field.setTextSize(16);
+        field.setPadding(dp(18), dp(16), dp(18), dp(16));
+        field.setSingleLine(!multiline);
+        if (multiline) { field.setMinLines(3); field.setGravity(Gravity.TOP); }
+        bgRound(field, 20, () -> surf);
+        colored(field, () -> { field.setTextColor(ink); field.setHintTextColor(inkDim); });
+        field.setContentDescription(hint);
+        return field;
+    }
+
+    private View createPage() {
+        LinearLayout page = column();
+        pageHeading(page, "Create", false);
+        TextView intro = text("Make something yours.", 26, () -> ink, true);
+        intro.setPadding(dp(2), dp(8), 0, dp(6));
+        page.addView(intro);
+        TextView hint = text(pendingPlaylistSong == null ? "A fresh start, or the songs you’re enjoying right now." : "Your new playlist will include “" + pendingPlaylistSong.title + "”.", 14, () -> inkDim, false);
+        hint.setPadding(dp(2), 0, dp(2), dp(22));
+        page.addView(hint);
+        LinearLayout options = card(page, "Start with");
+        segmented(options, "Playlist", new String[]{"A blank canvas", "Current queue"}, createFromQueue ? 1 : 0, selected -> {
+            createFromQueue = selected == 1;
+            showPage();
+        });
+        android.widget.EditText name = createField("Playlist name", createName, false);
+        android.widget.EditText description = createField("Description (optional)", createDescription, true);
+        page.addView(name, fill(-2));
+        LinearLayout.LayoutParams descriptionParams = fill(-2);
+        descriptionParams.topMargin = dp(10);
+        page.addView(description, descriptionParams);
+        name.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) { createName = s.toString(); }
+            public void afterTextChanged(android.text.Editable e) {}
+        });
+        description.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) { createDescription = s.toString(); }
+            public void afterTextChanged(android.text.Editable e) {}
+        });
+        TextView error = text("", 13, () -> inkDim, false);
+        error.setPadding(dp(4), dp(12), dp(4), 0);
+        page.addView(error);
+        TextView make = pill(creating ? "Creating…" : "Create playlist", () -> {});
+        make.setEnabled(!creating);
+        make.setAlpha(creating ? .55f : 1f);
+        tappable(make, "Create playlist", () -> {
+            if (creating) return;
+            String title = createName.trim(), detail = createDescription.trim();
+            if (title.isEmpty()) { name.setError("Give your playlist a name"); name.requestFocus(); return; }
+            hideKeyboard();
+            creating = true;
+            make.setEnabled(false); make.setText("Creating…"); error.setText("");
+            boolean fromQueue = createFromQueue;
+            Entry pending = pendingPlaylistSong;
+            COMMANDS.execute(() -> {
+                String[] response;
+                try {
+                    response = nativeCreatePlaylist(title, detail, fromQueue);
+                    if (pending != null && response != null && response.length >= 2 && !response[0].isEmpty()) {
+                        String addError;
+                        try { addError = nativeAddToPlaylist(response[0], new String[]{pending.uri}); }
+                        catch (RuntimeException | LinkageError failed) { addError = failed.toString(); }
+                        if (addError != null && !addError.isEmpty()) response[1] = (response[1].isEmpty() ? "" : response[1] + "\n") + "Playlist created, but couldn’t add the song: " + addError;
+                    }
+                }
+                catch (RuntimeException | LinkageError failed) { response = new String[]{"", failed.toString()}; }
+                final String[] result = response;
+                post(() -> {
+                    creating = false;
+                    make.setEnabled(true); make.setText("Create playlist");
+                    if (result == null || result.length < 2 || result[0].isEmpty()) {
+                        error.setText(result != null && result.length >= 2 ? result[1] : "Couldn’t create the playlist. Please try again.");
+                        return;
+                    }
+                    createName = createDescription = "";
+                    pendingPlaylistSong = null;
+                    Toast.makeText(activity, result[1].isEmpty() ? "Created “" + title + "”" : result[1], result[1].isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
+                    if (tab == CREATE && playlist == null) openPlaylist(new Entry(title, "Your playlist", result[0], "", 0));
+                });
+            });
+        });
+        page.addView(make, fill(dp(50)));
+        return scrolling(page);
+    }
+
     // ================= search =================
 
     private static final int HIT_FIELDS = 6;
@@ -1170,9 +1416,7 @@ public final class SpatchUi extends FrameLayout {
     private View searchPage() {
         LinearLayout page = column();
         page.setPadding(0, inset.top, 0, 0);
-        TextView h = text("Search", 34, () -> ink, true);
-        h.setPadding(dp(18), dp(18), dp(18), dp(10));
-        page.addView(h);
+        pageHeading(page, "Search", true);
 
         segmented(page, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, selected -> {
             catalogSearch = selected == 0;
@@ -1208,6 +1452,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout results = column();
         results.setPadding(dp(18), dp(4), dp(18), dp(170) + inset.bottom);
         scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
+        scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> scrollDock(y - oldY, y <= 0));
         page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         searchScroll = scroll;
         searchResults = results;
@@ -1304,8 +1549,9 @@ public final class SpatchUi extends FrameLayout {
     /** Long-press on a result: songs and episodes can play or queue; lists, albums and artists get the library menu. */
     private void searchActions(Entry e) {
         if (!e.uri.startsWith("spotify:track:") && !e.uri.startsWith("spotify:episode:") && !e.uri.startsWith("spotify:preview:")) { actions(e); return; }
-        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false)}, c -> {
+        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false), new Option("Add to playlist", "", "", "add", false)}, c -> {
             if (c == 0) command(PLAY, 0, e.uri);
+            else if (c == 2) addToPlaylist(e);
             else { command(QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
         });
     }
@@ -1317,6 +1563,8 @@ public final class SpatchUi extends FrameLayout {
         playlist = null;
         pageStack.clear();
         tab = next;
+        if (next == HOME || next == SEARCH || next == LIBRARY || next == CREATE) lastMainTab = next;
+        setDockHidden(false);
         showPage();
         updateDock();
         enter((forward ? 1 : -1) * dp(36), 0);
@@ -1349,7 +1597,7 @@ public final class SpatchUi extends FrameLayout {
         mp.bottomMargin = dp(8);
         dock.addView(mini, mp);
 
-        dockBar = row();
+        dockBar = new Navigator();
         dockBar.setGravity(Gravity.CENTER);
         bgRound(dockBar, 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
         dockBar.setPadding(dp(6), dp(5), dp(6), dp(5));
@@ -1360,11 +1608,11 @@ public final class SpatchUi extends FrameLayout {
 
     private void updateDock() {
         if (dockBar == null) return;
-        String[] names = {"Home", "Search", "Library", "Settings"}, glyphs = {"home", "search", "library", "settings"};
+        String[] names = {"Home", "Search", "Library", "Create"}, glyphs = {"home", "search", "library", "add"};
         boolean fresh = dockBar.getChildCount() != names.length;
-        if (!fresh && motion()) {
+        if (!fresh && motion() && !navDragging) {
             // The selected pill stretches across to the new tab and its label fades in, instead of jumping.
-            android.transition.AutoTransition morph = new android.transition.AutoTransition();
+            android.transition.ChangeBounds morph = new android.transition.ChangeBounds();
             morph.setDuration(340);
             morph.setInterpolator(EMPHASIZED);
             android.transition.TransitionManager.beginDelayedTransition(dockBar, morph);
@@ -1372,12 +1620,12 @@ public final class SpatchUi extends FrameLayout {
         if (fresh) {
             dockBar.removeAllViews();
             for (int i = 0; i < names.length; i++) {
-                final int index = i;
+                final int index = NAV_TABS[i];
                 LinearLayout item = row();
                 item.setGravity(Gravity.CENTER);
-                bgRound(item, 22, () -> tab == index && playlist == null ? accent : Color.TRANSPARENT);
-                item.addView(icon(glyphs[i], () -> tab == index && playlist == null ? onAccent : inkDim), lp(dp(24), dp(24)));
-                TextView label = text(names[i], 14, () -> onAccent, true);
+                bgRound(item, 22, () -> navigationSelected(index) ? accent : Color.TRANSPARENT);
+                item.addView(icon(glyphs[i], () -> navigationSelected(index) ? onAccent : inkDim), lp(dp(24), dp(24)));
+                TextView label = text(names[i], 14, () -> navigationSelected(index) ? onAccent : inkDim, true);
                 label.setPadding(dp(7), 0, dp(2), 0);
                 item.addView(label);
                 tappable(item, names[i], () -> go(index));
@@ -1385,24 +1633,104 @@ public final class SpatchUi extends FrameLayout {
             }
         }
         for (int i = 0; i < names.length; i++) {
-            boolean on = tab == i && playlist == null;
+            boolean on = tab == NAV_TABS[i] && playlist == null;
             ViewGroup item = (ViewGroup) dockBar.getChildAt(i);
-            item.getChildAt(1).setVisibility(on ? VISIBLE : GONE);
-            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) item.getLayoutParams();
-            lp.weight = on ? 1.6f : 1f;
-            item.setLayoutParams(lp);
+            if (!navDragging) {
+                item.getChildAt(1).setVisibility(on ? VISIBLE : GONE);
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) item.getLayoutParams();
+                lp.weight = on ? 1.6f : 1f;
+                item.setLayoutParams(lp);
+            }
             recolorView(item);
         }
     }
 
+    private final class DockScroll implements android.widget.AbsListView.OnScrollListener {
+        private int lastFirst = -1, lastTop;
+        public void onScrollStateChanged(android.widget.AbsListView view, int state) {}
+        public void onScroll(android.widget.AbsListView view, int first, int visible, int total) {
+            if (view.getChildCount() == 0) return;
+            int top = view.getChildAt(0).getTop();
+            int delta = lastFirst < 0 ? 0 : first == lastFirst ? lastTop - top : first > lastFirst ? dp(48) : -dp(48);
+            lastFirst = first; lastTop = top;
+            scrollDock(delta, first == 0 && top >= view.getPaddingTop());
+        }
+    }
+
+    private boolean navigationSelected(int target) {
+        return playlist == null && (navHover >= 0 ? navHover == target : tab == target);
+    }
+
+    private final class Navigator extends LinearLayout {
+        private float startX, startY;
+        Navigator() { super(activity); setOrientation(HORIZONTAL); }
+        @Override public boolean onInterceptTouchEvent(MotionEvent event) {
+            if (!pref("nav_drag", true)) return false;
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                startX = event.getX(); startY = event.getY(); navDragging = false;
+            } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE
+                && Math.abs(event.getX() - startX) > dp(8)
+                && Math.abs(event.getX() - startX) > Math.abs(event.getY() - startY)) {
+                navDragging = true;
+                getParent().requestDisallowInterceptTouchEvent(true);
+                return true;
+            }
+            return navDragging;
+        }
+        @Override public boolean onTouchEvent(MotionEvent event) {
+            if (!navDragging) return super.onTouchEvent(event);
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_MOVE) {
+                int target = -1;
+                for (int i = 0; i < getChildCount(); i++) {
+                    View child = getChildAt(i);
+                    if (event.getX() >= child.getLeft() && event.getX() <= child.getRight()) target = NAV_TABS[i];
+                }
+                if (target >= 0 && target != navHover) {
+                    navHover = target;
+                    if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+                    updateDock();
+                }
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                int target = event.getY() >= 0 && event.getY() <= getHeight() && event.getX() >= 0 && event.getX() <= getWidth() ? navHover : -1;
+                navHover = -1; navDragging = false;
+                if (action == MotionEvent.ACTION_UP && target >= 0) go(target);
+                updateDock();
+            }
+            return true;
+        }
+    }
+
+    private void setDockHidden(boolean hidden) {
+        if (dock == null) return;
+        hidden = hidden && pref("auto_hide_dock", false) && !playerOpen;
+        if (dockHidden == hidden) return;
+        dockHidden = hidden;
+        float target = hidden ? dock.getHeight() + dp(24) : 0;
+        dock.animate().cancel();
+        dock.animate().translationY(target).alpha(hidden ? 0 : 1).setDuration(motion() ? 240 : 0).setInterpolator(EMPHASIZED).start();
+        if (dockFade != null) dockFade.animate().alpha(hidden ? 0 : 1).setDuration(motion() ? 240 : 0).start();
+    }
+
+    private void scrollDock(int delta, boolean atTop) {
+        if (!pref("auto_hide_dock", false) || playerOpen || sheetClose != null || queuePanel != null) return;
+        if (atTop) { scrollTravel = 0; setDockHidden(false); return; }
+        if (Integer.signum(delta) != Integer.signum(scrollTravel)) scrollTravel = 0;
+        scrollTravel += delta;
+        if (scrollTravel > dp(32)) setDockHidden(true);
+        else if (scrollTravel < -dp(18)) setDockHidden(false);
+    }
+
     private void showPage() {
+        scrollTravel = 0;
+        setDockHidden(false);
         if (playlist == null && watchingPlaylist) { watchingPlaylist = false; PLAYLISTS.execute(SpatchUi::nativeStopPlaylist); }
         pageHost.removeAllViews();
         pageScroll = null;
         pageList = null;
         libraryList = null;
         heroArt = null; heroTitle = heroArtist = null;
-        View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == SEARCH ? searchPage() : tab == LIBRARY ? libraryPage() : settingsPage();
+        View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == SEARCH ? searchPage() : tab == LIBRARY ? libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         if (tab != SETTINGS && playlist == null) refreshLibraryIfStale();
         if (tab == HOME && playlist == null) loadRecentIfStale();
@@ -1417,6 +1745,7 @@ public final class SpatchUi extends FrameLayout {
         content.setPadding(dp(18), dp(10), dp(18), dp(170) + inset.bottom);
         content.setClipToPadding(false); // edge-to-edge shelves draw into the side padding
         s.addView(content, new ScrollView.LayoutParams(-1, -2));
+        s.setOnScrollChangeListener((view, x, y, oldX, oldY) -> scrollDock(y - oldY, y <= 0));
         pageScroll = s;
         return s;
     }
@@ -1426,9 +1755,7 @@ public final class SpatchUi extends FrameLayout {
     private View homePage() {
         LinearLayout page = column();
         int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        TextView h = text(hour < 5 ? "Up late?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening", 34, () -> ink, true);
-        h.setPadding(0, dp(8), 0, dp(2));
-        page.addView(h);
+        TextView h = pageHeading(page, hour < 5 ? "Up late?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening", false);
         // Expressive type: the first time Home appears the greeting swells from light to bold (variable fonts only).
         if (!greeted && motion() && pref("expressive_type", true) && h.getFontVariationSettings() != null) {
             greeted = true;
@@ -1645,9 +1972,7 @@ public final class SpatchUi extends FrameLayout {
     private View libraryPage() {
         LinearLayout page = column();
         page.setPadding(0, inset.top, 0, 0);
-        TextView h = text("Library", 34, () -> ink, true);
-        h.setPadding(dp(18), dp(18), dp(18), dp(10));
-        page.addView(h);
+        pageHeading(page, "Library", true);
 
         LinearLayout search = row();
         search.setPadding(dp(16), 0, dp(8), 0);
@@ -1718,6 +2043,7 @@ public final class SpatchUi extends FrameLayout {
             noMatch.setVisibility(GONE);
             page.addView(noMatch);
             android.widget.AbsListView list = grid ? entryGrid(shown) : entryList(shown, null);
+            list.setOnScrollListener(new DockScroll());
             list.setPadding(dp(grid ? 14 : 18), dp(4), dp(grid ? 14 : 18), dp(170) + inset.bottom);
             list.setClipToPadding(false);
             page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -2214,6 +2540,7 @@ public final class SpatchUi extends FrameLayout {
         List<Runnable> runs = new ArrayList<>();
         names.add(new Option("Play from here", "", "", "play", false)); runs.add(() -> open(song));
         names.add(new Option("Add to queue", "", "", "queue", false)); runs.add(() -> { command(QUEUE_ADD, 0, song.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
+        names.add(new Option("Add to playlist", "", "", "add", false)); runs.add(() -> addToPlaylist(song));
         if (!song.albumUri.isEmpty()) { names.add(new Option("Go to album", song.album, "", "album", false)); runs.add(() -> openPlaylist(new Entry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
         if (!song.artistUri.isEmpty()) { names.add(new Option("Go to artist", song.subtitle, "", "artist", false)); runs.add(() -> openPlaylist(new Entry(song.subtitle, "Artist", song.artistUri, "", -1))); }
         names.add(new Option(song.liked ? "Remove from Liked Songs" : "Add to Liked Songs", "", "", song.liked ? "heart" : "heart-outline", false));
@@ -2277,7 +2604,7 @@ public final class SpatchUi extends FrameLayout {
         colored(coverWrap, () -> coverShape.setColor(surfHi));
         coverWrap.setClipToOutline(true);
         coverWrap.setElevation(dp(8));
-        if (headImage.isEmpty() && !detail) {
+        if (headImage.isEmpty() && !detail && liked(playlist.uri)) {
             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)});
             g.setCornerRadius(dp(26));
             coverWrap.setBackground(g);
@@ -2533,7 +2860,7 @@ public final class SpatchUi extends FrameLayout {
             s.setVerticalScrollBarEnabled(false);
             header.setPadding(dp(20), inset.top + dp(56), dp(20), dp(170) + inset.bottom);
             s.addView(header);
-            s.setOnScrollChangeListener((v, sx, sy, osx, osy) -> syncFab.run());
+            s.setOnScrollChangeListener((v, sx, sy, osx, osy) -> { syncFab.run(); scrollDock(sy - osy, sy <= 0); });
             page.addView(s, new LayoutParams(-1, -1));
         } else {
             ListView list = entryList(playlistTracks, header);
@@ -2581,9 +2908,11 @@ public final class SpatchUi extends FrameLayout {
             // The cover shrinks up and fades, the atmospheric wash recedes, and the floating bar brings in the title.
             View coverView = headCover;
             if (coverView != null) coverView.setPivotY(0);
+            DockScroll dockScroll = new DockScroll();
             list.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
                 @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {}
                 @Override public void onScroll(android.widget.AbsListView v, int first, int visible, int totalItems) {
+                    dockScroll.onScroll(v, first, visible, totalItems);
                     float scrolled = first == 0 && v.getChildCount() > 0 ? Math.max(0, -v.getChildAt(0).getTop()) : dp(400);
                     float f = Math.max(0f, Math.min(1f, scrolled / dp(240)));
                     if (coverView != null && motion()) {
@@ -2614,6 +2943,34 @@ public final class SpatchUi extends FrameLayout {
         return page;
     }
 
+    private void addToPlaylist(Entry song) {
+        List<Entry> targets = new ArrayList<>();
+        List<Option> options = new ArrayList<>();
+        options.add(new Option("New playlist", "Start a collection", "", "add", false));
+        for (Entry candidate : entries(0, 400)) {
+            if (!(candidate.uri.startsWith("spotify:playlist:") || candidate.uri.contains(":playlist:"))) continue;
+            targets.add(candidate);
+            options.add(new Option(candidate.title, candidate.subtitle, candidate.image, "playlist", false));
+        }
+        sheet("Add to playlist", song.title, options.toArray(new Option[0]), choice -> {
+            if (choice == 0) { pendingPlaylistSong = song; go(CREATE); return; }
+            appendSong(targets.get(choice - 1), song);
+        });
+    }
+
+    private void appendSong(Entry target, Entry song) {
+        COMMANDS.execute(() -> {
+            String error;
+            try { error = nativeAddToPlaylist(target.uri, new String[]{song.uri}); }
+            catch (RuntimeException | LinkageError failed) { error = failed.toString(); }
+            final String failure = error == null ? "Couldn’t add this song" : error;
+            post(() -> {
+                Toast.makeText(activity, failure.isEmpty() ? "Added to “" + target.title + "”" : failure, Toast.LENGTH_LONG).show();
+                if (failure.isEmpty() && playlist != null && playlist.uri.equals(target.uri)) openPlaylist(target);
+            });
+        });
+    }
+
     private void actions(Entry e) {
         if (e instanceof Song) { songActions((Song) e); return; }
         boolean song = playlist != null;
@@ -2631,156 +2988,391 @@ public final class SpatchUi extends FrameLayout {
 
     // ---------- Settings ----------
 
-    private View settingsPage() {
+    private View settingsHub() {
         LinearLayout page = column();
-        TextView h = text("Settings", 34, () -> ink, true);
-        h.setPadding(0, dp(18), 0, dp(14));
-        page.addView(h);
-
-        LinearLayout look = card(page, "Look");
-        choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 0, true);
-        toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, true);
-        accentRow(look);
-        toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
-
-        LinearLayout spotify = card(page, "Spotify");
-        spotifyCard(spotify);
-
-        LinearLayout downloadsBox = card(page, "Downloads");
-        downloadsCard(downloadsBox);
-
-        LinearLayout player = card(page, "Player");
-        choice(player, "Visualizer", new String[]{"Ring and bars", "Ring only", "Off"}, "viz", 0, false);
-        toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
-        TextView audioStatus = text("Status: " + Audio.status, 12, () -> inkDim, false);
-        audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
-        player.addView(audioStatus);
-        toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
-        toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
-        toggle(player, "Floating motes", "Soft particles drift behind the player", "motes", true, false);
-        toggle(player, "Keep screen on", "While the player is open", "keep_on", true, false);
-
-        LinearLayout controls = card(page, "Equalizer");
-        toggle(controls, "Equalizer", "Shape the sound on this device", "equalizer", false, false);
-        equalizerStatus = text(Audio.eqStatus, 13, () -> inkDim, false);
-        equalizerStatus.setPadding(dp(18), 0, dp(18), dp(8));
-        controls.addView(equalizerStatus, fill(-2));
-        String[] presets = {"Flat", "Bass", "Vocals", "Bright", "Loudness"};
-        int[][] curves = {
-            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-            {6, 6, 4, 2, 0, 0, 0, 0, 0, 0},
-            {-4, -3, -2, 0, 2, 4, 4, 2, 0, -1},
-            {0, 0, 0, 0, 0, 0, 2, 4, 5, 5},
-            {5, 4, 2, 0, -1, -1, 0, 2, 4, 5}
-        };
-        android.widget.SeekBar[] sliders = new android.widget.SeekBar[Audio.EQ_HZ.length];
-        int selectedPreset = -1;
-        int[] savedGains = new int[sliders.length];
-        for (int i = 0; i < savedGains.length; i++) savedGains[i] = Audio.gain(prefs, i);
-        for (int i = 0; i < curves.length; i++) if (java.util.Arrays.equals(savedGains, curves[i])) selectedPreset = i;
-        segmented(controls, "Preset", presets, selectedPreset, selected -> {
-            android.content.SharedPreferences.Editor editor = prefs.edit();
-            for (int i = 0; i < sliders.length; i++) editor.putInt("eq_band_" + i, curves[selected][i]);
-            editor.apply();
-            Audio.refreshEqualizer();
-            settingsChanged(false);
-        });
-
-        for (int i = 0; i < sliders.length; i++) {
-            final int band = i;
-            int hz = Audio.EQ_HZ[i];
-            String frequency = hz < 1000 ? hz + " Hz" : (hz / 1000) + " kHz";
-            LinearLayout line = row();
-            line.setPadding(dp(18), 0, dp(18), 0);
-            line.addView(text(frequency, 14, () -> ink, true), new LinearLayout.LayoutParams(dp(62), -2));
-            TextView level = text(db(Audio.gain(prefs, i)), 13, () -> inkDim, false);
-            level.setGravity(Gravity.END);
-            android.widget.SeekBar slider = new android.widget.SeekBar(activity);
-            sliders[i] = slider;
-            slider.setMax(Audio.EQ_RANGE * 2);
-            slider.setProgress(Audio.gain(prefs, i) + Audio.EQ_RANGE);
-            slider.setContentDescription(frequency);
-            if (android.os.Build.VERSION.SDK_INT >= 30) slider.setStateDescription(level.getText());
-            GradientDrawable track = round(surfHi, 8);
-            GradientDrawable fill = round(accent, 8);
-            android.graphics.drawable.ClipDrawable progress = new android.graphics.drawable.ClipDrawable(fill, Gravity.LEFT, android.graphics.drawable.ClipDrawable.HORIZONTAL);
-            android.graphics.drawable.LayerDrawable layers = new android.graphics.drawable.LayerDrawable(
-                new android.graphics.drawable.Drawable[]{track, progress});
-            layers.setId(0, android.R.id.background);
-            layers.setId(1, android.R.id.progress);
-            for (int layer = 0; layer < 2; layer++) {
-                layers.setLayerHeight(layer, dp(8));
-                layers.setLayerGravity(layer, Gravity.CENTER_VERTICAL);
-            }
-            GradientDrawable thumb = round(ink, 3);
-            thumb.setSize(dp(5), dp(22));
-            slider.setProgressDrawable(layers);
-            slider.setThumb(thumb);
-            slider.setSplitTrack(false);
-            colored(slider, () -> { track.setColor(surfHi); fill.setColor(accent); thumb.setColor(ink); });
-            slider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-                @Override public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean user) {
-                    int gain = progress - Audio.EQ_RANGE;
-                    level.setText(db(gain));
-                    if (android.os.Build.VERSION.SDK_INT >= 30) bar.setStateDescription(level.getText());
-                    if (user) {
-                        prefs.edit().putInt("eq_band_" + band, gain).apply();
-                        Audio.refreshEqualizer();
-                    }
-                }
-                @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
-                @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
-            });
-            line.addView(slider, new LinearLayout.LayoutParams(0, dp(48), 1));
-            line.addView(level, new LinearLayout.LayoutParams(dp(52), -2));
-            controls.addView(line, fill(-2));
+        pageHeading(page, "Settings", false);
+        LinearLayout account = card(page, "Account");
+        settingsAction(account, profileName.isEmpty() ? "Your Spotify profile" : profileName,
+            profileUsername.isEmpty() ? "Profile, playlists and account details" : "@" + profileUsername, () -> go(PROFILE));
+        LinearLayout categories = card(page, "Make it yours");
+        String[] summaries = {"Colour, artwork, motion and celebrations", "Quality, crossfade and listening controls",
+            "Headphone correction, tone and dynamics", "Navigation, scroll behaviour and gestures",
+            "Downloads, artwork cache and storage", "Diagnostics and connection details", "Version and app information"};
+        for (int i = 0; i < SETTINGS_GROUPS.length; i++) {
+            final int section = i;
+            settingsAction(categories, SETTINGS_GROUPS[i], summaries[i], () -> { settingsSection = section; soundPanel = -1; showPage(); enter(dp(28), 0); });
         }
-
-        LinearLayout developer = card(page, "Developer");
-        settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
-            String report = "Build " + nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
-                + "\nPlaying " + playing + " · buffering " + buffering
-                + "\nPosition " + position + " ms · duration " + duration + " ms"
-                + "\nLibrary loaded " + libraryReady + " · upcoming " + upcoming.size()
-                + "\nEqualizer " + Audio.eqStatus + "\nEQ detail " + Audio.eqError + "\nVisualizer " + Audio.status
-                + "\nSearch " + (catalogError.isEmpty() ? "No error" : catalogError)
-                + "\n" + CoreBridge.diagnostics();
-            sheet("Diagnostics", report, new String[]{"Copy diagnostics", "Close"}, choice -> {
-                if (choice == 0) {
-                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-                    if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch diagnostics", report));
-                }
-            });
-        });
-        settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
-            DATA.execute(() -> {
-                nativeRefreshLibrary();
-                post(() -> Toast.makeText(activity, "Library refresh finished", Toast.LENGTH_SHORT).show());
-            });
-        });
-
-        LinearLayout gestures = card(page, "Gestures and controls");
-        toggle(gestures, "Double-tap to play or pause", "On the artwork in the player", "double_tap", true, false);
-        toggle(gestures, "Swipe artwork to skip", "Flick the artwork left for next, right for previous", "swipe_skip", true, false);
-        choice(gestures, "Hold-to-seek step", new String[]{"5 s", "10 s", "30 s"}, "seek_step", 1, false);
-        toggle(gestures, "Haptics", "Little taps on buttons", "haptics", true, false);
-        toggle(gestures, "Reduce motion", "Skips fades, slides and the spinning; for a calmer, lighter app", "reduce_motion", false, true);
-
-        LinearLayout home = card(page, "Home");
-        toggle(home, "Recently played", "Spotify’s own listening history", "home_recent", true, false);
-        for (int i = 0; i < SECTIONS.length; i++) toggle(home, SECTIONS[i], "Show the " + SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true, false);
-
-        LinearLayout library = card(page, "Library");
-        toggle(library, "Sort A to Z", "Alphabetical, with Liked Songs first; off shows Spotify’s recent order", "library_az", false, false);
-        toggle(library, "Show as a grid", "Big covers two to a row instead of a list", "library_grid", false, false);
-
-        LinearLayout storage = card(page, "Storage");
-        cacheRow(storage);
-
-        TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.\n\nBuild " + nativeBuild(), 13, () -> inkDim, false);
-        note.setPadding(dp(4), dp(22), dp(4), 0);
-        page.addView(note);
         return scrolling(page);
+    }
+
+    private View settingsPage() {
+        if (settingsSection < 0 || settingsSection >= SETTINGS_GROUPS.length) return settingsHub();
+        LinearLayout page = column();
+        LinearLayout up = row();
+        up.setPadding(dp(2), dp(6), 0, 0);
+        up.addView(icon("back", () -> accent), lp(dp(20), dp(20)));
+        TextView parent = text(settingsSection == 2 && soundPanel >= 6 ? "Headphone correction" : settingsSection == 2 && soundPanel >= 0 ? "Equalizer & sound" : "Settings", 14, () -> accent, true);
+        parent.setPadding(dp(8), 0, 0, 0);
+        up.addView(parent);
+        tappable(up, "Back to settings", () -> {
+            if (settingsSection == 2 && soundPanel >= 0) soundPanel = soundPanel >= 6 ? 1 : -1; else settingsSection = -1;
+            showPage();
+        });
+        page.addView(up, fill(dp(34)));
+        pageHeading(page, settingsSection == 2 && soundPanel >= 0 ? SOUND_GROUPS[soundPanel] : SETTINGS_GROUPS[settingsSection], false).setTextSize(28);
+        switch (settingsSection) {
+        case 0: {
+            LinearLayout look = card(page, "Look");
+            choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 0, true);
+            toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, true);
+            accentRow(look);
+            toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
+
+            LinearLayout player = card(page, "Player visuals");
+            choice(player, "Visualizer", new String[]{"Ring and bars", "Ring only", "Off"}, "viz", 0, false);
+            toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
+            TextView audioStatus = text("Status: " + Audio.status, 12, () -> inkDim, false);
+            audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
+            player.addView(audioStatus);
+            toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
+            toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
+            toggle(player, "Floating motes", "Soft particles drift behind the player", "motes", true, false);
+
+
+            LinearLayout celebrations = card(page, "Motion & celebrations");
+            toggle(celebrations, "Reduce motion", "A calmer app, without animated transitions or celebrations", "reduce_motion", false, true);
+            toggle(celebrations, "Playback confetti", "A burst of shapes when you tap play or pause", "confetti", true, false);
+            choice(celebrations, "Celebrate", new String[]{"Play & pause", "Play only"}, "confetti_when", 0, false);
+            choice(celebrations, "Amount", new String[]{"Subtle", "Normal", "Festive"}, "confetti_amount", 1, false);
+            choice(celebrations, "Shapes", new String[]{"Mix", "Cookies", "Hearts", "Stars", "Dots"}, "confetti_shape", 0, false);
+            choice(celebrations, "Size", new String[]{"Small", "Normal", "Large"}, "confetti_size", 1, false);
+            choice(celebrations, "Colours", new String[]{"Artwork", "Rainbow", "Solid"}, "confetti_tones", 0, false);
+
+            LinearLayout home = card(page, "Home");
+            toggle(home, "Recently played", "Spotify’s own listening history", "home_recent", true, false);
+            for (int i = 0; i < SECTIONS.length; i++) toggle(home, SECTIONS[i], "Show the " + SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true, false);
+
+            LinearLayout library = card(page, "Library");
+            toggle(library, "Sort A to Z", "Alphabetical, with Liked Songs first; off shows Spotify’s recent order", "library_az", false, false);
+            toggle(library, "Show as a grid", "Big covers two to a row instead of a list", "library_grid", false, false);
+            break;
+        }
+        case 1: {
+            LinearLayout spotify = card(page, "Spotify");
+            spotifyCard(spotify);
+
+            LinearLayout playback = card(page, "Player");
+            toggle(playback, "Keep screen on", "While the player is open", "keep_on", true, false);
+            break;
+        }
+        case 2: {
+            soundSettings(page);
+            break;
+        }
+        case 3: {
+            LinearLayout navigation = card(page, "Navigation");
+            toggle(navigation, "Slide to switch", "Press and drag across the navigation bar, then release on a destination", "nav_drag", true, false);
+            toggle(navigation, "Hide controls while scrolling", "Hide the navigation bar and mini player on the way down; show them when you scroll up", "auto_hide_dock", false, false);
+
+            LinearLayout gestures = card(page, "Gestures and controls");
+            toggle(gestures, "Double-tap to play or pause", "On the artwork in the player", "double_tap", true, false);
+            toggle(gestures, "Swipe artwork to skip", "Flick the artwork left for next, right for previous", "swipe_skip", true, false);
+            choice(gestures, "Hold-to-seek step", new String[]{"5 s", "10 s", "30 s"}, "seek_step", 1, false);
+            toggle(gestures, "Haptics", "Little taps on buttons", "haptics", true, false);
+            break;
+        }
+        case 4: {
+            LinearLayout downloadsBox = card(page, "Downloads");
+            downloadsCard(downloadsBox);
+
+            LinearLayout storage = card(page, "Storage");
+            cacheRow(storage);
+            break;
+        }
+        case 5: {
+            LinearLayout developer = card(page, "Developer");
+            settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
+                String report = "Build " + nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
+                    + "\nPlaying " + playing + " · buffering " + buffering
+                    + "\nPosition " + position + " ms · duration " + duration + " ms"
+                    + "\nLibrary loaded " + libraryReady + " · upcoming " + upcoming.size()
+                    + "\nEqualizer " + Audio.eqStatus + "\nEQ detail " + Audio.eqError + "\nVisualizer " + Audio.status
+                    + "\nSearch " + (catalogError.isEmpty() ? "No error" : catalogError)
+                    + "\n" + CoreBridge.diagnostics();
+                sheet("Diagnostics", report, new String[]{"Copy diagnostics", "Close"}, choice -> {
+                    if (choice == 0) {
+                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+                        if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch diagnostics", report));
+                    }
+                });
+            });
+            settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
+                DATA.execute(() -> {
+                    nativeRefreshLibrary();
+                    post(() -> Toast.makeText(activity, "Library refresh finished", Toast.LENGTH_SHORT).show());
+                });
+            });
+            break;
+        }
+        case 6: {
+            TextView note = text("Spatch draws its own interface over Spotify’s core. Playback, your library and your account stay Spotify’s.\n\nBuild " + nativeBuild(), 13, () -> inkDim, false);
+            note.setPadding(dp(4), dp(22), dp(4), 0);
+            page.addView(note);
+            break;
+        }
+        }
+        return scrolling(page);
+    }
+
+    private TextView soundNote(LinearLayout box, String message) {
+        TextView note = text(message, 13, () -> inkDim, false);
+        note.setPadding(dp(18), dp(4), dp(18), dp(14));
+        box.addView(note, fill(-2));
+        return note;
+    }
+
+    private String soundStatus() {
+        Audio.Capabilities state = Audio.capabilities();
+        String status = Audio.eqStatus;
+        if (!Audio.eqError.isEmpty()) status += "\n" + Audio.eqError;
+        for (String error : new String[]{state.bassBoostError, state.reverbError, state.virtualizerError})
+            if (!error.isEmpty()) status += "\n" + error;
+        return status;
+    }
+
+    private void soundPanel(int panel) { soundPanel = panel; showPage(); enter(dp(28), 0); }
+
+    private void soundSettings(LinearLayout page) {
+        if (soundPanel < 0) {
+            LinearLayout master = card(page, "Sound processing");
+            toggle(master, "Equalizer", "Apply your sound settings to playback on this device", "equalizer", false, false);
+            equalizerStatus = text(soundStatus(), 13, () -> inkDim, false);
+            equalizerStatus.setPadding(dp(18), 0, dp(18), dp(14));
+            master.addView(equalizerStatus, fill(-2));
+            LinearLayout stages = card(page, "Shape your sound");
+            String[] descriptions = {"10 bands and sound presets", prefs.getString("eq_autoeq_name", "AutoEq profiles for your headphones"),
+                "Equal loudness, bass boost and bass tuning", "Reverberation and stereo virtualizer",
+                "Attenuation, limiter and channel balance", "Buffer size, legacy mode and effect availability"};
+            for (int i = 0; i < 6; i++) {
+                final int panel = i;
+                settingsAction(stages, SOUND_GROUPS[i], descriptions[i], () -> soundPanel(panel));
+            }
+            return;
+        }
+        if (soundPanel == 0) {
+            LinearLayout graphic = card(page, "Graphic equalizer");
+            toggle(graphic, "Graphic equalizer", "Use your 10-band curve alongside other sound effects", "eq_geq_enabled", true, false);
+            String[] presets = {"Flat", "Bass", "Vocals", "Bright", "Loudness"};
+            int[][] curves = {{0,0,0,0,0,0,0,0,0,0}, {6,6,4,2,0,0,0,0,0,0}, {-4,-3,-2,0,2,4,4,2,0,-1},
+                {0,0,0,0,0,0,2,4,5,5}, {5,4,2,0,-1,-1,0,2,4,5}};
+            int[] gains = new int[Audio.EQ_HZ.length];
+            for (int i = 0; i < gains.length; i++) gains[i] = Audio.gain(prefs, i);
+            int selected = -1;
+            for (int i = 0; i < curves.length; i++) if (java.util.Arrays.equals(gains, curves[i])) selected = i;
+            segmented(graphic, "Preset", presets, selected, pick -> {
+                android.content.SharedPreferences.Editor edit = prefs.edit();
+                for (int i = 0; i < gains.length; i++) edit.putInt("eq_band_" + i, curves[pick][i]);
+                edit.apply(); Audio.refreshEqualizer(); settingsChanged(false);
+            });
+            for (int i = 0; i < Audio.EQ_HZ.length; i++) {
+                int hz = Audio.EQ_HZ[i];
+                audioSlider(graphic, hz < 1000 ? hz + " Hz" : (hz / 1000) + " kHz", "eq_band_" + i, -12, 12, 0, 1, "dB", false);
+            }
+        } else if (soundPanel == 1) {
+            LinearLayout correction = card(page, "AutoEq");
+            toggle(correction, "Headphone correction", "Compensate for your headphone’s measured frequency response", "eq_autoeq_enabled", false, false);
+            settingsAction(correction, "Find your headphones", prefs.getString("eq_autoeq_name", "Search the AutoEq database"), () -> { soundPanel(6); loadHeadphones(); });
+            settingsAction(correction, "Import a profile", "Paste GraphicEQ data from a custom measurement", () -> soundPanel(7));
+            audioSlider(correction, "Correction intensity", "eq_autoeq_intensity", 0, 200, 100, 1, "%", false);
+            if (!prefs.getString("eq_autoeq_curve", "").isEmpty()) settingsAction(correction, "Remove profile", "Keep your graphic EQ and other sound settings", () -> {
+                prefs.edit().remove("eq_autoeq_name").remove("eq_autoeq_curve").putBoolean("eq_autoeq_enabled", false).apply();
+                Audio.refreshEqualizer(); settingsChanged(false);
+            });
+            soundNote(correction, "AutoEq by Jaakko Pasanen and the measurement contributors. Choose the exact model and listening mode for your headphones.");
+        } else if (soundPanel == 2) {
+            LinearLayout loudness = card(page, "Equal loudness");
+            toggle(loudness, "Equal loudness", "ISO 226 compensation that follows your media volume", "eq_loudness_enabled", false, false);
+            audioSlider(loudness, "Volume threshold", "eq_loudness_threshold", 0, 100, 60, 1, "%", false);
+            LinearLayout bass = card(page, "Bass boost");
+            toggle(bass, "Bass boost", "Add weight to the low end", "eq_bass_boost_enabled", false, false);
+            audioSlider(bass, "Strength", "eq_bass_boost_strength", 0, 100, 50, 1, "%", false);
+            LinearLayout tuner = card(page, "Bass tuner");
+            toggle(tuner, "Bass tuner", "Tune bass response and dynamics", "eq_bass_tuner_enabled", false, false);
+            choice(tuner, "Bass character", new String[]{"Natural", "Transient", "Sustain"}, "eq_bass_tuner_type", 0, false);
+            audioSlider(tuner, "Cutoff frequency", "eq_bass_tuner_cutoff_hz", 20, 250, 100, 1, "Hz", false);
+            audioSlider(tuner, "Post-gain", "eq_bass_tuner_post_gain_db", -15, 15, 0, .5f, "dB", true);
+            equalizerStatus = soundNote(tuner, soundStatus());
+        } else if (soundPanel == 3) {
+            LinearLayout space = card(page, "Reverberation");
+            toggle(space, "Reverberation", "Give the music a sense of room and space", "eq_reverb_enabled", false, false);
+            audioPick(space, "Room", new String[]{"Off", "Small room", "Medium room", "Large room", "Medium hall", "Large hall", "Plate"}, "eq_reverb_preset", 1);
+            LinearLayout stereo = card(page, "Stereo image");
+            toggle(stereo, "Virtualizer", "Widen the stereo image on supported audio systems", "eq_virtualizer_enabled", false, false);
+            audioSlider(stereo, "Strength", "eq_virtualizer_strength", 0, 100, 50, 1, "%", false);
+            equalizerStatus = soundNote(stereo, soundStatus());
+            soundNote(stereo, "Effect availability depends on the Android audio system. You can configure these before playback starts.");
+        } else if (soundPanel == 4) {
+            LinearLayout attenuation = card(page, "Attenuation");
+            toggle(attenuation, "Automatic headroom", "Compensate for boosts across your sound settings to avoid clipping", "eq_attenuator_auto", true, false);
+            audioSlider(attenuation, "Manual attenuation", "eq_attenuator_db", -30, 0, 0, .5f, "dB", true);
+            soundNote(attenuation, "Manual attenuation applies when automatic headroom is off.");
+            LinearLayout limiter = card(page, "Limiter");
+            toggle(limiter, "Limiter", "Control peaks and smooth changes in loudness", "eq_limiter_enabled", false, false);
+            audioSlider(limiter, "Attack", "eq_limiter_attack_ms", .1f, 100, 1, .1f, "ms", true);
+            audioSlider(limiter, "Release", "eq_limiter_release_ms", 1, 500, 60, 1, "ms", true);
+            audioSlider(limiter, "Ratio", "eq_limiter_ratio", 1, 20, 4, .5f, ":1", true);
+            audioSlider(limiter, "Threshold", "eq_limiter_threshold_db", -40, 0, -6, .5f, "dBFS", true);
+            audioSlider(limiter, "Post-gain", "eq_limiter_post_gain_db", -15, 15, 0, .5f, "dB", true);
+            LinearLayout balance = card(page, "Channel balance");
+            toggle(balance, "Channel balance", "Adjust the left and right channels independently", "eq_balance_enabled", false, false);
+            audioSlider(balance, "Left channel", "eq_balance_left_db", -30, 0, 0, .5f, "dB", true);
+            audioSlider(balance, "Right channel", "eq_balance_right_db", -30, 0, 0, .5f, "dB", true);
+        } else if (soundPanel == 5) {
+            LinearLayout compatibility = card(page, "Audio compatibility");
+            toggle(compatibility, "Legacy compatibility", "Try the output-mix session when Spotify has no active audio session; may affect other audio", "eq_legacy", false, false);
+            audioSlider(compatibility, "Preferred buffer", "eq_buffer_ms", 0, 50, 0, 1, "ms", false);
+            soundNote(compatibility, "0 ms uses the device default. Larger buffers can improve stability at the cost of latency.");
+            Audio.Capabilities support = Audio.capabilities();
+            soundNote(compatibility, Audio.eqStatus + "\n" + (support.usingFallbackEqualizer ? "Using the device equalizer fallback. Advanced dynamics need DynamicsProcessing." : "Advanced effects use Android DynamicsProcessing when available.")
+                + (Audio.eqError.isEmpty() ? "" : "\n" + Audio.eqError));
+        } else if (soundPanel == 6) {
+            android.widget.EditText search = createField("Search headphone models", headphoneQuery, false);
+            page.addView(search, fill(dp(52)));
+            headphoneResults = column();
+            page.addView(headphoneResults, fill(-2));
+            search.addTextChangedListener(new android.text.TextWatcher() {
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                public void onTextChanged(CharSequence s, int start, int before, int count) { headphoneQuery = s.toString(); renderHeadphones(); }
+                public void afterTextChanged(android.text.Editable e) {}
+            });
+            renderHeadphones();
+            loadHeadphones();
+        } else if (soundPanel == 7) {
+            LinearLayout imported = card(page, "Custom headphone profile");
+            android.widget.EditText name = createField("Profile name", "", false);
+            android.widget.EditText data = createField("GraphicEQ: frequency gain; frequency gain; …", "", true);
+            imported.addView(name, fill(-2)); imported.addView(data, fill(dp(180)));
+            TextView error = text("", 13, () -> inkDim, false);
+            error.setPadding(dp(18), dp(8), dp(18), dp(8)); imported.addView(error);
+            imported.addView(pill("Import profile", () -> {
+                try { activateProfile(name.getText().toString().trim().isEmpty() ? "Custom profile" : name.getText().toString().trim(), data.getText().toString()); }
+                catch (IllegalArgumentException invalid) { error.setText(invalid.getMessage()); }
+            }), fill(dp(48)));
+        }
+    }
+
+    private void audioPick(LinearLayout box, String label, String[] values, String key, int fallback) {
+        int selected = Math.max(0, Math.min(values.length - 1, prefs.getInt(key, fallback)));
+        settingsAction(box, label, values[selected], () -> sheet(label, "Choose the sound you prefer", values, pick -> {
+            prefs.edit().putInt(key, pick).apply(); Audio.refreshEqualizer(); settingsChanged(false);
+        }));
+    }
+
+    private void audioSlider(LinearLayout box, String label, String key, float low, float high, float fallback, float step, String unit, boolean fractional) {
+        Object saved = prefs.getAll().get(key);
+        float raw = saved instanceof Number ? ((Number) saved).floatValue() : fallback;
+        float value = Float.isFinite(raw) ? Math.max(low, Math.min(high, raw)) : fallback;
+        LinearLayout words = row();
+        words.setPadding(dp(18), dp(12), dp(18), 0);
+        words.addView(text(label, 14, () -> ink, true), weight());
+        TextView amount = text(audioNumber(value, unit), 13, () -> inkDim, false);
+        words.addView(amount); box.addView(words, fill(-2));
+        android.widget.SeekBar slider = new android.widget.SeekBar(activity);
+        slider.setMax(Math.round((high - low) / step));
+        slider.setProgress(Math.round((value - low) / step));
+        slider.setContentDescription(label);
+        if (android.os.Build.VERSION.SDK_INT >= 30) slider.setStateDescription(amount.getText());
+        GradientDrawable track = round(surfHi, 8), fill = round(accent, 8), thumb = round(ink, 3);
+        android.graphics.drawable.LayerDrawable layers = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{track,
+            new android.graphics.drawable.ClipDrawable(fill, Gravity.LEFT, android.graphics.drawable.ClipDrawable.HORIZONTAL)});
+        layers.setId(0, android.R.id.background); layers.setId(1, android.R.id.progress);
+        for (int layer = 0; layer < 2; layer++) { layers.setLayerHeight(layer, dp(8)); layers.setLayerGravity(layer, Gravity.CENTER_VERTICAL); }
+        thumb.setSize(dp(5), dp(22)); slider.setProgressDrawable(layers); slider.setThumb(thumb); slider.setSplitTrack(false);
+        colored(slider, () -> { track.setColor(surfHi); fill.setColor(accent); thumb.setColor(ink); });
+        slider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean user) {
+                float next = low + progress * step;
+                amount.setText(audioNumber(next, unit));
+                if (android.os.Build.VERSION.SDK_INT >= 30) bar.setStateDescription(amount.getText());
+                if (user) {
+                    android.content.SharedPreferences.Editor edit = prefs.edit();
+                    if (fractional) edit.putFloat(key, next); else edit.putInt(key, Math.round(next));
+                    edit.apply(); Audio.refreshEqualizer();
+                }
+            }
+            public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+            public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+        });
+        LinearLayout.LayoutParams params = fill(dp(46)); params.setMargins(dp(12), 0, dp(12), 0);
+        box.addView(slider, params);
+    }
+
+    private static String audioNumber(float value, String unit) {
+        String number = Math.abs(value - Math.round(value)) < .001f ? Integer.toString(Math.round(value)) : String.format(java.util.Locale.ROOT, "%.1f", value);
+        return (unit.startsWith("dB") && value > 0 ? "+" : "") + number + (unit.equals(":1") || unit.equals("%") ? "" : " ") + unit;
+    }
+
+    private void loadHeadphones() {
+        if (headphones != null || headphonesLoading) return;
+        headphonesLoading = true; headphoneError = "";
+        PLAYLISTS.execute(() -> {
+            List<AutoEqCatalog.Headphone> found = null;
+            String error = "";
+            try { found = AutoEqCatalog.load(activity.getFilesDir()); }
+            catch (Exception failed) { error = failed.getMessage() == null ? "Couldn’t load the headphone database" : failed.getMessage(); }
+            final List<AutoEqCatalog.Headphone> result = found;
+            final String failure = error;
+            post(() -> { headphonesLoading = false; headphones = result; headphoneError = failure; renderHeadphones(); });
+        });
+    }
+
+    private void renderHeadphones() {
+        LinearLayout rows = headphoneResults;
+        if (rows == null || settingsSection != 2 || soundPanel != 6) return;
+        rows.removeAllViews();
+        if (!headphoneError.isEmpty()) {
+            soundNote(rows, headphoneError);
+            rows.addView(pill("Retry", () -> { headphoneError = ""; loadHeadphones(); renderHeadphones(); }));
+            return;
+        }
+        if (headphones == null) { soundNote(rows, "Loading the AutoEq headphone database…"); return; }
+        String query = headphoneQuery.trim().toLowerCase(java.util.Locale.ROOT);
+        if (query.isEmpty()) { soundNote(rows, headphones.size() + " headphone models. Search for your exact model."); return; }
+        int shown = 0;
+        for (AutoEqCatalog.Headphone headphone : headphones) {
+            if (!headphone.query.contains(query)) continue;
+            settingsAction(rows, headphone.name, headphoneLoading.equals(headphone.name) ? "Loading correction…" : "Load this AutoEq correction", () -> {
+                hideKeyboard();
+                headphoneLoading = headphone.name;
+                int request = ++headphoneRequest;
+                renderHeadphones();
+                PLAYLISTS.execute(() -> {
+                    String curve = "", error = "";
+                    try { curve = AutoEqCatalog.profile(headphone); }
+                    catch (Exception failed) { error = failed.getMessage() == null ? "Couldn’t download the profile" : failed.getMessage(); }
+                    final String data = curve, failure = error;
+                    post(() -> {
+                        if (request != headphoneRequest) return;
+                        headphoneLoading = "";
+                        try {
+                            if (!failure.isEmpty()) throw new IllegalArgumentException(failure);
+                            activateProfile(headphone.name, data);
+                        } catch (IllegalArgumentException invalid) {
+                            Toast.makeText(activity, invalid.getMessage(), Toast.LENGTH_LONG).show(); renderHeadphones();
+                        }
+                    });
+                });
+            });
+            if (++shown == 40) break;
+        }
+        if (shown == 0) soundNote(rows, "No matching headphones. Try the brand and model name, or import your own correction.");
+    }
+
+    private void activateProfile(String name, String curve) {
+        Audio.importGraphicEq(prefs, name, curve);
+        prefs.edit().putBoolean("eq_autoeq_enabled", true).putBoolean("equalizer", true).apply();
+        Audio.refreshEqualizer(); hideKeyboard(); soundPanel(1);
+        Toast.makeText(activity, "Loaded “" + name + "”", Toast.LENGTH_SHORT).show();
     }
 
     // ---- Spotify's own settings (Settings service in its core), read and written live ----
@@ -2858,6 +3450,7 @@ public final class SpatchUi extends FrameLayout {
         line.addView(words, weight());
         Switch sw = new Switch(spotifyValue(key) != 0);
         line.addView(sw, lp(dp(52), dp(32)));
+        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
         tappable(line, name, () -> { sw.set(!sw.on); setSpotify(key, sw.on ? 1 : 0, false); });
         box.addView(line, fill(-2));
     }
@@ -2902,7 +3495,11 @@ public final class SpatchUi extends FrameLayout {
 
     /** A title over a connected button group; the pick is stored as an index under `key`. */
     private void choice(LinearLayout box, String name, String[] names, String key, int fallback, boolean palette) {
-        segmented(box, name, names, prefs.getInt(key, fallback), pick -> { prefs.edit().putInt(key, pick).apply(); settingsChanged(palette); });
+        segmented(box, name, names, prefs.getInt(key, fallback), pick -> {
+            prefs.edit().putInt(key, pick).apply();
+            if (key.startsWith("eq_")) Audio.refreshEqualizer();
+            settingsChanged(palette);
+        });
     }
 
     interface Pick { void picked(int index); }
@@ -3048,10 +3645,13 @@ public final class SpatchUi extends FrameLayout {
         line.addView(words, weight());
         Switch sw = new Switch(pref(key, fallback));
         line.addView(sw, lp(dp(52), dp(32)));
+        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
         tappable(line, name, () -> {
             sw.set(!sw.on);
             prefs.edit().putBoolean(key, sw.on).apply();
-            if (key.equals("equalizer")) Audio.refreshEqualizer();
+            if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
+            if (key.equals("equalizer") || key.startsWith("eq_")) Audio.refreshEqualizer();
+            if (key.equals("auto_hide_dock") && !sw.on) setDockHidden(false);
             if (key.equals("audio") && sw.on && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
             else if (rebuild) { int y = pageScroll != null ? pageScroll.getScrollY() : 0; build(); keepScroll(pageScroll, y); }
@@ -3067,6 +3667,7 @@ public final class SpatchUi extends FrameLayout {
         Switch(boolean on) { super(activity); this.on = on; t = on ? 1 : 0; setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
         void set(boolean v) {
             on = v;
+            if (!motion()) { t = v ? 1 : 0; invalidate(); return; }
             android.animation.ValueAnimator a = android.animation.ValueAnimator.ofFloat(t, v ? 1 : 0);
             a.setDuration(260);
             a.setInterpolator(new android.view.animation.OvershootInterpolator(1.3f));
@@ -3227,6 +3828,7 @@ public final class SpatchUi extends FrameLayout {
     private void closePlayer() {
         if (!playerOpen) return;
         playerOpen = false;
+        setDockHidden(false);
         activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         View p = player;
         if (motion()) p.animate().translationY(getHeight()).setDuration(300).setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f)).withEndAction(() -> removeView(p)).start();
@@ -3574,8 +4176,9 @@ public final class SpatchUi extends FrameLayout {
         List<Integer> commands = new ArrayList<>();
         if (index > 0 && upcoming.get(index - 1).editable) { options.add("Move up"); commands.add(11); }
         if (index + 1 < upcoming.size() && upcoming.get(index + 1).editable) { options.add("Move down"); commands.add(12); }
+        options.add("Add to playlist"); commands.add(-1);
         options.add("Remove from queue"); commands.add(10);
-        sheet(entry.title, entry.subtitle, options.toArray(new String[0]), choice -> command(commands.get(choice), index, entry.queueKey));
+        sheet(entry.title, entry.subtitle, options.toArray(new String[0]), choice -> { if (commands.get(choice) == -1) addToPlaylist(entry); else command(commands.get(choice), index, entry.queueKey); });
     }
 
 
@@ -3884,6 +4487,11 @@ public final class SpatchUi extends FrameLayout {
         private android.animation.ValueAnimator morph;
 
         PlayButton() { super(activity); playButtons.add(this); tappable(this, "Play or pause", SpatchUi.this::togglePlay); }
+
+        @Override public boolean performClick() {
+            Confetti.clicked(this, prefs, accent, accent2, on, motion());
+            return super.performClick();
+        }
 
         void set(boolean playingNow) {
             if (started && playingNow == on) return;

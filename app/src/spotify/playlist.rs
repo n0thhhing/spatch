@@ -3,13 +3,17 @@
 use super::image_url;
 use crate::protos::{
     com::spotify::cosmos::util::policy::proto as metadata, com::spotify::playlist::policy::proto as policy,
-    spotify::playlist::esperanto::proto as es,
+    com::spotify::playlist::proto as pl, spotify::playlist::esperanto::proto as es,
 };
 use prost::Message;
 
 pub const SERVICE: &str = "spotify.playlist_esperanto.proto.PlaylistDataService";
+pub const ROOTLIST_SERVICE: &str = "spotify.playlist_esperanto.proto.RootlistModificationService";
+pub const PLAYLIST_SERVICE: &str = "spotify.playlist_esperanto.proto.PlaylistService";
 /// Tracks per request.
 pub const PAGE: i32 = 100;
+pub const MAX_NAME_CHARS: usize = 100;
+pub const MAX_DESCRIPTION_CHARS: usize = 300;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Track {
@@ -178,6 +182,148 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
     Ok(Reply::Page { tracks, next: more.then_some(end as i32), owner })
 }
 
+/// Validates a new playlist's name and description without silent truncation.
+pub fn validate_create(name: &str, description: &str) -> Result<(String, String), String> {
+    if name.trim().is_empty() {
+        return Err("Playlist name cannot be empty".into());
+    }
+    if name.chars().count() > MAX_NAME_CHARS {
+        return Err(format!("Playlist name is too long (max {MAX_NAME_CHARS} characters)"));
+    }
+    if description.chars().count() > MAX_DESCRIPTION_CHARS {
+        return Err(format!("Playlist description is too long (max {MAX_DESCRIPTION_CHARS} characters)"));
+    }
+    Ok((name.trim().to_string(), description.trim().to_string()))
+}
+
+pub fn create_request(name: &str, uris: &[String]) -> Vec<u8> {
+    es::RootlistModificationRequest {
+        folder_uri: String::new(),
+        request: Some(pl::ModificationRequest {
+            operation: "create".into(),
+            before: "start".into(),
+            name: name.into(),
+            playlist: true,
+            uris: uris.to_vec(),
+            ..Default::default()
+        }),
+    }
+    .encode_to_vec()
+}
+
+fn response_error(status: Option<es::ResponseStatus>, fallback: &str) -> Result<(), String> {
+    let Some(status) = status else {
+        return Ok(());
+    };
+    if (200..300).contains(&status.status_code) {
+        return Ok(());
+    }
+    if !status.reason.is_empty() {
+        Err(status.reason)
+    } else if !status.reasons.is_empty() {
+        Err(status.reasons.join("; "))
+    } else {
+        Err(format!("{fallback} (status {})", status.status_code))
+    }
+}
+
+pub fn decode_create_response(bytes: &[u8]) -> Result<String, String> {
+    let reply = es::RootlistModificationResponse::decode(bytes).map_err(|e| e.to_string())?;
+    response_error(reply.status, "Playlist creation failed")?;
+    let resp = reply.response.ok_or_else(|| "Missing playlist creation response".to_string())?;
+    if !resp.success || resp.uri.is_empty() {
+        return Err("Spotify did not create the playlist".into());
+    }
+    Ok(resp.uri)
+}
+
+pub fn set_description_request(uri: &str, description: &str) -> Vec<u8> {
+    es::PlaylistModificationRequest {
+        uri: uri.into(),
+        request: Some(pl::ModificationRequest {
+            operation: "set".into(),
+            attributes: Some(pl::Attributes {
+                description: description.into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+    }
+    .encode_to_vec()
+}
+
+pub fn decode_modify_response(bytes: &[u8]) -> Result<(), String> {
+    let reply = es::PlaylistModificationResponse::decode(bytes).map_err(|e| e.to_string())?;
+    response_error(reply.status, "Playlist update failed")
+}
+
+/// Creates a playlist in the user's rootlist, optionally seeded with `uris` and a `description`.
+/// Returns `(created_uri, optional_warning)` so a description update failure does not hide the created URI.
+/// Blocks: never call on the UI thread.
+#[cfg(not(feature = "preview"))]
+pub fn create(name: &str, description: &str, uris: &[String]) -> Result<(String, Option<String>), String> {
+    let (name, description) = validate_create(name, description)?;
+    let bytes = crate::bridge::call(ROOTLIST_SERVICE, "Modify", &create_request(&name, uris))?;
+    let uri = decode_create_response(&bytes)?;
+    let warning = if !description.is_empty() {
+        match crate::bridge::call(PLAYLIST_SERVICE, "Modify", &set_description_request(&uri, &description))
+            .and_then(|b| decode_modify_response(&b))
+        {
+            Ok(()) => None,
+            Err(e) => {
+                log::warn!("Created playlist {uri} but failed to set description: {e}");
+                Some(format!("Playlist created, but couldn't set description: {e}"))
+            }
+        }
+    } else {
+        None
+    };
+    Ok((uri, warning))
+}
+
+pub fn validate_track_uri(uri: &str) -> bool {
+    let Some(tail) = uri.strip_prefix("spotify:") else { return false };
+    let Some((kind, id)) = tail.split_once(':') else { return false };
+    matches!(kind, "track" | "episode" | "local") && !id.is_empty() && !id.chars().any(char::is_whitespace)
+        || cfg!(feature = "preview") && kind == "preview" && id.parse::<usize>().is_ok()
+}
+
+pub fn validate_add_items(playlist_uri: &str, uris: &[String]) -> Result<(), String> {
+    if !super::library::is_playlist(playlist_uri) || super::library::is_liked(playlist_uri) {
+        return Err("Target must be a playlist URI".into());
+    }
+    if uris.is_empty() {
+        return Err("No tracks selected to add".into());
+    }
+    for uri in uris {
+        if !validate_track_uri(uri) {
+            return Err(format!("Invalid track URI: {uri}"));
+        }
+    }
+    Ok(())
+}
+
+pub fn add_items_request(playlist_uri: &str, uris: &[String]) -> Vec<u8> {
+    es::PlaylistModificationRequest {
+        uri: playlist_uri.into(),
+        request: Some(pl::ModificationRequest {
+            operation: "add".into(),
+            uris: uris.to_vec(),
+            ..Default::default()
+        }),
+    }
+    .encode_to_vec()
+}
+
+/// Appends `uris` to `playlist_uri` via `PlaylistService.Modify`.
+/// Blocks: never call on the UI thread.
+#[cfg(not(feature = "preview"))]
+pub fn add_items(playlist_uri: &str, uris: &[String]) -> Result<(), String> {
+    validate_add_items(playlist_uri, uris)?;
+    let bytes = crate::bridge::call(PLAYLIST_SERVICE, "Modify", &add_items_request(playlist_uri, uris))?;
+    decode_modify_response(&bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,5 +400,97 @@ mod tests {
         let Ok(Reply::Page { tracks, .. }) = decode(&reply.encode_to_vec(), 0) else { panic!("not a page") };
         assert!(!tracks[0].recommended && tracks[1].recommended);
         assert_eq!(tracks[1].clone().fields()[10], "1");
+    }
+
+    #[test]
+    fn rejects_non_playable_items() {
+        for uri in ["spotify:album:a", "spotify:playlist:b", "spotify:track:", "spotify:track:bad id", "spotify:delimiter", "https://example.com"] {
+            assert!(!validate_track_uri(uri), "accepted {uri}");
+        }
+        assert!(validate_track_uri("spotify:episode:abc"));
+        assert!(validate_track_uri("spotify:track:abc"));
+    }
+
+    #[test]
+    fn validates_playlist_name_and_description() {
+        assert!(validate_create("", "").is_err());
+        assert!(validate_create("   ", "").is_err());
+        let too_long_name = "a".repeat(MAX_NAME_CHARS + 1);
+        assert!(validate_create(&too_long_name, "").is_err());
+        let exact_name = "a".repeat(MAX_NAME_CHARS);
+        assert_eq!(validate_create(&exact_name, "").unwrap().0.len(), MAX_NAME_CHARS);
+        let too_long_desc = "d".repeat(MAX_DESCRIPTION_CHARS + 1);
+        assert!(validate_create("Mix", &too_long_desc).is_err());
+        assert_eq!(validate_create("  My Mix  ", "  Late night  "), Ok(("My Mix".into(), "Late night".into())));
+    }
+
+    #[test]
+    fn encodes_rootlist_create_and_description_requests() {
+        let uris = vec!["spotify:track:1".into(), "spotify:track:2".into()];
+        let sent = es::RootlistModificationRequest::decode(create_request("Queue Save", &uris).as_slice()).unwrap();
+        assert_eq!(sent.folder_uri, "");
+        let req = sent.request.unwrap();
+        assert_eq!(req.operation, "create");
+        assert_eq!(req.before, "start");
+        assert_eq!(req.name, "Queue Save");
+        assert!(req.playlist);
+        assert_eq!(req.uris, uris);
+
+        let desc = es::PlaylistModificationRequest::decode(set_description_request("spotify:playlist:abc", "From queue").as_slice()).unwrap();
+        assert_eq!(desc.uri, "spotify:playlist:abc");
+        let dreq = desc.request.unwrap();
+        assert_eq!(dreq.operation, "set");
+        assert_eq!(dreq.attributes.unwrap().description, "From queue");
+    }
+
+    #[test]
+    fn decodes_rootlist_create_response_and_errors() {
+        let ok = es::RootlistModificationResponse {
+            status: Some(es::ResponseStatus { status_code: 200, ..Default::default() }),
+            response: Some(pl::ModificationResponse { success: true, uri: "spotify:playlist:new123".into() }),
+        };
+        assert_eq!(decode_create_response(&ok.encode_to_vec()), Ok("spotify:playlist:new123".into()));
+
+        let bad_status = es::RootlistModificationResponse {
+            status: Some(es::ResponseStatus { status_code: 403, reason: "Forbidden".into(), ..Default::default() }),
+            response: None,
+        };
+        assert_eq!(decode_create_response(&bad_status.encode_to_vec()), Err("Forbidden".into()));
+
+        let unsuccessful = es::RootlistModificationResponse {
+            status: Some(es::ResponseStatus { status_code: 200, ..Default::default() }),
+            response: Some(pl::ModificationResponse { success: false, uri: String::new() }),
+        };
+        assert!(decode_create_response(&unsuccessful.encode_to_vec()).is_err());
+    }
+
+    #[test]
+    fn validates_and_encodes_add_items_request() {
+        let uris = vec!["spotify:track:1".into(), "spotify:episode:2".into()];
+        assert!(validate_add_items("spotify:playlist:abc", &uris).is_ok());
+        assert!(validate_add_items("spotify:album:abc", &uris).is_err());
+        assert!(validate_add_items("spotify:user:levi:collection", &uris).is_err());
+        assert!(validate_add_items("spotify:playlist:abc", &[]).is_err());
+        assert!(validate_add_items("spotify:playlist:abc", &["spotify:delimiter".into()]).is_err());
+        assert!(validate_add_items("spotify:playlist:abc", &["spotify:track:".into()]).is_err());
+
+        let sent = es::PlaylistModificationRequest::decode(add_items_request("spotify:playlist:abc", &uris).as_slice()).unwrap();
+        assert_eq!(sent.uri, "spotify:playlist:abc");
+        let req = sent.request.unwrap();
+        assert_eq!(req.operation, "add");
+        assert_eq!(req.uris, uris);
+        assert!(req.before.is_empty() && req.after.is_empty());
+
+        let ok = es::PlaylistModificationResponse {
+            status: Some(es::ResponseStatus { status_code: 200, ..Default::default() }),
+            added_row_ids: vec!["row1".into()],
+        };
+        assert_eq!(decode_modify_response(&ok.encode_to_vec()), Ok(()));
+
+        let err = es::PlaylistModificationResponse {
+            status: Some(es::ResponseStatus { status_code: 400, reason: "Bad request".into(), ..Default::default() }),
+            added_row_ids: vec![],
+        };
+        assert_eq!(decode_modify_response(&err.encode_to_vec()), Err("Bad request".into()));
     }
 }

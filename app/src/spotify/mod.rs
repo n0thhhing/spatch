@@ -8,6 +8,7 @@ pub mod library;
 pub mod metadata;
 pub mod player;
 pub mod playlist;
+pub mod profile;
 pub mod recent;
 pub mod search;
 pub mod settings;

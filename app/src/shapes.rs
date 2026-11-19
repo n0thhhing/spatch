@@ -80,6 +80,7 @@ pub fn geometry(kind: &str) -> Vec<f32> {
         "chevron" => stroke(&[(9., 5.), (16., 12.), (9., 19.)]),
         "check" => stroke(&[(5., 12.5), (10., 17.5), (19., 7.)]),
         "close" => [stroke(&[(6., 6.), (18., 18.)]), stroke(&[(18., 6.), (6., 18.)])].concat(),
+        "add" => [stroke(&[(12., 4.), (12., 20.)]), stroke(&[(4., 12.), (20., 12.)])].concat(),
         // Two arrows crossing: one rises left to right, the other falls, with a gap where they pass.
         "shuffle" => [
             stroke(&[(3., 17.), (8., 17.), (16., 7.), (21., 7.)]),
@@ -145,8 +146,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeGeometry(mut env: JNIEnv, _: J
 mod tests {
     use super::*;
 
-    const ICONS: [&str; 27] = [
-        "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "shuffle", "repeat", "repeat-one", "volume", "queue",
+    const ICONS: [&str; 28] = [
+        "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "add", "shuffle", "repeat", "repeat-one", "volume", "queue",
         "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices", "album", "artist", "share", "sparkle", "download",
     ];
 

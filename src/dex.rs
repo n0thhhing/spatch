@@ -339,9 +339,12 @@ fn compile_helper(
     Ok(fs::read(out)?)
 }
 
-// Some d8 versions retain the lambda name; others emit a numbered nested class.
+// d8 emits lambda classes and a constructor-access marker when desugaring nested classes.
 fn generated_helper(name: &str, expected: &std::collections::HashSet<String>) -> bool {
     let Some(name) = name.strip_suffix(';') else { return false };
+    if let Some(owner) = name.strip_suffix("-IA") {
+        return expected.contains(&format!("{owner};"));
+    }
     let parts = name.split_once("$$ExternalSyntheticLambda").or_else(|| name.rsplit_once('$'));
     parts.is_some_and(|(owner, number)| {
         expected.contains(&format!("{owner};"))
@@ -453,6 +456,17 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn synthetic_helpers_must_belong_to_a_compiled_class() {
+        let expected = ["Lspatch/SpatchUi;".to_string()].into_iter().collect();
+        for name in ["Lspatch/SpatchUi-IA;", "Lspatch/SpatchUi$$ExternalSyntheticLambda12;", "Lspatch/SpatchUi$12;"] {
+            assert!(generated_helper(name, &expected), "{name}");
+        }
+        for name in ["Lother/Foo-IA;", "Lspatch/SpatchUi-IAExtra;", "Lspatch/SpatchUi$Unexpected;", "Lspatch/SpatchUi$$ExternalSyntheticLambda;"] {
+            assert!(!generated_helper(name, &expected), "{name}");
+        }
+    }
 
     #[test]
     fn ref_limits_parse_dexdump() {

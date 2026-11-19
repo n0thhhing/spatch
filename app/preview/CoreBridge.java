@@ -10,7 +10,8 @@ import android.graphics.Shader;
 /** Offline art for the separately packaged preview. */
 final class CoreBridge {
     static String diagnostics() { return "Offline preview"; }
-    static byte[] search(String query, String pageToken) { throw new IllegalStateException("Catalog search requires Spotify"); }
+    // The preview nativeCatalog adapter reads this query and uses the existing Rust demo data.
+    static byte[] search(String query, String pageToken) { return query.getBytes(java.nio.charset.StandardCharsets.UTF_8); }
 
     static volatile java.io.File cacheDir;
 
