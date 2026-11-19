@@ -90,8 +90,9 @@ public final class Audio {
         handler.post(EQUALIZE);
     }
 
-    static int gain(SharedPreferences prefs, int band) {
-        return Math.max(-EQ_RANGE, Math.min(EQ_RANGE, prefs.getInt("eq_band_" + band, 0)));
+    static float gain(SharedPreferences prefs, int band) {
+        float value = readFloatPref(prefs, "eq_band_" + band, 0);
+        return Float.isFinite(value) ? Math.max(-EQ_RANGE, Math.min(EQ_RANGE, value)) : 0;
     }
 
     /** Public capability and active-effect snapshot for Settings and Diagnostics. */
@@ -530,7 +531,7 @@ public final class Audio {
     }
 
     /** Interpolate the saved curve on a device's own band centres. */
-    static float gainAt(float hz, int[] gains) {
+    static float gainAt(float hz, float[] gains) {
         if (hz <= EQ_HZ[0]) return gains[0];
         for (int band = 1; band < EQ_HZ.length; band++) {
             if (hz <= EQ_HZ[band]) {
@@ -726,7 +727,7 @@ public final class Audio {
     private static final class DspSettings {
         final boolean masterEnabled;
         final boolean geqEnabled;
-        final int[] geqGains = new int[EQ_HZ.length];
+        final float[] geqGains = new float[EQ_HZ.length];
         final boolean autoEqEnabled;
         final GraphicEqProfile autoEqProfile;
         final float autoEqIntensity;

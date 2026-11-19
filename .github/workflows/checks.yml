@@ -59,4 +59,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: mac-preview-screenshot
-          path: app/preview/desktop/build/reports/preview/settings.png
+          path: app/preview/desktop/build/reports/preview/*.png

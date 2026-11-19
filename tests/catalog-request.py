@@ -11,7 +11,10 @@ import tempfile
 
 REPO = Path(__file__).resolve().parent.parent
 JAVA = Path(os.environ["JAVA_HOME"]) / "bin"
-ANDROID = next((Path(os.environ["ANDROID_HOME"]) / "platforms").glob("android-*/android.jar"))
+ANDROID = sorted(
+    (Path(os.environ["ANDROID_HOME"]) / "platforms").glob("android-*/android.jar"),
+    key=lambda p: tuple(int(part) for part in p.parent.name.removeprefix("android-").split(".") if part.isdigit()),
+)[-1]
 
 FIXTURES = {
     'io/reactivex/rxjava3/core/Single.java': """package io.reactivex.rxjava3.core;
@@ -82,7 +85,8 @@ public class CatalogRequestCheck {
 
 with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     work = Path(temporary)
-    sources = [REPO / "java/dex/src/spatch/core/CoreBridge.java"]
+    sources = sorted((REPO / "java/dex/src/spatch/core").glob("*.java"))
+    sources.append(REPO / "java/dex/test/spatch/core/CreationRouteTest.java")
     sources += [p for p in (REPO / "java/dex/stubs").rglob("*.java") if p.name != "Single.java"]
     for name, source in FIXTURES.items():
         file = work / name
@@ -94,3 +98,6 @@ with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
                     "-d", str(classes), *map(str, sources)], check=True)
     subprocess.run([str(JAVA / "java"), "-ea", "-cp", os.pathsep.join([str(classes), str(ANDROID)]),
                     "spatch.CatalogRequestCheck"], check=True)
+
+    subprocess.run([str(JAVA / "java"), "-ea", "-cp", os.pathsep.join([str(classes), str(ANDROID)]),
+                    "spatch.CreationRouteTest"], check=True)

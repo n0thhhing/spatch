@@ -1,0 +1,49 @@
+package spatch;
+
+/**
+ * Focused JVM checks for CoreBridge creation routing and SpatchApp native-feature mode state.
+ *
+ *   JAR=/opt/homebrew/share/android-commandlinetools/platforms/android-35/android.jar
+ *   javac --release 11 -cp "$JAR" -d /tmp/ct \
+ *     java/dex/stubs/com/spotify/esperanto/esperanto/Transport.java \
+ *     java/dex/stubs/io/reactivex/rxjava3/core/*.java \
+ *     java/dex/stubs/io/reactivex/rxjava3/disposables/*.java \
+ *     java/dex/stubs/io/reactivex/rxjava3/functions/*.java \
+ *     java/dex/src/spatch/core/*.java \
+ *     java/dex/test/spatch/core/CreationRouteTest.java
+ *   java -cp "/tmp/ct:$JAR" spatch.CreationRouteTest
+ */
+public final class CreationRouteTest {
+    public static void main(String[] args) {
+        check("spotify:blend:invitation".equals(CoreBridge.creationRoute("blend")), "blend route");
+        check("spotify:jam".equals(CoreBridge.creationRoute("jam")), "jam route");
+        check("spotify:create-prompted-playlist".equals(CoreBridge.creationRoute("prompted")), "prompted route");
+        check("spotify:create-menu".equals(CoreBridge.creationRoute("collaborative")), "collaborative fallback route");
+        check("spotify:create-menu".equals(CoreBridge.creationRoute("mixed")), "mixed fallback route");
+        check("spotify:blend:invitation".equals(CoreBridge.creationRoute("  BLEND ")), "case/trim normalization");
+
+        check(CoreBridge.creationRoute("playlist") == null, "plain playlist stays local form");
+        check(CoreBridge.creationRoute("") == null, "empty kind rejected");
+        check(CoreBridge.creationRoute(null) == null, "null kind rejected");
+        check(CoreBridge.creationRoute("podcast") == null, "unknown kind rejected");
+
+        String unsupported = CoreBridge.openCreation(null, "playlist");
+        check(unsupported.contains("Unsupported"), "unsupported error: " + unsupported);
+        check(!SpatchApp.isNativeFeatureMode(), "unsupported must not enter native mode");
+
+        String noActivity = CoreBridge.openCreation(null, "blend");
+        check(!noActivity.isEmpty(), "null activity returns error: " + noActivity);
+        check(!SpatchApp.isNativeFeatureMode(), "null activity must not enter native mode");
+
+        SpatchApp.enterNativeFeature(null);
+        check(SpatchApp.isNativeFeatureMode(), "enterNativeFeature sets mode");
+        SpatchApp.exitNativeFeature(null);
+        check(!SpatchApp.isNativeFeatureMode(), "exitNativeFeature clears mode");
+
+        System.out.println("CreationRouteTest: all checks passed");
+    }
+
+    private static void check(boolean ok, String label) {
+        if (!ok) throw new AssertionError("Failed: " + label);
+    }
+}

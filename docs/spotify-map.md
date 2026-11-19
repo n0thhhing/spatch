@@ -85,3 +85,18 @@ The pinned APK supplies these Esperanto contracts; Spatch calls them through the
 Protocol tests cover fields, status failures, blank/oversized names and invalid item types. The native preview retains created playlists and appended songs in memory through the same JNI APIs. Authenticated device acceptance still needs a phone test.
 
 The helper DEX validator also recognizes D8’s synthetic `-IA` constructor-access marker, only when its owner is a compiled helper and its class is flagged synthetic. Unknown classes remain rejected.
+
+## Native creation routes
+
+The shared + menu opens the existing Spatch form for a normal playlist. `CoreBridge.openCreation` routes the other options through Spotify’s signed-in native UI:
+
+| Choice | Pinned 9.2.0.26 route | Evidence |
+| --- | --- | --- |
+| Blend | `spotify:blend:invitation` | `p.f7b1` URI enum, `p.qv3` invitation-page registration |
+| Jam | `spotify:jam` | `p.f7b1`, `p.h1a0` and `p.ru9` router |
+| Prompted Playlist | `spotify:create-prompted-playlist` | `p.f7b1`, feature-gated handler `p.hgu0` |
+| Collaborative / Mixed | `spotify:create-menu` | `p.nik1.S4`, `p.znn` registration, `p.n3l0` menu types |
+
+Collaborative and Mixed have no separately verified standalone URI: they open the native menu, where the user chooses the account-eligible action. Their internal creator uses `create_playlist_page_parameters` (`p.spn`), and Mixed is gated by `mixed_playlist_create_menu_item_enabled` (`p.ew4`). Spatch does not override those gates.
+
+`SpatchApp` temporarily reveals native content and hides its own root during these flows, unregistering its overlay Back callback. An inset-aware Back to Spatch button restores the overlay; native secondary activities are finished on return. The host tests exercise visibility, accessibility flags, callback registration and cleanup. Routes are statically confirmed against the pinned APK; account acceptance and actual device navigation remain unverified.

@@ -111,8 +111,11 @@ public final class AudioTest {
         prefs.edit().putInt("eq_band_0", 25).putInt("eq_band_5", -20).apply();
         check(Audio.gain(prefs, 0) == Audio.EQ_RANGE, "gain clamped to +EQ_RANGE");
         check(Audio.gain(prefs, 5) == -Audio.EQ_RANGE, "gain clamped to -EQ_RANGE");
+        prefs.edit().putFloat("eq_band_2", 2.3f).putFloat("eq_band_3", Float.NaN).apply();
+        checkApprox(Audio.gain(prefs, 2), 2.3f, .001f, "fractional gain preserved alongside old integer preferences");
+        check(Audio.gain(prefs, 3) == 0, "invalid stored gain is neutral");
 
-        int[] gains = {6, 0, 0, 0, 0, 0, 0, 0, 0, -6};
+        float[] gains = {6, 0, 0, 0, 0, 0, 0, 0, 0, -6};
         checkApprox(Audio.gainAt(20f, gains), 6f, 1e-4f, "clamp below 31 Hz");
         checkApprox(Audio.gainAt(20000f, gains), -6f, 1e-4f, "clamp above 16 kHz");
         float mid31_62 = (float) Math.sqrt(31.0 * 62.0);

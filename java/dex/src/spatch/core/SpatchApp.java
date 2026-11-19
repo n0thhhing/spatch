@@ -17,8 +17,12 @@ import java.io.OutputStream;
 public final class SpatchApp {
     private static final String LIBRARY_ASSET = "spatch/libspatch_app.so";
     private static final String ROOT_TAG = "spatch-root";
+    private static final String RETURN_TAG = "spatch-return";
     private static boolean loaded, watching;
+    private static volatile boolean nativeFeatureMode;
     private static String loadError;
+    private static final java.util.WeakHashMap<Activity, Object> BACK_CALLBACKS = new java.util.WeakHashMap<Activity, Object>();
+    private static final java.util.WeakHashMap<Activity, Boolean> BACK_REGISTERED = new java.util.WeakHashMap<Activity, Boolean>();
 
     /** Copies the Rust library out of the APK on first use and loads it; true once it is loaded. */
     private static synchronized boolean load(Context context) {
@@ -70,28 +74,188 @@ public final class SpatchApp {
                 @Override public void onActivityPaused(Activity a) {}
                 @Override public void onActivityStopped(Activity a) {}
                 @Override public void onActivitySaveInstanceState(Activity a, Bundle state) {}
-                @Override public void onActivityDestroyed(Activity a) {}
+                @Override public void onActivityDestroyed(Activity a) {
+                    synchronized (BACK_CALLBACKS) {
+                        BACK_CALLBACKS.remove(a);
+                        BACK_REGISTERED.remove(a);
+                    }
+                }
             });
         }
         mount(activity);
     }
 
-    private static void mount(Activity activity) {
-        if (activity.isFinishing()) return;
+    static boolean isNativeFeatureMode() {
+        return nativeFeatureMode;
+    }
+
+    /** Temporarily hides Spatch's overlay so a launched native Spotify flow is visible and usable. */
+    static void enterNativeFeature(final Activity activity) {
+        nativeFeatureMode = true;
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        runOnMain(activity, new Runnable() {
+            @Override public void run() {
+                applyNativeMode(activity);
+            }
+        });
+    }
+
+    /** Restores Spatch's overlay and back handling, closing secondary native activities if needed. */
+    static void exitNativeFeature(final Activity activity) {
+        nativeFeatureMode = false;
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        runOnMain(activity, new Runnable() {
+            @Override public void run() {
+                try {
+                    ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+                    removeReturnControl(decor);
+                    if (decor.findViewWithTag(ROOT_TAG) == null && !activity.isTaskRoot()) {
+                        activity.finish();
+                        return;
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.e("SpatchApp", "exitNativeFeature failed", t);
+                }
+                mount(activity);
+            }
+        });
+    }
+
+    private static void runOnMain(Activity activity, Runnable action) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            action.run();
+        } else {
+            activity.runOnUiThread(action);
+        }
+    }
+
+    private static void setBackRegistered(Activity activity, boolean want) {
+        if (Build.VERSION.SDK_INT < 33) return;
+        synchronized (BACK_CALLBACKS) {
+            Object callback = BACK_CALLBACKS.get(activity);
+            if (callback == null) return;
+            boolean registered = Boolean.TRUE.equals(BACK_REGISTERED.get(activity));
+            if (want && !registered) {
+                activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, (android.window.OnBackInvokedCallback) callback);
+                BACK_REGISTERED.put(activity, Boolean.TRUE);
+            } else if (!want && registered) {
+                activity.getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) callback);
+                BACK_REGISTERED.put(activity, Boolean.FALSE);
+            }
+        }
+    }
+
+    private static void removeReturnControl(ViewGroup decor) {
+        View button = decor.findViewWithTag(RETURN_TAG);
+        if (button != null) decor.removeView(button);
+    }
+
+    private static void applyNativeMode(final Activity activity) {
+        if (activity.isFinishing() || activity.isDestroyed()) return;
         try {
             ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+            setBackRegistered(activity, false);
+            View root = decor.findViewWithTag(ROOT_TAG);
+            if (root != null) {
+                root.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+                root.setVisibility(View.GONE);
+            }
+            View spotify = decor.findViewById(android.R.id.content);
+            if (spotify != null) {
+                spotify.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+                spotify.setVisibility(View.VISIBLE);
+            }
+            View existing = decor.findViewWithTag(RETURN_TAG);
+            if (existing != null) {
+                existing.bringToFront();
+                return;
+            }
+            float density = activity.getResources().getDisplayMetrics().density;
+            int padH = Math.round(14f * density);
+            int padV = Math.round(8f * density);
+            final int margin = Math.round(12f * density);
+            final int baseTop = Math.round(8f * density);
+            android.widget.TextView back = new android.widget.TextView(activity);
+            back.setTag(RETURN_TAG);
+            back.setText("Back to Spatch");
+            back.setContentDescription("Back to Spatch");
+            back.setTextColor(android.graphics.Color.WHITE);
+            back.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
+            back.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            back.setGravity(android.view.Gravity.CENTER);
+            back.setPadding(padH, padV, padH, padV);
+            back.setMinHeight(Math.round(48f * density));
+            back.setClickable(true);
+            back.setFocusable(true);
+            back.setElevation(8f * density);
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setColor(0xe6111715);
+            bg.setCornerRadius(999f * density);
+            bg.setStroke(Math.max(1, Math.round(density)), 0x55ffffff);
+            back.setBackground(bg);
+            back.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    exitNativeFeature(activity);
+                }
+            });
+            final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.TOP | android.view.Gravity.END);
+            int statusBar = 0;
+            int resId = activity.getResources().getIdentifier("status_bar_height", "dimen", "android");
+            if (resId > 0) statusBar = activity.getResources().getDimensionPixelSize(resId);
+            lp.topMargin = statusBar + baseTop;
+            lp.rightMargin = margin;
+            back.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override public android.view.WindowInsets onApplyWindowInsets(View v, android.view.WindowInsets insets) {
+                    int top = Build.VERSION.SDK_INT >= 30
+                        ? insets.getInsets(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.displayCutout()).top
+                        : insets.getSystemWindowInsetTop();
+                    FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) v.getLayoutParams();
+                    if (params != null && params.topMargin != top + baseTop) {
+                        params.topMargin = top + baseTop;
+                        v.setLayoutParams(params);
+                    }
+                    return insets;
+                }
+            });
+            decor.addView(back, lp);
+            back.bringToFront();
+        } catch (Throwable t) {
+            android.util.Log.e("SpatchApp", "applyNativeMode failed", t);
+        }
+    }
+
+    private static void mount(Activity activity) {
+        if (activity.isFinishing() || activity.isDestroyed()) return;
+        if (nativeFeatureMode) {
+            applyNativeMode(activity);
+            return;
+        }
+        try {
+            ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+            removeReturnControl(decor);
             View spotify = decor.findViewById(android.R.id.content);
             if (spotify != null) {
                 spotify.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
                 spotify.setVisibility(View.INVISIBLE);
             }
-            if (decor.findViewWithTag(ROOT_TAG) != null) return;
+            View existing = decor.findViewWithTag(ROOT_TAG);
+            if (existing != null) {
+                existing.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+                existing.setVisibility(View.VISIBLE);
+                setBackRegistered(activity, true);
+                return;
+            }
             View root;
             if (load(activity)) {
                 SpatchUi ui = new SpatchUi(activity);
                 if (Build.VERSION.SDK_INT >= 33) {
-                    activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                        android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, (android.window.OnBackInvokedCallback) ui.backCallback());
+                    synchronized (BACK_CALLBACKS) {
+                        BACK_CALLBACKS.put(activity, ui.backCallback());
+                    }
+                    setBackRegistered(activity, true);
                 }
                 root = ui;
             } else {

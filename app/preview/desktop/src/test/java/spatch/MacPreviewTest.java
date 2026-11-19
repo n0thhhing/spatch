@@ -30,6 +30,41 @@ public class MacPreviewTest {
             System.exit(1);
         }
     }
+    @Test public void nativeCreationRestoresViewsAndBackHandling() throws Exception {
+        org.robolectric.android.controller.ActivityController<android.app.Activity> controller = Robolectric.buildActivity(android.app.Activity.class).setup();
+        android.app.Activity activity = controller.get();
+        activity.setContentView(new TextView(activity));
+        ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+        android.widget.FrameLayout overlay = new android.widget.FrameLayout(activity);
+        overlay.setTag("spatch-root"); decor.addView(overlay);
+        java.lang.reflect.Field callbacksField = SpatchApp.class.getDeclaredField("BACK_CALLBACKS");
+        callbacksField.setAccessible(true);
+        java.util.Map<android.app.Activity,Object> callbacks = (java.util.Map<android.app.Activity,Object>) callbacksField.get(null);
+        callbacks.put(activity, (android.window.OnBackInvokedCallback) () -> {});
+        java.lang.reflect.Field registeredField = SpatchApp.class.getDeclaredField("BACK_REGISTERED");
+        registeredField.setAccessible(true);
+        java.util.Map<?,?> registered = (java.util.Map<?,?>) registeredField.get(null);
+        SpatchApp.resumed(activity);
+        View nativeContent = decor.findViewById(android.R.id.content);
+        assertEquals(View.INVISIBLE, nativeContent.getVisibility());
+        assertEquals(Boolean.TRUE, registered.get(activity));
+        SpatchApp.enterNativeFeature(activity);
+        assertEquals(View.GONE, overlay.getVisibility());
+        assertEquals(View.VISIBLE, nativeContent.getVisibility());
+        assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO, nativeContent.getImportantForAccessibility());
+        assertEquals(Boolean.FALSE, registered.get(activity));
+        assertNotNull(decor.findViewWithTag("spatch-return"));
+        decor.findViewWithTag("spatch-return").performClick();
+        assertFalse(SpatchApp.isNativeFeatureMode());
+        assertEquals(View.VISIBLE, overlay.getVisibility());
+        assertEquals(View.INVISIBLE, nativeContent.getVisibility());
+        assertEquals(Boolean.TRUE, registered.get(activity));
+        assertNull(decor.findViewWithTag("spatch-return"));
+        controller.pause().stop().destroy();
+        assertFalse(callbacks.containsKey(activity));
+        assertFalse(registered.containsKey(activity));
+    }
+
     @Test public void previewCatalogUsesSharedDemoData() throws Exception {
         Class.forName("spatch.PreviewActivity");
         java.lang.reflect.Method catalog = SpatchUi.class.getDeclaredMethod("nativeCatalog", byte[].class);
@@ -86,6 +121,7 @@ public class MacPreviewTest {
         settle();
         assertNotNull(find(root, "Equalizer & sound"));
         assertNotNull(find(root, "Developer"));
+        assertNull("Profile belongs in the account menu", find(root, "Account"));
         int width = activity.getResources().getDisplayMetrics().widthPixels;
         int height = activity.getResources().getDisplayMetrics().heightPixels;
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -103,12 +139,38 @@ public class MacPreviewTest {
         android.content.SharedPreferences prefs = activity.getSharedPreferences("spatch_ui", 0);
         prefs.edit().putBoolean("reduce_motion", true).apply();
         drag(nav, nav.getWidth() - 20, nav.getHeight() / 2f);
+        assertEquals("Create menu keeps the current screen behind it", 3, field(ui, "tab"));
+        View menu = (View) field(ui, "createOverlay");
+        assertNotNull(menu);
+        root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, width, height);
+        android.graphics.Rect visible = new android.graphics.Rect();
+        assertTrue("Last creation option fits in the portrait menu", find(menu, "Jam").getGlobalVisibleRect(visible));
+        assertTrue(visible.height() >= 48);
+        screenshot(root, width, height, "create-menu");
+        for (String option : new String[]{"Playlist", "Collaborative playlist", "Mixed playlist", "Blend", "Prompted Playlist", "Jam"}) assertNotNull(find(menu, option));
+        find(menu, "Playlist").performClick();
         assertEquals(4, field(ui, "tab"));
         assertNotNull(find(root, "Make something yours."));
         java.util.Map<?, ?> glyphs = (java.util.Map<?, ?>) field(ui, "GLYPHS");
         assertTrue(((float[]) glyphs.get("add")).length > 0);
         drag(nav, 20, -30);
         assertEquals("Releasing outside the bar cancels navigation", 4, field(ui, "tab"));
+        prefs.edit().putBoolean("reduce_motion", false).apply();
+        java.lang.reflect.Field position = nav.getClass().getDeclaredField("indicatorX"); position.setAccessible(true);
+        float before = position.getFloat(nav);
+        long gesture = android.os.SystemClock.uptimeMillis();
+        touch(nav, gesture, 0, nav.getWidth() - 40, nav.getHeight()/2f);
+        touch(nav, gesture, 2, 45, nav.getHeight()/2f);
+        assertEquals("Hover starts a transition instead of teleporting the pill", before, position.getFloat(nav), .01f);
+        java.lang.reflect.Field animation = nav.getClass().getDeclaredField("slide"); animation.setAccessible(true);
+        android.animation.ValueAnimator hover = (android.animation.ValueAnimator) animation.get(nav);
+        assertNotNull(hover);
+        hover.setCurrentPlayTime(hover.getDuration() / 2);
+        float midway = position.getFloat(nav);
+        assertTrue("Indicator travels through intermediate positions: " + before + " → " + midway, midway < before && midway > 45);
+        touch(nav, gesture, 3, 45, -10);
+        prefs.edit().putBoolean("reduce_motion", true).apply();
         java.lang.reflect.Method scroll = SpatchUi.class.getDeclaredMethod("scrollDock", int.class, boolean.class);
         scroll.setAccessible(true);
         scroll.invoke(ui, 100, false);
@@ -118,8 +180,57 @@ public class MacPreviewTest {
         assertEquals(true, field(ui, "dockHidden"));
         scroll.invoke(ui, -100, false);
         assertEquals(false, field(ui, "dockHidden"));
+        java.lang.reflect.Field section = SpatchUi.class.getDeclaredField("settingsSection");
+        section.setAccessible(true); section.setInt(ui, 2);
+        java.lang.reflect.Method go = SpatchUi.class.getDeclaredMethod("go", int.class);
+        go.setAccessible(true); go.invoke(ui, 3);
+        settle();
+        root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, width, height);
+        View curve = findClass(root, "EqualizerCurve");
+        assertNotNull("Curve is directly on the sound overview", curve);
+        long now = android.os.SystemClock.uptimeMillis();
+        float x = 36 + (curve.getWidth() - 58) * 5 / 9f;
+        touch(curve, now, 0, x, 100);
+        touch(curve, now, 2, x, 61);
+        touch(curve, now, 1, x, 61);
+        float adjusted = Audio.gain(prefs, 5);
+        assertTrue("Dragging a point adjusts the real saved band", adjusted > 0 && adjusted < 12);
+        assertEquals(Math.round((adjusted + 12) * 10), ((android.widget.SeekBar)findClass(root, "SeekBar")).getProgress());
+        find(root, "Save").performClick();
+        find(root, "Reset").performClick();
+        assertEquals(0, Audio.gain(prefs, 5), .001f);
+        find(root, "Equalizer presets").performClick();
+        find(root, "Saved curve").performClick();
+        assertEquals(adjusted, Audio.gain(prefs, 5), .001f);
+        settle();
+        root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, width, height);
+        screenshot(root, width, height, "equalizer");
         prefs.edit().clear().apply();
         activity.finish();
+    }
+
+    private static void touch(View view, long down, int action, float x, float y) {
+        android.view.MotionEvent event = android.view.MotionEvent.obtain(down, down + action * 40, action, x, y, 0);
+        view.dispatchTouchEvent(event); event.recycle();
+    }
+
+    private static View findClass(View view, String name) {
+        if (view.getClass().getSimpleName().equals(name)) return view;
+        if (view instanceof ViewGroup) for (int i = 0; i < ((ViewGroup)view).getChildCount(); i++) {
+            View result = findClass(((ViewGroup)view).getChildAt(i), name);
+            if (result != null) return result;
+        }
+        return null;
+    }
+
+    private static void screenshot(View root, int width, int height, String name) throws Exception {
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        root.draw(new Canvas(bitmap));
+        File file = new File("build/reports/preview/" + name + ".png");
+        file.getParentFile().mkdirs();
+        try (FileOutputStream stream = new FileOutputStream(file)) { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)); }
     }
 
     private static void settle() throws Exception {

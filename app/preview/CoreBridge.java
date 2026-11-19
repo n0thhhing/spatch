@@ -9,9 +9,25 @@ import android.graphics.Shader;
 
 /** Offline art for the separately packaged preview. */
 final class CoreBridge {
+    // PreviewActivity has already initialized the sample core.
+    static void nativeInit() {}
     static String diagnostics() { return "Offline preview"; }
     // The preview nativeCatalog adapter reads this query and uses the existing Rust demo data.
     static byte[] search(String query, String pageToken) { return query.getBytes(java.nio.charset.StandardCharsets.UTF_8); }
+
+    public static String openCreation(android.app.Activity activity, String kind) {
+        String normalized = kind == null ? "" : kind.trim().toLowerCase(java.util.Locale.ROOT);
+        switch (normalized) {
+            case "collaborative":
+            case "mixed":
+            case "blend":
+            case "prompted":
+            case "jam":
+                return "This Spotify creation flow needs the signed-in Android Spotify app.";
+            default:
+                return "Unsupported creation flow: " + (normalized.isEmpty() ? "unknown" : kind);
+        }
+    }
 
     static volatile java.io.File cacheDir;
 

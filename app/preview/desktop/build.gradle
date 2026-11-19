@@ -43,7 +43,7 @@ compileJava {
     options.release = 11
 }
 compileTestJava {
-    source '../../../java/dex/test/spatch/core/AudioTest.java'
+    source '../../../java/dex/test/spatch/core/AudioTest.java', '../../../java/dex/src/spatch/core/SpatchApp.java'
     options.release = 11
 }
 

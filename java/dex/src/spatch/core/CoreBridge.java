@@ -163,6 +163,56 @@ public final class CoreBridge implements Transport {
             + " · services " + SERVICES.size();
     }
 
+    /**
+     * Exact verified Spotify 9.2.0.26 creation routes:
+     * - blend -> spotify:blend:invitation (p/f7b1.smali:12802, p/qv3.smali:1041)
+     * - jam -> spotify:jam (p/f7b1.smali:26434, p/h1a0.smali:15)
+     * - prompted -> spotify:create-prompted-playlist (p/f7b1.smali:40965, p/hgu0.smali:30)
+     * - collaborative / mixed -> spotify:create-menu (p/nik1.smali:7466, p/znn.smali:39; no standalone deep link)
+     */
+    static String creationRoute(String kind) {
+        if (kind == null) return null;
+        switch (kind.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "blend": return "spotify:blend:invitation";
+            case "jam": return "spotify:jam";
+            case "prompted": return "spotify:create-prompted-playlist";
+            case "collaborative":
+            case "mixed": return "spotify:create-menu";
+            default: return null;
+        }
+    }
+
+    /**
+     * Launches a verified native Spotify creation flow inside the signed-in Spotify app and enters
+     * temporary native-feature mode so it is visible. Returns "" when launched, else an actionable error.
+     */
+    public static String openCreation(android.app.Activity activity, String kind) {
+        String route = creationRoute(kind);
+        if (route == null) {
+            return "Unsupported creation flow: " + (kind == null || kind.trim().isEmpty() ? "unknown" : kind);
+        }
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            return "Spotify screen isn’t ready yet";
+        }
+        android.content.Intent intent = new android.content.Intent(
+            android.content.Intent.ACTION_VIEW, android.net.Uri.parse(route));
+        intent.setPackage(activity.getPackageName());
+        android.content.pm.PackageManager pm = activity.getPackageManager();
+        if (pm == null || pm.resolveActivity(intent, 0) == null) {
+            return "This creation option isn’t available in this Spotify build.";
+        }
+        SpatchApp.enterNativeFeature(activity);
+        try {
+            activity.startActivity(intent);
+            return "";
+        } catch (Throwable t) {
+            SpatchApp.exitNativeFeature(activity);
+            String msg = t.getMessage();
+            return "Couldn’t open Spotify creation flow: "
+                + (msg != null && !msg.isEmpty() ? msg : t.getClass().getSimpleName());
+        }
+    }
+
     /** Where downloaded covers are kept between launches (set by the UI). */
     static volatile java.io.File cacheDir;
 

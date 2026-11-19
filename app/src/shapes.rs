@@ -127,6 +127,12 @@ pub fn geometry(kind: &str) -> Vec<f32> {
         "album" => [ring(12.0, 12.0, 9.0, 36), ring(12.0, 12.0, 2.5, 16)].concat(),
         // A head and shoulders.
         "artist" => [ring(12.0, 8.0, 4.0, 24), stroke(&[(4., 21.), (5., 17.5), (8., 15.), (12., 14.2), (16., 15.), (19., 17.5), (20., 21.)])].concat(),
+        "note" => [stroke(&[(9., 17.), (9., 5.), (19., 3.), (19., 15.)]), ring(6., 18., 3., 16), ring(16., 16., 3., 16)].concat(),
+        "people" => [ring(8., 7., 3., 16), ring(17., 8., 2.5, 16), stroke(&[(2., 21.), (3., 16.), (6., 13.), (10., 13.), (13., 16.), (14., 21.)]), stroke(&[(15., 14.), (19., 14.), (22., 18.), (22., 21.)])].concat(),
+        "mix" => [stroke(&[(6., 3.), (6., 21.)]), stroke(&[(12., 3.), (12., 21.)]), stroke(&[(18., 3.), (18., 21.)]), stroke(&[(3., 9.), (9., 9.)]), stroke(&[(9., 16.), (15., 16.)]), stroke(&[(15., 7.), (21., 7.)])].concat(),
+        "blend" => [ring(8., 10., 6., 28), ring(16., 14., 6., 28)].concat(),
+        "prompt" => [stroke(&[(4., 3.), (20., 3.), (20., 21.), (4., 21.), (4., 3.)]), stroke(&[(10., 8.), (6., 12.), (10., 16.)]), stroke(&[(14., 8.), (18., 12.), (14., 16.)])].concat(),
+        "jam" => [ring(8., 9., 3., 20), stroke(&[(2., 21.), (3., 17.), (6., 15.), (10., 15.), (13., 18.)]), stroke(&[(16., 4.), (19., 7.), (20., 11.)]), stroke(&[(14., 7.), (16., 9.), (17., 12.)]), stroke(&[(17., 15.), (17., 21.)]), stroke(&[(14., 18.), (20., 18.)])].concat(),
         _ => Vec::new(),
     }
 }
@@ -146,8 +152,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeGeometry(mut env: JNIEnv, _: J
 mod tests {
     use super::*;
 
-    const ICONS: [&str; 28] = [
-        "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "add", "shuffle", "repeat", "repeat-one", "volume", "queue",
+    const ICONS: [&str; 34] = [
+        "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "add", "note", "people", "mix", "blend", "prompt", "jam", "shuffle", "repeat", "repeat-one", "volume", "queue",
         "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices", "album", "artist", "share", "sparkle", "download",
     ];
 
