@@ -232,6 +232,11 @@ public final class SpatchUi extends FrameLayout {
         this.activity = activity;
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
+        // Last launch's account shows at once; the real lookup (which needs the library) replaces it.
+        profileName = prefs.getString("profile_name", "");
+        profileUsername = prefs.getString("profile_user", "");
+        profileImage = prefs.getString("profile_image", "");
+        profileUri = prefs.getString("profile_uri", "");
         Audio.initialize(activity.getApplicationContext(), prefs);
         java.io.File covers = new java.io.File(activity.getCacheDir(), "covers");
         covers.mkdirs();
@@ -1313,7 +1318,17 @@ public final class SpatchUi extends FrameLayout {
                 profileLoading = false;
                 profileAt = SystemClock.uptimeMillis();
                 if (info != null && info.length >= 5) {
-                    profileName = info[0]; profileUsername = info[1]; profileImage = info[2]; profileUri = info[3]; profileError = info[4];
+                    if (!info[1].isEmpty()) {
+                        // Found: a missing photo or a name that fell back to the username keeps what was saved for the same account.
+                        boolean same = info[1].equals(profileUsername);
+                        String image = info[2].isEmpty() && same ? profileImage : info[2];
+                        String name = same && !profileName.isEmpty() && info[0].equals(info[1]) ? profileName : info[0];
+                        profileName = name; profileUsername = info[1]; profileImage = image; profileUri = info[3];
+                        prefs.edit().putString("profile_name", profileName).putString("profile_user", profileUsername)
+                            .putString("profile_image", profileImage).putString("profile_uri", profileUri).apply();
+                    }
+                    // A failed lookup never blanks the account saved from last time.
+                    profileError = info[4];
                     if (!profileError.isEmpty() && profileUsername.isEmpty()) profileName = "";
                     for (Art photo : avatars) {
                         photo.letter = initial(profileName.isEmpty() ? profileUsername.isEmpty() ? "You" : profileUsername : profileName);
@@ -1321,11 +1336,12 @@ public final class SpatchUi extends FrameLayout {
                         photo.invalidate();
                     }
                 } else profileError = "Profile information is not available yet";
-                if (profileUsername.isEmpty()) {
-                    // Keep trying with a growing pause: 2, 4, 8, 16, then every 30 seconds.
+                if (!profileError.isEmpty() && (profileUsername.isEmpty() || profileAttempts < 12)) {
+                    // Keep trying with a growing pause: 2, 4, 8, 16, then every 30 seconds (twelve times if the
+                    // saved account is already showing).
                     profileAttempts++;
                     postDelayed(profileRetry, Math.min(30_000, 2_000L << Math.min(profileAttempts - 1, 4)));
-                } else profileAttempts = 0;
+                } else if (profileError.isEmpty()) profileAttempts = 0;
                 if (profileAnnounce) {
                     profileAnnounce = false;
                     Toast.makeText(activity, profileUsername.isEmpty() ? "Couldn’t read your account yet. Spatch will keep trying." : "Signed in as @" + profileUsername, Toast.LENGTH_SHORT).show();
