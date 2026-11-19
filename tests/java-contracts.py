@@ -86,8 +86,8 @@ public class CatalogRequestCheck {
 
 with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     work = Path(temporary)
-    sources = sorted((REPO / "java/dex/src/spatch/core").glob("*.java"))
-    sources += [REPO / f"java/dex/test/spatch/core/{name}.java"
+    sources = sorted((REPO / "java/dex/src/spatch").glob("*.java"))
+    sources += [REPO / f"java/dex/test/spatch/{name}.java"
                 for name in ("CreationRouteTest", "SubscriptionsTest")]
     sources += [p for p in (REPO / "java/dex/stubs").rglob("*.java") if p.name != "Single.java"]
     for name, source in FIXTURES.items():

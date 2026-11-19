@@ -112,7 +112,7 @@ public class MacPreviewTest {
         Class.forName("spatch.PreviewActivity");
         java.lang.reflect.Method catalog = SpatchUi.class.getDeclaredMethod("nativeCatalog", byte[].class);
         catalog.setAccessible(true);
-        String[] fields = SpatchUi.unpackStrings((byte[]) catalog.invoke(null, (Object) CoreBridge.search("Glasshouse", "")));
+        String[] fields = PackedStrings.unpackStrings((byte[]) catalog.invoke(null, (Object) CoreBridge.search("Glasshouse", "")));
         assertEquals(7, fields.length);
         assertEquals("Glasshouse", fields[1]);
         assertEquals("spotify:preview:0", fields[3]);
@@ -139,7 +139,7 @@ public class MacPreviewTest {
         Class.forName("spatch.PreviewActivity");
         // 1. Packed byte[] JNI roundtrip parity (empty strings, Unicode, emoji)
         String[] sample = new String[]{"", "Glasshouse", "Café ♫", "spotify:track:1", ""};
-        assertArrayEquals(sample, SpatchUi.unpackStrings(SpatchUi.packStrings(sample)));
+        assertArrayEquals(sample, PackedStrings.unpackStrings(PackedStrings.packStrings(sample)));
 
         // 2. AutoEq Rust vs Java URL parity
         String md = "- [A (ANC Off)](./Source/GRAS/A%20(ANC%20Off))\n"
@@ -262,7 +262,7 @@ public class MacPreviewTest {
         prefs.edit().putBoolean("reduce_motion", true).apply();
         drag(nav, nav.getWidth() - 20, nav.getHeight() / 2f);
         assertEquals("Create menu keeps the current screen behind it", 3, field(ui, "tab"));
-        View menu = (View) field(ui, "createOverlay");
+        View menu = (View) field(field(ui, "creation"), "createOverlay");
         assertNotNull(menu);
         View addIcon = ((ViewGroup) nav.getChildAt(3)).getChildAt(0);
         assertEquals("Create icon rotates to x when open", 45f, addIcon.getRotation(), .01f);
@@ -275,7 +275,7 @@ public class MacPreviewTest {
         for (String option : new String[]{"Playlist", "Collaborative playlist", "Mixed playlist", "Blend", "Prompted Playlist", "Jam"}) assertNotNull(find(menu, option));
         find(menu, "Playlist").performClick();
         assertEquals("Playlist composer stays in the floating card over the current screen", 3, field(ui, "tab"));
-        assertNotNull("Create overlay remains open for the inline playlist composer", field(ui, "createOverlay"));
+        assertNotNull("Create overlay remains open for the inline playlist composer", field(field(ui, "creation"), "createOverlay"));
         assertEquals("Create icon stays rotated to x while composer is open", 45f, addIcon.getRotation(), .01f);
         assertNotNull(find(menu, "Playlist name"));
         assertNotNull(find(menu, "Cancel"));
@@ -285,7 +285,7 @@ public class MacPreviewTest {
         root.layout(0, 0, width, height);
         screenshot(root, width, height, "create-playlist");
         find(menu, "Cancel").performClick();
-        assertNull("Cancel dismisses the floating composer", field(ui, "createOverlay"));
+        assertNull("Cancel dismisses the floating composer", field(field(ui, "creation"), "createOverlay"));
         assertEquals("Create icon rotates back to + when closed", 0f, addIcon.getRotation(), .01f);
         java.util.Map<?, ?> glyphs = (java.util.Map<?, ?>) field(ui, "GLYPHS");
         assertTrue(((float[]) glyphs.get("add")).length > 0);
@@ -389,7 +389,7 @@ public class MacPreviewTest {
     }
 
     private static Object field(Object object, String name) throws Exception {
-        java.lang.reflect.Field field = SpatchUi.class.getDeclaredField(name);
+        java.lang.reflect.Field field = object.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(object);
     }

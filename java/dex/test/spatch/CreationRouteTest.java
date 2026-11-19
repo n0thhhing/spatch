@@ -9,8 +9,8 @@ package spatch;
  *     java/dex/stubs/io/reactivex/rxjava3/core/*.java \
  *     java/dex/stubs/io/reactivex/rxjava3/disposables/*.java \
  *     java/dex/stubs/io/reactivex/rxjava3/functions/*.java \
- *     java/dex/src/spatch/core/*.java \
- *     java/dex/test/spatch/core/CreationRouteTest.java
+ *     java/dex/src/spatch/*.java \
+ *     java/dex/test/spatch/CreationRouteTest.java
  *   java -cp "/tmp/ct:$JAR" spatch.CreationRouteTest
  */
 public final class CreationRouteTest {

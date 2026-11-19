@@ -1,0 +1,393 @@
+package spatch;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
+import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.SweepGradient;
+import android.os.SystemClock;
+import android.view.View;
+
+/** Shared cover rendering and player artwork effects. */
+final class ArtworkViews {
+    private final SpatchUi ui;
+    ArtworkViews(SpatchUi ui) { this.ui = ui; }
+
+    final class Art extends View {
+        static final int CIRCLE = 0, ROUNDED = 1, WIDE = 2;
+        int shapeKind;
+        String letter = "";
+        /** Liked Songs, which has no cover: a gradient tile with a heart instead. */
+        boolean heart;
+        private final Path heartPath = new Path();
+        private String url = "";
+        private final boolean ring;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Matrix crop = new Matrix();
+        private final RectF box = new RectF();
+        /** Mini player and hero: a new cover fades in over the old one instead of replacing it. */
+        boolean crossfade;
+        private boolean waiting;
+        private long shownAt;
+        private Bitmap shownBitmap, previousBitmap;
+        private String shownUrl = "";
+
+        Art(int shape, boolean ring) { super(ui.activity); this.shapeKind = shape; this.ring = ring; setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
+
+        void bind(String u) {
+            if (crossfade && !u.isEmpty() && shownBitmap == null && ui.lastCover != null) { shownBitmap = ui.lastCover; shownUrl = ui.lastCoverUrl; }
+            if (url.equals(u)) return;
+            url = u;
+            waiting = false;
+            if (!crossfade || u.isEmpty()) { shownAt = 0; shownBitmap = previousBitmap = null; shownUrl = ""; }
+            invalidate();
+        }
+
+        private Bitmap shaderBmpA, shaderBmpB;
+        private BitmapShader shaderA, shaderB;
+
+        private BitmapShader shaderFor(Bitmap b) {
+            if (b == shaderBmpA) return shaderA;
+            if (b == shaderBmpB) return shaderB;
+            BitmapShader s = new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            shaderBmpB = shaderBmpA; shaderB = shaderA;
+            shaderBmpA = b; shaderA = s;
+            return s;
+        }
+
+        private void drawCover(Canvas c, Bitmap b, int alpha, float radius) {
+            BitmapShader shader = shaderFor(b);
+            float k = Math.max(box.width() / b.getWidth(), box.height() / b.getHeight());
+            crop.setScale(k, k);
+            crop.postTranslate(box.left + (box.width() - b.getWidth() * k) / 2, box.top + (box.height() - b.getHeight() * k) / 2);
+            shader.setLocalMatrix(crop);
+            paint.setShader(shader);
+            paint.setAlpha(alpha);
+            c.drawRoundRect(box, radius, radius, paint);
+            paint.setAlpha(255);
+            paint.setShader(null);
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight();
+            if (w == 0) return;
+            float pad = ring ? ui.dp(4) : 0;
+            box.set(pad, pad, w - pad, h - pad);
+            float r = shapeKind == CIRCLE ? Math.min(box.width(), box.height()) / 2 : shapeKind == WIDE ? 0 : ui.dp(16);
+            long now = SystemClock.uptimeMillis();
+            Bitmap b = ui.art(url, w > ui.dp(200) || h > ui.dp(190) ? 440 : 180);
+            if (b == null) b = ui.art(url, 180);
+            if (b != null && !url.isEmpty() && url.equals(ui.image) && (ui.lastCover == null || !url.equals(ui.lastCoverUrl) || b.getWidth() >= ui.lastCover.getWidth())) {
+                ui.lastCover = b;
+                ui.lastCoverUrl = url;
+            }
+            if (crossfade) {
+                if (b != null && b != shownBitmap) {
+                    boolean hadShown = shownBitmap != null;
+                    if (!url.equals(shownUrl)) {
+                        previousBitmap = ui.motion() ? shownBitmap : null;
+                        shownBitmap = b;
+                        shownUrl = url;
+                        shownAt = previousBitmap != null ? now : 0;
+                    } else {
+                        shownBitmap = b;
+                    }
+                    if (hadShown) waiting = false;
+                } else if (b == null && !url.isEmpty() && shownBitmap != null) {
+                    b = shownBitmap;
+                }
+            }
+            if (previousBitmap != null && shownAt != 0 && now - shownAt < 420) {
+                drawCover(c, previousBitmap, 255, r);
+            } else previousBitmap = null;
+            if (b == null || (previousBitmap == null && shownAt != 0 && now - shownAt < 320)) {
+                paint.setShader(new LinearGradient(0, 0, w, h, ui.surfHi, ui.surf, Shader.TileMode.CLAMP));
+                c.drawRoundRect(box, r, r, paint);
+                paint.setShader(null);
+            }
+            if (b == null && heart) {
+                paint.setShader(new LinearGradient(0, 0, w, h, SpatchUi.blend(ui.surfHi, ui.accent2, .55f), SpatchUi.blend(ui.surfHi, ui.accent, .45f), Shader.TileMode.CLAMP));
+                c.drawRoundRect(box, r, r, paint);
+                paint.setShader(null);
+                float size = Math.min(w, h) * .42f;
+                c.save();
+                c.translate(w / 2 - size / 2, h / 2 - size / 2);
+                SpatchUi.drawGlyph(c, paint, heartPath, "heart", ui.ink, size);
+                c.restore();
+            } else if (b == null) {
+                waiting = true;
+                // Still loading: a soft band of light sweeps across the placeholder until the cover arrives.
+                if (!url.isEmpty() && !ui.artFailed(url + ":180") && ui.motion() && isShown()) {
+                    float t = (SystemClock.uptimeMillis() % 1400) / 1400f, x = -w + t * w * 3;
+                    int glow = (ui.ink & 0x00ffffff) | 0x14000000, clear = ui.ink & 0x00ffffff;
+                    paint.setShader(new LinearGradient(x, 0, x + w, h, new int[]{clear, glow, clear}, null, Shader.TileMode.CLAMP));
+                    c.drawRoundRect(box, r, r, paint);
+                    paint.setShader(null);
+                    postInvalidateOnAnimation();
+                }
+                if (!letter.isEmpty() && (url.isEmpty() || ui.artFailed(url + ":180"))) {
+                    paint.setColor(ui.inkDim);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    paint.setTextSize(Math.min(w, h) * .4f);
+                    paint.setFakeBoldText(true);
+                    c.drawText(letter, w / 2, h / 2 - (paint.descent() + paint.ascent()) / 2, paint);
+                    paint.setFakeBoldText(false);
+                }
+            } else {
+                if (waiting && ui.motion()) { waiting = false; shownAt = now; }
+                long span = previousBitmap != null ? 420 : 320;
+                float f = shownAt == 0 ? 1f : Math.min(1f, (now - shownAt) / (float) span);
+                drawCover(c, b, Math.round(255 * f * (2f - f)), r);
+                if (f < 1f) postInvalidateOnAnimation(); else { shownAt = 0; previousBitmap = null; }
+            }
+            if (ring) {
+                float f = ui.shownProgress();
+                RectF rr = new RectF(ui.dp(1.5f), ui.dp(1.5f), w - ui.dp(1.5f), h - ui.dp(1.5f));
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(ui.dp(2.5f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor((ui.ink & 0x00ffffff) | 0x30000000);
+                c.drawOval(rr, paint);
+                paint.setColor(ui.accent);
+                c.drawArc(rr, -90, 360 * f, false, paint);
+                paint.setStyle(Paint.Style.FILL);
+                if (ui.playing && isShown()) postInvalidateDelayed(1000);
+            }
+        }
+    }
+
+    /** The cover, blurred and drifting, under a dark wash. */
+    final class Backdrop extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Matrix m = new Matrix();
+        private android.animation.ObjectAnimator drift;
+        private Bitmap shown = ui.lastBlur, previous;
+        private long fadeAt;
+
+        Backdrop() {
+            super(ui.activity);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            if (ui.motion()) {
+                setScaleX(1.25f);
+                setScaleY(1.25f);
+                drift = android.animation.ObjectAnimator.ofPropertyValuesHolder(this,
+                    android.animation.PropertyValuesHolder.ofFloat("translationX", -ui.dp(20), ui.dp(24)),
+                    android.animation.PropertyValuesHolder.ofFloat("rotation", -3f, 3f));
+                drift.setDuration(16000);
+                drift.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+                drift.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                drift.start();
+            }
+        }
+
+        private Bitmap washBmpA, washBmpB;
+        private BitmapShader washShaderA, washShaderB;
+
+        private BitmapShader washShaderFor(Bitmap blur) {
+            if (blur == washBmpA) return washShaderA;
+            if (blur == washBmpB) return washShaderB;
+            BitmapShader s = new BitmapShader(blur, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            washBmpB = washBmpA; washShaderB = washShaderA;
+            washBmpA = blur; washShaderA = s;
+            return s;
+        }
+
+        private void wash(Canvas c, Bitmap blur, float w, float h, int alpha) {
+            BitmapShader s = washShaderFor(blur);
+            m.setScale(w / blur.getWidth(), h / blur.getHeight());
+            s.setLocalMatrix(m);
+            paint.setShader(s);
+            paint.setAlpha(alpha);
+            c.drawRect(0, 0, w, h, paint);
+            paint.setAlpha(255);
+            paint.setShader(null);
+        }
+
+        @Override protected void onDetachedFromWindow() { if (drift != null) drift.cancel(); super.onDetachedFromWindow(); }
+
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight();
+            if (!ui.pref("backdrop", true)) { c.drawColor(ui.bg); return; }
+            ui.art(ui.image, 440);
+            Bitmap blur = SpatchUi.IMAGES.get(ui.image + ":440/blur");
+            c.drawColor(ui.bg);
+            long now = SystemClock.uptimeMillis();
+            // A new cover's blur fades in over the old one.
+            if (blur != null && blur != shown) {
+                previous = ui.motion() ? shown : null;
+                shown = blur;
+                fadeAt = now;
+            }
+            ui.lastBlur = shown;
+            float f = previous == null ? 1f : Math.min(1f, (now - fadeAt) / 700f);
+            if (f >= 1f) previous = null;
+            paint.setColorFilter(SpatchUi.VIVID);
+            if (previous != null) wash(c, previous, w, h, 255);
+            if (shown != null) wash(c, shown, w, h, Math.round(255 * f));
+            paint.setColorFilter(null);
+            if (f < 1f) postInvalidateOnAnimation();
+            paint.setShader(new LinearGradient(0, 0, 0, h, new int[]{(ui.bg & 0x00ffffff) | 0x66000000, (ui.bg & 0x00ffffff) | 0x99000000, ui.bg}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, h, paint);
+            paint.setShader(null);
+        }
+    }
+
+    /** Soft particles rising through the player while music plays. */
+    final class Motes extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final float[] x = new float[30], y = new float[30], sz = new float[30], sp = new float[30], ph = new float[30];
+        private long last;
+        Motes() {
+            super(ui.activity);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            java.util.Random r = new java.util.Random(7);
+            for (int i = 0; i < x.length; i++) { x[i] = r.nextFloat(); y[i] = r.nextFloat(); sz[i] = 1.2f + r.nextFloat() * r.nextFloat() * 4.2f; sp[i] = .012f + r.nextFloat() * .03f; ph[i] = r.nextFloat() * 6.283f; }
+        }
+        @Override protected void onDraw(Canvas c) {
+            long now = SystemClock.uptimeMillis();
+            boolean run = ui.playing && ui.motion();
+            float dt = last == 0 || !run ? 0 : Math.min(.05f, (now - last) / 1000f);
+            last = now;
+            if (run && Audio.level > 0) dt *= 1f + 3f * Audio.level + 3f * Audio.kick;
+            float w = getWidth(), h = getHeight(), t = now / 1000f;
+            for (int i = 0; i < x.length; i++) {
+                y[i] -= sp[i] * dt;
+                if (y[i] < -.03f) { y[i] = 1.03f; x[i] = (x[i] + .618f) % 1f; }
+                float edge = Math.min(1f, Math.min(y[i], 1f - y[i]) * 6f);
+                paint.setColor(i % 2 == 0 ? ui.accent : ui.ink);
+                paint.setAlpha(Math.max(0, Math.round(110 * (.5f + .5f * (float) Math.sin(t * 1.3f + ph[i] * 3f)) * Math.max(0f, edge))));
+                c.drawCircle(x[i] * w + (float) Math.sin(t * .6f + ph[i]) * ui.dp(10), y[i] * h, ui.dp(sz[i]), paint);
+            }
+            if (run && isShown()) postInvalidateOnAnimation();
+        }
+    }
+
+    /** The art in a circle, turning slowly, inside a sweep-coloured ring with bars radiating from it. */
+    final class Disc extends View {
+        String url = "";
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Path clip = new Path();
+        private final Matrix m = new Matrix();
+        private float angle;
+        private SweepGradient sweep;
+        private int sweepA, sweepB;
+        private Bitmap shown = ui.lastCover, previous;
+        private String shownUrl = ui.lastCoverUrl;
+        private long fadeAt, lastFrame;
+        private final float[] level = new float[36], ringTargets = new float[36];
+
+        Disc() { super(ui.activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
+
+        private void cover(Canvas c, Bitmap b, float cx, float cy, float radius, int alpha) {
+            float k = Math.max(radius * 2 / b.getWidth(), radius * 2 / b.getHeight());
+            m.setScale(k, k);
+            m.postTranslate(cx - b.getWidth() * k / 2, cy - b.getHeight() * k / 2);
+            m.postRotate(angle, cx, cy);
+            paint.setAlpha(alpha);
+            c.drawBitmap(b, m, paint);
+            paint.setAlpha(255);
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight(), cx = w / 2f, cy = h / 2f;
+            float s = Math.min(w, h), bar = ui.dp(34);
+            float ring = Math.max(ui.dp(60), s / 2f - bar - ui.dp(8)), artR = ring - ui.dp(7);
+            boolean animate = ui.motion();
+            boolean run = ui.playing && animate;
+            boolean audio = ui.pref("audio", true) && Audio.permitted(ui.activity);
+            long now = SystemClock.uptimeMillis();
+            if (url.isEmpty()) { shown = previous = null; shownUrl = ""; }
+            Bitmap b = ui.art(url, 440);
+            if (b == null) b = ui.art(url, 180);
+            if (b != null && !url.isEmpty() && url.equals(ui.image) && (ui.lastCover == null || !url.equals(ui.lastCoverUrl) || b.getWidth() >= ui.lastCover.getWidth())) {
+                ui.lastCover = b;
+                ui.lastCoverUrl = url;
+            }
+            // A new cover fades in over the old one instead of cutting.
+            if (b != null && b != shown) {
+                if (!url.equals(shownUrl)) {
+                    previous = ui.motion() ? shown : null;
+                    shown = b;
+                    shownUrl = url;
+                    fadeAt = previous != null ? now : 0;
+                } else {
+                    shown = b;
+                }
+            }
+            float fade = previous == null ? 1f : Math.min(1f, (now - fadeAt) / 450f);
+            if (fade >= 1f) previous = null;
+            c.save();
+            clip.rewind();
+            clip.addCircle(cx, cy, artR, Path.Direction.CW);
+            c.clipPath(clip);
+            if (shown != null) {
+                if (run && ui.pref("spin", true)) angle = (angle + .12f) % 360f;
+                paint.setShader(null);
+                if (previous != null) cover(c, previous, cx, cy, artR, 255);
+                cover(c, shown, cx, cy, artR, Math.round(255 * fade));
+            } else {
+                paint.setColor(ui.surfHi);
+                c.drawCircle(cx, cy, artR, paint);
+            }
+            c.restore();
+            if (fade < 1f) postInvalidateOnAnimation();
+            if (sweep == null || sweepA != ui.accent || sweepB != ui.accent2) {
+                sweepA = ui.accent;
+                sweepB = ui.accent2;
+                sweep = new SweepGradient(cx, cy, new int[]{ui.accent, ui.accent2, ui.accent, ui.accent2, ui.accent}, null);
+            }
+            // Visualizer style: 0 ring and bars, 1 ring only, 2 neither.
+            int style = ui.prefs.getInt("viz", 0);
+            paint.setShader(sweep);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(ui.dp(5));
+            if (style != 2) c.drawCircle(cx, cy, ring, paint);
+            int bars = 72;
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeWidth(Math.min(ui.dp(7), (float) (Math.PI * 2 * ring / bars) * .55f));
+            float t = now / 1000f;
+            boolean live = run && audio && Audio.BANDS[0] + Audio.BANDS[8] > 0;
+            int half = bars / 2;
+            float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
+            lastFrame = now;
+            // The bands spread over each side's bars, bass-weighted (Rust: spectrum::bass_expanded).
+            if (live) SpatchUi.nativeRing(half, ringTargets);
+            boolean settling = false;
+            for (int i = 0; i < half; i++) {
+                float v;
+                if (live) {
+                    v = ringTargets[i];
+                } else if (run) {
+                    // No audio to read: a pulse that still reads as music.
+                    float swell = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - i / (float) half) * .3f;
+                    v = .25f + .18f * (float) Math.sin(t * 2.6f + i * .5f) + .12f * (float) Math.sin(t * 1.5f - i * .27f) + swell;
+                } else v = 0f;
+                // Swiftify's ring style: base .02 + 1.12 x level^1.1, rising in 16 ms and falling in 45 ms.
+                float shown = Math.max(0f, Math.min(1f, .02f + 1.12f * (float) Math.pow(Math.max(0f, v), 1.1)));
+                float tau = !run ? .16f : shown > level[i] ? .016f : .045f;
+                if (!animate || Math.abs(shown - level[i]) < .001f) level[i] = shown;
+                else {
+                    level[i] += (shown - level[i]) * (1f - (float) Math.exp(-dt / tau));
+                    settling = true;
+                }
+            }
+            for (int k = 0; k < bars && style == 0; k++) {
+                int bi = k < half ? k : bars - 1 - k;
+                double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
+                float len = ui.dp(3) + (bar - ui.dp(6)) * Math.min(1f, level[bi]), start = ring + ui.dp(10);
+                float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
+                c.drawLine(cx + cos * start, cy + sin * start, cx + cos * (start + len), cy + sin * (start + len), paint);
+            }
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.FILL);
+            if (run && audio && style == 0) Audio.want();
+            if ((run || (settling && style == 0)) && isShown()) postInvalidateOnAnimation();
+        }
+    }
+
+}

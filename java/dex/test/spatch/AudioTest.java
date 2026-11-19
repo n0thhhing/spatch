@@ -12,7 +12,7 @@ import java.util.Set;
  *
  *   JDK=/opt/homebrew/Cellar/openjdk@21/21.0.13.0.3/libexec/openjdk.jdk/Contents/Home
  *   JAR=/opt/homebrew/share/android-commandlinetools/platforms/android-35/android.jar
- *   "$JDK/bin/javac" --release 11 -cp "$JAR" -d /tmp/at java/dex/src/spatch/core/Audio.java java/dex/test/spatch/core/AudioTest.java
+ *   "$JDK/bin/javac" --release 11 -cp "$JAR" -d /tmp/at java/dex/src/spatch/Audio.java java/dex/test/spatch/AudioTest.java
  *   "$JDK/bin/java" -cp "/tmp/at:$JAR" spatch.AudioTest
  */
 public final class AudioTest {

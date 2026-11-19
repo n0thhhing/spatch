@@ -14,13 +14,13 @@ exactly one anchor match.
 
 `RetrofitMaker` and `ClientBase` move out of `classes.dex` and `AudioEffectsListener` moves out of `classes2.dex` to
 make room for their new calls. They keep their original class names in `classes16.dex`, where the
-seven Java helpers also live.
+[Java helpers](../src/helpers.rs) also live.
 
-- [CoreBridge.java](../java/dex/src/spatch/core/CoreBridge.java) bridges calls and subscriptions between Rust and Spotify's transport.
-- [Subscriptions.java](../java/dex/src/spatch/core/Subscriptions.java) owns Rx disposables, including synchronous termination and cancellation races.
-- [SpatchApp.java](../java/dex/src/spatch/core/SpatchApp.java) loads the Rust library and mounts the UI on the activity.
-- [SpatchUi.java](../java/dex/src/spatch/core/SpatchUi.java) hosts Android views and renders the UI.
-- [Audio.java](../java/dex/src/spatch/core/Audio.java) captures FFT samples and manages the active session’s audio effects.
+- [CoreBridge.java](../java/dex/src/spatch/CoreBridge.java) bridges calls and subscriptions between Rust and Spotify's transport.
+- [Subscriptions.java](../java/dex/src/spatch/Subscriptions.java) owns Rx disposables, including synchronous termination and cancellation races.
+- [SpatchApp.java](../java/dex/src/spatch/SpatchApp.java) loads the Rust library and mounts the UI on the activity.
+- [SpatchUi.java](../java/dex/src/spatch/SpatchUi.java) hosts Android views and renders the UI.
+- [Audio.java](../java/dex/src/spatch/Audio.java) captures FFT samples and manages the active session’s audio effects.
 
 For input hashes and version porting, see [Patch targets](targets.md). The earlier redesign lives on
 the `main` branch.

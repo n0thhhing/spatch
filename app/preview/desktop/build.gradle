@@ -36,14 +36,14 @@ configurations.configureEach {
 sourceSets.main.java.setSrcDirs([])
 compileJava {
     // Compile the production screen and audio class directly. There is no second UI to maintain.
-    source = files(fileTree('../../../java/dex/src/spatch/core') {
+    source = files(fileTree('../../../java/dex/src/spatch') {
                        exclude 'CoreBridge.java', 'SpatchApp.java', 'Subscriptions.java'
                    },
-                   '../CoreBridge.java', '../PreviewActivity.java')
+                   '../src/spatch/CoreBridge.java', '../src/spatch/PreviewActivity.java')
     options.release = 11
 }
 compileTestJava {
-    source '../../../java/dex/test/spatch/core/AudioTest.java', '../../../java/dex/src/spatch/core/SpatchApp.java'
+    source '../../../java/dex/test/spatch/AudioTest.java', '../../../java/dex/src/spatch/SpatchApp.java'
     options.release = 11
 }
 

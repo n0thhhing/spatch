@@ -15,6 +15,9 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
 import org.robolectric.shadows.ShadowLooper;
+import org.robolectric.shadows.ShadowSystemClock;
+import static org.robolectric.Shadows.shadowOf;
+import java.time.Duration;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -33,7 +36,7 @@ public class PlaybackProgressTest {
             float target = Long.parseLong(change[1]) / (float) Long.parseLong(change[2]);
             assertEquals("The displayed tip stays continuous at a jump", .5f, progress(ui), .001f);
             assertEquals(Long.parseLong(change[1]), ((Long) field(ui, "position")).longValue());
-            ValueAnimator animator = (ValueAnimator) field(ui, "progressAnimator");
+            ValueAnimator animator = (ValueAnimator) field(field(ui, "progress"), "animator");
             assertNotNull(animator);
             animator.setCurrentPlayTime(animator.getDuration() / 2);
             float middle = progress(ui);
@@ -46,7 +49,7 @@ public class PlaybackProgressTest {
         call(ui, "setPosition", new Class<?>[]{long.class}, 180000L);
         assertEquals(.5f, progress(ui), .001f);
         assertEquals(180000L, ((Long) field(ui, "position")).longValue());
-        ValueAnimator first = (ValueAnimator) field(ui, "progressAnimator");
+        ValueAnimator first = (ValueAnimator) field(field(ui, "progress"), "animator");
         first.setCurrentPlayTime(first.getDuration() / 2);
         float interrupted = progress(ui);
         apply(ui, "another", 0, 180000, false);
@@ -108,12 +111,64 @@ public class PlaybackProgressTest {
         prefs.edit().putBoolean("reduce_motion", true).apply();
         apply(ui, "next", 0, 180000, false);
         assertEquals(0, progress(ui), .001f);
-        assertNull(field(ui, "progressAnimator"));
+        assertNull(field(field(ui, "progress"), "animator"));
         prefs.edit().putBoolean("reduce_motion", false).apply();
         call(ui, "setPosition", new Class<?>[]{long.class}, 90000L);
-        assertNotNull(field(ui, "progressAnimator"));
+        assertNotNull(field(field(ui, "progress"), "animator"));
         ((ViewGroup) ui.getParent()).removeView(ui);
-        assertNull(field(ui, "progressAnimator"));
+        assertNull(field(field(ui, "progress"), "animator"));
+    }
+
+    @Test public void pausedArtworkRingSettlesAndResumes() throws Exception {
+        SpatchUi ui = create();
+        SharedPreferences prefs = (SharedPreferences) field(ui, "prefs");
+        prefs.edit().putBoolean("audio", false).apply();
+        apply(ui, "same", 120000, 240000, true);
+        call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
+        ui.measure(View.MeasureSpec.makeMeasureSpec(412, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(820, View.MeasureSpec.EXACTLY));
+        ui.layout(0, 0, 412, 820);
+        View disc = (View) field(ui, "disc");
+        disc.layout(0, 0, 360, 360);
+        Canvas canvas = new Canvas(Bitmap.createBitmap(360, 360, Bitmap.Config.ARGB_8888));
+        for (int i = 0; i < 15; i++) ringFrame(disc, canvas);
+        float[] levels = (float[]) field(disc, "level");
+        float peak = max(levels);
+        assertTrue(peak > .1f);
+        apply(ui, "same", 120000, 240000, false);
+        // Capture can retain old FFT data after pausing; it must not keep driving the ring.
+        prefs.edit().putBoolean("audio", true).apply();
+        shadowOf(ui.activity.getApplication()).grantPermissions(Audio.PERMISSION);
+        java.util.Arrays.fill(Audio.BANDS, 1f);
+        long wanted = (Long) field(Audio.class, "wantedUntil");
+        try {
+            ringFrame(disc, canvas);
+            assertTrue("Pause eases down instead of snapping", max(levels) > .02f && max(levels) < peak);
+            assertEquals("Paused frames must not renew audio capture", wanted, ((Long) field(Audio.class, "wantedUntil")).longValue());
+            shadowOf(disc).clearWasInvalidated();
+            ShadowLooper.idleMainLooper(32, java.util.concurrent.TimeUnit.MILLISECONDS);
+            assertTrue("The paused ring requests another frame while settling", shadowOf(disc).wasInvalidated());
+            for (int i = 0; i < 75; i++) ringFrame(disc, canvas);
+            for (float level : levels) assertEquals("Every bar returns to rest", .02f, level, .001f);
+            prefs.edit().putBoolean("audio", false).apply();
+            apply(ui, "same", 120000, 240000, true);
+            for (int i = 0; i < 10; i++) ringFrame(disc, canvas);
+            assertTrue("Resume restarts the ring", max(levels) > .1f);
+            prefs.edit().putBoolean("reduce_motion", true).apply();
+            apply(ui, "same", 120000, 240000, false);
+            ringFrame(disc, canvas);
+            for (float level : levels) assertEquals("Reduce motion settles immediately", .02f, level, .001f);
+        } finally { java.util.Arrays.fill(Audio.BANDS, 0f); }
+    }
+
+    private static void ringFrame(View disc, Canvas canvas) {
+        ShadowSystemClock.advanceBy(Duration.ofMillis(16));
+        disc.draw(canvas);
+    }
+
+    private static float max(float[] values) {
+        float max = 0;
+        for (float value : values) max = Math.max(max, value);
+        return max;
     }
 
     private static SpatchUi create() {
@@ -130,7 +185,7 @@ public class PlaybackProgressTest {
     }
 
     private static void finish(SpatchUi ui) throws Exception {
-        ValueAnimator animator = (ValueAnimator) field(ui, "progressAnimator");
+        ValueAnimator animator = (ValueAnimator) field(field(ui, "progress"), "animator");
         if (animator != null) animator.setCurrentPlayTime(animator.getDuration());
     }
 
@@ -145,7 +200,7 @@ public class PlaybackProgressTest {
     }
 
     private static Object field(Object target, String name) throws Exception {
-        java.lang.reflect.Field field = target.getClass().getDeclaredField(name);
+        java.lang.reflect.Field field = (target instanceof Class<?> ? (Class<?>) target : target.getClass()).getDeclaredField(name);
         field.setAccessible(true);
         return field.get(target);
     }

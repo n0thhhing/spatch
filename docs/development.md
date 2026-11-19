@@ -9,23 +9,32 @@ the earlier Spotify-UI patch. Start changes from `fresh`; keep the pinned input 
 | --- | --- |
 | `src/` | Desktop patcher, guarded edits, DEX compilation, bundles and source staging |
 | `app/src/spotify/` | Spotify protobuf requests, decoders and domain operations |
-| `app/src/ui.rs` | JNI screen contracts, revision counters and current account state |
+| `app/src/ui/mod.rs` | Playback/library/playlist JNI contracts, revision counters and current account state |
+| `app/src/ui/account.rs` | Profile and playlist creation/addition endpoints with their preview tests |
 | `app/src/bridge.rs` | JNI transport, Rust stream handlers, session generations and UI pushes |
 | `app/src/cache.rs` | Bounded account-scoped screen answers and packed string encoding |
 | `app/src/eq.rs`, `spectrum.rs`, `autoeq.rs` | DSP math, FFT analysis and headphone catalog parsing |
-| `java/dex/src/spatch/core/SpatchUi.java` | Production Android views and interaction state |
+| `java/dex/src/spatch/SpatchUi.java` | Screen composition, navigation, playback/library state and JNI boundary |
+| `ArtworkViews.java` in the same directory | Cover tiles, artwork transitions, backdrop, motes and the audio ring |
+| `SoundSettings.java` in the same directory | Equalizer editor, effects and headphone profile browsing |
+| `CreationSheet.java` in the same directory | Create menu, playlist draft, validation and submission |
 | `SpatchApp.java` in the same directory | Async native loading, overlay/auth lifecycle and native return control |
+| `MediaEntry.java`, `ProgressMotion.java` in the same directory | Media row/song models and playback progress animation |
+| `PackedStrings.java` in the same directory | Shared UTF-8 JNI payload encoding/decoding |
 | `CoreBridge.java`, `Subscriptions.java` | Spotify transports, stream disposal, catalog calls and artwork IO |
 | `Audio.java` in the same directory | Android audio sessions/effects, capture and retry scheduling |
 | `java/dex/stubs/` | Compile-only Spotify/RxJava signatures; never package them |
-| `app/preview/` | Shared UI preview hosts and offline boundary adapters |
+| `app/preview/src/spatch/` | Shared Android preview host and offline Spotify boundary adapter |
+| `app/preview/desktop/` | Native Mac host build and rendered UI tests |
 | `java/dex/test/`, `app/preview/desktop/src/test/` | Java contract/math and rendered UI regression checks |
 | `tests/` | Desktop contract runners and nightly input selection checks |
 | `manager/`, `source/cloudflare/` | Android installer and optional private source service |
 
 Register production Java helpers in `src/helpers.rs`. The preview excludes Spotify-only bridges
 and compiles the actual UI/audio sources; do not create a second implementation of a screen.
-Update both preview build source lists when introducing another Spotify-only helper.
+Java files live directly under their declared `spatch` package directory. Both preview builds
+discover the shared sources from the same directory.
+Update their exclusions when introducing another Spotify-only helper.
 
 ## Lifecycle rules
 
@@ -50,7 +59,8 @@ Update both preview build source lists when introducing another Spotify-only hel
   both drag/hold seeking flatten the wave. Respect Reduce motion and cancel work on detach.
 - Recalculate EQ gains and peak attenuation for the actual hardware band centres, including
   fallback bands. Unsupported effects retry with backoff; failed visualizer captures clear stale
-  levels and use the slower retry loop.
+  levels and use the slower retry loop. On pause, ignore stale bands and keep drawing until the
+  artwork ring settles; paused frames must not renew audio capture.
 
 ## Checks
 
