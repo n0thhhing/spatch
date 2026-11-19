@@ -108,6 +108,13 @@ public class ArtworkEffectsTest {
             assertEquals(sizes[style][1], shown.getHeight());
             for (int previous = 0; previous < style; previous++) assertFalse("Blur choices must affect the rendered backdrop", rendered[style].sameAs(rendered[previous]));
         }
+        Bitmap stripe = Bitmap.createBitmap(2, 16, Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < 16; y++) { stripe.setPixel(0, y, 0xff000000); stripe.setPixel(1, y, 0xffffffff); }
+        SpatchUi.IMAGES.put(ui.image + ":440/blur/2", stripe);
+        Bitmap smooth = Bitmap.createBitmap(240, 400, Bitmap.Config.ARGB_8888);
+        backdrop.draw(new Canvas(smooth));
+        int left = (smooth.getPixel(119, 120) >> 16) & 255, right = (smooth.getPixel(120, 120) >> 16) & 255;
+        assertTrue("Upscaling a blur texture must interpolate instead of making block edges", Math.abs(left - right) < 10);
         ui.prefs.edit().putBoolean("backdrop", false).apply();
         Bitmap off = Bitmap.createBitmap(240, 400, Bitmap.Config.ARGB_8888);
         backdrop.draw(new Canvas(off));
