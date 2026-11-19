@@ -185,6 +185,8 @@ public final class SpatchUi extends FrameLayout {
     private LinearLayout dock, nextPill;
     private Navigator dockBar;
     private FrameLayout createOverlay;
+    private LinearLayout createCard;
+    private boolean createComposerOpen, createComposerFromMenu;
     private View dockFade;
     private boolean dockHidden, navDragging;
     private int scrollTravel;
@@ -545,7 +547,10 @@ public final class SpatchUi extends FrameLayout {
     void back() {
         // Spatch's back handler outranks the keyboard's, so close the keyboard here first.
         if (hideKeyboard()) return;
-        if (createOverlay != null) closeCreateMenu();
+        if (createOverlay != null) {
+            if (createComposerOpen && createComposerFromMenu) showCreateMenuContent(true);
+            else closeCreateMenu();
+        }
         else if (accountMenu != null && accountMenu.isShowing()) accountMenu.dismiss();
         else if (sheetClose != null) sheetClose.run();
         else if (queuePanel != null) closeQueue();
@@ -1229,12 +1234,28 @@ public final class SpatchUi extends FrameLayout {
         settingsAction(identity, "Refresh profile", profileError.isEmpty() ? "Reload your name and photo from Spotify" : "Your profile hasn’t loaded yet. Tap to retry.", () -> loadProfile(true));
         LinearLayout music = card(page, "Your music");
         settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; go(LIBRARY); });
-        settingsAction(music, "Create a playlist", "Start a new collection", () -> go(CREATE));
+        settingsAction(music, "Create a playlist", "Start a new collection", () -> { pendingPlaylistSong = null; openCreatePlaylist(false); });
         settingsAction(music, "Settings", "Personalise Spatch", this::openSettings);
         return scrolling(page);
     }
 
     private void openCreateMenu() {
+        createComposerOpen = false;
+        createComposerFromMenu = false;
+        ensureCreateOverlay();
+        showCreateMenuContent(false);
+    }
+
+    private void openCreatePlaylist(boolean fromMenu) {
+        boolean alreadyOpen = createOverlay != null;
+        createComposerOpen = true;
+        createComposerFromMenu = fromMenu;
+        ensureCreateOverlay();
+        showCreateComposerContent(alreadyOpen);
+    }
+
+    private void ensureCreateOverlay() {
+        if (createOverlay != null && createCard != null) return;
         hideKeyboard();
         if (accountMenu != null) accountMenu.dismiss();
         setDockHidden(false);
@@ -1245,10 +1266,40 @@ public final class SpatchUi extends FrameLayout {
         dockBar.getLocationInWindow(navAt); getLocationInWindow(rootAt);
         int available = navAt[1] - rootAt[1];
         if (available <= 0) available = getHeight() - dp(70) - inset.bottom;
-        LinearLayout menu = column();
-        menu.setPadding(dp(10), dp(10), dp(10), dp(10));
-        bgRound(menu, 20, () -> blend(surf, accent2, .07f));
-        menu.setClickable(true);
+        LinearLayout card = column();
+        bgRound(card, 24, () -> blend(surf, accent2, .07f));
+        card.setClickable(true);
+        createCard = card;
+        final int menuMaxHeight = Math.max(dp(120), available - inset.top - dp(24));
+        ScrollView scroll = new ScrollView(activity) {
+            @Override protected void onMeasure(int w, int h) {
+                super.onMeasure(w, MeasureSpec.makeMeasureSpec(menuMaxHeight, MeasureSpec.AT_MOST));
+            }
+        };
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.addView(card);
+        LayoutParams menuParams = new LayoutParams(-1, -2, Gravity.BOTTOM);
+        menuParams.setMargins(dp(8), dp(8), dp(8), dp(10));
+        overlay.addView(scroll, menuParams);
+        overlay.setOnClickListener(v -> closeCreateMenu());
+        addView(overlay, new LayoutParams(-1, available));
+        overlay.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+        card.setAccessibilityPaneTitle("Create");
+        updateDock();
+        if (motion()) {
+            overlay.setAlpha(0); overlay.animate().alpha(1).setDuration(180).start();
+            card.setTranslationY(dp(28)); card.animate().translationY(0).setDuration(280).setInterpolator(EMPHASIZED).start();
+        }
+    }
+
+    private void showCreateMenuContent(boolean animateSwap) {
+        if (createCard == null) return;
+        hideKeyboard();
+        createComposerOpen = false;
+        createComposerFromMenu = false;
+        createCard.removeAllViews();
+        createCard.setPadding(dp(10), dp(10), dp(10), dp(10));
+        createCard.setAccessibilityPaneTitle("Create");
         String[] titles = {"Playlist", "Collaborative playlist", "Mixed playlist", "Blend", "Prompted Playlist", "Jam"};
         String[] details = {"Create a playlist with songs or episodes", "Create a playlist together with friends", "Mix songs with smooth transitions",
             "Combine your friends’ tastes into a playlist", "Create a playlist with a prompt", "Listen together from anywhere"};
@@ -1280,155 +1331,114 @@ public final class SpatchUi extends FrameLayout {
             option.addView(words, weight());
             option.setMinimumHeight(dp(68));
             tappable(option, titles[i], () -> {
-                closeCreateMenu();
-                if (index == 0) { pendingPlaylistSong = null; go(CREATE); }
-                else {
+                if (index == 0) {
+                    pendingPlaylistSong = null;
+                    openCreatePlaylist(true);
+                } else {
+                    closeCreateMenu();
                     String error = CoreBridge.openCreation(activity, kinds[index]);
                     if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
                 }
             });
-            menu.addView(option, fill(-2));
+            createCard.addView(option, fill(-2));
         }
-        final int menuMaxHeight = Math.max(dp(120), available - inset.top - dp(24));
-        ScrollView scroll = new ScrollView(activity) {
-            @Override protected void onMeasure(int w, int h) {
-                super.onMeasure(w, MeasureSpec.makeMeasureSpec(menuMaxHeight, MeasureSpec.AT_MOST));
-            }
-        };
-        scroll.setVerticalScrollBarEnabled(false);
-        scroll.addView(menu);
-        LayoutParams menuParams = new LayoutParams(-1, -2, Gravity.BOTTOM);
-        menuParams.setMargins(dp(8), dp(8), dp(8), dp(10));
-        overlay.addView(scroll, menuParams);
-        overlay.setOnClickListener(v -> closeCreateMenu());
-        addView(overlay, new LayoutParams(-1, available));
-        overlay.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
-        menu.setAccessibilityPaneTitle("Create");
-        updateDock();
-        if (motion()) {
-            overlay.setAlpha(0); overlay.animate().alpha(1).setDuration(180).start();
-            menu.setTranslationY(dp(28)); menu.animate().translationY(0).setDuration(280).setInterpolator(EMPHASIZED).start();
+        if (animateSwap && motion()) {
+            createCard.setAlpha(.25f);
+            createCard.animate().alpha(1f).setDuration(180).setInterpolator(EMPHASIZED).start();
         }
     }
 
-    private void closeCreateMenu() {
-        FrameLayout overlay = createOverlay;
-        if (overlay == null) return;
-        createOverlay = null;
-        updateDock();
-        if (motion() && isAttachedToWindow()) overlay.animate().alpha(0).setDuration(140).withEndAction(() -> removeView(overlay)).start();
-        else removeView(overlay);
-    }
+    private void showCreateComposerContent(boolean animateSwap) {
+        if (createCard == null) return;
+        createComposerOpen = true;
+        createCard.removeAllViews();
+        createCard.setPadding(dp(18), dp(14), dp(18), dp(16));
+        createCard.setAccessibilityPaneTitle("New playlist");
 
-    private android.widget.EditText createField(String hint, String value, boolean multiline) {
-        android.widget.EditText field = new android.widget.EditText(activity);
-        field.setHint(hint);
-        field.setText(value);
-        field.setTextSize(16);
-        field.setPadding(dp(18), dp(16), dp(18), dp(16));
-        field.setSingleLine(!multiline);
-        if (multiline) { field.setMinLines(3); field.setGravity(Gravity.TOP); }
-        bgRound(field, 20, () -> surf);
-        colored(field, () -> { field.setTextColor(ink); field.setHintTextColor(inkDim); });
-        field.setContentDescription(hint);
-        return field;
-    }
-
-    private View createPage() {
-        LinearLayout page = column();
-        LinearLayout top = row();
-        top.setPadding(0, dp(4), 0, dp(16));
-        LinearLayout backRow = row();
-        backRow.setPadding(dp(2), dp(6), dp(12), dp(6));
-        backRow.addView(icon("back", () -> accent), lp(dp(20), dp(20)));
-        TextView backLabel = text("Back", 15, () -> accent, true);
-        backLabel.setPadding(dp(6), 0, 0, 0);
-        backRow.addView(backLabel);
-        tappable(backRow, "Back", this::back);
-        top.addView(backRow, lp(-2, dp(40)));
-        page.addView(top, fill(-2));
+        LinearLayout header = row();
+        header.setPadding(0, 0, 0, dp(12));
+        if (createComposerFromMenu) {
+            View backBtn = iconButton(icon("back", () -> ink), "Back to create menu", () -> showCreateMenuContent(true));
+            LinearLayout.LayoutParams bp = lp(dp(36), dp(36));
+            bp.rightMargin = dp(6);
+            header.addView(backBtn, bp);
+        }
+        header.addView(text("New playlist", 18, () -> ink, true), weight());
+        createCard.addView(header, fill(-2));
 
         int queueCount = (!uri.isEmpty() ? 1 : 0) + upcoming.size();
         String coverUrl = createFromQueue && !image.isEmpty() ? image
             : (pendingPlaylistSong != null && !pendingPlaylistSong.image.isEmpty() ? pendingPlaylistSong.image : "");
 
-        LinearLayout composer = column();
-        composer.setPadding(dp(20), dp(22), dp(20), dp(20));
-        bgRound(composer, 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
-
+        LinearLayout hero = row();
+        hero.setPadding(0, 0, 0, dp(14));
         FrameLayout cover = new FrameLayout(activity);
         if (!coverUrl.isEmpty()) {
             Art art = new Art(Art.ROUNDED, false);
             art.bind(coverUrl);
             cover.addView(art, new FrameLayout.LayoutParams(-1, -1));
         } else {
-            bgRound(cover, 24, () -> blend(surfHi, accent, .2f)).setStroke(Math.max(1, dp(.8f)), (accent & 0x00ffffff) | 0x33000000);
-            Icon emblem = icon("note", () -> accent);
-            FrameLayout.LayoutParams ep = new FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER);
-            cover.addView(emblem, ep);
+            bgRound(cover, 18, () -> blend(surfHi, accent, .2f)).setStroke(Math.max(1, dp(.8f)), (accent & 0x00ffffff) | 0x33000000);
+            cover.addView(icon("note", () -> accent), new FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER));
         }
         int seedCount = createFromQueue ? queueCount : (pendingPlaylistSong != null ? 1 : 0);
         if (seedCount > 0) {
-            TextView badge = text(seedCount == 1 ? "1 song" : seedCount + " songs", 11, () -> onAccent, true);
-            badge.setPadding(dp(8), dp(3), dp(8), dp(3));
+            TextView badge = text(String.valueOf(seedCount), 10, () -> onAccent, true);
+            badge.setPadding(dp(6), dp(2), dp(6), dp(2));
             bgRound(badge, 999, () -> accent);
-            FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-            bp.bottomMargin = dp(8);
-            cover.addView(badge, bp);
+            FrameLayout.LayoutParams badgeP = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
+            badgeP.rightMargin = dp(4); badgeP.bottomMargin = dp(4);
+            cover.addView(badge, badgeP);
         }
-        LinearLayout.LayoutParams cp = lp(dp(104), dp(104));
-        cp.gravity = Gravity.CENTER_HORIZONTAL;
-        cp.bottomMargin = dp(18);
-        composer.addView(cover, cp);
+        LinearLayout.LayoutParams coverP = lp(dp(64), dp(64));
+        coverP.rightMargin = dp(14);
+        hero.addView(cover, coverP);
 
+        LinearLayout titleCol = column();
         android.widget.EditText name = new android.widget.EditText(activity);
-        name.setHint("New playlist");
+        name.setHint("Give it a name");
         name.setText(createName);
-        name.setTextSize(24);
-        name.setGravity(Gravity.CENTER_HORIZONTAL);
+        name.setTextSize(20);
         name.setSingleLine(true);
         name.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_NEXT);
         name.setBackground(null);
-        name.setPadding(dp(8), dp(6), dp(8), dp(8));
+        name.setPadding(0, dp(4), 0, dp(6));
         if (android.os.Build.VERSION.SDK_INT >= 28) name.setTypeface(Typeface.create(Typeface.SANS_SERIF, 700, false));
         colored(name, () -> { name.setTextColor(ink); name.setHintTextColor(inkDim); });
         name.setContentDescription("Playlist name");
-        composer.addView(name, fill(-2));
+        titleCol.addView(name, fill(-2));
 
         View underline = new View(activity);
         colored(underline, () -> underline.setBackgroundColor(name.hasFocus() ? accent : ((ink & 0x00ffffff) | 0x26000000)));
-        LinearLayout.LayoutParams up = fill(Math.max(2, dp(1.5f)));
-        up.leftMargin = dp(24); up.rightMargin = dp(24); up.bottomMargin = dp(16);
-        composer.addView(underline, up);
+        titleCol.addView(underline, fill(Math.max(2, dp(1.5f))));
         name.setOnFocusChangeListener((v, focused) -> underline.setBackgroundColor(focused ? accent : ((ink & 0x00ffffff) | 0x26000000)));
 
         TextView nameCount = text("", 11, () -> inkDim, false);
-        nameCount.setGravity(Gravity.CENTER_HORIZONTAL);
+        nameCount.setPadding(0, dp(4), 0, 0);
         nameCount.setVisibility(createName.isEmpty() ? GONE : VISIBLE);
         if (!createName.isEmpty()) nameCount.setText(createName.length() + " / 100");
-        LinearLayout.LayoutParams ncp = fill(-2);
-        ncp.topMargin = -dp(10);
-        ncp.bottomMargin = dp(14);
-        composer.addView(nameCount, ncp);
+        titleCol.addView(nameCount, fill(-2));
+        hero.addView(titleCol, weight());
+        createCard.addView(hero, fill(-2));
 
         android.widget.EditText description = new android.widget.EditText(activity);
         description.setHint("Add a description (optional)");
         description.setText(createDescription);
         description.setTextSize(14);
         description.setMinLines(2);
-        description.setMaxLines(3);
+        description.setMaxLines(2);
         description.setGravity(Gravity.TOP | Gravity.START);
-        description.setPadding(dp(16), dp(12), dp(16), dp(12));
-        bgRound(description, 16, () -> surfHi).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
+        description.setPadding(dp(14), dp(10), dp(14), dp(10));
+        bgRound(description, 14, () -> surfHi).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
         colored(description, () -> { description.setTextColor(ink); description.setHintTextColor(inkDim); });
         description.setContentDescription("Description (optional)");
-        LinearLayout.LayoutParams dpBox = fill(-2);
-        dpBox.bottomMargin = dp(16);
-        composer.addView(description, dpBox);
+        LinearLayout.LayoutParams descP = fill(-2);
+        descP.bottomMargin = dp(12);
+        createCard.addView(description, descP);
 
         LinearLayout toggleRow = row();
         toggleRow.setPadding(dp(4), dp(4), dp(4), dp(4));
-        bgRound(toggleRow, 22, () -> surfHi);
+        bgRound(toggleRow, 20, () -> surfHi);
         String[] modes = {"Empty", queueCount > 0 ? "From queue · " + queueCount : "From queue"};
         for (int i = 0; i < 2; i++) {
             final boolean wantQueue = i == 1;
@@ -1436,18 +1446,18 @@ public final class SpatchUi extends FrameLayout {
             TextView chip = text(modes[i], 13, active ? onAccent : ink, true);
             chip.setGravity(Gravity.CENTER);
             chip.setSingleLine(true);
-            chip.setPadding(dp(12), dp(10), dp(12), dp(10));
-            if (active) bgRound(chip, 18, () -> accent);
+            chip.setPadding(dp(10), dp(8), dp(10), dp(8));
+            if (active) bgRound(chip, 16, () -> accent);
             tappable(chip, modes[i], () -> {
                 if (createFromQueue == wantQueue) return;
                 createFromQueue = wantQueue;
-                showPage();
+                showCreateComposerContent(false);
             });
-            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(40), 1);
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(38), 1);
             if (i == 0) mp.rightMargin = dp(4);
             toggleRow.addView(chip, mp);
         }
-        composer.addView(toggleRow, fill(-2));
+        createCard.addView(toggleRow, fill(-2));
 
         String sourceSummary = "";
         if (createFromQueue) {
@@ -1468,19 +1478,15 @@ public final class SpatchUi extends FrameLayout {
         }
         if (!sourceSummary.isEmpty()) {
             TextView summary = text(sourceSummary, 12, () -> inkDim, false);
-            summary.setGravity(Gravity.CENTER_HORIZONTAL);
-            summary.setPadding(dp(8), dp(10), dp(8), 0);
+            summary.setPadding(dp(4), dp(8), dp(4), 0);
             oneLine(summary);
-            composer.addView(summary, fill(-2));
+            createCard.addView(summary, fill(-2));
         }
 
-        page.addView(composer, fill(-2));
-
-        TextView error = text("", 13, () -> 0xffff8a80, true);
-        error.setGravity(Gravity.CENTER_HORIZONTAL);
-        error.setPadding(dp(8), dp(12), dp(8), 0);
+        TextView error = text("", 12, () -> 0xffff8a80, true);
+        error.setPadding(dp(4), dp(8), dp(4), 0);
         error.setVisibility(GONE);
-        page.addView(error, fill(-2));
+        createCard.addView(error, fill(-2));
 
         name.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -1507,18 +1513,18 @@ public final class SpatchUi extends FrameLayout {
 
         LinearLayout actions = row();
         LinearLayout.LayoutParams ap = fill(-2);
-        ap.topMargin = dp(18);
-        TextView cancel = text("Cancel", 15, () -> ink, true);
+        ap.topMargin = dp(14);
+        TextView cancel = text("Cancel", 14, () -> ink, true);
         cancel.setGravity(Gravity.CENTER);
-        bgRound(cancel, 25, () -> surfHi).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
-        tappable(cancel, "Cancel", this::back);
-        LinearLayout.LayoutParams cancelP = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        bgRound(cancel, 23, () -> surfHi).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+        tappable(cancel, "Cancel", this::closeCreateMenu);
+        LinearLayout.LayoutParams cancelP = new LinearLayout.LayoutParams(0, dp(46), 1f);
         cancelP.rightMargin = dp(10);
         actions.addView(cancel, cancelP);
 
-        TextView make = text(creating ? "Creating…" : "Create", 15, () -> onAccent, true);
+        TextView make = text(creating ? "Creating…" : "Create", 14, () -> onAccent, true);
         make.setGravity(Gravity.CENTER);
-        bgRound(make, 25, () -> accent);
+        bgRound(make, 23, () -> accent);
         make.setEnabled(!creating);
         make.setAlpha(creating ? .55f : 1f);
         tappable(make, "Create playlist", () -> {
@@ -1571,15 +1577,49 @@ public final class SpatchUi extends FrameLayout {
                     }
                     createName = createDescription = "";
                     pendingPlaylistSong = null;
+                    closeCreateMenu();
                     Toast.makeText(activity, result[1].isEmpty() ? "Created “" + trimmed + "”" : result[1], result[1].isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
-                    if (tab == CREATE && playlist == null) openPlaylist(new Entry(trimmed, "Your playlist", result[0], "", 0));
+                    openPlaylist(new Entry(trimmed, "Your playlist", result[0], "", 0));
                 });
             });
         });
-        actions.addView(make, new LinearLayout.LayoutParams(0, dp(50), 1.6f));
-        page.addView(actions, ap);
-        return scrolling(page);
+        actions.addView(make, new LinearLayout.LayoutParams(0, dp(46), 1.6f));
+        createCard.addView(actions, ap);
+
+        if (animateSwap && motion()) {
+            createCard.setAlpha(.25f);
+            createCard.animate().alpha(1f).setDuration(180).setInterpolator(EMPHASIZED).start();
+        }
     }
+
+    private void closeCreateMenu() {
+        FrameLayout overlay = createOverlay;
+        if (overlay == null) return;
+        hideKeyboard();
+        createOverlay = null;
+        createCard = null;
+        createComposerOpen = false;
+        createComposerFromMenu = false;
+        updateDock();
+        if (motion() && isAttachedToWindow()) overlay.animate().alpha(0).setDuration(140).withEndAction(() -> removeView(overlay)).start();
+        else removeView(overlay);
+    }
+
+    private android.widget.EditText createField(String hint, String value, boolean multiline) {
+        android.widget.EditText field = new android.widget.EditText(activity);
+        field.setHint(hint);
+        field.setText(value);
+        field.setTextSize(16);
+        field.setPadding(dp(18), dp(16), dp(18), dp(16));
+        field.setSingleLine(!multiline);
+        if (multiline) { field.setMinLines(3); field.setGravity(Gravity.TOP); }
+        bgRound(field, 20, () -> surf);
+        colored(field, () -> { field.setTextColor(ink); field.setHintTextColor(inkDim); });
+        field.setContentDescription(hint);
+        return field;
+    }
+
+    private View createPage() { return homePage(); }
 
     // ================= search =================
 
@@ -3319,7 +3359,7 @@ public final class SpatchUi extends FrameLayout {
             options.add(new Option(candidate.title, candidate.subtitle, candidate.image, "playlist", false));
         }
         sheet("Add to playlist", song.title, options.toArray(new Option[0]), choice -> {
-            if (choice == 0) { pendingPlaylistSong = song; go(CREATE); return; }
+            if (choice == 0) { pendingPlaylistSong = song; openCreatePlaylist(false); return; }
             appendSong(targets.get(choice - 1), song);
         });
     }
