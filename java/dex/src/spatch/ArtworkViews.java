@@ -174,7 +174,7 @@ final class ArtworkViews {
 
     /** The cover, blurred and drifting, under a dark wash. */
     final class Backdrop extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
         private final Matrix m = new Matrix();
         private android.animation.ObjectAnimator drift;
         private Bitmap shown = ui.lastBlur, previous;

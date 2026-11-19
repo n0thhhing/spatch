@@ -122,6 +122,35 @@ public class ArtworkEffectsTest {
         ui.activity.finish();
     }
 
+    @Test public void backdropDitheringBreaksUpDarkGradientBands() throws Exception {
+        SpatchUi ui = create();
+        ui.prefs.edit().putBoolean("reduce_motion", true).apply();
+        ui.image = "test:banding";
+        Bitmap cover = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888);
+        cover.eraseColor(0xff204455);
+        SpatchUi.IMAGES.put(ui.image + ":440", cover);
+        ArtworkViews.cacheBlurs(ui.image + ":440", cover);
+        ArtworkViews.Backdrop backdrop = ui.artwork.new Backdrop();
+        canvas(backdrop);
+        Bitmap dithered = Bitmap.createBitmap(240, 400, Bitmap.Config.ARGB_8888);
+        backdrop.draw(new Canvas(dithered));
+        android.graphics.Paint paint = (android.graphics.Paint) field(backdrop, "paint");
+        paint.setDither(false);
+        Bitmap banded = Bitmap.createBitmap(240, 400, Bitmap.Config.ARGB_8888);
+        backdrop.draw(new Canvas(banded));
+        assertFalse("Dithering must change the rendered gradient, not just a setting", dithered.sameAs(banded));
+        int brokenBands = 0;
+        for (int y = 50; y < 350; y++) {
+            for (int x = 1; x < 240; x++) if (dithered.getPixel(x, y) != dithered.getPixel(x - 1, y)) { brokenBands++; break; }
+        }
+        assertTrue("Dithering breaks up long solid colour steps", brokenBands > 100);
+        paint.setDither(true);
+        Bitmap again = Bitmap.createBitmap(240, 400, Bitmap.Config.ARGB_8888);
+        backdrop.draw(new Canvas(again));
+        assertTrue("Dithering stays still when motion is reduced", again.sameAs(dithered));
+        ui.activity.finish();
+    }
+
     private static SpatchUi create() {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ShadowLooper.idleMainLooper();

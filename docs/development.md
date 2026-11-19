@@ -64,7 +64,8 @@ Update their exclusions when introducing another Spotify-only helper.
 - Invalidate the motes on playback pushes and window visibility changes so a paused frame loop can
   restart. Ease their speed to zero, advance sway/shimmer from that same local phase, and keep
   Reduce motion still. Cache the small Soft/Deep/Streaks blur textures when artwork loads rather
-  than allocating them during drawing; all visual preferences use the shared Android UI.
+  than allocating them during drawing. Filter enlarged textures and dither the backdrop gradients
+  to avoid block edges and dark colour bands; all visual preferences use the shared Android UI.
 
 ## Checks
 
