@@ -234,6 +234,10 @@ public final class SpatchUi extends FrameLayout {
         this.activity = activity;
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
+        if (forgetProfile) {
+            forgetProfile = false;
+            prefs.edit().remove("profile_name").remove("profile_user").remove("profile_image").remove("profile_uri").apply();
+        }
         // Last launch's account shows at once; the real lookup (which needs the library) replaces it.
         profileName = prefs.getString("profile_name", "");
         profileUsername = prefs.getString("profile_user", "");
@@ -4494,7 +4498,11 @@ public final class SpatchUi extends FrameLayout {
         COMMANDS.execute(() -> { if (generation == accountGeneration) nativeCommand(PAUSE, 0, ""); });
     };
 
+    /** Set when Spotify's login opens: the next screen drops the saved profile so another account never shows it. */
+    private static volatile boolean forgetProfile;
+
     static void resetAccount() {
+        forgetProfile = true;
         accountGeneration++;
         sleepAt = 0;
         MAIN.removeCallbacks(SLEEP);

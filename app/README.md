@@ -49,6 +49,13 @@ account state and removes the old overlay; returning mounts a fresh screen. Netw
 an earlier account session cannot commit after the reset. The first library load requires Spotify’s
 core instead of showing a previous account’s unverified cached library.
 
+The **Search** tab searches your library together with the core's offline index (songs, albums, playlists and
+episodes Spotify keeps on the phone); Spotify's catalogue search is not available through the core. **Play next**
+appears beside **Add to queue** in song menus, and the devices sheet opens with a volume bar for the device that is
+playing. **Offline mode** (Downloads & storage) asks before it turns on. The profile page shows the last known account
+at once and keeps looking it up until it is found, and its Connection card lists what the lookup knows, with **Copy
+details**; the saved profile is discarded whenever Spotify's login opens.
+
 **About** includes the build commit, host version, Android version, copyable build details,
 project/update/issue links, license, credits and account/cache information.
 
