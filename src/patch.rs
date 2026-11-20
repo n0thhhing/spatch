@@ -257,10 +257,10 @@ fn resource_id(dump: &str, kind: &str, name: &str) -> Result<u32> {
     let want = format!("{kind}/{name}");
     for line in dump.lines() {
         let mut words = line.split_whitespace();
-        if let (Some("resource"), Some(id), Some(found), None) = (words.next(), words.next(), words.next(), words.next()) {
-            if found == want {
-                return Ok(u32::from_str_radix(id.trim_start_matches("0x"), 16)?);
-            }
+        if let (Some("resource"), Some(id), Some(found), None) = (words.next(), words.next(), words.next(), words.next())
+            && found == want
+        {
+            return Ok(u32::from_str_radix(id.trim_start_matches("0x"), 16)?);
         }
     }
     Err(format!("Spotify's resources have no {want}, which Spatch's widget layouts reuse").into())
