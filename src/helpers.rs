@@ -15,6 +15,7 @@ pub const HELPERS: &[(&str, &str)] = &[
     ("SoundSettings", include_str!("../java/dex/src/spatch/SoundSettings.java")),
     ("SpatchApp", include_str!("../java/dex/src/spatch/SpatchApp.java")),
     ("SpatchUi", include_str!("../java/dex/src/spatch/SpatchUi.java")),
+    ("SpatchWidget", include_str!("../java/dex/src/spatch/SpatchWidget.java")),
     ("Subscriptions", include_str!("../java/dex/src/spatch/Subscriptions.java")),
 ];
 

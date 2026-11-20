@@ -4,6 +4,7 @@ mod dex;
 mod edits;
 mod helpers;
 mod input;
+mod manifest;
 mod patch;
 mod source;
 mod tools;

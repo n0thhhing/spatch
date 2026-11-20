@@ -234,6 +234,7 @@ public final class SpatchUi extends FrameLayout {
     SpatchUi(Activity activity) {
         super(activity);
         this.activity = activity;
+        SpatchWidget.uiStarted(activity);
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
         if (forgetProfile) {
@@ -663,12 +664,19 @@ public final class SpatchUi extends FrameLayout {
 
     /** Called by Rust (from any thread) whenever player, library, playlist, or download state changes. */
     static boolean onNativeChange() {
+        SpatchWidget.changed();
         java.lang.ref.WeakReference<SpatchUi> ref = activeUi;
         SpatchUi ui = ref == null ? null : ref.get();
         if (ui == null || !ui.isAttachedToWindow() || ui.getWindowVisibility() != VISIBLE) return false;
         ui.post(ui.syncPush);
         return true;
     }
+
+    /** The player's fields when they changed since `revision`, for the home-screen widget. */
+    static String[] widgetState(long revision) { return unpackStrings(nativePlayer(revision)); }
+
+    /** A button on the home-screen widget: pause, resume, previous or next. */
+    static void widgetCommand(int action) { COMMANDS.execute(() -> nativeCommand(action, 0, "")); }
 
     private final Runnable syncPush = this::syncNativeState;
     private boolean libraryRedrawPending;

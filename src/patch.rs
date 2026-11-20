@@ -1,6 +1,7 @@
 //! The app rebuild: Spotify's core under Spatch's own UI. Only the core hooks in classes.dex and
 //! classes2.dex change; the helper DEX (CoreBridge, SpatchApp) and the Rust app library are added.
-//! Spotify's resources, manifest and every other DEX stay byte-identical.
+//! Spotify's resources and every other DEX stay byte-identical; the manifest gains one receiver, Spatch's
+//! home-screen widget (see manifest.rs), beside Spotify's own.
 
 use crate::Result;
 use crate::dex;
@@ -62,13 +63,16 @@ pub fn run(
     let base = apks.join("base.apk");
     dex::check_originals(&base)?;
     // The app rebuild ships only what Spatch's own UI needs: the core hooks in Spotify's DEX, the helper
-    // DEX that hosts the app, and the Rust app itself. Spotify's resources stay untouched.
+    // DEX that hosts the app, and the Rust app itself. Spotify's resources stay untouched; only the manifest changes, by one widget receiver.
     let mut compiled = dex::build(&base, &staging.path, tools)?;
+    // Spatch's widget joins Spotify's own in the manifest; it borrows Spotify's widget layout and description.
+    let manifest = crate::manifest::add_widget(&input::read_entry(&base, "AndroidManifest.xml")?, "spatch.SpatchWidget", "Spatch", WIDGET_INFO)?;
     if let Output::DryRun = output {
         println!("dry run: input and DEX reassembly verified; no output written");
         return Ok(());
     }
     let helper = compiled.pop().expect("dex::build returns the helper last");
+    compiled.push(("AndroidManifest.xml", manifest));
     let mut added = vec![helper];
     added.push((RUST_APP_ASSET, rust_app()?.ok_or("the Rust app library is missing: build app/ (see app/README.md) or set SPATCH_APP_SO")?));
     let signing = match output {
@@ -161,6 +165,10 @@ pub fn run(
         return Err("signed APKs do not share one certificate".into());
     }
     verify_identity(&result.join("base.apk"), &aapt2)?;
+    let tree = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("xmltree"), OsStr::new("--file"), OsStr::new("AndroidManifest.xml"), result.join("base.apk").as_os_str()])?;
+    if !tree.contains("spatch.SpatchWidget") || !tree.contains("SpotifyWidget") {
+        return Err("the rebuilt manifest must hold both Spatch's widget and Spotify's".into());
+    }
     let originals = dex::DEX_TARGETS;
     for (entry, sha) in originals {
         let got = input::read_entry(&result.join("base.apk"), entry)?;
@@ -178,7 +186,11 @@ pub fn run(
     Ok(())
 }
 
-/// Where SpatchApp finds the Rust app library (copied out and loaded at run time, so the manifest and splits stay untouched).
+/// `@xml/miui_dynamic_npv_widget_info` in Spotify 9.2.0.26: a 4x1 resizable widget description without a label,
+/// so the widget picker shows the receiver's own name, "Spatch", rather than "Spotify".
+const WIDGET_INFO: u32 = 0x7f16_0011;
+
+/// Where SpatchApp finds the Rust app library (copied out and loaded at run time, so the splits stay untouched).
 pub const RUST_APP_ASSET: &str = "assets/spatch/libspatch_app.so";
 
 /// The arm64 Rust app library to ship: $SPATCH_APP_SO, else app/'s release build if one exists.
