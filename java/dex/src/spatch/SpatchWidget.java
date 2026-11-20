@@ -33,7 +33,7 @@ import java.util.concurrent.Executors;
  * skip icons. State arrives from the Rust player whenever it changes (SpatchUi.onNativeChange), even with the
  * app in the background.
  */
-public final class SpatchWidget extends AppWidgetProvider {
+public class SpatchWidget extends AppWidgetProvider {
     private static final String PREVIOUS = "spatch.widget.PREVIOUS", TOGGLE = "spatch.widget.TOGGLE", NEXT = "spatch.widget.NEXT";
     private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
     private static final int PAUSE_ACTION = 0, RESUME_ACTION = 1, PREVIOUS_ACTION = 2, NEXT_ACTION = 3;
@@ -43,7 +43,8 @@ public final class SpatchWidget extends AppWidgetProvider {
     private static long seen = -1, checkedAt;
     private static boolean playing, placed;
     private static String title = "", artist = "", coverUrl = "";
-    private static Bitmap cover;
+    private static Bitmap cover, backdrop, backdropFor;
+    private static int backdropColor;
     /** Colours for the current cover: background, accent, and what sits on the accent. */
     private static int background = 0xFF15161C, accent = 0xFF9DB7FF, onAccent = 0xFF101218;
 
@@ -72,8 +73,9 @@ public final class SpatchWidget extends AppWidgetProvider {
             if (!force && !placed && now - checkedAt < 10000) return;
             checkedAt = now;
             AppWidgetManager manager = AppWidgetManager.getInstance(context);
-            int[] ids = manager.getAppWidgetIds(new ComponentName(context, SpatchWidget.class));
-            placed = ids.length > 0;
+            int[] big = manager.getAppWidgetIds(new ComponentName(context, SpatchWidget.class));
+            int[] small = manager.getAppWidgetIds(new ComponentName(context, SpatchWidgetSmall.class));
+            placed = big.length + small.length > 0;
             if (!placed) return;
             String[] s = ready ? SpatchUi.widgetState(force ? -1 : seen) : null;
             if (s != null) {
@@ -84,7 +86,9 @@ public final class SpatchWidget extends AppWidgetProvider {
             } else if (!force) {
                 return;
             }
-            for (int id : ids) manager.updateAppWidget(id, views(context));
+            if (backdrop == null || backdropFor != cover || backdropColor != background) { backdrop = backdrop(cover); backdropFor = cover; backdropColor = background; }
+            for (int id : big) manager.updateAppWidget(id, views(context, false));
+            for (int id : small) manager.updateAppWidget(id, views(context, true));
         } catch (RuntimeException e) {
             android.util.Log.e("SpatchWidget", "refresh failed", e);
         }
@@ -139,7 +143,7 @@ public final class SpatchWidget extends AppWidgetProvider {
         Bitmap out = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(out);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        float radius = px * .14f;
+        float radius = px * .22f;
         RectF all = new RectF(0, 0, px, px);
         if (art != null) {
             canvas.drawRoundRect(all, radius, radius, paint);
@@ -162,58 +166,83 @@ public final class SpatchWidget extends AppWidgetProvider {
         return out;
     }
 
-    /** kind: 0 previous, 1 next, 2 play, 3 pause. Play and pause sit on an accent disc. */
-    private static Bitmap icon(int kind, int px) {
-        Bitmap out = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
+    /**
+     * The widget's backdrop, in Spatch's player style: the cover blown up and blurred, then washed with the deep
+     * colour, solid behind the text on the left and letting the cover's colour through on the right.
+     */
+    private static Bitmap backdrop(Bitmap art) {
+        int w = 120, h = 48;
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(out);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        canvas.drawColor(background);
+        if (art != null) {
+            // Down to a few pixels and back up: a cheap blur.
+            Bitmap tiny = Bitmap.createScaledBitmap(art, 10, 10, true);
+            canvas.drawBitmap(tiny, null, new RectF(0, -(w - h) / 2f, w, h + (w - h) / 2f), paint);
+        }
+        int solid = (background & 0x00FFFFFF) | 0xF2000000, clear = (background & 0x00FFFFFF) | (art != null ? 0x73000000 : 0xD9000000);
+        paint.setShader(new LinearGradient(0, 0, w, 0, new int[] { solid, solid, clear }, new float[] { 0f, .3f, 1f }, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, w, h, paint);
+        return out;
+    }
+
+    /**
+     * kind: 0 previous, 1 next, 2 play, 3 pause. Previous and next are tonal circles, play and pause an accent
+     * pill (w wide), like the player's own buttons.
+     */
+    private static Bitmap icon(int kind, int w, int h) {
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(out);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        boolean disc = kind >= 2;
-        if (disc) {
-            paint.setColor(accent);
-            canvas.drawCircle(px / 2f, px / 2f, px / 2f, paint);
-        }
-        paint.setColor(disc ? onAccent : 0xFFFFFFFF);
+        boolean main = kind >= 2;
+        paint.setColor(main ? accent : 0x2EFFFFFF);
+        canvas.drawRoundRect(new RectF(0, 0, w, h), h / 2f, h / 2f, paint);
+        paint.setColor(main ? onAccent : 0xFFFFFFFF);
         paint.setStyle(Paint.Style.FILL_AND_STROKE);
         paint.setStrokeJoin(Paint.Join.ROUND);
-        paint.setStrokeWidth(px * .05f);
-        float u = px / 100f, c = px / 2f;
+        paint.setStrokeWidth(h * .05f);
+        canvas.translate((w - h) / 2f, 0);
+        float u = h / 100f, c = h / 2f;
         Path p = new Path();
         switch (kind) {
             case 0: // bar, then a triangle pointing left
-                canvas.drawRoundRect(new RectF(30 * u, 32 * u, 37 * u, 68 * u), 3 * u, 3 * u, paint);
-                p.moveTo(70 * u, 32 * u); p.lineTo(70 * u, 68 * u); p.lineTo(42 * u, c); p.close();
+                canvas.drawRoundRect(new RectF(32 * u, 33 * u, 38 * u, 67 * u), 3 * u, 3 * u, paint);
+                p.moveTo(68 * u, 33 * u); p.lineTo(68 * u, 67 * u); p.lineTo(43 * u, c); p.close();
                 break;
             case 1:
-                canvas.drawRoundRect(new RectF(63 * u, 32 * u, 70 * u, 68 * u), 3 * u, 3 * u, paint);
-                p.moveTo(30 * u, 32 * u); p.lineTo(30 * u, 68 * u); p.lineTo(58 * u, c); p.close();
+                canvas.drawRoundRect(new RectF(62 * u, 33 * u, 68 * u, 67 * u), 3 * u, 3 * u, paint);
+                p.moveTo(32 * u, 33 * u); p.lineTo(32 * u, 67 * u); p.lineTo(57 * u, c); p.close();
                 break;
             case 2:
-                p.moveTo(40 * u, 31 * u); p.lineTo(40 * u, 69 * u); p.lineTo(70 * u, c); p.close();
+                p.moveTo(39 * u, 28 * u); p.lineTo(39 * u, 72 * u); p.lineTo(73 * u, c); p.close();
                 break;
             default:
-                canvas.drawRoundRect(new RectF(33 * u, 31 * u, 44 * u, 69 * u), 3 * u, 3 * u, paint);
-                canvas.drawRoundRect(new RectF(56 * u, 31 * u, 67 * u, 69 * u), 3 * u, 3 * u, paint);
+                canvas.drawRoundRect(new RectF(32 * u, 28 * u, 45 * u, 72 * u), 4 * u, 4 * u, paint);
+                canvas.drawRoundRect(new RectF(55 * u, 28 * u, 68 * u, 72 * u), 4 * u, 4 * u, paint);
         }
         canvas.drawPath(p, paint);
         return out;
     }
 
-    private static RemoteViews views(Context context) {
-        RemoteViews v = new RemoteViews(context.getPackageName(), id(context, "spatch_widget", "layout"));
-        v.setInt(android.R.id.background, "setBackgroundColor", background);
+    private static RemoteViews views(Context context, boolean small) {
+        RemoteViews v = new RemoteViews(context.getPackageName(), id(context, small ? "spatch_widget_small" : "spatch_widget", "layout"));
+        v.setImageViewBitmap(android.R.id.icon, backdrop);
         int titleView = id(context, "title", "id"), artistView = id(context, "artist", "id");
         v.setTextViewText(titleView, title.isEmpty() ? "Spatch" : title);
         v.setTextColor(titleView, 0xFFFFFFFF);
         v.setTextViewText(artistView, title.isEmpty() ? "Nothing playing" : artist);
         v.setTextColor(artistView, 0xB3FFFFFF);
+        if (!small) v.setTextColor(android.R.id.text1, accent);
         int art = id(context, "coverart", "id");
-        v.setImageViewBitmap(art, tile(cover, 256));
+        v.setImageViewBitmap(art, tile(cover, small ? 160 : 288));
         int prev = id(context, "btn_prev_normal", "id"), next = id(context, "btn_next_normal", "id");
         int play = id(context, "btn_play_normal", "id"), pause = id(context, "btn_pause_normal", "id");
-        v.setImageViewBitmap(prev, icon(0, 112));
-        v.setImageViewBitmap(next, icon(1, 112));
-        v.setImageViewBitmap(play, icon(2, 132));
-        v.setImageViewBitmap(pause, icon(3, 132));
+        int side = small ? 108 : 120, mainW = small ? 168 : 204, mainH = small ? 120 : 132;
+        v.setImageViewBitmap(prev, icon(0, side, side));
+        v.setImageViewBitmap(next, icon(1, side, side));
+        v.setImageViewBitmap(play, icon(2, mainW, mainH));
+        v.setImageViewBitmap(pause, icon(3, mainW, mainH));
         v.setViewVisibility(play, playing ? View.GONE : View.VISIBLE);
         v.setViewVisibility(pause, playing ? View.VISIBLE : View.GONE);
         v.setOnClickPendingIntent(prev, broadcast(context, PREVIOUS));

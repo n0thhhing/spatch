@@ -172,11 +172,12 @@ pub fn run(
     let table = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("resources"), result.join("base.apk").as_os_str()])?;
     let mut wanted: Vec<String> = WIDGET_IDS.iter().map(|&(name, id)| format!("resource {id:#010x} id/{name}")).collect();
     wanted.push(format!("resource {layout_id:#010x} layout/spatch_widget"));
+    wanted.push(format!("resource {:#010x} layout/spatch_widget_small", layout_id + 1));
     if let Some(missing) = wanted.iter().find(|line| !table.contains(line.as_str())) {
         return Err(format!("the rebuilt resources are missing: {missing}").into());
     }
     let tree = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("xmltree"), OsStr::new("--file"), OsStr::new("AndroidManifest.xml"), result.join("base.apk").as_os_str()])?;
-    if !tree.contains("spatch.SpatchWidget") || !tree.contains("SpotifyWidget") {
+    if !tree.contains("spatch.SpatchWidgetSmall") || !tree.contains("spatch.SpatchWidget\"") || !tree.contains("SpotifyWidget") {
         return Err("the rebuilt manifest must hold both Spatch's widget and Spotify's".into());
     }
     let originals = dex::DEX_TARGETS;
@@ -198,6 +199,8 @@ pub fn run(
 
 const WIDGET_LAYOUT: &str = "res/layout/spatch_widget.xml";
 const WIDGET_INFO: &str = "res/xml/spatch_widget_info.xml";
+const WIDGET_SMALL_LAYOUT: &str = "res/layout/spatch_widget_small.xml";
+const WIDGET_SMALL_INFO: &str = "res/xml/spatch_widget_small_info.xml";
 
 /// Views of Spotify's own widget whose ids (and names) Spatch's widget layout reuses, so no id resources are
 /// added. They are Spotify 9.2.0.26's; the rebuilt table is checked for each of them.
@@ -224,23 +227,37 @@ struct Widget {
 
 fn widget(base: &Path, staging: &Path, tools: &Tools) -> Result<Widget> {
     let table = input::read_entry(base, "resources.arsc")?;
+    // Two layouts, then two descriptions: each type hands out its next entries in order.
     let (layout_id, info_id) = (resources::next_id(&table, 0x0e)?, resources::next_id(&table, 0x16)?);
     let mut ids: Vec<(String, u32)> = WIDGET_IDS.iter().map(|&(name, id)| (format!("id/{name}"), id)).collect();
     ids.push(("layout/spatch_widget".into(), layout_id));
+    ids.push(("layout/spatch_widget_small".into(), layout_id + 1));
     ids.push(("xml/spatch_widget_info".into(), info_id));
+    ids.push(("xml/spatch_widget_small_info".into(), info_id + 1));
     let compiled = resources::compile(
         tools,
         &staging.join("widget"),
-        &[(WIDGET_LAYOUT, include_str!("../java/widget/spatch_widget.xml")), (WIDGET_INFO, include_str!("../java/widget/spatch_widget_info.xml"))],
+        &[
+            (WIDGET_LAYOUT, include_str!("../java/widget/spatch_widget.xml")),
+            (WIDGET_SMALL_LAYOUT, include_str!("../java/widget/spatch_widget_small.xml")),
+            (WIDGET_INFO, include_str!("../java/widget/spatch_widget_info.xml")),
+            (WIDGET_SMALL_INFO, include_str!("../java/widget/spatch_widget_small_info.xml")),
+        ],
         &ids,
     )?;
-    let (table, got) = resources::add(&table, &[(0x0e, "spatch_widget", WIDGET_LAYOUT), (0x16, "spatch_widget_info", WIDGET_INFO)])?;
-    if got != [layout_id, info_id] {
+    let (table, got) = resources::add(
+        &table,
+        &[(0x0e, "spatch_widget", WIDGET_LAYOUT), (0x0e, "spatch_widget_small", WIDGET_SMALL_LAYOUT), (0x16, "spatch_widget_info", WIDGET_INFO), (0x16, "spatch_widget_small_info", WIDGET_SMALL_INFO)],
+    )?;
+    if got != [layout_id, layout_id + 1, info_id, info_id + 1] {
         return Err("the new resources did not get the ids they were compiled with".into());
     }
-    let manifest = manifest::add_widget(&input::read_entry(base, "AndroidManifest.xml")?, "spatch.SpatchWidget", "Spatch", info_id)?;
+    let manifest = input::read_entry(base, "AndroidManifest.xml")?;
+    let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidget", "Spatch", info_id)?;
+    let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidgetSmall", "Spatch", info_id + 1)?;
     let mut files = compiled.into_iter();
-    Ok(Widget { manifest, table, files: vec![(WIDGET_LAYOUT, files.next().unwrap()), (WIDGET_INFO, files.next().unwrap())], layout_id })
+    let names = [WIDGET_LAYOUT, WIDGET_SMALL_LAYOUT, WIDGET_INFO, WIDGET_SMALL_INFO];
+    Ok(Widget { manifest, table, files: names.into_iter().map(|n| (n, files.next().unwrap())).collect(), layout_id })
 }
 
 /// Where SpatchApp finds the Rust app library (copied out and loaded at run time, so the splits stay untouched).
