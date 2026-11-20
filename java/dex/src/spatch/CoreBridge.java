@@ -241,7 +241,7 @@ public final class CoreBridge implements Transport {
      * Builds Spotify 9.2.0.26's exact LoginActivity Intent (matching p.iwe0.b / p.vxf0.a):
      * - explicit LoginActivity class
      * - "intent" extra targeting SpotifyMainActivity ("spotify:home") so login returns to the app
-     * - "previously_logged_in" = false, "is_web_login_flow_supported" = true, "extra_start_on_login" = false
+     * - "previously_logged_in" = false, "is_web_login_flow_supported" = false, "extra_start_on_login" = false
      * - FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK (268468224) so singleTask LoginActivity
      *   starts fresh instead of hitting onNewIntent(data==null) -> finish()
      */
@@ -253,7 +253,9 @@ public final class CoreBridge implements Transport {
         login.setClassName(packageName, LOGIN_ACTIVITY);
         login.putExtra("intent", home);
         login.putExtra("previously_logged_in", false);
-        login.putExtra("is_web_login_flow_supported", true);
+        // Spotify's own sign-in after a logout (p.a031) asks for the in-app form, not the browser flow; the browser
+        // flow has to redirect back into this task, which is where Spatch's sign-in used to hang.
+        login.putExtra("is_web_login_flow_supported", false);
         login.putExtra("extra_start_on_login", false);
         login.setFlags(LOGIN_TASK_FLAGS);
         return login;
