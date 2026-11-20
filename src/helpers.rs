@@ -26,7 +26,6 @@ pub const STUBS: &[(&str, &str)] = &[
     ("x740.java", include_str!("../java/dex/stubs/p/x740.java")),
     ("brs0.java", include_str!("../java/dex/stubs/p/brs0.java")),
     ("gf60.java", include_str!("../java/dex/stubs/p/gf60.java")),
-    ("pjz0.java", include_str!("../java/dex/stubs/p/pjz0.java")),
     ("xmb.java", include_str!("../java/dex/stubs/p/xmb.java")),
     ("ii31.java", include_str!("../java/dex/stubs/p/ii31.java")),
     ("ngr0.java", include_str!("../java/dex/stubs/p/ngr0.java")),

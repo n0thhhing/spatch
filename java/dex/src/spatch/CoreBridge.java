@@ -238,63 +238,6 @@ public final class CoreBridge implements Transport {
         }
     }
 
-    /**
-     * Up to 50 tracks from Spotify's public Web API, nine strings each: uri, title, artists, cover, album, album uri,
-     * first artist uri, length in ms, explicit ("1"/"0"). Missing tracks are left out.
-     * shortcut: parsed with Android's org.json (allocates a lot), move to a fast streaming JSON parser (e.g. in Rust) once
-     * this path carries whole playlists or more endpoints.
-     */
-    public static String[] webTracks(String[] ids) throws Exception {
-        // The Web API dropped its batch lookup (v1/tracks?ids= answers 404), so each track is asked for on its own, side by side.
-        SpotifyWeb service = web();
-        java.util.Map<String, String> query = new java.util.HashMap<>();
-        query.put("market", "from_token");
-        String[] json = new String[ids.length];
-        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(ids.length);
-        java.util.List<Disposable> pending = new java.util.ArrayList<>();
-        final boolean[] logged = { false };
-        for (int i = 0; i < ids.length; i++) {
-            final int slot = i;
-            pending.add(service.track(ids[i], query).subscribe(body -> {
-                try { json[slot] = ((p.ii31) body).f(); } finally { done.countDown(); }
-            }, error -> {
-                synchronized (logged) {
-                    if (!logged[0]) { logged[0] = true; android.util.Log.w("SpatchCore", "Web API track failed: " + httpDetail((Throwable) error)); }
-                }
-                done.countDown();
-            }));
-        }
-        if (!done.await(20, TimeUnit.SECONDS)) for (Disposable d : pending) d.dispose();
-        java.util.List<String> out = new java.util.ArrayList<>();
-        for (String text : json) {
-            if (text == null) continue;
-            org.json.JSONObject t = new org.json.JSONObject(text);
-            org.json.JSONArray artists = t.optJSONArray("artists");
-            StringBuilder names = new StringBuilder();
-            String firstArtist = "";
-            for (int a = 0; artists != null && a < artists.length(); a++) {
-                org.json.JSONObject artist = artists.optJSONObject(a);
-                if (artist == null) continue;
-                if (names.length() > 0) names.append(", ");
-                names.append(artist.optString("name"));
-                if (firstArtist.isEmpty()) firstArtist = artist.optString("uri");
-            }
-            org.json.JSONObject album = t.optJSONObject("album");
-            org.json.JSONArray images = album == null ? null : album.optJSONArray("images");
-            String cover = images != null && images.length() > 0 ? images.optJSONObject(0).optString("url") : "";
-            out.add(t.optString("uri"));
-            out.add(t.optString("name"));
-            out.add(names.toString());
-            out.add(cover);
-            out.add(album == null ? "" : album.optString("name"));
-            out.add(album == null ? "" : album.optString("uri"));
-            out.add(firstArtist);
-            out.add(String.valueOf(t.optLong("duration_ms")));
-            out.add(t.optBoolean("explicit") ? "1" : "0");
-        }
-        return out.toArray(new String[0]);
-    }
-
     /** The phone's country (two letters), for when the account's own is missing. */
     public static String deviceCountry() {
         return java.util.Locale.getDefault().getCountry();

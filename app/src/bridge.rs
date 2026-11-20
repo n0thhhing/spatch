@@ -142,31 +142,6 @@ pub fn extended_metadata(request: &[u8]) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-/// Up to 50 tracks from Spotify's public Web API by base62 id: nine strings per track (see CoreBridge.webTracks).
-pub fn web_tracks(ids: &[String]) -> Result<Vec<String>, String> {
-    let session = SESSION.load(Ordering::SeqCst);
-    let java = java()?;
-    let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
-    let result = (|| -> jni::errors::Result<Vec<String>> {
-        let array = env.new_object_array(ids.len() as i32, "java/lang/String", JObject::null())?;
-        for (i, id) in ids.iter().enumerate() {
-            let text = env.new_string(id)?;
-            env.set_object_array_element(&array, i as i32, text)?;
-        }
-        let class: &JClass = java.class.as_obj().into();
-        let reply = jni::objects::JObjectArray::from(env.call_static_method(class, "webTracks", "([Ljava/lang/String;)[Ljava/lang/String;", &[JValue::Object(&array)])?.l()?);
-        let mut out = Vec::new();
-        for i in 0..env.get_array_length(&reply)? {
-            let item = JString::from(env.get_object_array_element(&reply, i)?);
-            out.push(env.get_string(&item)?.into());
-        }
-        Ok(out)
-    })();
-    let fields = result.map_err(|e| describe(&mut env, e))?;
-    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
-    Ok(fields)
-}
-
 /// The phone's two-letter country.
 pub fn device_country() -> Option<String> {
     let java = java().ok()?;

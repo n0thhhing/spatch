@@ -96,6 +96,7 @@ pub extern "system" fn Java_spatch_CoreBridge_nativeResetSession(_: JNIEnv, _: J
         LIBRARY_LIVE.store(false, Ordering::Release);
         #[cfg(not(feature = "preview"))]
         {
+            *FOUND_ITEMS.lock().unwrap() = None;
             QUEUE_CONNECTED.store(false, Ordering::Release);
             LIBRARY_WATCHED.store(false, Ordering::Release);
         }
@@ -617,55 +618,39 @@ type FoundItems = std::collections::HashMap<String, Vec<(String, u32)>>;
 #[cfg(not(feature = "preview"))]
 static FOUND_ITEMS: Mutex<Option<FoundItems>> = Mutex::new(None);
 
-/// Some accounts' cores report a playlist as loaded with no songs, and Spotify's own screens show it empty too: the
-/// core waits for every song's details, and its song-details requests fail on those accounts (they carry the
-/// account's country and catalogue from the product state). So an empty answer is asked again without details, then
-/// Spotify's playlist service directly; the details come from the extended-metadata service.
+/// A loaded core reply can be empty when its metadata lookup fails. Try the playlist service for the raw items.
 #[cfg(not(feature = "preview"))]
-fn when_empty(uri: &str, offset: i32, reply: playlist::Reply) -> playlist::Reply {
-    let empty = matches!(&reply, playlist::Reply::Page { tracks, next: None, .. } if tracks.is_empty());
-    if !(empty || offset > 0) || !uri.starts_with("spotify:playlist:") {
-        return reply;
+fn when_empty(uri: &str, offset: i32, epoch: i64, reply: playlist::Reply) -> Result<playlist::Reply, String> {
+    if !matches!(&reply, playlist::Reply::Page { tracks, next: None, .. } if tracks.is_empty()) {
+        return Ok(reply);
     }
-    let known = FOUND_ITEMS.lock().unwrap().as_ref().and_then(|m| m.get(uri).cloned());
-    let items = match known {
-        Some(items) => items,
-        None if !empty => return reply,
-        None => {
-            let from_core = bridge::call(playlist::SERVICE, "Get", &playlist::items_request(uri)).and_then(|b| playlist::items(&b));
-            let items = match from_core {
-                Ok(items) if !items.is_empty() => {
-                    log::info!("Playlist {uri}: the core lists {} songs without their details", items.len());
-                    items
-                }
-                other => {
-                    let id = uri.trim_start_matches("spotify:playlist:");
-                    match bridge::playlist_contents(id) {
-                        Ok(bytes) => {
-                            let items = playlist::server_items(&bytes);
-                            log::info!("Playlist {uri}: core items-only gave {:?}; Spotify's playlist service has {}", other.map(|i| i.len()), items.len());
-                            items
-                        }
-                        Err(e) => {
-                            log::warn!("Playlist {uri}: Spotify's playlist service: {e}");
-                            Vec::new()
-                        }
-                    }
-                }
-            };
-            if items.is_empty() {
-                return reply;
-            }
-            FOUND_ITEMS.lock().unwrap().get_or_insert_with(std::collections::HashMap::new).insert(uri.to_string(), items.clone());
+    let Some(id) = uri.strip_prefix("spotify:playlist:") else { return Ok(reply) };
+    let from_core = bridge::call(playlist::SERVICE, "Get", &playlist::items_request(uri)).and_then(|b| playlist::items(&b));
+    let items = match from_core {
+        Ok(items) if !items.is_empty() => items,
+        other => {
+            let bytes = bridge::playlist_contents(id).map_err(|e| {
+                log::warn!("Playlist {uri}: Spotify's playlist service: {e}");
+                "Couldn’t load playlist tracks from Spotify".to_string()
+            })?;
+            let items = playlist::server_items(&bytes);
+            log::info!("Playlist {uri}: core items-only gave {:?}; Spotify's playlist service has {}", other.map(|i| i.len()), items.len());
             items
         }
     };
-    page_of(&items, offset)
+    if items.is_empty() {
+        return Ok(reply);
+    }
+    let page = page_of(&items, offset)?;
+    bridge::in_session(epoch, || {
+        FOUND_ITEMS.lock().unwrap().get_or_insert_with(std::collections::HashMap::new).insert(uri.to_string(), items);
+    }).ok_or_else(|| "Account session changed".to_string())?;
+    Ok(page)
 }
 
 /// One page of found items with their details: the core's metadata service first, then extended metadata directly.
 #[cfg(not(feature = "preview"))]
-fn page_of(items: &[(String, u32)], offset: i32) -> playlist::Reply {
+fn page_of(items: &[(String, u32)], offset: i32) -> Result<playlist::Reply, String> {
     use crate::spotify::{metadata, product_state};
     let start = (offset.max(0) as usize).min(items.len());
     let end = (start + playlist::PAGE as usize).min(items.len());
@@ -678,14 +663,10 @@ fn page_of(items: &[(String, u32)], offset: i32) -> playlist::Reply {
         let (filled, asked, refused) = metadata::resolve_extended(&mut tracks, &country, &catalogue);
         log::info!("Song details from extended metadata ({country}, {catalogue}): {filled} of {asked}; refused by status: {refused:?}");
     }
-    if tracks.iter().any(|t| t.title.is_empty()) {
-        let (filled, asked) = metadata::resolve_web(&mut tracks);
-        log::info!("Song details from the Web API: {filled} of {asked}");
+    for (track, (_, added)) in tracks.iter_mut().zip(&items[start..end]) {
+        track.added = *added;
     }
-    for t in tracks.iter_mut().filter(|t| t.title.is_empty()) {
-        t.title = "Track unavailable".into();
-    }
-    playlist::Reply::Page { tracks, next: (end < items.len()).then_some(end as i32), owner: None }
+    playlist::fallback_page(tracks, (end < items.len()).then_some(end as i32))
 }
 
 fn found_elsewhere(#[allow(unused_variables)] uri: &str) -> bool {
@@ -745,7 +726,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
     } else {
         bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset))
             .and_then(|bytes| playlist::decode(&bytes, offset))
-            .map(|reply| when_empty(&uri, offset, reply))
+            .and_then(|reply| when_empty(&uri, offset, epoch, reply))
     };
     let fields = match reply {
         Ok(playlist::Reply::Loading) => vec!["loading".into()],
@@ -767,10 +748,13 @@ fn page_fields(page: playlist::Reply) -> Vec<String> {
 }
 
 /// The rest of a playlist after its first page: every page from `offset` on, as song fields only. Blocks; stops
-/// at an error (returning what it has) or 10,000 songs.
+/// with no reply on error, or after 10,000 songs.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, _: JClass, uri: JString, offset: jint) -> jbyteArray {
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    let epoch = bridge::session();
+    #[cfg(not(feature = "preview"))]
+    let found = FOUND_ITEMS.lock().unwrap().as_ref().and_then(|m| m.get(&uri).cloned());
     let mut fields = Vec::new();
     let mut next = Some(offset);
     let mut waits = 0;
@@ -778,7 +762,15 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, 
         if cfg!(feature = "preview") {
             break;
         }
-        match bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, at)).and_then(|b| playlist::decode(&b, at)) {
+        if bridge::session() != epoch {
+            return std::ptr::null_mut();
+        }
+        let from_core = || bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, at)).and_then(|b| playlist::decode(&b, at));
+        #[cfg(feature = "preview")]
+        let reply = from_core();
+        #[cfg(not(feature = "preview"))]
+        let reply = found.as_ref().map_or_else(from_core, |items| page_of(items, at));
+        match reply {
             Ok(playlist::Reply::Page { tracks, next: more, .. }) => {
                 fields.extend(tracks.into_iter().flat_map(playlist::Track::fields));
                 next = more;
@@ -790,11 +782,11 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, 
             }
             Ok(playlist::Reply::Loading) => {
                 log::warn!("Playlist page at {at} still loading after 10 s");
-                break;
+                return std::ptr::null_mut();
             }
             Err(error) => {
                 log::warn!("Playlist page at {at}: {error}");
-                break;
+                return std::ptr::null_mut();
             }
         }
     }
