@@ -6,6 +6,7 @@ mod helpers;
 mod input;
 mod manifest;
 mod patch;
+mod resources;
 mod source;
 mod tools;
 

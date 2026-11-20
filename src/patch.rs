@@ -1,11 +1,13 @@
 //! The app rebuild: Spotify's core under Spatch's own UI. Only the core hooks in classes.dex and
 //! classes2.dex change; the helper DEX (CoreBridge, SpatchApp) and the Rust app library are added.
-//! Spotify's resources and every other DEX stay byte-identical; the manifest gains one receiver, Spatch's
-//! home-screen widget (see manifest.rs), beside Spotify's own.
+//! Every other DEX stays byte-identical, and so do Spotify's own resources: the manifest and resources table only
+//! gain Spatch's home-screen widget (manifest.rs, resources.rs), beside Spotify's own.
 
 use crate::Result;
 use crate::dex;
 use crate::input::{self, APKS, PACKAGE, VERSION_CODE};
+use crate::manifest;
+use crate::resources;
 use crate::tools::{self, Tools};
 use std::collections::HashSet;
 use std::ffi::OsStr;
@@ -63,17 +65,19 @@ pub fn run(
     let base = apks.join("base.apk");
     dex::check_originals(&base)?;
     // The app rebuild ships only what Spatch's own UI needs: the core hooks in Spotify's DEX, the helper
-    // DEX that hosts the app, and the Rust app itself. Spotify's resources stay untouched; only the manifest changes, by one widget receiver.
+    // DEX that hosts the app, and the Rust app itself. Spotify's own resources stay as they are; the manifest and resources table only gain Spatch's widget.
     let mut compiled = dex::build(&base, &staging.path, tools)?;
-    // Spatch's widget joins Spotify's own in the manifest; it borrows Spotify's widget layout and description.
-    let manifest = crate::manifest::add_widget(&input::read_entry(&base, "AndroidManifest.xml")?, "spatch.SpatchWidget", "Spatch", WIDGET_INFO)?;
+    let widget = widget(&base, &staging.path, tools)?;
+    let layout_id = widget.layout_id;
     if let Output::DryRun = output {
         println!("dry run: input and DEX reassembly verified; no output written");
         return Ok(());
     }
     let helper = compiled.pop().expect("dex::build returns the helper last");
-    compiled.push(("AndroidManifest.xml", manifest));
+    compiled.push(("AndroidManifest.xml", widget.manifest));
+    compiled.push(("resources.arsc", widget.table));
     let mut added = vec![helper];
+    added.extend(widget.files);
     added.push((RUST_APP_ASSET, rust_app()?.ok_or("the Rust app library is missing: build app/ (see app/README.md) or set SPATCH_APP_SO")?));
     let signing = match output {
         Output::DryRun => unreachable!(),
@@ -165,6 +169,12 @@ pub fn run(
         return Err("signed APKs do not share one certificate".into());
     }
     verify_identity(&result.join("base.apk"), &aapt2)?;
+    let table = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("resources"), result.join("base.apk").as_os_str()])?;
+    let mut wanted: Vec<String> = WIDGET_IDS.iter().map(|&(name, id)| format!("resource {id:#010x} id/{name}")).collect();
+    wanted.push(format!("resource {layout_id:#010x} layout/spatch_widget"));
+    if let Some(missing) = wanted.iter().find(|line| !table.contains(line.as_str())) {
+        return Err(format!("the rebuilt resources are missing: {missing}").into());
+    }
     let tree = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("xmltree"), OsStr::new("--file"), OsStr::new("AndroidManifest.xml"), result.join("base.apk").as_os_str()])?;
     if !tree.contains("spatch.SpatchWidget") || !tree.contains("SpotifyWidget") {
         return Err("the rebuilt manifest must hold both Spatch's widget and Spotify's".into());
@@ -186,9 +196,52 @@ pub fn run(
     Ok(())
 }
 
-/// `@xml/miui_dynamic_npv_widget_info` in Spotify 9.2.0.26: a 4x1 resizable widget description without a label,
-/// so the widget picker shows the receiver's own name, "Spatch", rather than "Spotify".
-const WIDGET_INFO: u32 = 0x7f16_0011;
+const WIDGET_LAYOUT: &str = "res/layout/spatch_widget.xml";
+const WIDGET_INFO: &str = "res/xml/spatch_widget_info.xml";
+
+/// Views of Spotify's own widget whose ids (and names) Spatch's widget layout reuses, so no id resources are
+/// added. They are Spotify 9.2.0.26's; the rebuilt table is checked for each of them.
+const WIDGET_IDS: [(&str, u32); 9] = [
+    ("coverart", 0x7f0b_03b1),
+    ("texts", 0x7f0b_0f99),
+    ("title", 0x7f0b_0fbc),
+    ("artist", 0x7f0b_010a),
+    ("controls", 0x7f0b_0396),
+    ("btn_prev_normal", 0x7f0b_01ed),
+    ("btn_play_normal", 0x7f0b_01eb),
+    ("btn_pause_normal", 0x7f0b_01e9),
+    ("btn_next_normal", 0x7f0b_01e6),
+];
+
+/// Spatch's home-screen widget, added beside Spotify's own: its manifest receiver, its two compiled resource
+/// files and the resources table that lists them.
+struct Widget {
+    manifest: Vec<u8>,
+    table: Vec<u8>,
+    files: Vec<(&'static str, Vec<u8>)>,
+    layout_id: u32,
+}
+
+fn widget(base: &Path, staging: &Path, tools: &Tools) -> Result<Widget> {
+    let table = input::read_entry(base, "resources.arsc")?;
+    let (layout_id, info_id) = (resources::next_id(&table, 0x0e)?, resources::next_id(&table, 0x16)?);
+    let mut ids: Vec<(String, u32)> = WIDGET_IDS.iter().map(|&(name, id)| (format!("id/{name}"), id)).collect();
+    ids.push(("layout/spatch_widget".into(), layout_id));
+    ids.push(("xml/spatch_widget_info".into(), info_id));
+    let compiled = resources::compile(
+        tools,
+        &staging.join("widget"),
+        &[(WIDGET_LAYOUT, include_str!("../java/widget/spatch_widget.xml")), (WIDGET_INFO, include_str!("../java/widget/spatch_widget_info.xml"))],
+        &ids,
+    )?;
+    let (table, got) = resources::add(&table, &[(0x0e, "spatch_widget", WIDGET_LAYOUT), (0x16, "spatch_widget_info", WIDGET_INFO)])?;
+    if got != [layout_id, info_id] {
+        return Err("the new resources did not get the ids they were compiled with".into());
+    }
+    let manifest = manifest::add_widget(&input::read_entry(base, "AndroidManifest.xml")?, "spatch.SpatchWidget", "Spatch", info_id)?;
+    let mut files = compiled.into_iter();
+    Ok(Widget { manifest, table, files: vec![(WIDGET_LAYOUT, files.next().unwrap()), (WIDGET_INFO, files.next().unwrap())], layout_id })
+}
 
 /// Where SpatchApp finds the Rust app library (copied out and loaded at run time, so the splits stay untouched).
 pub const RUST_APP_ASSET: &str = "assets/spatch/libspatch_app.so";
