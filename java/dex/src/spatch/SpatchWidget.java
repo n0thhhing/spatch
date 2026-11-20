@@ -169,8 +169,8 @@ public class SpatchWidget extends AppWidgetProvider {
     }
 
     /**
-     * The 4x2 banner, like the one on Home: the cover fills the card and fades into the deep colour towards the
-     * bottom and the left, where the text sits. With no cover, a soft accent wash and a music note.
+     * The 4x2 banner, like the one on Home: the cover fills the card and is dimmed evenly with the deep colour so the
+     * text on it stays readable. With no cover, a soft accent wash and a music note.
      */
     private static Bitmap banner(Bitmap art) {
         int w = 640, h = 320;
@@ -196,7 +196,9 @@ public class SpatchWidget extends AppWidgetProvider {
             flag.moveTo(x + 17 * u, 20 * u); flag.lineTo(x + 42 * u, 28 * u); flag.lineTo(x + 42 * u, 38 * u); flag.lineTo(x + 17 * u, 32 * u); flag.close();
             canvas.drawPath(flag, paint);
         }
-        paint.setShader(new LinearGradient(0, 0, 0, h, new int[] { rgb, rgb, rgb | 0xB0000000, rgb | 0xF5000000 }, new float[] { 0f, .32f, .72f, 1f }, Shader.TileMode.CLAMP));
+        // An even dim over the whole cover (no fade), enough for white text to read on any art.
+        paint.setShader(null);
+        paint.setColor(rgb | (art != null ? 0x73000000 : 0));
         canvas.drawRect(0, 0, w, h, paint);
         return out;
     }
