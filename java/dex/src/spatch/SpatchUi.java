@@ -1456,9 +1456,14 @@ public final class SpatchUi extends FrameLayout {
         return row;
     }
 
+    /**
+     * Spotify's own screens do the sign-in. Starting its login activity from here with hand-built extras hung after the
+     * credentials were entered, while Spotify's own Add account (account switching) works, so this reveals Spotify's
+     * UI instead; its "Back to Spatch" pill returns here.
+     */
     private void openLogin() {
-        String error = CoreBridge.openLogin(activity);
-        if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
+        Toast.makeText(activity, "Open your profile in Spotify and choose Add account", Toast.LENGTH_LONG).show();
+        openNativeSpotify();
     }
 
     private void openNativeSpotify() {
@@ -1516,7 +1521,7 @@ public final class SpatchUi extends FrameLayout {
             Toast.makeText(activity, profileLoading ? "Still checking your Spotify account…" : "Checking your Spotify account…", Toast.LENGTH_SHORT).show();
             loadProfile(true);
         });
-        settingsAction(identity, "Sign in or switch account", "Open Spotify’s login screen. If you’re already signed in, you don’t need this.", this::openLogin);
+        settingsAction(identity, "Sign in or switch account", "Opens Spotify’s own screens to sign in or add an account. If you’re already signed in, you don’t need this.", this::openLogin);
         settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
         connectionCard(page);
         LinearLayout music = card(page, "Your music");
