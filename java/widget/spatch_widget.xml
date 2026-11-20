@@ -23,8 +23,8 @@
 
         <ImageView
             android:id="@+id/coverart"
-            android:layout_width="100dp"
-            android:layout_height="100dp"
+            android:layout_width="92dp"
+            android:layout_height="92dp"
             android:scaleType="fitCenter"
             android:src="#2EFFFFFF" />
 
