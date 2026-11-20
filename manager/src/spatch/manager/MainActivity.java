@@ -200,7 +200,7 @@ public final class MainActivity extends Activity {
             } else if (code == PackageInstaller.STATUS_FAILURE_CONFLICT || code == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE) {
                 conflict = !installingSelf && !cloning;
                 say(installingSelf ? "This manager build is signed with a different key; install the new one from GitHub by hand."
-                    : cloning ? "The clone clashes with an app signed with another key: another app has that package name, or Spotify's own app is installed (a clone can only sit beside Spatch). "
+                    : cloning ? "This clone could not be installed. If it already exists, update it with the same signing key used to create it. "
                         + intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                     : "Spotify on this phone is signed with a different key. Uninstall it first (that removes its downloads), or import the key it was signed with.");
             } else if (code == PackageInstaller.STATUS_FAILURE_ABORTED) {

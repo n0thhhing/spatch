@@ -53,8 +53,10 @@ The two pages along the bottom are **Spatch** (Spotify, Options & updates, Secon
 It has its own login and downloads. The manager renames the package in every APK, moves the content
 providers under the new name, sets the label and swaps the launcher icon's foreground; the patch
 bundle's `clone-` lines say which resource strings and icon file that takes in each Spotify build.
-Clones are signed with the phone's key and keep Spotify's permission names, so they install beside
-Spatch but not beside Spotify's own app. Screens inside the app still say Spotify.
+App-owned permission declarations, requests and component guards are renamed in every manifest;
+Android and other apps’ permission names remain unchanged. Clones can therefore install beside
+Spotify or Spatch signed with another key. Each clone is still signed with the phone’s key and
+needs that same key for future updates. Screens inside the app still say Spotify.
 
 ## Releases
 

@@ -13,11 +13,12 @@ import java.util.Map;
  * Turns a patched Spotify into a second app beside the first: its own package name, with the
  * content providers renamed under it so the two don't clash, its own label, and optionally its own
  * launcher icon. Works on the compiled files (binary XML manifests and resources.arsc) after the
- * patches apply and before signing. Permissions keep their names: apps signed with the same key may
- * share them, so a clone installs beside Spatch, but not beside Spotify's own app.
+ * patches apply and before signing. App-owned permissions move under the clone's package so
+ * another Spotify signed with a different key can remain installed.
  */
 final class Clone {
     private static final int STRING_POOL = 0x0001, XML_START_ELEMENT = 0x0102, RESOURCE_MAP = 0x0180;
+    private static final int NAME = 0x01010003, PERMISSION = 0x01010006, READ_PERMISSION = 0x01010007, WRITE_PERMISSION = 0x01010008, PERMISSION_GROUP = 0x0101000a;
     private static final int AUTHORITIES = 0x01010018, LABEL = 0x01010001, TYPE_STRING = 0x03, TYPE_REFERENCE = 0x01;
     private static final int UTF8 = 0x100, SORTED = 0x1;
     static final String ORIGINAL = "com.spotify.music", ICON_PATH = "res/spatch/clone_icon.png";
@@ -53,10 +54,21 @@ final class Clone {
         return out.toString();
     }
 
+    /** Only app-owned permission names move; platform and other apps' permissions keep their meaning. */
+    String permission(String value) {
+        return value != null && value.startsWith(ORIGINAL + ".") ? pkg + value.substring(ORIGINAL.length()) : value;
+    }
+
+    private static boolean permissionAttribute(String element, int id) {
+        return id == PERMISSION || id == READ_PERMISSION || id == WRITE_PERMISSION || id == PERMISSION_GROUP
+            || id == NAME && ("permission".equals(element) || "permission-tree".equals(element) || "permission-group".equals(element)
+                || "uses-permission".equals(element) || "uses-permission-sdk-23".equals(element));
+    }
+
     /**
-     * A compiled AndroidManifest.xml with the package renamed. For base.apk (base is true) its
-     * providers' literal authorities are renamed, and the application and every activity labelled with
-     * the app's name (the launcher alias inherits SpotifyMainActivity's) get the clone's label.
+     * A compiled AndroidManifest.xml with the package and app-owned permissions/references renamed.
+     * For base.apk (base is true), providers' literal authorities move too, and the application and
+     * activities labelled with the app's name (including the launcher alias) get the clone's label.
      */
     byte[] manifest(byte[] axml, boolean base) throws IOException {
         ByteBuffer in = ByteBuffer.wrap(axml).order(ByteOrder.LITTLE_ENDIAN);
@@ -93,8 +105,12 @@ final class Clone {
                 String name = pool.get(nameIdx);
                 String value = null;
                 if ("manifest".equals(element) && "package".equals(name) && in.getInt(a) == -1) {
+                    if (type != TYPE_STRING || !ORIGINAL.equals(pool.get(data))) throw new IOException("Start cloning from the original Spotify package, not an already renamed app.");
                     value = pkg;
                     renamed = true;
+                } else if (type == TYPE_STRING && permissionAttribute(element, id)) {
+                    String old = pool.get(data), moved = permission(old);
+                    if (moved != null && !moved.equals(old)) value = moved;
                 } else if (base && "provider".equals(element) && id == AUTHORITIES && type == TYPE_STRING) {
                     value = authority(pool.get(data));
                 } else if (base && "application".equals(element) && id == LABEL && label != null && !label.isEmpty()) {

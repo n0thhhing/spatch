@@ -33,12 +33,29 @@ public final class CloneTest {
         check(Clone.problem("com.spotify.music.two") == null && Clone.problem("com.spotify.music") != null && Clone.problem("nodots") != null && Clone.problem("a.1b") != null, "package names are checked");
         check(c.authority("com.spotify.music.share").equals("com.spotify.music.two.share") && c.authority("amzn_appstore").equals("com.spotify.music.two.amzn_appstore")
             && c.authority("a;com.spotify.music.b").equals("com.spotify.music.two.a;com.spotify.music.two.b"), "authorities move under the clone's package");
+        check(c.permission("com.spotify.music.permission.SECURED_BROADCAST").equals("com.spotify.music.two.permission.SECURED_BROADCAST"), "app-owned permissions move under the clone");
+        check(c.permission("android.permission.INTERNET").equals("android.permission.INTERNET")
+            && c.permission("com.google.android.c2dm.permission.RECEIVE").equals("com.google.android.c2dm.permission.RECEIVE")
+            && c.permission("com.spotify.music2.permission.OTHER").equals("com.spotify.music2.permission.OTHER"), "external permissions keep their names");
+        byte[] clonedManifest = c.manifest(manifest, true);
+        Map<String, String> beforePermissions = permissions(manifest), afterPermissions = permissions(clonedManifest);
+        check(beforePermissions.containsValue("com.spotify.music.permission.SECURED_BROADCAST"), "fixture contains the phone's conflicting permission");
+        check(beforePermissions.size() == afterPermissions.size(), "permission declarations and guards are retained");
+        for (Map.Entry<String, String> permission : beforePermissions.entrySet()) {
+            check(c.permission(permission.getValue()).equals(afterPermissions.get(permission.getKey())), "permission declaration/reference renamed consistently: " + permission.getKey());
+        }
+        Map<String, String> otherPermissions = permissions(new Clone("com.spotify.music.three", "Spotify Three").manifest(manifest, true));
+        for (Map.Entry<String, String> permission : afterPermissions.entrySet()) {
+            if (permission.getKey().startsWith("permission/name/")) check(!otherPermissions.containsValue(permission.getValue()), "two clones do not declare the same permission");
+        }
+        try { c.manifest(clonedManifest, true); check(false, "already-cloned manifests are refused"); }
+        catch (java.io.IOException expected) { check(true, "already-cloned manifests are refused"); }
         Map<String, String> swaps = new LinkedHashMap<>();
         swaps.put("com.spotify.mobile.android.mediaapi", c.authority("com.spotify.mobile.android.mediaapi"));
         swaps.put("com.spotify.music.partnerai", c.authority("com.spotify.music.partnerai"));
         swaps.put("res/drawable/ic_launcher_renaissance_foreground.xml", Clone.ICON_PATH);
         Map<String, byte[]> baseChanges = new LinkedHashMap<>();
-        baseChanges.put("AndroidManifest.xml", c.manifest(manifest, true));
+        baseChanges.put("AndroidManifest.xml", clonedManifest);
         byte[] table = c.table(arsc, swaps);
         check(new String(table, 0, table.length, java.nio.charset.StandardCharsets.UTF_16LE).contains("com.spotify.music.two\0"), "the resource table's package is the clone's");
         baseChanges.put("resources.arsc", table);
@@ -54,6 +71,29 @@ public final class CloneTest {
             check(true, "a missing string is refused");
         }
         System.out.println("wrote " + out);
+    }
+
+    /** Inspect attribute values, not unused copies retained in the manifest's string pool. */
+    private static Map<String, String> permissions(byte[] file) throws Exception {
+        ByteBuffer xml = ByteBuffer.wrap(file).order(ByteOrder.LITTLE_ENDIAN);
+        Clone.StringPool pool = Clone.StringPool.read(file, 8);
+        Map<String, String> values = new LinkedHashMap<>();
+        for (int at = xml.getShort(2) & 0xffff; at < file.length; at += xml.getInt(at + 4)) {
+            if ((xml.getShort(at) & 0xffff) != 0x0102) continue;
+            int node = at + (xml.getShort(at + 2) & 0xffff);
+            String element = pool.get(xml.getInt(node + 4));
+            int start = xml.getShort(node + 8) & 0xffff, size = xml.getShort(node + 10) & 0xffff, count = xml.getShort(node + 12) & 0xffff;
+            for (int i = 0; i < count; i++) {
+                int attr = node + start + i * size;
+                if ((file[attr + 15] & 0xff) != 3) continue;
+                String name = pool.get(xml.getInt(attr + 4));
+                if (("name".equals(name) && element.startsWith("permission")) || ("name".equals(name) && element.startsWith("uses-permission"))
+                    || "permission".equals(name) || "readPermission".equals(name) || "writePermission".equals(name) || "permissionGroup".equals(name)) {
+                    values.put(element + "/" + name + "/" + values.size(), pool.get(xml.getInt(attr + 16)));
+                }
+            }
+        }
+        return values;
     }
 
     private static boolean roundTrips(byte[] file, int at) throws Exception {
