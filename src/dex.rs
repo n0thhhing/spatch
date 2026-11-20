@@ -13,11 +13,11 @@ use std::path::Path;
 pub const DEX_TARGETS: [(&str, &str); 2] = [
     (
         "classes.dex",
-        "0520d0e2b66ba60593b815e71902247327da8c5a6392334219cd77d1d438ea21",
+        "3a33a4237ff8b008cad33816d9b37a805f671178a0362a40d9f48b221450cf33",
     ),
     (
         "classes2.dex",
-        "6f75b6523f9c11d4de3cefa3209d9d408c61e07caaa12d42155b3c9141b0b532",
+        "8201d12fb2c54137501cb6b3153a6102014637dda22d2b66c9b4678f54190b4d",
     ),
 ];
 /// Next free multidex slot (base ships classes.dex..classes15.dex).

@@ -267,7 +267,7 @@ public class SpatchWidget extends AppWidgetProvider {
         }
         // A ViewFlipper restarts its animation on every setDisplayedChild, so it is sent only on the flip itself.
         if (flip) {
-            v.setDisplayedChild(id(context, "info_container", "id"), shown);
+            v.setDisplayedChild(id(context, "text_container", "id"), shown);
             v.setDisplayedChild(id(context, "metadata", "id"), shown);
         }
         if (backdrop != null) { v.setViewVisibility(id(context, "frame", "id"), View.VISIBLE); v.setImageViewBitmap(id(context, "frame", "id"), backdrop); }

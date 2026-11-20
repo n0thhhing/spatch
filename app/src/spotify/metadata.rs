@@ -144,17 +144,93 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Found>, String> {
                 duration_ms: e.duration.max(0) as u32, explicit: e.explicit,
                 ..Default::default()
             })),
-            Entity::Track(t) => {
-                let image = t.album.as_ref().map_or_else(String::new, |al| cover(&al.cover_group, &al.cover));
-                Some(Found::Track(Track { title: t.name.clone(), artist: artists(&t.artist), uri: link("track", &t.gid), image,
-                    album: t.album.as_ref().map_or_else(String::new, |a| a.name.clone()),
-                    album_uri: t.album.as_ref().map_or_else(String::new, |a| link("album", &a.gid)),
-                    artist_uri: t.artist.first().map_or_else(String::new, |a| link("artist", &a.gid)),
-                    duration_ms: t.duration.max(0) as u32, explicit: t.explicit, ..Default::default() }))
-            }
+            Entity::Track(t) => Some(Found::Track(track_of(&t))),
             _ => None,
         })
         .collect())
+}
+
+/// A spotify.metadata.Track as Spatch's row.
+pub fn track_of(t: &md::Track) -> Track {
+    let image = t.album.as_ref().map_or_else(String::new, |al| cover(&al.cover_group, &al.cover));
+    Track { title: t.name.clone(), artist: artists(&t.artist), uri: link("track", &t.gid), image,
+        album: t.album.as_ref().map_or_else(String::new, |a| a.name.clone()),
+        album_uri: t.album.as_ref().map_or_else(String::new, |a| link("album", &a.gid)),
+        artist_uri: t.artist.first().map_or_else(String::new, |a| link("artist", &a.gid)),
+        duration_ms: t.duration.max(0) as u32, explicit: t.explicit, ..Default::default() }
+}
+
+/// Fills in tracks that only have their links, from the core's metadata service.
+pub fn resolve(tracks: &mut [Track]) {
+    resolve_tracks(tracks, fetch);
+}
+
+/// Fills in tracks still without a name from Spotify's extended-metadata service directly, naming the account's
+/// country and catalogue, for accounts whose core answers nothing. Returns (filled, asked, refusals by status).
+pub fn resolve_extended(tracks: &mut [Track], country: &str, catalogue: &str) -> (usize, usize, Vec<(u64, usize)>) {
+    use super::extended;
+    let wanted: Vec<usize> = (0..tracks.len()).filter(|&i| tracks[i].title.is_empty() && tracks[i].uri.starts_with("spotify:track:")).collect();
+    let (mut filled, mut refused) = (0, std::collections::BTreeMap::new());
+    for chunk in wanted.chunks(100) {
+        let uris: Vec<String> = chunk.iter().map(|&i| tracks[i].uri.clone()).collect();
+        let reply = match bridge::extended_metadata(&extended::request(&uris, extended::TRACK_V4, Some((country, catalogue)))) {
+            Ok(reply) => reply,
+            Err(e) => {
+                log::warn!("Extended metadata: {e}");
+                break;
+            }
+        };
+        let mut by_uri = std::collections::HashMap::new();
+        for (uri, status, payload) in extended::decode(&reply) {
+            match payload.and_then(|p| md::Track::decode(p.as_slice()).ok()) {
+                Some(t) => {
+                    by_uri.insert(uri, track_of(&t));
+                }
+                None => *refused.entry(status).or_insert(0) += 1,
+            }
+        }
+        for &i in chunk {
+            if let Some(found) = by_uri.get(&tracks[i].uri) {
+                let added = tracks[i].added;
+                tracks[i] = found.clone();
+                tracks[i].added = added;
+                filled += 1;
+            }
+        }
+    }
+    (filled, wanted.len(), refused.into_iter().collect())
+}
+
+/// Fills in tracks still without a name from Spotify's public Web API (api.spotify.com/v1/tracks/{id}, 50 side by side):
+/// the last resort for accounts whose song-details service answers 502 for every song. Returns (filled, asked).
+pub fn resolve_web(tracks: &mut [Track]) -> (usize, usize) {
+    let wanted: Vec<usize> = (0..tracks.len()).filter(|&i| tracks[i].title.is_empty() && tracks[i].uri.starts_with("spotify:track:")).collect();
+    let mut filled = 0;
+    for chunk in wanted.chunks(50) {
+        let ids: Vec<String> = chunk.iter().map(|&i| tracks[i].uri.trim_start_matches("spotify:track:").to_string()).collect();
+        let fields = match bridge::web_tracks(&ids) {
+            Ok(fields) => fields,
+            Err(e) => {
+                log::warn!("Web API tracks: {e}");
+                break;
+            }
+        };
+        let by_uri: std::collections::HashMap<&str, &[String; 9]> = fields.as_chunks::<9>().0.iter().map(|f| (f[0].as_str(), f)).collect();
+        for &i in chunk {
+            let Some(f) = by_uri.get(tracks[i].uri.as_str()) else { continue };
+            let t = &mut tracks[i];
+            t.title = f[1].clone();
+            t.artist = f[2].clone();
+            t.image = f[3].clone();
+            t.album = f[4].clone();
+            t.album_uri = f[5].clone();
+            t.artist_uri = f[6].clone();
+            t.duration_ms = f[7].parse().unwrap_or(0);
+            t.explicit = f[8] == "1";
+            filled += 1;
+        }
+    }
+    (filled, wanted.len())
 }
 
 fn fetch(uris: &[String]) -> Result<Vec<Found>, String> {

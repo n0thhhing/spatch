@@ -147,14 +147,14 @@ public final class CoreBridge implements Transport {
 
     /** Hook: t4c0.B's app factory, excluding vhg0's separate native-playback factory. */
     public static void webgate(Object maker, Object assertion) {
-        if (assertion != null && assertion.getClass().getName().equals("p.o610")) webgate = maker;
+        if (assertion != null && assertion.getClass().getName().equals("p.yt20")) webgate = maker;
     }
 
-    /** Uses the exact catalog interface shipped in the pinned Spotify 9.2.0.26 APK. */
+    /** Uses the exact catalog interface shipped in the pinned Spotify 9.2.0.2053 APK. */
     public static byte[] search(String query, String pageToken) throws Exception {
         Object maker = webgate;
         if (maker == null) throw new IllegalStateException("Spotify’s search connection is starting");
-        Class<?> api = Class.forName("p.rd51", true, maker.getClass().getClassLoader());
+        Class<?> api = Class.forName("p.jx51", true, maker.getClass().getClassLoader());
         Object service = maker.getClass().getMethod("createWebgateService", Class.class, String.class)
             .invoke(maker, api, "android-search-onlineproto");
         String requestId = java.util.UUID.randomUUID().toString();
@@ -164,8 +164,8 @@ public final class CoreBridge implements Transport {
         params.put("entity_types", "track,album,artist,playlist,show,audio_episode");
         params.put("query_complete", "submit");
         params.put("show_type", "podcast");
-        Class<?> locale = Class.forName("p.upn1", true, maker.getClass().getClassLoader());
-        params.put("locale", (String) locale.getMethod("m").invoke(null));
+        Class<?> locale = Class.forName("p.v4p1", true, maker.getClass().getClassLoader());
+        params.put("locale", (String) locale.getMethod("s").invoke(null));
         // Match Spotify's query-metadata mode; header mode needs BOTH x-search-* headers plus _t.
         params.put("request_id", requestId);
         params.put("page_token", pageToken);
@@ -182,7 +182,7 @@ public final class CoreBridge implements Transport {
                     Object response = httpError.getField("c").get(failed);
                     Object body = response == null ? null : response.getClass().getField("c").get(response);
                     if (body != null) {
-                        Class<?> bodyType = Class.forName("p.uz21", true, maker.getClass().getClassLoader());
+                        Class<?> bodyType = Class.forName("p.ii31", true, maker.getClass().getClassLoader());
                         String detail = (String) bodyType.getMethod("f").invoke(body);
                         throw new IllegalStateException("Search " + failed.getMessage() + ": "
                             + detail.substring(0, Math.min(512, detail.length())), failed);
@@ -199,6 +199,135 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    /** Spotify's own web services, through the app's signed-in webgate (it adds the access and client tokens). */
+    private static SpotifyWeb web() throws Exception {
+        Object maker = webgate;
+        if (maker == null) throw new IllegalStateException("Spotify’s web connection is starting");
+        try {
+            return (SpotifyWeb) maker.getClass().getMethod("createWebgateService", Class.class, String.class).invoke(maker, SpotifyWeb.class, "spatch");
+        } catch (java.lang.reflect.InvocationTargetException failed) {
+            Throwable cause = failed.getCause();
+            if (cause instanceof Exception) throw (Exception) cause;
+            throw failed;
+        }
+    }
+
+    private static byte[] bytes(Object message) throws ReflectiveOperationException {
+        return (byte[]) message.getClass().getMethod("toByteArray").invoke(message);
+    }
+
+    /** A playlist's items from Spotify's playlist service (playlist4 SelectedListContent bytes); `id` is the base62 id. */
+    public static byte[] playlistContents(String id) throws Exception {
+        try {
+            return bytes(web().playlist(id).timeout(15, TimeUnit.SECONDS).blockingGet());
+        } catch (RuntimeException failed) {
+            throw new IllegalStateException(httpDetail(failed), failed);
+        }
+    }
+
+    /**
+     * Spotify's extended-metadata service (what the core itself calls): `request` is a serialized
+     * spotify.extendedmetadata.BatchedEntityRequest, the reply a BatchedExtensionResponse. The app has no Java class for
+     * the request, so its bytes ride in a google.protobuf.Empty: protobuf keeps fields it doesn't know and writes them back.
+     */
+    public static byte[] extendedMetadata(byte[] request) throws Exception {
+        try {
+            return bytes(web().extendedMetadata(com.google.protobuf.Empty.q(request)).timeout(15, TimeUnit.SECONDS).blockingGet());
+        } catch (RuntimeException failed) {
+            throw new IllegalStateException(httpDetail(failed), failed);
+        }
+    }
+
+    /**
+     * Up to 50 tracks from Spotify's public Web API, nine strings each: uri, title, artists, cover, album, album uri,
+     * first artist uri, length in ms, explicit ("1"/"0"). Missing tracks are left out.
+     * shortcut: parsed with Android's org.json (allocates a lot), move to a fast streaming JSON parser (e.g. in Rust) once
+     * this path carries whole playlists or more endpoints.
+     */
+    public static String[] webTracks(String[] ids) throws Exception {
+        // The Web API dropped its batch lookup (v1/tracks?ids= answers 404), so each track is asked for on its own, side by side.
+        SpotifyWeb service = web();
+        java.util.Map<String, String> query = new java.util.HashMap<>();
+        query.put("market", "from_token");
+        String[] json = new String[ids.length];
+        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(ids.length);
+        java.util.List<Disposable> pending = new java.util.ArrayList<>();
+        final boolean[] logged = { false };
+        for (int i = 0; i < ids.length; i++) {
+            final int slot = i;
+            pending.add(service.track(ids[i], query).subscribe(body -> {
+                try { json[slot] = ((p.ii31) body).f(); } finally { done.countDown(); }
+            }, error -> {
+                synchronized (logged) {
+                    if (!logged[0]) { logged[0] = true; android.util.Log.w("SpatchCore", "Web API track failed: " + httpDetail((Throwable) error)); }
+                }
+                done.countDown();
+            }));
+        }
+        if (!done.await(20, TimeUnit.SECONDS)) for (Disposable d : pending) d.dispose();
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String text : json) {
+            if (text == null) continue;
+            org.json.JSONObject t = new org.json.JSONObject(text);
+            org.json.JSONArray artists = t.optJSONArray("artists");
+            StringBuilder names = new StringBuilder();
+            String firstArtist = "";
+            for (int a = 0; artists != null && a < artists.length(); a++) {
+                org.json.JSONObject artist = artists.optJSONObject(a);
+                if (artist == null) continue;
+                if (names.length() > 0) names.append(", ");
+                names.append(artist.optString("name"));
+                if (firstArtist.isEmpty()) firstArtist = artist.optString("uri");
+            }
+            org.json.JSONObject album = t.optJSONObject("album");
+            org.json.JSONArray images = album == null ? null : album.optJSONArray("images");
+            String cover = images != null && images.length() > 0 ? images.optJSONObject(0).optString("url") : "";
+            out.add(t.optString("uri"));
+            out.add(t.optString("name"));
+            out.add(names.toString());
+            out.add(cover);
+            out.add(album == null ? "" : album.optString("name"));
+            out.add(album == null ? "" : album.optString("uri"));
+            out.add(firstArtist);
+            out.add(String.valueOf(t.optLong("duration_ms")));
+            out.add(t.optBoolean("explicit") ? "1" : "0");
+        }
+        return out.toArray(new String[0]);
+    }
+
+    /** The phone's country (two letters), for when the account's own is missing. */
+    public static String deviceCountry() {
+        return java.util.Locale.getDefault().getCountry();
+    }
+
+    /** An HTTP failure with what the server said: status, address and the start of the body. */
+    static String httpDetail(Throwable error) {
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root && !root.getClass().getName().contains("HttpException")) root = root.getCause();
+        StringBuilder out = new StringBuilder(String.valueOf(root));
+        try {
+            Class<?> body = Class.forName("p.ii31", true, root.getClass().getClassLoader());
+            for (Class<?> c = root.getClass(); c != null && c != Throwable.class; c = c.getSuperclass()) {
+                for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                    f.setAccessible(true);
+                    Object response = f.get(root);
+                    if (response == null || response instanceof String || response instanceof Number) continue;
+                    for (java.lang.reflect.Field g : response.getClass().getDeclaredFields()) {
+                        g.setAccessible(true);
+                        Object v = g.get(response);
+                        if (body.isInstance(v)) {
+                            String text = (String) body.getMethod("f").invoke(v);
+                            out.append(" | body: ").append(text.substring(0, Math.min(300, text.length())));
+                        }
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // keep what we have
+        }
+        return out.toString();
+    }
+
     static String diagnostics() {
         return "Core transport " + (fallback == null ? "waiting" : "connected")
             + " · search connection " + (webgate == null ? "waiting" : "connected")
@@ -206,7 +335,7 @@ public final class CoreBridge implements Transport {
     }
 
     /**
-     * Exact verified Spotify 9.2.0.26 creation routes:
+     * Exact verified Spotify 9.2.0.2053 creation routes:
      * - blend -> spotify:blend:invitation (p/f7b1.smali:12802, p/qv3.smali:1041)
      * - jam -> spotify:jam (p/f7b1.smali:26434, p/h1a0.smali:15)
      * - prompted -> spotify:create-prompted-playlist (p/f7b1.smali:40965, p/hgu0.smali:30)
@@ -262,7 +391,7 @@ public final class CoreBridge implements Transport {
         android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 
     /**
-     * Builds Spotify 9.2.0.26's exact LoginActivity Intent (matching p.iwe0.b / p.vxf0.a):
+     * Builds Spotify 9.2.0.2053's exact LoginActivity Intent (matching p.j9f0.b / p.xbg0.a):
      * - explicit LoginActivity class
      * - "intent" extra targeting SpotifyMainActivity ("spotify:home") so login returns to the app
      * - "previously_logged_in" = false, "is_web_login_flow_supported" = false, "extra_start_on_login" = false
@@ -286,7 +415,7 @@ public final class CoreBridge implements Transport {
     }
 
     /**
-     * Opens Spotify's native login flow using Spotify 9.2.0.26's verified iwe0/vxf0 intent contract.
+     * Opens Spotify's native login flow using Spotify 9.2.0.2053's verified j9f0/xbg0 intent contract.
      * Falls back to DelegatingLoginActivity, then to revealing Spotify's native UI if needed.
      */
     public static String openLogin(android.app.Activity activity) {
@@ -319,6 +448,23 @@ public final class CoreBridge implements Transport {
         }
         SpatchApp.enterNativeFeature(activity);
         return "";
+    }
+
+    /**
+     * Spotify's own route into sign-in: DelegatingLoginActivity builds the "return home" intent itself and starts
+     * LoginActivity with extra_finish_on_auth, so the login screen closes right after sign-in instead of waiting on
+     * onboarding checks that never answer on some accounts.
+     */
+    public static String openSpotifyLogin(android.app.Activity activity) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return "Spotify screen isn’t ready yet";
+        android.content.Intent delegate = new android.content.Intent();
+        delegate.setClassName(activity.getPackageName(), DELEGATING_LOGIN_ACTIVITY);
+        try {
+            activity.startActivity(delegate);
+            return "";
+        } catch (Throwable t) {
+            return "Couldn’t open Spotify’s sign-in: " + t.getMessage();
+        }
     }
 
     /** Reveals Spotify's underlying native screen with a "Back to Spatch" return pill. */

@@ -4,9 +4,11 @@
 pub mod collection;
 pub mod connect;
 pub mod downloads;
+pub mod extended;
 pub mod library;
 pub mod metadata;
 pub mod player;
+pub mod product_state;
 pub mod playlist;
 pub mod profile;
 pub mod recent;

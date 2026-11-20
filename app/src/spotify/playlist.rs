@@ -87,6 +87,45 @@ pub fn request(uri: &str, offset: i32) -> Vec<u8> {
     request_range(uri, offset, PAGE)
 }
 
+/// Every item's link and time added, without song details: Spotify's core otherwise waits for each song's details
+/// before listing it, and on accounts where those requests fail it reports the playlist as loaded with no songs.
+pub fn items_request(uri: &str) -> Vec<u8> {
+    es::PlaylistGetRequest {
+        uri: uri.into(),
+        query: Some(es::PlaylistQuery { range: Some(es::PlaylistRange { start: 0, length: 100_000 }), dont_load_item_metadata: true, ..Default::default() }),
+        policy: Some(policy::PlaylistRequestDecorationPolicy {
+            item: Some(policy::PlaylistItemDecorationPolicy { uri: true, add_time: true, ..Default::default() }),
+            ..Default::default()
+        }),
+    }
+    .encode_to_vec()
+}
+
+/// The items (link, time added) of an items-only reply.
+pub fn items(bytes: &[u8]) -> Result<Vec<(String, u32)>, String> {
+    let reply = es::PlaylistGetResponse::decode(bytes).map_err(|e| e.to_string())?;
+    let data = reply.data.ok_or_else(|| reply.status.map_or_else(|| "No playlist data".to_string(), |s| s.reason))?;
+    Ok(data.item.into_iter().filter(|i| !i.uri.is_empty()).map(|i| (i.uri, i.add_time)).collect())
+}
+
+/// The items of a playlist as Spotify's playlist service sends them (playlist4 SelectedListContent: contents = 5,
+/// its items = 3, each item's uri = 1 and attributes = 2 with the time added = 2, in milliseconds).
+pub fn server_items(bytes: &[u8]) -> Vec<(String, u32)> {
+    use super::wire::{fields, first};
+    let top = fields(bytes);
+    let Some(contents) = first(&top, 5) else { return Vec::new() };
+    fields(contents.bytes())
+        .into_iter()
+        .filter(|(n, _)| *n == 3)
+        .filter_map(|(_, item)| {
+            let item = fields(item.bytes());
+            let uri = first(&item, 1)?.text();
+            let added = first(&item, 2).and_then(|a| first(&fields(a.bytes()), 2)).map_or(0, |t| (t.number() / 1000) as u32);
+            (!uri.is_empty()).then_some((uri, added))
+        })
+        .collect()
+}
+
 /// Like [`request`] with the page length chosen; a length of 1 is enough to learn who owns a playlist.
 pub fn request_range(uri: &str, offset: i32, length: i32) -> Vec<u8> {
     es::PlaylistGetRequest {
@@ -326,6 +365,26 @@ pub fn add_items(playlist_uri: &str, uris: &[String]) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn server_items_are_read_in_order() {
+        use super::super::wire::{bytes_field, number_field, string_field};
+        let mut item = Vec::new();
+        string_field(&mut item, 1, "spotify:track:a");
+        let mut attrs = Vec::new();
+        number_field(&mut attrs, 2, 1_700_000_000_000);
+        bytes_field(&mut item, 2, &attrs);
+        let mut contents = Vec::new();
+        bytes_field(&mut contents, 3, &item);
+        let mut second = Vec::new();
+        string_field(&mut second, 1, "spotify:episode:b");
+        bytes_field(&mut contents, 3, &second);
+        let mut top = Vec::new();
+        number_field(&mut top, 2, 2);
+        bytes_field(&mut top, 5, &contents);
+        assert_eq!(super::server_items(&top), vec![("spotify:track:a".to_string(), 1_700_000_000), ("spotify:episode:b".to_string(), 0)]);
+        assert!(super::server_items(&[]).is_empty());
+    }
+
     use super::*;
 
     fn songs(rows: &[(&str, &str, &str, u32)]) -> Vec<String> {

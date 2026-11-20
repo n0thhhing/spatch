@@ -18,7 +18,7 @@ ANDROID = sorted(
 
 FIXTURES = {
     'io/reactivex/rxjava3/core/Single.java': """package io.reactivex.rxjava3.core;
-public class Single {
+public class Single<T> {
     private final Object value;
     public Single(Object value) { this.value = value; }
     public final Single timeout(long seconds, java.util.concurrent.TimeUnit unit) {
@@ -29,20 +29,20 @@ public class Single {
     public final Object blockingGet() { return value; }
     public final io.reactivex.rxjava3.disposables.Disposable subscribe(io.reactivex.rxjava3.functions.Consumer success, io.reactivex.rxjava3.functions.Consumer error) { return null; }
 }""",
-    'p/o610.java': """package p; public class o610 {}
+    'p/yt20.java': """package p; public class yt20 {}
 """,
-    'p/rd51.java': """package p;
-public interface rd51 {
+    'p/jx51.java': """package p;
+public interface jx51 {
     io.reactivex.rxjava3.core.Single a(java.util.Map<String,String> params, java.util.Map<String,String> headers);
 }""",
-    'p/upn1.java': """package p;
-public class upn1 { public static String m() { return "zh_TW"; } }""",
+    'p/v4p1.java': """package p;
+public class v4p1 { public static String s() { return "zh_TW"; } }""",
     'spatch/CatalogRequestCheck.java': """package spatch;
 import java.util.*;
 import io.reactivex.rxjava3.core.Single;
 public class CatalogRequestCheck {
     public static class Reply { public byte[] toByteArray() { return new byte[]{10,0}; } }
-    public static class Api implements p.rd51 {
+    public static class Api implements p.jx51 {
         Map<String,String> last;
         public Single a(Map<String,String> params, Map<String,String> headers) {
             assert headers.isEmpty() : "Query metadata cannot be mixed with partial header metadata";
@@ -61,7 +61,7 @@ public class CatalogRequestCheck {
     public static class Maker {
         public final Api api = new Api();
         public Object createWebgateService(Class<?> type, String feature) {
-            assert type == p.rd51.class && feature.equals("android-search-onlineproto");
+            assert type == p.jx51.class && feature.equals("android-search-onlineproto");
             return api;
         }
     }
@@ -69,7 +69,7 @@ public class CatalogRequestCheck {
         try { CoreBridge.search("test", ""); throw new AssertionError("Missing connection must fail"); }
         catch (IllegalStateException expected) { assert expected.getMessage().contains("starting"); }
         Maker maker = new Maker();
-        CoreBridge.webgate(maker, new p.o610());
+        CoreBridge.webgate(maker, new p.yt20());
         CoreBridge.webgate(new Object(), new Object());
         CoreBridge.webgate(new Object(), null);
         String query = "Björk & 東京 + Radiohead";

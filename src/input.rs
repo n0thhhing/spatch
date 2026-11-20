@@ -6,28 +6,28 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-pub const APKM_SHA256: &str = "186e251a3d4998b0a8182916c55be2ade2d7b9444efc6e8e8cc79bde08ed1ee2";
+pub const APKM_SHA256: &str = "03c17c489820909ee1b8e7944fea9bb78e0b6fe00895c8a728b33793d4c16a9a";
 pub const PACKAGE: &str = "com.spotify.music";
-pub const VERSION_NAME: &str = "9.2.0.26";
-pub const VERSION_CODE: &str = "148373686";
+pub const VERSION_NAME: &str = "9.2.0.2053";
+pub const VERSION_CODE: &str = "148387875";
 
 /// Every APK in the supported APKM, with its pinned SHA-256.
 pub const APKS: &[(&str, &str)] = &[
     (
         "base.apk",
-        "cc165669d31851b1193cae7d54c9261579c431b432080970f460704d06e4612f",
+        "a6bded836537f252d9e8f280649145d39a5e69d2797d0e7806f8ed504c6e174d",
     ),
     (
         "split_config.arm64_v8a.apk",
-        "d9360d4b9a29a46c752b61b8c6409c67c4aa78ca07ca9af1f768af950b0155bd",
+        "07960bbada3ceaf6265c54cfcc6bd91f616b71df3eadda28eff6699152b423a0",
     ),
     (
         "split_config.en.apk",
-        "a6e91962543f23478c59d70a19bd00637b9ab03d4a321480cea50c90b1d281ff",
+        "1ef18dc9a93b4cdd2ff9cd12865e60257ab4d2b87ba19955b6910b73ce6c2188",
     ),
     (
         "split_config.xxhdpi.apk",
-        "371b587b87fde2cb5078d78fb3cd13a239a059149a22918372034e499944b800",
+        "ba702d247adb1ccecbec1448119e4814d6e1b33cc91792f421b19a48c0e05250",
     ),
 ];
 

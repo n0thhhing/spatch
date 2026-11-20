@@ -174,7 +174,7 @@ pub fn run(
         return Err(format!("the rebuilt resources are missing: {missing}").into());
     }
     let tree = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("xmltree"), OsStr::new("--file"), OsStr::new("AndroidManifest.xml"), result.join("base.apk").as_os_str()])?;
-    if !tree.contains("spatch.SpatchWidgetSmall") || !tree.contains("spatch.SpatchWidget\"") || !tree.contains("SpotifyWidget") {
+    if !tree.contains("spatch.SpatchWidgetSmall") || !tree.contains("spatch.SpatchWidget\"") || !tree.contains("npvwidget.NpvWidgetProvider") {
         return Err("the rebuilt manifest must hold both Spatch's widget and Spotify's".into());
     }
     let originals = dex::DEX_TARGETS;
@@ -194,7 +194,7 @@ pub fn run(
     Ok(())
 }
 
-/// The resource types Spatch's widget files belong to, and their ids in Spotify 9.2.0.26's table (the rebuilt table
+/// The resource types Spatch's widget files belong to, and their ids in Spotify 9.2.0.2053's table (the rebuilt table
 /// is checked for every added resource, so a wrong id fails the patch instead of shipping).
 const WIDGET_TYPES: [(&str, u8); 5] = [("anim", 0x01), ("animator", 0x02), ("drawable", 0x08), ("layout", 0x0e), ("xml", 0x16)];
 
@@ -240,7 +240,7 @@ const WIDGET_RES: &[(&str, &str, &str)] = &[
 
 /// Views of Spotify's own widget layouts whose ids (and names) Spatch's widget layouts reuse, so no id resources
 /// are added. Their numbers are read from the app being patched; the rebuilt table is checked for each of them.
-const WIDGET_VIEWS: [&str; 20] = ["frame", "metadata", "artwork", "thumbnail", "info_container", "title", "subtitle", "title2", "subtitle2", "header", "text1", "text2", "icon_view", "image_view", "previous_button", "play_button", "image", "spinner", "icon", "next_button"];
+const WIDGET_VIEWS: [&str; 20] = ["frame", "metadata", "artwork", "thumbnail", "text_container", "title", "subtitle", "title2", "subtitle2", "header", "text1", "text2", "icon_view", "image_view", "previous_button", "play_button", "image", "spinner", "icon", "next_button"];
 
 /// Spatch's home-screen widgets, added beside Spotify's own: the manifest receivers, the compiled resource files
 /// and the resources table that lists them.

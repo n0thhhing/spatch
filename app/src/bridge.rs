@@ -1,7 +1,7 @@
 //! Calls into Spotify's core through Java's `spatch.CoreBridge`: Esperanto services by name, protobuf
 //! bytes in and out. Single calls block (run them off the UI thread); streams call back on Rx threads.
 
-use jni::objects::{GlobalRef, JByteArray, JClass, JString, JValue};
+use jni::objects::{GlobalRef, JByteArray, JClass, JObject, JString, JValue};
 use jni::sys::jlong;
 use jni::{JNIEnv, JavaVM};
 use std::collections::HashMap;
@@ -108,6 +108,73 @@ pub fn call_with_timeout(service: &str, method: &str, request: &[u8], wait: std:
     let bytes = result.map_err(|e| describe(&mut env, e))?;
     if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
     Ok(bytes)
+}
+
+/// A playlist's items (playlist4 SelectedListContent) from Spotify's playlist service over the app's web connection.
+pub fn playlist_contents(id: &str) -> Result<Vec<u8>, String> {
+    let session = SESSION.load(Ordering::SeqCst);
+    let java = java()?;
+    let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
+    let result = (|| -> jni::errors::Result<Vec<u8>> {
+        let id = env.new_string(id)?;
+        let class: &JClass = java.class.as_obj().into();
+        let reply = env.call_static_method(class, "playlistContents", "(Ljava/lang/String;)[B", &[JValue::Object(&id)])?.l()?;
+        env.convert_byte_array(JByteArray::from(reply))
+    })();
+    let bytes = result.map_err(|e| describe(&mut env, e))?;
+    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
+    Ok(bytes)
+}
+
+/// Spotify's extended-metadata service over the app's web connection: BatchedEntityRequest in, BatchedExtensionResponse out.
+pub fn extended_metadata(request: &[u8]) -> Result<Vec<u8>, String> {
+    let session = SESSION.load(Ordering::SeqCst);
+    let java = java()?;
+    let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
+    let result = (|| -> jni::errors::Result<Vec<u8>> {
+        let body = env.byte_array_from_slice(request)?;
+        let class: &JClass = java.class.as_obj().into();
+        let reply = env.call_static_method(class, "extendedMetadata", "([B)[B", &[JValue::Object(&body)])?.l()?;
+        env.convert_byte_array(JByteArray::from(reply))
+    })();
+    let bytes = result.map_err(|e| describe(&mut env, e))?;
+    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
+    Ok(bytes)
+}
+
+/// Up to 50 tracks from Spotify's public Web API by base62 id: nine strings per track (see CoreBridge.webTracks).
+pub fn web_tracks(ids: &[String]) -> Result<Vec<String>, String> {
+    let session = SESSION.load(Ordering::SeqCst);
+    let java = java()?;
+    let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
+    let result = (|| -> jni::errors::Result<Vec<String>> {
+        let array = env.new_object_array(ids.len() as i32, "java/lang/String", JObject::null())?;
+        for (i, id) in ids.iter().enumerate() {
+            let text = env.new_string(id)?;
+            env.set_object_array_element(&array, i as i32, text)?;
+        }
+        let class: &JClass = java.class.as_obj().into();
+        let reply = jni::objects::JObjectArray::from(env.call_static_method(class, "webTracks", "([Ljava/lang/String;)[Ljava/lang/String;", &[JValue::Object(&array)])?.l()?);
+        let mut out = Vec::new();
+        for i in 0..env.get_array_length(&reply)? {
+            let item = JString::from(env.get_object_array_element(&reply, i)?);
+            out.push(env.get_string(&item)?.into());
+        }
+        Ok(out)
+    })();
+    let fields = result.map_err(|e| describe(&mut env, e))?;
+    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
+    Ok(fields)
+}
+
+/// The phone's two-letter country.
+pub fn device_country() -> Option<String> {
+    let java = java().ok()?;
+    let mut env = java.vm.attach_current_thread_permanently().ok()?;
+    let class: &JClass = java.class.as_obj().into();
+    let value = env.call_static_method(class, "deviceCountry", "()Ljava/lang/String;", &[]).and_then(|v| v.l()).ok()?;
+    let text: String = env.get_string(&JString::from(value)).ok()?.into();
+    (text.len() == 2).then_some(text)
 }
 
 /// Opens a stream; `handler` gets every reply (or the error that ended it) on Spotify's threads.

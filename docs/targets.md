@@ -1,7 +1,7 @@
 # Patch targets and version porting
 
-Spatch supports the exact ARM64 Spotify APKM for `com.spotify.music` version **9.2.0.26**
-(`148373686`). [src/input.rs](../src/input.rs) pins the APKM and every split by SHA-256.
+Spatch supports the exact ARM64 Spotify APKM for `com.spotify.music` version **9.2.0.2053**
+(`148387875`). [src/input.rs](../src/input.rs) pins the APKM and every split by SHA-256.
 `spatch inspect <input.apkm>` checks the archive and prints the supported hashes.
 
 Spatch reassembles `classes.dex` and `classes2.dex` and adds `classes16.dex`.

@@ -403,11 +403,27 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLibraryRevision(_: JNIEnv, _: 
     LIBRARY_REVISION.load(Ordering::Relaxed)
 }
 
+/// Logs the account's product state once per session: the keys that decide song details and the login hand-off.
+#[cfg(not(feature = "preview"))]
+fn log_product_state() {
+    static LOGGED: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(i64::MIN);
+    let session = bridge::session();
+    if LOGGED.swap(session, Ordering::SeqCst) == session {
+        return;
+    }
+    match bridge::call(crate::spotify::product_state::SERVICE, "GetValues", &[]) {
+        Ok(bytes) => log::info!("Product state: {}", crate::spotify::product_state::summary(&crate::spotify::product_state::decode(&bytes))),
+        Err(e) => log::warn!("Product state: {e}"),
+    }
+}
+
 /// Loads the current account's library; "" on success, otherwise Spotify's error.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JClass) -> jstring {
     #[cfg(not(feature = "preview"))]
     watch_library();
+    #[cfg(not(feature = "preview"))]
+    log_product_state();
     if LIBRARY.lock().unwrap().is_some() {
         return string(&mut env, "");
     }
@@ -595,6 +611,90 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JCla
     string(&mut env, &uri)
 }
 
+/// Each playlist's (song link, time added) when the core reported it empty but its songs were found another way.
+#[cfg(not(feature = "preview"))]
+type FoundItems = std::collections::HashMap<String, Vec<(String, u32)>>;
+#[cfg(not(feature = "preview"))]
+static FOUND_ITEMS: Mutex<Option<FoundItems>> = Mutex::new(None);
+
+/// Some accounts' cores report a playlist as loaded with no songs, and Spotify's own screens show it empty too: the
+/// core waits for every song's details, and its song-details requests fail on those accounts (they carry the
+/// account's country and catalogue from the product state). So an empty answer is asked again without details, then
+/// Spotify's playlist service directly; the details come from the extended-metadata service.
+#[cfg(not(feature = "preview"))]
+fn when_empty(uri: &str, offset: i32, reply: playlist::Reply) -> playlist::Reply {
+    let empty = matches!(&reply, playlist::Reply::Page { tracks, next: None, .. } if tracks.is_empty());
+    if !(empty || offset > 0) || !uri.starts_with("spotify:playlist:") {
+        return reply;
+    }
+    let known = FOUND_ITEMS.lock().unwrap().as_ref().and_then(|m| m.get(uri).cloned());
+    let items = match known {
+        Some(items) => items,
+        None if !empty => return reply,
+        None => {
+            let from_core = bridge::call(playlist::SERVICE, "Get", &playlist::items_request(uri)).and_then(|b| playlist::items(&b));
+            let items = match from_core {
+                Ok(items) if !items.is_empty() => {
+                    log::info!("Playlist {uri}: the core lists {} songs without their details", items.len());
+                    items
+                }
+                other => {
+                    let id = uri.trim_start_matches("spotify:playlist:");
+                    match bridge::playlist_contents(id) {
+                        Ok(bytes) => {
+                            let items = playlist::server_items(&bytes);
+                            log::info!("Playlist {uri}: core items-only gave {:?}; Spotify's playlist service has {}", other.map(|i| i.len()), items.len());
+                            items
+                        }
+                        Err(e) => {
+                            log::warn!("Playlist {uri}: Spotify's playlist service: {e}");
+                            Vec::new()
+                        }
+                    }
+                }
+            };
+            if items.is_empty() {
+                return reply;
+            }
+            FOUND_ITEMS.lock().unwrap().get_or_insert_with(std::collections::HashMap::new).insert(uri.to_string(), items.clone());
+            items
+        }
+    };
+    page_of(&items, offset)
+}
+
+/// One page of found items with their details: the core's metadata service first, then extended metadata directly.
+#[cfg(not(feature = "preview"))]
+fn page_of(items: &[(String, u32)], offset: i32) -> playlist::Reply {
+    use crate::spotify::{metadata, product_state};
+    let start = (offset.max(0) as usize).min(items.len());
+    let end = (start + playlist::PAGE as usize).min(items.len());
+    let mut tracks: Vec<playlist::Track> = items[start..end].iter().map(|(uri, added)| playlist::Track { uri: uri.clone(), added: *added, ..Default::default() }).collect();
+    metadata::resolve(&mut tracks);
+    if tracks.iter().any(|t| t.title.is_empty()) {
+        let values = bridge::call(product_state::SERVICE, "GetValues", &[]).map(|b| product_state::decode(&b)).unwrap_or_default();
+        let country = product_state::country(&values).or_else(bridge::device_country).unwrap_or_else(|| "US".into());
+        let catalogue = values.get("catalogue").filter(|c| !c.is_empty()).cloned().unwrap_or_else(|| "free".into());
+        let (filled, asked, refused) = metadata::resolve_extended(&mut tracks, &country, &catalogue);
+        log::info!("Song details from extended metadata ({country}, {catalogue}): {filled} of {asked}; refused by status: {refused:?}");
+    }
+    if tracks.iter().any(|t| t.title.is_empty()) {
+        let (filled, asked) = metadata::resolve_web(&mut tracks);
+        log::info!("Song details from the Web API: {filled} of {asked}");
+    }
+    for t in tracks.iter_mut().filter(|t| t.title.is_empty()) {
+        t.title = "Track unavailable".into();
+    }
+    playlist::Reply::Page { tracks, next: (end < items.len()).then_some(end as i32), owner: None }
+}
+
+fn found_elsewhere(#[allow(unused_variables)] uri: &str) -> bool {
+    #[cfg(feature = "preview")]
+    return false;
+    #[cfg(not(feature = "preview"))]
+    FOUND_ITEMS.lock().unwrap().as_ref().is_some_and(|m| m.contains_key(uri))
+}
+
 /// A page of a playlist: ["loading"], [error], or ["", next offset or "0", then title, artist, uri, image per track].
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: JClass, uri: JString, #[allow(unused_variables)] offset: jint) -> jbyteArray {
@@ -643,7 +743,9 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
             }
         }
     } else {
-        bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset)).and_then(|bytes| playlist::decode(&bytes, offset))
+        bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset))
+            .and_then(|bytes| playlist::decode(&bytes, offset))
+            .map(|reply| when_empty(&uri, offset, reply))
     };
     let fields = match reply {
         Ok(playlist::Reply::Loading) => vec!["loading".into()],
@@ -787,12 +889,17 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeWatchPlaylist(mut env: JNIEnv,
     // The key goes in first, so a push that lands before the id is known still counts.
     *WATCHED_PLAYLIST.lock().unwrap() = Some((key.clone(), 0));
     let watched = key.clone();
+    let watched_uri = uri.clone();
     let opened = bridge::subscribe(playlist::SERVICE, "Subscribe", &playlist::request(&uri, 0), move |reply| {
         let Ok(bytes) = reply else {
             log::warn!("Playlist stream ended: {}", reply.err().unwrap_or_default());
             return;
         };
         let Ok(page @ playlist::Reply::Page { .. }) = playlist::decode(bytes, 0) else { return };
+        // The core's empty copy must not replace songs found another way.
+        if matches!(&page, playlist::Reply::Page { tracks, .. } if tracks.is_empty()) && found_elsewhere(&watched_uri) {
+            return;
+        }
         if WATCHED_PLAYLIST.lock().unwrap().as_ref().is_none_or(|(k, _)| k != &watched) {
             return;
         }

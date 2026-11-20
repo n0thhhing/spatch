@@ -16,16 +16,27 @@ pub const HELPERS: &[(&str, &str)] = &[
     ("SpatchApp", include_str!("../java/dex/src/spatch/SpatchApp.java")),
     ("SpatchUi", include_str!("../java/dex/src/spatch/SpatchUi.java")),
     ("SpatchWidget", include_str!("../java/dex/src/spatch/SpatchWidget.java")),
-("SpatchWidgetSmall", include_str!("../java/dex/src/spatch/SpatchWidgetSmall.java")),
+    ("SpatchWidgetSmall", include_str!("../java/dex/src/spatch/SpatchWidgetSmall.java")),
+    ("SpotifyWeb", include_str!("../java/dex/src/spatch/SpotifyWeb.java")),
     ("Subscriptions", include_str!("../java/dex/src/spatch/Subscriptions.java")),
 ];
 
 /// Stand-ins used by javac, never packaged in the helper DEX.
 pub const STUBS: &[(&str, &str)] = &[
+    ("x740.java", include_str!("../java/dex/stubs/p/x740.java")),
+    ("brs0.java", include_str!("../java/dex/stubs/p/brs0.java")),
+    ("gf60.java", include_str!("../java/dex/stubs/p/gf60.java")),
+    ("pjz0.java", include_str!("../java/dex/stubs/p/pjz0.java")),
+    ("xmb.java", include_str!("../java/dex/stubs/p/xmb.java")),
+    ("ii31.java", include_str!("../java/dex/stubs/p/ii31.java")),
+    ("ngr0.java", include_str!("../java/dex/stubs/p/ngr0.java")),
     ("Action.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/functions/Action.java")),
     ("Consumer.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/functions/Consumer.java")),
     ("Disposable.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/disposables/Disposable.java")),
     ("Observable.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/core/Observable.java")),
     ("Single.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/core/Single.java")),
+    ("BatchedExtensionResponse.java", include_str!("../java/dex/stubs/com/spotify/extendedmetadata/proto/BatchedExtensionResponse.java")),
+    ("Empty.java", include_str!("../java/dex/stubs/com/google/protobuf/Empty.java")),
+    ("Playlist4ApiProto.java", include_str!("../java/dex/stubs/com/spotify/playlist4/proto/Playlist4ApiProto.java")),
     ("Transport.java", include_str!("../java/dex/stubs/com/spotify/esperanto/esperanto/Transport.java")),
 ];

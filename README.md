@@ -1,7 +1,7 @@
 # Spatch
 
 Spatch runs a Rust-driven Android UI over Spotify's existing playback, cache and Connect services.
-This branch supports Spotify **9.2.0.26** (version code **148373686**) and supports Spotify’s native sign-in flow on fresh installs. APKM and split hashes are pinned in [src/input.rs](src/input.rs).
+This branch supports Spotify **9.2.0.2053** (version code **148387875**) and supports Spotify’s native sign-in flow on fresh installs. APKM and split hashes are pinned in [src/input.rs](src/input.rs).
 
 See [the app README](app/README.md) for UI features and the standalone preview, and
 [Spatch Manager](manager/README.md) for applying and signing bundles on Android.

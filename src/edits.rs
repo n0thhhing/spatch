@@ -7,7 +7,7 @@ pub struct Edit {
 }
 
 pub const EDITS: [Edit; 6] = [
-    Edit { file: "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali", anchor: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/jc31;\n", replacement: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/jc31;\n\n    invoke-static {p0, p5}, Lspatch/CoreBridge;->webgate(Ljava/lang/Object;Ljava/lang/Object;)V\n" },
+    Edit { file: "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali", anchor: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/hv31;\n", replacement: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/hv31;\n\n    invoke-static {p0, p5}, Lspatch/CoreBridge;->webgate(Ljava/lang/Object;Ljava/lang/Object;)V\n" },
     // The Rust app reaches Spotify's core through the same Esperanto transports Spotify's screens use:
     // every client's transport passes through CoreBridge.
     Edit { file: "smali/com/spotify/esperanto/esperanto/ClientBase.smali", anchor: "    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n", replacement: "    invoke-static {p1}, Lspatch/CoreBridge;->wrap(Ljava/lang/Object;)Lcom/spotify/esperanto/esperanto/Transport;\n\n    move-result-object p1\n\n    iput-object p1, p0, Lcom/spotify/esperanto/esperanto/ClientBase;->transport:Lcom/spotify/esperanto/esperanto/Transport;\n" },
