@@ -169,6 +169,39 @@ public class SpatchWidget extends AppWidgetProvider {
     }
 
     /**
+     * The 4x2 banner, like the one on Home: the cover fills the card and fades into the deep colour towards the
+     * bottom and the left, where the text sits. With no cover, a soft accent wash and a music note.
+     */
+    private static Bitmap banner(Bitmap art) {
+        int w = 640, h = 320;
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(out);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        canvas.drawColor(background);
+        int rgb = background & 0x00FFFFFF;
+        if (art != null) {
+            int side = Math.min(art.getWidth(), art.getHeight());
+            // The cover, cropped to the card's shape, from its upper part (faces and titles usually sit there).
+            int cropH = side / 2, top = Math.max(0, (art.getHeight() - cropH) / 3);
+            canvas.drawBitmap(art, new android.graphics.Rect(0, top, art.getWidth(), Math.min(art.getHeight(), top + art.getWidth() / 2)), new RectF(0, 0, w, h), paint);
+        } else {
+            paint.setShader(new LinearGradient(0, 0, w, h, (accent2 & 0x00FFFFFF) | 0x59000000, (accent & 0x00FFFFFF) | 0x14000000, Shader.TileMode.CLAMP));
+            canvas.drawRect(0, 0, w, h, paint);
+            paint.setShader(null);
+            paint.setColor((accent & 0x00FFFFFF) | 0xCC000000);
+            float u = h / 100f, x = w * .5f;
+            canvas.drawOval(new RectF(x, 50 * u, x + 22 * u, 66 * u), paint);
+            canvas.drawRect(x + 17 * u, 20 * u, x + 22 * u, 58 * u, paint);
+            Path flag = new Path();
+            flag.moveTo(x + 17 * u, 20 * u); flag.lineTo(x + 42 * u, 28 * u); flag.lineTo(x + 42 * u, 38 * u); flag.lineTo(x + 17 * u, 32 * u); flag.close();
+            canvas.drawPath(flag, paint);
+        }
+        paint.setShader(new LinearGradient(0, 0, 0, h, new int[] { rgb, rgb, rgb | 0xB0000000, rgb | 0xF5000000 }, new float[] { 0f, .32f, .72f, 1f }, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, w, h, paint);
+        return out;
+    }
+
+    /**
      * The widget's backdrop, in Spatch's player style: the cover blown up and blurred, then washed with the deep
      * colour, solid behind the text on the left and letting the cover's colour through on the right.
      */
@@ -240,7 +273,7 @@ public class SpatchWidget extends AppWidgetProvider {
 
     private static RemoteViews views(Context context, boolean small) {
         RemoteViews v = new RemoteViews(context.getPackageName(), id(context, small ? "spatch_widget_small" : "spatch_widget", "layout"));
-        v.setImageViewBitmap(android.R.id.icon, backdrop);
+        if (small) v.setImageViewBitmap(android.R.id.icon, backdrop);
         int titleView = id(context, "title", "id"), artistView = id(context, "artist", "id");
         v.setTextViewText(titleView, title.isEmpty() ? "Spatch" : title);
         v.setTextColor(titleView, 0xFFFFFFFF);
@@ -248,10 +281,10 @@ public class SpatchWidget extends AppWidgetProvider {
         v.setTextColor(artistView, 0xB3FFFFFF);
         if (!small) { v.setTextColor(android.R.id.text1, accent); v.setTextViewText(android.R.id.text1, title.isEmpty() ? "SPATCH" : playing ? "NOW PLAYING" : "PAUSED"); }
         int art = id(context, "coverart", "id");
-        v.setImageViewBitmap(art, tile(cover, small ? 168 : 276));
+        v.setImageViewBitmap(art, small ? tile(cover, 168) : banner(cover));
         int prev = id(context, "btn_prev_normal", "id"), next = id(context, "btn_next_normal", "id");
         int play = id(context, "btn_play_normal", "id"), pause = id(context, "btn_pause_normal", "id");
-        int side = small ? 108 : 120, main = small ? 132 : 156;
+        int side = small ? 108 : 108, main = small ? 132 : 162;
         v.setImageViewBitmap(prev, icon(0, side));
         v.setImageViewBitmap(next, icon(1, side));
         v.setImageViewBitmap(play, icon(2, main));
