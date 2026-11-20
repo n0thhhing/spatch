@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Background of the widget's prev button: the highlight appears while pressed (animated in) and
+     fades out on release while the button nudges. Run by the launcher. -->
+<animated-selector xmlns:android="http://schemas.android.com/apk/res/android" android:exitFadeDuration="300">
+    <item android:id="@android:id/text1" android:state_pressed="true" android:drawable="@drawable/spatch_widget_tri_prev" />
+    <item android:id="@android:id/text2" android:drawable="@android:color/transparent" />
+    <transition android:fromId="@android:id/text2" android:toId="@android:id/text1" android:drawable="@drawable/spatch_widget_tri_prev_in" />
+</animated-selector>

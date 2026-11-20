@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown (as an indeterminate progress drawable, so the launcher starts it) when playback starts:
+     5 bumps morph to 8, then the scallop keeps turning. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/spatch_widget_scallop">
+    <target android:name="shape" android:animation="@animator/spatch_widget_to8" />
+    <target android:name="spin" android:animation="@animator/spatch_widget_turn" />
+</animated-vector>

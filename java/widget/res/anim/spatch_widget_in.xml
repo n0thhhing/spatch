@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- New song in the widget: fades up while sliding a little into place. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android" android:interpolator="@android:interpolator/decelerate_cubic" android:duration="320">
+    <alpha android:fromAlpha="0" android:toAlpha="1" />
+    <translate android:fromXDelta="8%" android:toXDelta="0" />
+</set>

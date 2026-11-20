@@ -68,7 +68,7 @@ pub fn run(
     // DEX that hosts the app, and the Rust app itself. Spotify's own resources stay as they are; the manifest and resources table only gain Spatch's widget.
     let mut compiled = dex::build(&base, &staging.path, tools)?;
     let widget = widget(&base, &staging.path, tools)?;
-    let layout_id = widget.layout_id;
+    let expect = widget.expect.clone();
     if let Output::DryRun = output {
         println!("dry run: input and DEX reassembly verified; no output written");
         return Ok(());
@@ -170,10 +170,7 @@ pub fn run(
     }
     verify_identity(&result.join("base.apk"), &aapt2)?;
     let table = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("resources"), result.join("base.apk").as_os_str()])?;
-    let mut wanted: Vec<String> = WIDGET_IDS.iter().map(|&(name, id)| format!("resource {id:#010x} id/{name}")).collect();
-    wanted.push(format!("resource {layout_id:#010x} layout/spatch_widget"));
-    wanted.push(format!("resource {:#010x} layout/spatch_widget_small", layout_id + 1));
-    if let Some(missing) = wanted.iter().find(|line| !table.contains(line.as_str())) {
+    if let Some(missing) = expect.iter().find(|line| !table.contains(line.as_str())) {
         return Err(format!("the rebuilt resources are missing: {missing}").into());
     }
     let tree = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("xmltree"), OsStr::new("--file"), OsStr::new("AndroidManifest.xml"), result.join("base.apk").as_os_str()])?;
@@ -197,67 +194,132 @@ pub fn run(
     Ok(())
 }
 
-const WIDGET_LAYOUT: &str = "res/layout/spatch_widget.xml";
-const WIDGET_INFO: &str = "res/xml/spatch_widget_info.xml";
-const WIDGET_SMALL_LAYOUT: &str = "res/layout/spatch_widget_small.xml";
-const WIDGET_SMALL_INFO: &str = "res/xml/spatch_widget_small_info.xml";
+/// The resource types Spatch's widget files belong to, and their ids in Spotify 9.2.0.26's table (the rebuilt table
+/// is checked for every added resource, so a wrong id fails the patch instead of shipping).
+const WIDGET_TYPES: [(&str, u8); 5] = [("anim", 0x01), ("animator", 0x02), ("drawable", 0x08), ("layout", 0x0e), ("xml", 0x16)];
 
-/// Views of Spotify's own widget whose ids (and names) Spatch's widget layout reuses, so no id resources are
-/// added. They are Spotify 9.2.0.26's; the rebuilt table is checked for each of them.
-const WIDGET_IDS: [(&str, u32); 9] = [
-    ("coverart", 0x7f0b_03b1),
-    ("texts", 0x7f0b_0f99),
-    ("title", 0x7f0b_0fbc),
-    ("artist", 0x7f0b_010a),
-    ("controls", 0x7f0b_0396),
-    ("btn_prev_normal", 0x7f0b_01ed),
-    ("btn_play_normal", 0x7f0b_01eb),
-    ("btn_pause_normal", 0x7f0b_01e9),
-    ("btn_next_normal", 0x7f0b_01e6),
+/// A widget resource: its type, its name and its source text (java/widget/res/<type>/<name>.xml).
+macro_rules! res {
+    ($t:literal, $n:literal) => {
+        ($t, $n, include_str!(concat!("../java/widget/res/", $t, "/", $n, ".xml")))
+    };
+}
+
+/// Spatch's widget, ported from the old Spatch: layouts, animations (the scallop morph and turn, the equaliser,
+/// press and skip nudges), drawables and the two widget descriptions.
+const WIDGET_RES: &[(&str, &str, &str)] = &[
+    res!("anim", "spatch_widget_in"),
+    res!("anim", "spatch_widget_out"),
+    res!("animator", "spatch_widget_nudge_next"),
+    res!("animator", "spatch_widget_nudge_prev"),
+    res!("animator", "spatch_widget_press"),
+    res!("animator", "spatch_widget_to5"),
+    res!("animator", "spatch_widget_to8"),
+    res!("animator", "spatch_widget_tri_fade"),
+    res!("animator", "spatch_widget_tri_grow"),
+    res!("animator", "spatch_widget_turn"),
+    res!("drawable", "spatch_widget_art"),
+    res!("drawable", "spatch_widget_bar"),
+    res!("drawable", "spatch_widget_bg"),
+    res!("drawable", "spatch_widget_eq"),
+    res!("drawable", "spatch_widget_scallop"),
+    res!("drawable", "spatch_widget_scallop8"),
+    res!("drawable", "spatch_widget_skip_next"),
+    res!("drawable", "spatch_widget_skip_prev"),
+    res!("drawable", "spatch_widget_to_pause"),
+    res!("drawable", "spatch_widget_to_play"),
+    res!("drawable", "spatch_widget_tri_next"),
+    res!("drawable", "spatch_widget_tri_next_in"),
+    res!("drawable", "spatch_widget_tri_prev"),
+    res!("drawable", "spatch_widget_tri_prev_in"),
+    res!("layout", "spatch_widget"),
+    res!("layout", "spatch_widget_small"),
+    res!("xml", "spatch_widget_info"),
+    res!("xml", "spatch_widget_small_info"),
 ];
 
-/// Spatch's home-screen widget, added beside Spotify's own: its manifest receiver, its two compiled resource
-/// files and the resources table that lists them.
+/// Views of Spotify's own widget layouts whose ids (and names) Spatch's widget layouts reuse, so no id resources
+/// are added. Their numbers are read from the app being patched; the rebuilt table is checked for each of them.
+const WIDGET_VIEWS: [&str; 20] = ["frame", "metadata", "artwork", "thumbnail", "info_container", "title", "subtitle", "title2", "subtitle2", "header", "text1", "text2", "icon_view", "image_view", "previous_button", "play_button", "image", "spinner", "icon", "next_button"];
+
+/// Spatch's home-screen widgets, added beside Spotify's own: the manifest receivers, the compiled resource files
+/// and the resources table that lists them.
 struct Widget {
     manifest: Vec<u8>,
     table: Vec<u8>,
     files: Vec<(&'static str, Vec<u8>)>,
-    layout_id: u32,
+    /// `aapt2 dump resources` lines the finished app must contain.
+    expect: Vec<String>,
+}
+
+/// The id of `kind/name` in an `aapt2 dump resources` listing.
+fn resource_id(dump: &str, kind: &str, name: &str) -> Result<u32> {
+    let want = format!("{kind}/{name}");
+    for line in dump.lines() {
+        let mut words = line.split_whitespace();
+        if let (Some("resource"), Some(id), Some(found), None) = (words.next(), words.next(), words.next(), words.next()) {
+            if found == want {
+                return Ok(u32::from_str_radix(id.trim_start_matches("0x"), 16)?);
+            }
+        }
+    }
+    Err(format!("Spotify's resources have no {want}, which Spatch's widget layouts reuse").into())
 }
 
 fn widget(base: &Path, staging: &Path, tools: &Tools) -> Result<Widget> {
     let table = input::read_entry(base, "resources.arsc")?;
-    // Two layouts, then two descriptions: each type hands out its next entries in order.
-    let (layout_id, info_id) = (resources::next_id(&table, 0x0e)?, resources::next_id(&table, 0x16)?);
-    let mut ids: Vec<(String, u32)> = WIDGET_IDS.iter().map(|&(name, id)| (format!("id/{name}"), id)).collect();
-    ids.push(("layout/spatch_widget".into(), layout_id));
-    ids.push(("layout/spatch_widget_small".into(), layout_id + 1));
-    ids.push(("xml/spatch_widget_info".into(), info_id));
-    ids.push(("xml/spatch_widget_small_info".into(), info_id + 1));
-    let compiled = resources::compile(
-        tools,
-        &staging.join("widget"),
-        &[
-            (WIDGET_LAYOUT, include_str!("../java/widget/spatch_widget.xml")),
-            (WIDGET_SMALL_LAYOUT, include_str!("../java/widget/spatch_widget_small.xml")),
-            (WIDGET_INFO, include_str!("../java/widget/spatch_widget_info.xml")),
-            (WIDGET_SMALL_INFO, include_str!("../java/widget/spatch_widget_small_info.xml")),
-        ],
-        &ids,
-    )?;
-    let (table, got) = resources::add(
-        &table,
-        &[(0x0e, "spatch_widget", WIDGET_LAYOUT), (0x0e, "spatch_widget_small", WIDGET_SMALL_LAYOUT), (0x16, "spatch_widget_info", WIDGET_INFO), (0x16, "spatch_widget_small_info", WIDGET_SMALL_INFO)],
-    )?;
-    if got != [layout_id, layout_id + 1, info_id, info_id + 1] {
+    let aapt2 = tools::sdk_tool("aapt2")?;
+    let dump = tools.run(&aapt2, &[OsStr::new("dump"), OsStr::new("resources"), base.as_os_str()])?;
+    let mut ids: Vec<(String, u32)> = Vec::new();
+    let mut expect = Vec::new();
+    for name in WIDGET_VIEWS {
+        let id = resource_id(&dump, "id", name)?;
+        ids.push((format!("id/{name}"), id));
+        expect.push(format!("resource {id:#010x} id/{name}"));
+    }
+    // Each type hands out its next free entries in the order they are added.
+    let mut next = std::collections::BTreeMap::new();
+    let (mut items, mut sources, mut paths) = (Vec::new(), Vec::new(), Vec::new());
+    for &(kind, name, text) in WIDGET_RES {
+        let type_id = WIDGET_TYPES.iter().find(|t| t.0 == kind).ok_or("unknown widget resource type")?.1;
+        let id = match next.get(&type_id) {
+            Some(&id) => id,
+            None => resources::next_id(&table, type_id)?,
+        };
+        next.insert(type_id, id + 1);
+        ids.push((format!("{kind}/{name}"), id));
+        expect.push(format!("resource {id:#010x} {kind}/{name}"));
+        // Every path lives until the process ends, so each is leaked once.
+        let path: &'static str = Box::leak(format!("res/{kind}/{name}.xml").into_boxed_str());
+        items.push((type_id, name, path));
+        sources.push((path, text));
+        paths.push(path);
+    }
+    // Every id a layout declares must be one of the listed (Spotify's own) views, or aapt2 would invent a new number.
+    for (_, name, text) in WIDGET_RES {
+        for declared in text.split("@+id/").skip(1) {
+            let id: String = declared.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            if !WIDGET_VIEWS.contains(&id.as_str()) {
+                return Err(format!("{name} declares the new id {id}; widget layouts may only use Spotify's own ids").into());
+            }
+        }
+    }
+    let compiled = resources::compile(tools, &staging.join("widget"), &sources, &ids)?;
+    let (table, got) = resources::add(&table, &items)?;
+    let wanted: Vec<u32> = ids.iter().skip(WIDGET_VIEWS.len()).map(|(_, id)| *id).collect();
+    if got != wanted {
         return Err("the new resources did not get the ids they were compiled with".into());
     }
+    let info = |name: &str| resource_id_of(&ids, "xml", name);
     let manifest = input::read_entry(base, "AndroidManifest.xml")?;
-    let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidget", "Spatch", info_id)?;
-    let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidgetSmall", "Spatch", info_id + 1)?;
-    let mut files = compiled.into_iter();
-    let names = [WIDGET_LAYOUT, WIDGET_SMALL_LAYOUT, WIDGET_INFO, WIDGET_SMALL_INFO];
-    Ok(Widget { manifest, table, files: names.into_iter().map(|n| (n, files.next().unwrap())).collect(), layout_id })
+    let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidget", "Spatch", info("spatch_widget_info")?)?;
+    let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidgetSmall", "Spatch", info("spatch_widget_small_info")?)?;
+    Ok(Widget { manifest, table, files: paths.into_iter().zip(compiled).collect(), expect })
+}
+
+fn resource_id_of(ids: &[(String, u32)], kind: &str, name: &str) -> Result<u32> {
+    let want = format!("{kind}/{name}");
+    ids.iter().find(|(n, _)| *n == want).map(|(_, id)| *id).ok_or_else(|| format!("no {want}").into())
 }
 
 /// Where SpatchApp finds the Rust app library (copied out and loaded at run time, so the splits stay untouched).
