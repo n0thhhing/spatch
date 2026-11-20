@@ -46,7 +46,7 @@ public class SpatchWidget extends AppWidgetProvider {
     private static Bitmap cover, backdrop, backdropFor;
     private static int backdropColor;
     /** Colours for the current cover: background, accent, and what sits on the accent. */
-    private static int background = 0xFF15161C, accent = 0xFF9DB7FF, onAccent = 0xFF101218;
+    private static int background = 0xFF15161C, accent = 0xFF9DB7FF, accent2 = 0xFFC9D6FF, onAccent = 0xFF101218;
 
     /** Remembers a context to draw with; the receiver calls this. */
     static void attach(Context context) {
@@ -112,7 +112,7 @@ public class SpatchWidget extends AppWidgetProvider {
 
     /** A deep background and a bright accent in the cover's hue, so the widget follows what is playing. */
     private static void colors(Bitmap art) {
-        if (art == null) { background = 0xFF15161C; accent = 0xFF9DB7FF; onAccent = 0xFF101218; return; }
+        if (art == null) { background = 0xFF15161C; accent = 0xFF9DB7FF; accent2 = 0xFFC9D6FF; onAccent = 0xFF101218; return; }
         Bitmap tiny = Bitmap.createScaledBitmap(art, 8, 8, true);
         long r = 0, g = 0, b = 0;
         for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) {
@@ -122,8 +122,9 @@ public class SpatchWidget extends AppWidgetProvider {
         float[] hsv = new float[3];
         Color.RGBToHSV((int) (r / 64), (int) (g / 64), (int) (b / 64), hsv);
         float hue = hsv[0], sat = hsv[1];
-        background = Color.HSVToColor(new float[] { hue, Math.min(sat, .55f), .17f });
+        background = Color.HSVToColor(new float[] { hue, Math.min(sat, .6f), .2f });
         accent = Color.HSVToColor(new float[] { hue, Math.max(.3f, Math.min(sat, .75f)), .96f });
+        accent2 = Color.HSVToColor(new float[] { (hue + 340) % 360, Math.max(.25f, Math.min(sat, .6f)), 1f });
         onAccent = Color.HSVToColor(new float[] { hue, .5f, .12f });
     }
 
@@ -138,31 +139,57 @@ public class SpatchWidget extends AppWidgetProvider {
 
     // ---- drawing ----
 
-    /** The cover as a rounded square, or Spatch's own tile of visualizer bars when there is none. */
-    private static Bitmap tile(Bitmap art, int px) {
+    /**
+     * The player's disc: the cover in a circle inside a ring of bars in the accent colours, or, with no cover,
+     * Spatch's visualizer bars in the circle. coverR is the circle's radius as a fraction of the tile.
+     */
+    private static Bitmap tile(Bitmap art, int px, float coverR, int ticks) {
         Bitmap out = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(out);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        float radius = px * .22f;
-        RectF all = new RectF(0, 0, px, px);
+        float c = px / 2f, r = px * coverR;
+        LinearGradient warm = new LinearGradient(0, 0, 0, px, accent2, accent, Shader.TileMode.CLAMP);
+        // the ring: bars of uneven length, then a thin line close to the cover
+        paint.setShader(warm);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeWidth(px * (ticks > 30 ? .03f : .045f));
+        float inner = r + px * .06f;
+        for (int i = 0; i < ticks; i++) {
+            double angle = i * 2 * Math.PI / ticks - Math.PI / 2;
+            float len = px * (.035f + .06f * (float) ((Math.sin(i * 1.7) + Math.sin(i * .6 + 1) + 2) / 4));
+            float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
+            canvas.drawLine(c + cos * inner, c + sin * inner, c + cos * (inner + len), c + sin * (inner + len), paint);
+        }
+        paint.setStrokeWidth(px * .014f);
+        canvas.drawCircle(c, c, r + px * .025f, paint);
+        paint.setShader(null);
+        paint.setStyle(Paint.Style.FILL);
+        // the disc
+        int d = (int) (r * 2);
+        Bitmap disc = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
+        Canvas dc = new Canvas(disc);
+        Paint dp = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        dc.drawCircle(r, r, r, dp);
+        dp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
         if (art != null) {
-            canvas.drawRoundRect(all, radius, radius, paint);
-            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
             int side = Math.min(art.getWidth(), art.getHeight());
             android.graphics.Rect from = new android.graphics.Rect((art.getWidth() - side) / 2, (art.getHeight() - side) / 2, (art.getWidth() + side) / 2, (art.getHeight() + side) / 2);
-            canvas.drawBitmap(art, from, all, paint);
-            return out;
+            dc.drawBitmap(art, from, new RectF(0, 0, d, d), dp);
+        } else {
+            dp.setShader(new LinearGradient(0, 0, d, d, (accent & 0x00FFFFFF) | 0x59000000, (accent & 0x00FFFFFF) | 0x1F000000, Shader.TileMode.CLAMP));
+            dc.drawRect(0, 0, d, d, dp);
+            dp.setShader(null);
+            dp.setXfermode(null);
+            dp.setColor(accent);
+            float[] heights = { .30f, .55f, .42f, .66f, .36f };
+            float bar = d * .09f, gap = d * .06f, left = (d - (5 * bar + 4 * gap)) / 2;
+            for (int i = 0; i < 5; i++) {
+                float x = left + i * (bar + gap), h = d * heights[i];
+                dc.drawRoundRect(new RectF(x, (d - h) / 2, x + bar, (d + h) / 2), bar / 2, bar / 2, dp);
+            }
         }
-        paint.setShader(new LinearGradient(0, 0, px, px, (accent & 0x00FFFFFF) | 0x66000000, (accent & 0x00FFFFFF) | 0x22000000, Shader.TileMode.CLAMP));
-        canvas.drawRoundRect(all, radius, radius, paint);
-        paint.setShader(null);
-        paint.setColor(accent);
-        float[] heights = { .30f, .55f, .42f, .66f, .36f };
-        float bar = px * .08f, gap = px * .055f, left = (px - (5 * bar + 4 * gap)) / 2;
-        for (int i = 0; i < 5; i++) {
-            float x = left + i * (bar + gap), h = px * heights[i];
-            canvas.drawRoundRect(new RectF(x, (px - h) / 2, x + bar, (px + h) / 2), bar / 2, bar / 2, paint);
-        }
+        canvas.drawBitmap(disc, c - r, c - r, paint);
         return out;
     }
 
@@ -181,45 +208,56 @@ public class SpatchWidget extends AppWidgetProvider {
             Bitmap tiny = Bitmap.createScaledBitmap(art, 10, 10, true);
             canvas.drawBitmap(tiny, null, new RectF(0, -(w - h) / 2f, w, h + (w - h) / 2f), paint);
         }
-        int solid = (background & 0x00FFFFFF) | 0xF2000000, clear = (background & 0x00FFFFFF) | (art != null ? 0x73000000 : 0xD9000000);
-        paint.setShader(new LinearGradient(0, 0, w, 0, new int[] { solid, solid, clear }, new float[] { 0f, .3f, 1f }, Shader.TileMode.CLAMP));
+        int top = (background & 0x00FFFFFF) | (art != null ? 0x80000000 : 0xE6000000), low = (background & 0x00FFFFFF) | (art != null ? 0xB8000000 : 0xFF000000);
+        paint.setShader(new LinearGradient(0, 0, 0, h, top, low, Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
         return out;
     }
 
-    /**
-     * kind: 0 previous, 1 next, 2 play, 3 pause. Previous and next are tonal circles, play and pause an accent
-     * pill (w wide), like the player's own buttons.
-     */
-    private static Bitmap icon(int kind, int w, int h) {
-        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+    /** The player's scalloped play button: a circle with wavy edges, in the accent colour. */
+    private static Path cookie(float c, float r) {
+        Path p = new Path();
+        for (int i = 0; i <= 180; i++) {
+            double a = i * 2 * Math.PI / 180;
+            float rr = r * (.92f + .08f * (float) Math.cos(a * 9));
+            float x = c + rr * (float) Math.cos(a), y = c + rr * (float) Math.sin(a);
+            if (i == 0) p.moveTo(x, y); else p.lineTo(x, y);
+        }
+        p.close();
+        return p;
+    }
+
+    /** kind: 0 previous, 1 next (plain white glyphs, as in the player), 2 play, 3 pause (on the scalloped button). */
+    private static Bitmap icon(int kind, int px) {
+        Bitmap out = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(out);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         boolean main = kind >= 2;
-        paint.setColor(main ? accent : 0x2EFFFFFF);
-        canvas.drawRoundRect(new RectF(0, 0, w, h), h / 2f, h / 2f, paint);
+        if (main) {
+            paint.setColor(accent);
+            canvas.drawPath(cookie(px / 2f, px / 2f), paint);
+        }
         paint.setColor(main ? onAccent : 0xFFFFFFFF);
         paint.setStyle(Paint.Style.FILL_AND_STROKE);
         paint.setStrokeJoin(Paint.Join.ROUND);
-        paint.setStrokeWidth(h * .05f);
-        canvas.translate((w - h) / 2f, 0);
-        float u = h / 100f, c = h / 2f;
+        paint.setStrokeWidth(px * .04f);
+        float u = px / 100f, c = px / 2f;
         Path p = new Path();
         switch (kind) {
             case 0: // bar, then a triangle pointing left
-                canvas.drawRoundRect(new RectF(32 * u, 33 * u, 38 * u, 67 * u), 3 * u, 3 * u, paint);
-                p.moveTo(68 * u, 33 * u); p.lineTo(68 * u, 67 * u); p.lineTo(43 * u, c); p.close();
+                canvas.drawRoundRect(new RectF(27 * u, 30 * u, 34 * u, 70 * u), 2 * u, 2 * u, paint);
+                p.moveTo(73 * u, 30 * u); p.lineTo(73 * u, 70 * u); p.lineTo(40 * u, c); p.close();
                 break;
             case 1:
-                canvas.drawRoundRect(new RectF(62 * u, 33 * u, 68 * u, 67 * u), 3 * u, 3 * u, paint);
-                p.moveTo(32 * u, 33 * u); p.lineTo(32 * u, 67 * u); p.lineTo(57 * u, c); p.close();
+                canvas.drawRoundRect(new RectF(66 * u, 30 * u, 73 * u, 70 * u), 2 * u, 2 * u, paint);
+                p.moveTo(27 * u, 30 * u); p.lineTo(27 * u, 70 * u); p.lineTo(60 * u, c); p.close();
                 break;
             case 2:
-                p.moveTo(39 * u, 28 * u); p.lineTo(39 * u, 72 * u); p.lineTo(73 * u, c); p.close();
+                p.moveTo(39 * u, 30 * u); p.lineTo(39 * u, 70 * u); p.lineTo(71 * u, c); p.close();
                 break;
             default:
-                canvas.drawRoundRect(new RectF(32 * u, 28 * u, 45 * u, 72 * u), 4 * u, 4 * u, paint);
-                canvas.drawRoundRect(new RectF(55 * u, 28 * u, 68 * u, 72 * u), 4 * u, 4 * u, paint);
+                canvas.drawRoundRect(new RectF(33 * u, 30 * u, 45 * u, 70 * u), 3 * u, 3 * u, paint);
+                canvas.drawRoundRect(new RectF(55 * u, 30 * u, 67 * u, 70 * u), 3 * u, 3 * u, paint);
         }
         canvas.drawPath(p, paint);
         return out;
@@ -233,16 +271,16 @@ public class SpatchWidget extends AppWidgetProvider {
         v.setTextColor(titleView, 0xFFFFFFFF);
         v.setTextViewText(artistView, title.isEmpty() ? "Nothing playing" : artist);
         v.setTextColor(artistView, 0xB3FFFFFF);
-        if (!small) v.setTextColor(android.R.id.text1, accent);
+        if (!small) { v.setTextColor(android.R.id.text1, accent); v.setTextViewText(android.R.id.text1, title.isEmpty() ? "SPATCH" : playing ? "NOW PLAYING" : "PAUSED"); }
         int art = id(context, "coverart", "id");
-        v.setImageViewBitmap(art, tile(cover, small ? 160 : 288));
+        v.setImageViewBitmap(art, tile(cover, small ? 168 : 300, small ? .36f : .31f, small ? 24 : 44));
         int prev = id(context, "btn_prev_normal", "id"), next = id(context, "btn_next_normal", "id");
         int play = id(context, "btn_play_normal", "id"), pause = id(context, "btn_pause_normal", "id");
-        int side = small ? 108 : 120, mainW = small ? 168 : 204, mainH = small ? 120 : 132;
-        v.setImageViewBitmap(prev, icon(0, side, side));
-        v.setImageViewBitmap(next, icon(1, side, side));
-        v.setImageViewBitmap(play, icon(2, mainW, mainH));
-        v.setImageViewBitmap(pause, icon(3, mainW, mainH));
+        int side = small ? 108 : 120, main = small ? 132 : 156;
+        v.setImageViewBitmap(prev, icon(0, side));
+        v.setImageViewBitmap(next, icon(1, side));
+        v.setImageViewBitmap(play, icon(2, main));
+        v.setImageViewBitmap(pause, icon(3, main));
         v.setViewVisibility(play, playing ? View.GONE : View.VISIBLE);
         v.setViewVisibility(pause, playing ? View.VISIBLE : View.GONE);
         v.setOnClickPendingIntent(prev, broadcast(context, PREVIOUS));
