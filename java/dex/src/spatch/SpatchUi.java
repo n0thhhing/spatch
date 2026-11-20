@@ -756,7 +756,7 @@ public final class SpatchUi extends FrameLayout {
                     }
                 } else {
                     libraryStatus = "Couldn’t load your library";
-                    libraryRetry = SystemClock.uptimeMillis() + 12_000;
+                    libraryRetry = SystemClock.uptimeMillis() + 4_000;
                     android.util.Log.w("SpatchUi", "Library request failed: " + (status == null ? "no response" : status));
                 }
                 if (playlist == null) showPage();

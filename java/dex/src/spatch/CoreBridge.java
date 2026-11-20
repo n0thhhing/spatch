@@ -21,6 +21,8 @@ public final class CoreBridge implements Transport {
     private static volatile Transport fallback;
     /** A service every signed-in session uses, so its transport is known to reach the account. */
     private static final String ACCOUNT_SERVICE = "spotify.your_library_esperanto.proto.YourLibraryService";
+    /** Every distinct native transport seen, newest last: after a sign-in Spotify hasn't used some services yet, so the right one isn't known. */
+    private static final java.util.List<Transport> ALL = new java.util.concurrent.CopyOnWriteArrayList<Transport>();
     private final Transport inner;
 
     private CoreBridge(Transport inner) {
@@ -33,6 +35,7 @@ public final class CoreBridge implements Transport {
         Transport t = (Transport) transport;
         String name = t.getClass().getName();
         if (name.endsWith(".NativeTransport") || (fallback == null && name.endsWith(".SchedulingTransport"))) fallback = t;
+        if (!ALL.contains(t) && ALL.size() < 64) ALL.add(t);
         return new CoreBridge(t);
     }
 
@@ -71,8 +74,29 @@ public final class CoreBridge implements Transport {
     }
 
     public static byte[] callTimed(String service, String method, byte[] request, long timeoutMs) {
-        return (byte[]) pick(service).callSingle(service, method, request)
-            .timeout(Math.max(1, Math.min(8000, timeoutMs)), TimeUnit.MILLISECONDS).blockingGet();
+        long wait = Math.max(1, Math.min(8000, timeoutMs));
+        Transport first = pick(service);
+        try {
+            // A guessed transport gets a short wait: if it is the wrong one nothing ever answers.
+            return (byte[]) first.callSingle(service, method, request).timeout(SERVICES.containsKey(service) ? wait : Math.min(wait, 2500), TimeUnit.MILLISECONDS).blockingGet();
+        } catch (RuntimeException failed) {
+            // A transport Spotify itself used for this service is the right one; anything else was a guess, so
+            // try the other transports (newest first) and remember the one that answers.
+            if (SERVICES.containsKey(service)) throw failed;
+            for (int i = ALL.size() - 1; i >= 0; i--) {
+                Transport other = ALL.get(i);
+                if (other == first) continue;
+                try {
+                    byte[] reply = (byte[]) other.callSingle(service, method, request).timeout(Math.min(wait, 2500), TimeUnit.MILLISECONDS).blockingGet();
+                    SERVICES.putIfAbsent(service, other);
+                    android.util.Log.i("SpatchCore", "learned the transport for " + service);
+                    return reply;
+                } catch (RuntimeException ignored) {
+                    // not this one
+                }
+            }
+            throw failed;
+        }
     }
 
     /** The transport Spotify used for this service, else the account's (the library's), else the first one seen. */
