@@ -12,6 +12,7 @@ pub const HELPERS: &[(&str, &str)] = &[
     ("MediaEntry", include_str!("../java/dex/src/spatch/MediaEntry.java")),
     ("PackedStrings", include_str!("../java/dex/src/spatch/PackedStrings.java")),
     ("ProgressMotion", include_str!("../java/dex/src/spatch/ProgressMotion.java")),
+    ("PublicTrackMetadata", include_str!("../java/dex/src/spatch/PublicTrackMetadata.java")),
     ("SoundSettings", include_str!("../java/dex/src/spatch/SoundSettings.java")),
     ("SpatchApp", include_str!("../java/dex/src/spatch/SpatchApp.java")),
     ("SpatchUi", include_str!("../java/dex/src/spatch/SpatchUi.java")),

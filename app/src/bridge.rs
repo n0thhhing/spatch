@@ -142,6 +142,22 @@ pub fn extended_metadata(request: &[u8]) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+/// Public catalog details for a page of track links, using a separate anonymous Spotify session.
+pub fn public_track_metadata(uris: &[String]) -> Result<Vec<String>, String> {
+    let session = SESSION.load(Ordering::SeqCst);
+    let java = java()?;
+    let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
+    let result = (|| -> jni::errors::Result<Vec<u8>> {
+        let input = env.byte_array_from_slice(&crate::cache::encode(uris))?;
+        let class: &JClass = java.class.as_obj().into();
+        let reply = env.call_static_method(class, "publicTrackMetadata", "([B)[B", &[JValue::Object(&input)])?.l()?;
+        env.convert_byte_array(JByteArray::from(reply))
+    })();
+    let bytes = result.map_err(|e| describe(&mut env, e))?;
+    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
+    crate::cache::decode(&bytes).ok_or_else(|| "Invalid public track metadata".into())
+}
+
 /// The phone's two-letter country.
 pub fn device_country() -> Option<String> {
     let java = java().ok()?;

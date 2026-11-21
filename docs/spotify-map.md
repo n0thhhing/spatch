@@ -1,6 +1,6 @@
 # Spotify hooks on fresh
 
-[The edit table](../src/edits.rs) applies these six hooks to Spotify 9.2.0.26. Each edit requires
+[The edit table](../src/edits.rs) applies these six hooks to Spotify 9.2.0.2053. Each edit requires
 exactly one anchor match.
 
 | Spotify entry point | Spatch call | Purpose |
@@ -24,6 +24,26 @@ make room for their new calls. They keep their original class names in `classes1
 
 For input hashes and version porting, see [Patch targets](targets.md). The earlier redesign lives on
 the `main` branch.
+
+## Public song details fallback
+
+Playlist membership comes from the account's existing core/playlist service. When its song-detail
+services leave rows blank, [PublicTrackMetadata.java](../java/dex/src/spatch/PublicTrackMetadata.java)
+uses Spotify's public embed session to fill names, artists, covers, albums and durations.
+`GET https://open.spotify.com/embed/api/token` must explicitly return `isAnonymous=true`; an account
+token is never accepted by this fallback. Its short-lived token is kept in memory and sent only to
+`https://api-partner.spotify.com/pathfinder/v1/query`, with redirects disabled.
+
+The request matches the Web Player's public `lookupEntities` track decorator: up to 100 validated
+`spotify:track:` links per request, using persisted query
+`f952da037440f694cc6925b9e3f649d39077a744c4db7dfba01cb883723f4f77`. Responses are matched to the
+requested links; successful public details are cached, while transport, HTTP and schema failures
+trigger a backoff. This replaces neither playlist authorization nor playback authorization. Local
+files and catalog entries absent from the public response can still lack details.
+
+The previous per-song Web API fallback returned 404 and could trigger rate limiting; it remains
+removed. The public route is an internal Spotify contract and may need updating if its token
+endpoint, persisted query or response schema changes.
 
 ## Catalog search request contract
 

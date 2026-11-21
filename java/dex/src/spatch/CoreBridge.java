@@ -238,6 +238,10 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    public static byte[] publicTrackMetadata(byte[] uris) {
+        return PublicTrackMetadata.lookup(uris);
+    }
+
     /** The phone's country (two letters), for when the account's own is missing. */
     public static String deviceCountry() {
         return java.util.Locale.getDefault().getCountry();

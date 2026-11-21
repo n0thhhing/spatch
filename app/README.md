@@ -36,6 +36,12 @@ wave when released. Track changes, restarts, repeats, seeks and duration correct
 line and mini-player progress ring from their visible position. Dragging follows the finger
 directly; canceling a drag eases back to playback. Reduce motion keeps position changes immediate.
 
+If Spotify's account services omit playlist song details, Spatch fills public names, artists,
+artwork, albums and durations through Spotify's anonymous embed catalog in bounded batches.
+Playlist membership and playback still use your signed-in Spotify session. Successful public
+details are cached; failed requests back off. Local files and songs absent from the public catalog
+can still lack details. See [the request contract](../docs/spotify-map.md#public-song-details-fallback).
+
 Long-press a song in search, an album, a playlist or the queue and choose **Add to playlist**.
 The player keeps its plain heart beside the title for one-tap liking. Hold the artwork to open
 song options, including **Add to playlist**. The sheet shows playlists Spotify

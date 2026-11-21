@@ -44,6 +44,7 @@ compileJava {
 }
 compileTestJava {
     source '../../../java/dex/test/spatch/AudioTest.java', '../../../java/dex/src/spatch/SpatchApp.java'
+    source '../../../java/dex/test/spatch/PublicTrackMetadataTest.java'
     options.release = 11
 }
 

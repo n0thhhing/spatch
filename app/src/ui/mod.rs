@@ -98,6 +98,7 @@ pub extern "system" fn Java_spatch_CoreBridge_nativeResetSession(_: JNIEnv, _: J
         {
             QUEUE_CONNECTED.store(false, Ordering::Release);
             LIBRARY_WATCHED.store(false, Ordering::Release);
+            *FOUND_ITEMS.lock().unwrap() = None;
         }
         LIBRARY_REVISION.fetch_add(1, Ordering::SeqCst);
     });
@@ -613,24 +614,33 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLiked(mut env: JNIEnv, _: JCla
 
 /// Each playlist's (song link, time added) when the core reported it empty but its songs were found another way.
 #[cfg(not(feature = "preview"))]
-type FoundItems = std::collections::HashMap<String, Vec<(String, u32)>>;
+type FoundItems = std::collections::HashMap<String, std::sync::Arc<[(String, u32)]>>;
 #[cfg(not(feature = "preview"))]
 static FOUND_ITEMS: Mutex<Option<FoundItems>> = Mutex::new(None);
 
 /// Some accounts' cores report a playlist as loaded with no songs, and Spotify's own screens show it empty too: the
 /// core waits for every song's details, and its song-details requests fail on those accounts (they carry the
 /// account's country and catalogue from the product state). So an empty answer is asked again without details, then
-/// Spotify's playlist service directly; the details come from the extended-metadata service.
+/// Spotify's playlist service directly. Catalog details can be loaded separately from membership.
 #[cfg(not(feature = "preview"))]
-fn when_empty(uri: &str, offset: i32, reply: playlist::Reply) -> playlist::Reply {
+fn when_empty(epoch: i64, uri: &str, offset: i32, reply: playlist::Reply) -> playlist::Reply {
     let empty = matches!(&reply, playlist::Reply::Page { tracks, next: None, .. } if tracks.is_empty());
-    if !(empty || offset > 0) || !uri.starts_with("spotify:playlist:") {
+    if offset != 0 || !uri.starts_with("spotify:playlist:") {
+        return reply;
+    }
+    if !empty {
+        if matches!(reply, playlist::Reply::Page { .. }) {
+            bridge::in_session(epoch, || {
+                if let Some(found) = FOUND_ITEMS.lock().unwrap().as_mut() {
+                    found.remove(uri);
+                }
+            });
+        }
         return reply;
     }
     let known = FOUND_ITEMS.lock().unwrap().as_ref().and_then(|m| m.get(uri).cloned());
     let items = match known {
         Some(items) => items,
-        None if !empty => return reply,
         None => {
             let from_core = bridge::call(playlist::SERVICE, "Get", &playlist::items_request(uri)).and_then(|b| playlist::items(&b));
             let items = match from_core {
@@ -656,30 +666,37 @@ fn when_empty(uri: &str, offset: i32, reply: playlist::Reply) -> playlist::Reply
             if items.is_empty() {
                 return reply;
             }
-            FOUND_ITEMS.lock().unwrap().get_or_insert_with(std::collections::HashMap::new).insert(uri.to_string(), items.clone());
+            let items: std::sync::Arc<[_]> = items.into();
+            if bridge::in_session(epoch, || {
+                FOUND_ITEMS.lock().unwrap().get_or_insert_with(std::collections::HashMap::new).insert(uri.to_string(), items.clone());
+            }).is_none() {
+                return reply;
+            }
             items
         }
     };
     page_of(&items, offset)
 }
 
-/// One page of found items with their details: the core's metadata service first, then extended metadata directly.
+/// Try the account's metadata on the first recovered page, then fill missing details from Spotify's public catalog.
 #[cfg(not(feature = "preview"))]
 fn page_of(items: &[(String, u32)], offset: i32) -> playlist::Reply {
     use crate::spotify::{metadata, product_state};
     let start = (offset.max(0) as usize).min(items.len());
     let end = (start + playlist::PAGE as usize).min(items.len());
     let mut tracks: Vec<playlist::Track> = items[start..end].iter().map(|(uri, added)| playlist::Track { uri: uri.clone(), added: *added, ..Default::default() }).collect();
-    metadata::resolve(&mut tracks);
-    if tracks.iter().any(|t| t.title.is_empty()) {
+    if start == 0 {
+        metadata::resolve(&mut tracks);
+    }
+    if start == 0 && tracks.iter().any(|t| t.title.is_empty()) {
         let values = bridge::call(product_state::SERVICE, "GetValues", &[]).map(|b| product_state::decode(&b)).unwrap_or_default();
         let country = product_state::country(&values).or_else(bridge::device_country).unwrap_or_else(|| "US".into());
         let catalogue = values.get("catalogue").filter(|c| !c.is_empty()).cloned().unwrap_or_else(|| "free".into());
         let (filled, asked, refused) = metadata::resolve_extended(&mut tracks, &country, &catalogue);
         log::info!("Song details from extended metadata ({country}, {catalogue}): {filled} of {asked}; refused by status: {refused:?}");
     }
-    // Spotify refuses song details to some app identities (a re-signed or cloned install on a free account answers
-    // 403 "Client/request not allowed"); say so rather than calling the song unavailable.
+    metadata::resolve_public(&mut tracks);
+    // A song can still lack details if it isn't in the public catalog or Spotify's services are unreachable.
     for t in tracks.iter_mut().filter(|t| t.title.is_empty()) {
         t.title = "Song details not sent".into();
         t.artist = "Spotify didn't send this song's details to this app".into();
@@ -744,7 +761,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
     } else {
         bridge::call(playlist::SERVICE, "Get", &playlist::request(&uri, offset))
             .and_then(|bytes| playlist::decode(&bytes, offset))
-            .map(|reply| when_empty(&uri, offset, reply))
+            .map(|reply| when_empty(epoch, &uri, offset, reply))
     };
     let fields = match reply {
         Ok(playlist::Reply::Loading) => vec!["loading".into()],
@@ -756,7 +773,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylist(mut env: JNIEnv, _: J
         },
         Err(error) => vec![if error.is_empty() { "Couldn’t load playlist".into() } else { error }],
     };
-    packed_strings(&env, &fields)
+    if bridge::session() == epoch { packed_strings(&env, &fields) } else { std::ptr::null_mut() }
 }
 
 /// A playlist page as the UI reads it: "", the next offset, then title, artist, uri and image per track.
@@ -770,6 +787,21 @@ fn page_fields(page: playlist::Reply) -> Vec<String> {
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, _: JClass, uri: JString, offset: jint) -> jbyteArray {
     let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    let epoch = bridge::session();
+    #[cfg(not(feature = "preview"))]
+    if let Some(items) = bridge::in_session(epoch, || {
+        FOUND_ITEMS.lock().unwrap().as_ref().and_then(|m| m.get(&uri).cloned())
+    }).flatten() {
+        let fields = (offset.max(0)..10_000.min(items.len() as i32)).step_by(playlist::PAGE as usize)
+            .take_while(|_| bridge::session() == epoch)
+            .flat_map(|at| match page_of(&items, at) {
+                playlist::Reply::Page { tracks, .. } => tracks,
+                playlist::Reply::Loading => Vec::new(),
+            })
+            .flat_map(playlist::Track::fields)
+            .collect::<Vec<_>>();
+        return if bridge::session() == epoch { packed_strings(&env, &fields) } else { std::ptr::null_mut() };
+    }
     let mut fields = Vec::new();
     let mut next = Some(offset);
     let mut waits = 0;
@@ -797,7 +829,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRest(mut env: JNIEnv, 
             }
         }
     }
-    packed_strings(&env, &fields)
+    if bridge::session() == epoch { packed_strings(&env, &fields) } else { std::ptr::null_mut() }
 }
 
 /// The open playlist's songs (playlist::FIELDS strings each), kept here so a search doesn't resend them.

@@ -191,14 +191,45 @@ pub fn resolve_extended(tracks: &mut [Track], country: &str, catalogue: &str) ->
         }
         for &i in chunk {
             if let Some(found) = by_uri.get(&tracks[i].uri) {
-                let added = tracks[i].added;
-                tracks[i] = found.clone();
-                tracks[i].added = added;
+                let Track { ref uri, added, liked, recommended, .. } = tracks[i];
+                tracks[i] = Track { uri: uri.clone(), added, liked, recommended, ..found.clone() };
                 filled += 1;
             }
         }
     }
     (filled, wanted.len(), refused.into_iter().collect())
+}
+
+/// Fill catalog fields while preserving the playlist row's link, date, and flags.
+pub fn resolve_public(tracks: &mut [Track]) {
+    let wanted: Vec<String> = tracks.iter().filter(|t| t.title.is_empty() && t.uri.starts_with("spotify:track:")).map(|t| t.uri.clone()).collect();
+    if wanted.is_empty() {
+        return;
+    }
+    match bridge::public_track_metadata(&wanted) {
+        Ok(fields) => merge_public(tracks, &fields),
+        Err(error) => log::warn!("Public track details: {error}"),
+    }
+}
+
+fn merge_public(tracks: &mut [Track], fields: &[String]) {
+    let (rows, remainder) = fields.as_chunks::<8>();
+    if !remainder.is_empty() {
+        return;
+    }
+    let by_uri: std::collections::HashMap<_, _> = rows.iter().map(|f| (f[2].as_str(), f)).collect();
+    for track in tracks.iter_mut().filter(|t| t.title.is_empty()) {
+        if let Some(f) = by_uri.get(track.uri.as_str()).filter(|f| !f[0].is_empty()) {
+            track.title.clone_from(&f[0]);
+            for (value, detail) in [(&mut track.artist, &f[1]), (&mut track.image, &f[3]), (&mut track.album, &f[4]),
+                (&mut track.album_uri, &f[5]), (&mut track.artist_uri, &f[6])] {
+                if !detail.is_empty() {
+                    value.clone_from(detail);
+                }
+            }
+            track.duration_ms = f[7].parse::<u32>().ok().filter(|&ms| ms != 0).unwrap_or(track.duration_ms);
+        }
+    }
 }
 
 fn fetch(uris: &[String]) -> Result<Vec<Found>, String> {
@@ -235,9 +266,7 @@ fn resolve_tracks(tracks: &mut [Track], fetch_fn: impl Fn(&[String]) -> Result<V
         if let Some(resolved) = by_uri.get(&t.uri) {
             let image = if resolved.image.is_empty() { t.image.clone() } else { resolved.image.clone() };
             let artist = if resolved.artist.is_empty() { t.artist.clone() } else { resolved.artist.clone() };
-            *t = resolved.clone();
-            t.image = image;
-            t.artist = artist;
+            *t = Track { image, artist, added: t.added, liked: t.liked, recommended: t.recommended, ..resolved.clone() };
         }
     }
 }
@@ -285,6 +314,29 @@ mod tests {
 
     fn item(e: Entity) -> cosmos::MetadataItem {
         cosmos::MetadataItem { item: Some(e) }
+    }
+
+    #[test]
+    fn public_details_match_by_link_and_keep_playlist_fields() {
+        let mut tracks = [
+            Track { uri: "a".into(), added: 42, liked: true, recommended: true, explicit: true, image: "fallback".into(), ..Track::default() },
+            Track { uri: "b".into(), ..Track::default() },
+            Track { uri: "c".into(), title: "Already known".into(), ..Track::default() },
+            Track { uri: "d".into(), ..Track::default() },
+        ];
+        let rows = [
+            "Second", "Other artist", "b", "cover", "", "", "", "321",
+            "Foreign", "", "unexpected", "", "", "", "", "0",
+            "First", "Artist", "a", "", "Album", "album-uri", "artist-uri", "123",
+            "Replacement", "", "c", "", "", "", "", "0",
+        ].map(str::to_owned);
+        merge_public(&mut tracks, &rows[..rows.len() - 1]);
+        assert!(tracks[0].title.is_empty());
+        merge_public(&mut tracks, &rows);
+        assert_eq!(tracks[0].clone().fields(), ["First", "Artist", "a", "fallback", "Album", "album-uri", "artist-uri", "123", "42", "1", "1", "1"]);
+        assert_eq!(tracks[1].title, "Second");
+        assert_eq!(tracks[2].title, "Already known");
+        assert!(tracks[3].title.is_empty());
     }
 
     #[test]
