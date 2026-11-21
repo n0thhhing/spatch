@@ -162,6 +162,7 @@ pub fn track_of(t: &md::Track) -> Track {
 
 /// Fills in tracks that only have their links, from the core's metadata service.
 pub fn resolve(tracks: &mut [Track]) {
+    super::mdata::resolve_observe(tracks);
     resolve_tracks(tracks, fetch);
 }
 

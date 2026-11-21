@@ -106,11 +106,33 @@ public final class CoreBridge implements Transport {
         return t != null ? t : transport(service);
     }
 
+    /** Services Spotify serves only through the account's Cosmos router (RxRouter), never the native session. */
+    private static final String METADATA_SERVICE = "spotify.mdata_esperanto.proto.MetadataService";
+
+    /**
+     * The transport for a stream. A stream on the wrong transport stays silent instead of failing, so it can't be
+     * probed like a single call: Spotify 9.2.0.2053 builds MetadataService's client on a CosmosTransport over the
+     * account's RxRouter (p.jmp -> p.o1k0), so until Spotify itself has used it, take the newest CosmosTransport.
+     */
+    private static Transport streamTransport(String service) {
+        Transport known = SERVICES.get(service);
+        if (known == null && METADATA_SERVICE.equals(service)) {
+            for (int i = ALL.size() - 1; i >= 0; i--) {
+                Transport t = ALL.get(i);
+                if (t.getClass().getName().endsWith(".CosmosTransport")) {
+                    android.util.Log.i("SpatchCore", service + " stream over the account's CosmosTransport");
+                    return t;
+                }
+            }
+        }
+        return known != null ? known : pick(service);
+    }
+
     /** Rust owns the token; completion, error and cancellation release both sides. */
     public static synchronized long subscribe(String service, String method, byte[] request, final long token) {
         Subscriptions.Slot slot = STREAMS.open(token);
         try {
-            Disposable d = pick(service).callStream(service, method, request).subscribe(new Consumer() {
+            Disposable d = streamTransport(service).callStream(service, method, request).subscribe(new Consumer() {
                 public void accept(Object value) {
                     nativeNext(token, (byte[]) value);
                 }
