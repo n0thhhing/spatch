@@ -678,12 +678,11 @@ fn page_of(items: &[(String, u32)], offset: i32) -> playlist::Reply {
         let (filled, asked, refused) = metadata::resolve_extended(&mut tracks, &country, &catalogue);
         log::info!("Song details from extended metadata ({country}, {catalogue}): {filled} of {asked}; refused by status: {refused:?}");
     }
-    if tracks.iter().any(|t| t.title.is_empty()) {
-        let (filled, asked) = metadata::resolve_web(&mut tracks);
-        log::info!("Song details from the Web API: {filled} of {asked}");
-    }
+    // Spotify refuses song details to some app identities (a re-signed or cloned install on a free account answers
+    // 403 "Client/request not allowed"); say so rather than calling the song unavailable.
     for t in tracks.iter_mut().filter(|t| t.title.is_empty()) {
-        t.title = "Track unavailable".into();
+        t.title = "Song details not sent".into();
+        t.artist = "Spotify didn't send this song's details to this app".into();
     }
     playlist::Reply::Page { tracks, next: (end < items.len()).then_some(end as i32), owner: None }
 }

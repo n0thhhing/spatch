@@ -201,38 +201,6 @@ pub fn resolve_extended(tracks: &mut [Track], country: &str, catalogue: &str) ->
     (filled, wanted.len(), refused.into_iter().collect())
 }
 
-/// Fills in tracks still without a name from Spotify's public Web API (api.spotify.com/v1/tracks/{id}, 50 side by side):
-/// the last resort for accounts whose song-details service answers 502 for every song. Returns (filled, asked).
-pub fn resolve_web(tracks: &mut [Track]) -> (usize, usize) {
-    let wanted: Vec<usize> = (0..tracks.len()).filter(|&i| tracks[i].title.is_empty() && tracks[i].uri.starts_with("spotify:track:")).collect();
-    let mut filled = 0;
-    for chunk in wanted.chunks(50) {
-        let ids: Vec<String> = chunk.iter().map(|&i| tracks[i].uri.trim_start_matches("spotify:track:").to_string()).collect();
-        let fields = match bridge::web_tracks(&ids) {
-            Ok(fields) => fields,
-            Err(e) => {
-                log::warn!("Web API tracks: {e}");
-                break;
-            }
-        };
-        let by_uri: std::collections::HashMap<&str, &[String; 9]> = fields.as_chunks::<9>().0.iter().map(|f| (f[0].as_str(), f)).collect();
-        for &i in chunk {
-            let Some(f) = by_uri.get(tracks[i].uri.as_str()) else { continue };
-            let t = &mut tracks[i];
-            t.title = f[1].clone();
-            t.artist = f[2].clone();
-            t.image = f[3].clone();
-            t.album = f[4].clone();
-            t.album_uri = f[5].clone();
-            t.artist_uri = f[6].clone();
-            t.duration_ms = f[7].parse().unwrap_or(0);
-            t.explicit = f[8] == "1";
-            filled += 1;
-        }
-    }
-    (filled, wanted.len())
-}
-
 fn fetch(uris: &[String]) -> Result<Vec<Found>, String> {
     decode(&bridge::call(SERVICE, "MultigetEntity", &request(uris))?)
 }
