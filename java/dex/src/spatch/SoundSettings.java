@@ -67,6 +67,17 @@ final class SoundSettings {
         return gains;
     }
 
+    /** The current graphic EQ curve as GraphicEQ text, the same format "Import a profile" reads. */
+    private String graphicEqString() {
+        StringBuilder data = new StringBuilder("GraphicEQ: ");
+        float[] gains = eqGains();
+        for (int i = 0; i < gains.length; i++) {
+            if (i > 0) data.append("; ");
+            data.append(Audio.EQ_HZ[i]).append(' ').append(gains[i]);
+        }
+        return data.toString();
+    }
+
     private String eqPresetName() {
         float[] gains = eqGains();
         for (int i = 0; i < EQ_CURVES.length; i++) if (java.util.Arrays.equals(gains, EQ_CURVES[i])) return EQ_PRESETS[i];
@@ -111,18 +122,22 @@ final class SoundSettings {
         eqToolbarButton(preset);
         toolbar.addView(preset, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
         TextView save = ui.pill("Save", () -> {
-            StringBuilder data = new StringBuilder("GraphicEQ: ");
-            float[] gains = eqGains();
-            for (int i = 0; i < gains.length; i++) {
-                if (i > 0) data.append("; ");
-                data.append(Audio.EQ_HZ[i]).append(' ').append(gains[i]);
-            }
-            ui.prefs.edit().putString("eq_saved_curve", data.toString()).apply();
+            ui.prefs.edit().putString("eq_saved_curve", graphicEqString()).apply();
             Toast.makeText(ui.activity, "Curve saved in Presets", Toast.LENGTH_SHORT).show();
         });
         eqToolbarButton(save);
         LinearLayout.LayoutParams saveParams = ui.lp(ui.dp(68), ui.dp(48)); saveParams.leftMargin = ui.dp(6);
         toolbar.addView(save, saveParams);
+        TextView copy = ui.pill("Copy", () -> {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Graphic EQ curve", graphicEqString()));
+                Toast.makeText(ui.activity, "Curve copied, to back up or share", Toast.LENGTH_SHORT).show();
+            }
+        });
+        eqToolbarButton(copy);
+        LinearLayout.LayoutParams copyParams = ui.lp(ui.dp(68), ui.dp(48)); copyParams.leftMargin = ui.dp(6);
+        toolbar.addView(copy, copyParams);
         TextView reset = ui.pill("Reset", () -> { applyEqCurve(new float[10]); graph.refresh(); });
         eqToolbarButton(reset);
         LinearLayout.LayoutParams resetParams = ui.lp(ui.dp(68), ui.dp(48)); resetParams.leftMargin = ui.dp(6);
@@ -281,10 +296,21 @@ final class SoundSettings {
             ui.settingsAction(correction, "Find your headphones", ui.prefs.getString("eq_autoeq_name", "Search the AutoEq database"), () -> { openPanel(6); loadHeadphones(); });
             ui.settingsAction(correction, "Import a profile", "Paste GraphicEQ data from a custom measurement", () -> openPanel(7));
             audioSlider(correction, "Correction intensity", "eq_autoeq_intensity", 0, 200, 100, 1, "%", false);
-            if (!ui.prefs.getString("eq_autoeq_curve", "").isEmpty()) ui.settingsAction(correction, "Remove profile", "Keep your graphic EQ and other sound settings", () -> {
-                ui.prefs.edit().remove("eq_autoeq_name").remove("eq_autoeq_curve").putBoolean("eq_autoeq_enabled", false).apply();
-                Audio.refreshEqualizer(); ui.settingsChanged(false);
-            });
+            if (!ui.prefs.getString("eq_autoeq_curve", "").isEmpty()) {
+                ui.settingsAction(correction, "Copy profile", "Copy this profile’s GraphicEQ data, to back it up or share it", () -> {
+                    String name = ui.prefs.getString("eq_autoeq_name", "Custom profile");
+                    String curve = ui.prefs.getString("eq_autoeq_curve", "");
+                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                    if (clipboard != null) {
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(name, curve));
+                        Toast.makeText(ui.activity, "Profile copied", Toast.LENGTH_SHORT).show();
+                    }
+                });
+                ui.settingsAction(correction, "Remove profile", "Keep your graphic EQ and other sound settings", () -> {
+                    ui.prefs.edit().remove("eq_autoeq_name").remove("eq_autoeq_curve").putBoolean("eq_autoeq_enabled", false).apply();
+                    Audio.refreshEqualizer(); ui.settingsChanged(false);
+                });
+            }
             soundNote(correction, "AutoEq by Jaakko Pasanen and the measurement contributors. Choose the exact model and listening mode for your headphones.");
         } else if (panel == 2) {
             LinearLayout loudness = ui.card(page, "Equal loudness");

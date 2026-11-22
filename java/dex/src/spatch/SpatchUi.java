@@ -105,7 +105,7 @@ public final class SpatchUi extends FrameLayout {
     static native String nativeAddToPlaylist(String playlistUri, String[] uris);
 
     private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9, QUEUE_NEXT = 13, SPEED = 14;
-    private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5;
+    private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5, STATS = 6;
     private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, CREATE};
     private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
     private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
@@ -1489,6 +1489,7 @@ public final class SpatchUi extends FrameLayout {
             case LIBRARY: return "Library";
             case SETTINGS: return "Settings";
             case PROFILE: return "Profile";
+            case STATS: return "Your library";
             default: return "Back";
         }
     }
@@ -1585,7 +1586,32 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout music = card(page, "Your music");
         settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
         settingsAction(music, "Create a playlist", "Start a new collection", () -> { creation.pendingPlaylistSong = null; creation.openCreatePlaylist(false); });
+        settingsAction(music, "Your library, at a glance", "What's saved, and what you've played lately", () -> goFromLink(STATS));
         settingsAction(music, "Settings", "Personalise Spatch", () -> openSettings(true));
+        return scrolling(page);
+    }
+
+    /** A simple recap built only from what Spatch already has cached: counts by kind, and the recent shelf. */
+    private View statsPage() {
+        LinearLayout page = column();
+        page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
+        pageHeading(page, "Your library", false);
+        int[] counts = new int[4]; // playlists, albums, artists, podcasts, by chip index
+        for (MediaEntry e : entries(-1, "", false, 4000)) if (e.category >= 0 && e.category < counts.length) counts[e.category]++;
+        LinearLayout glance = card(page, "Saved");
+        String[] kindNames = {"Playlists", "Albums", "Artists", "Podcasts"};
+        for (int i = 0; i < counts.length; i++) {
+            LinearLayout row = row();
+            row.setPadding(dp(18), dp(10), dp(18), dp(10));
+            row.addView(text(kindNames[i], 15, () -> ink, false), weight());
+            row.addView(text(String.valueOf(counts[i]), 15, () -> inkDim, true));
+            glance.addView(row, fill(-2));
+        }
+        int total = counts[0] + counts[1] + counts[2] + counts[3];
+        TextView totalNote = text(total == 1 ? "1 item saved" : total + " items saved, across everything Spatch can see in your library", 12, () -> inkDim, false);
+        totalNote.setPadding(dp(18), dp(4), dp(18), dp(12));
+        glance.addView(totalNote);
+        shelf(page, "Recently played", recent, null);
         return scrolling(page);
     }
 
@@ -2148,10 +2174,10 @@ public final class SpatchUi extends FrameLayout {
         pageList = null;
         libraryList = null;
         heroArt = null; heroTitle = heroArtist = null;
-        View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == SEARCH ? searchPage() : tab == LIBRARY ? libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : settingsPage();
+        View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == SEARCH ? searchPage() : tab == LIBRARY ? libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : tab == STATS ? statsPage() : settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         if (tab != SETTINGS && playlist == null) refreshLibraryIfStale();
-        if (tab == HOME && playlist == null) loadRecentIfStale();
+        if ((tab == HOME || tab == STATS) && playlist == null) loadRecentIfStale();
         refresh();
     }
 
@@ -2331,7 +2357,7 @@ public final class SpatchUi extends FrameLayout {
                 if (saved != null) post(() -> {
                     if (!recent.isEmpty()) return;
                     recent = entryList(saved);
-                    if (tab == HOME && playlist == null && sheetClose == null) showPage();
+                    if ((tab == HOME || tab == STATS) && playlist == null && sheetClose == null) showPage();
                 });
             }
             byte[] freshBytes = nativeRecent();
@@ -2342,7 +2368,7 @@ public final class SpatchUi extends FrameLayout {
                 recentAt = SystemClock.uptimeMillis();
                 if (got.isEmpty() || got.equals(recent)) return;
                 recent = got;
-                if (tab == HOME && playlist == null && sheetClose == null) showPage();
+                if ((tab == HOME || tab == STATS) && playlist == null && sheetClose == null) showPage();
             });
         });
     }

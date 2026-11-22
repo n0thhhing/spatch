@@ -81,8 +81,12 @@ public final class CoreBridge implements Transport {
         long wait = Math.max(1, Math.min(8000, timeoutMs));
         Transport first = pick(service);
         try {
-            // A guessed transport gets a short wait: if it is the wrong one nothing ever answers.
-            return (byte[]) first.callSingle(service, method, request).timeout(SERVICES.containsKey(service) ? wait : Math.min(wait, 2500), TimeUnit.MILLISECONDS).blockingGet();
+            // A guessed transport gets a short wait, so a wrong guess fails fast enough to try another one. The
+            // account service is not really a guess, though: until it's learned, pick() always answers with the
+            // same single candidate (the first native transport seen) regardless of what else is known, so there
+            // is nothing else to usefully try instead; a short timeout here only cuts short the core's own startup.
+            boolean full = SERVICES.containsKey(service) || service.equals(ACCOUNT_SERVICE);
+            return (byte[]) first.callSingle(service, method, request).timeout(full ? wait : Math.min(wait, 2500), TimeUnit.MILLISECONDS).blockingGet();
         } catch (RuntimeException failed) {
             // A transport Spotify itself used for this service is the right one; anything else was a guess, so
             // try the other transports (newest first) and remember the one that answers.
