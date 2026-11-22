@@ -16,6 +16,14 @@ final class CoreBridge {
     // The preview nativeCatalog adapter reads this query and uses the existing Rust demo data.
     static byte[] search(String query, String pageToken) { return query.getBytes(java.nio.charset.StandardCharsets.UTF_8); }
 
+    /** Demo lyrics for the preview, with times so the synced view can be tried offline. */
+    public static final class Lyrics {
+        public final String[] words = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "That is all this sample has" };
+        public final long[] starts = { 2000, 6000, 10000, 14000, 18000, 22000 };
+    }
+
+    static Lyrics lyrics(String id) { return new Lyrics(); }
+
     public static String openCreation(android.app.Activity activity, String kind) {
         String normalized = kind == null ? "" : kind.trim().toLowerCase(java.util.Locale.ROOT);
         switch (normalized) {
