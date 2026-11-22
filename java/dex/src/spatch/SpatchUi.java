@@ -4645,7 +4645,7 @@ public final class SpatchUi extends FrameLayout {
         lyricsPanel = null;
     }
 
-    /** The song's lyrics from Spotify's lyrics service, as plain scrollable lines (no sync yet). */
+    /** The song's lyrics from Spotify's lyrics service; time-synced ones light the current line. */
     private void openLyrics() {
         if (lyricsPanel != null || uri.isEmpty()) return;
         String track = uri.substring(uri.lastIndexOf(':') + 1);
@@ -4670,21 +4670,44 @@ public final class SpatchUi extends FrameLayout {
         lyricsPanel.addView(body, new LayoutParams(-1, -1));
         FrameLayout panel = lyricsPanel;
         submit(ART, () -> {
-            String[] words = null;
-            try { words = CoreBridge.lyrics(track); }
+            CoreBridge.Lyrics got = null;
+            boolean missing = false;
+            try { got = CoreBridge.lyrics(track); }
             catch (Throwable failed) {
                 // The service answers 404 for a song with no lyrics; anything else is a real failure.
-                if (String.valueOf(failed.getMessage()).contains("HTTP 404")) words = new String[0];
+                if (String.valueOf(failed.getMessage()).contains("HTTP 404")) missing = true;
                 else android.util.Log.w("SpatchUi", "lyrics failed", failed);
             }
-            String[] got = words;
+            CoreBridge.Lyrics found = got;
+            String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now";
             post(() -> {
                 if (lyricsPanel != panel) return;
-                if (got == null || got.length == 0) { status.setText(got == null ? "Lyrics aren’t available for this song" : "No lyrics for this song"); return; }
+                if (found == null || found.words.length == 0) { status.setText(empty); return; }
                 lines.removeView(status);
-                for (String line : got) lines.addView(text(line.isEmpty() ? " " : line, 22, () -> ink, true), fill(-2));
+                boolean synced = found.starts[found.starts.length - 1] > 0;
+                TextView[] views = new TextView[found.words.length];
+                for (int i = 0; i < views.length; i++) {
+                    String line = found.words[i];
+                    views[i] = text(line.isEmpty() ? " " : line, 22, () -> synced ? inkDim : ink, true);
+                    lines.addView(views[i], fill(-2));
+                }
+                if (synced) syncLyrics(panel, scroll, views, found.starts, new int[] { -2 });
             });
         });
+    }
+
+    /** Lights the line being sung (and keeps it in view) while the lyrics screen is open; `shown` holds the lit line. */
+    private void syncLyrics(FrameLayout panel, ScrollView scroll, TextView[] views, long[] starts, int[] shown) {
+        if (lyricsPanel != panel) return;
+        long now = playhead();
+        int current = -1;
+        for (int i = 0; i < starts.length; i++) if (starts[i] > 0 && starts[i] <= now) current = i;
+        if (current != shown[0]) {
+            shown[0] = current;
+            for (int i = 0; i < views.length; i++) views[i].setTextColor(i == current ? ink : inkDim);
+            if (current >= 0) scroll.smoothScrollTo(0, Math.max(0, views[current].getTop() - scroll.getHeight() / 3));
+        }
+        postDelayed(() -> syncLyrics(panel, scroll, views, starts, shown), 250);
     }
 
     private void openQueue() {

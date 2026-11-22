@@ -269,11 +269,18 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    /** One song's lyrics: the text of each line and when it starts (ms; all 0 when the lyrics aren't time-synced). */
+    public static final class Lyrics {
+        public final String[] words;
+        public final long[] starts;
+        Lyrics(int n) { words = new String[n]; starts = new long[n]; }
+    }
+
     /**
-     * A song's lyrics, one string per line; `id` is the base62 track id. The app's proto classes have no readable
-     * getters (obfuscated), but their field names survive, so the lines are read from lyrics_.lines_[].words_.
+     * A song's lyrics; `id` is the base62 track id. The app's proto classes have no readable getters (obfuscated), but
+     * their field names survive, so the lines are read from lyrics_.lines_[].words_ / startTimeMs_.
      */
-    public static String[] lyrics(String id) throws Exception {
+    public static Lyrics lyrics(String id) throws Exception {
         Object reply;
         try {
             reply = web().lyrics(id).timeout(15, TimeUnit.SECONDS).blockingGet();
@@ -281,8 +288,11 @@ public final class CoreBridge implements Transport {
             throw new IllegalStateException(httpDetail(failed), failed);
         }
         java.util.List<?> lines = (java.util.List<?>) field(field(reply, "lyrics_"), "lines_");
-        String[] out = new String[lines.size()];
-        for (int i = 0; i < out.length; i++) out[i] = (String) field(lines.get(i), "words_");
+        Lyrics out = new Lyrics(lines.size());
+        for (int i = 0; i < lines.size(); i++) {
+            out.words[i] = (String) field(lines.get(i), "words_");
+            out.starts[i] = (Long) field(lines.get(i), "startTimeMs_");
+        }
         return out;
     }
 
