@@ -316,13 +316,51 @@ public final class SpatchUi extends FrameLayout {
     private static final int[] ACCENTS = {0, 0xff8b6fd6, 0xffd6567a, 0xff3d8fd6, 0xff2fa37a, 0xffd99a2b, 0xffe0663f};
     private static final String[] ACCENT_NAMES = {"Default", "Lavender", "Rose", "Sky", "Mint", "Amber", "Coral"};
 
+    // Fixed palettes from the earlier Spatch: bg, surf, surfHi, ink, accent2 (secondary text), inkDim, accent.
+    static final String[] PALETTE_NAMES = {"Dynamic", "Lavender", "Gruvbox", "Catppuccin Mocha", "Catppuccin Macchiato", "Catppuccin Frappé",
+        "Rosé Pine", "Rosé Pine Moon", "Nord", "Tokyo Night", "Tokyo Night Storm", "Dracula", "Gruvbox Material", "Everforest", "Kanagawa",
+        "Solarized", "One", "Spotify", "Graphite"};
+    private static final int[][] PALETTES = {null,
+        {0x14121c, 0x1d1a2a, 0x2b2640, 0xf3eeff, 0xc6b8ff, 0xbcb3dc, 0xd0bcff},
+        {0x282828, 0x3c3836, 0x504945, 0xfbf1c7, 0xd5c4a1, 0xa89984, 0xfe8019},
+        {0x1e1e2e, 0x313244, 0x45475a, 0xcdd6f4, 0xf5c2e7, 0xa6adc8, 0xcba6f7},
+        {0x24273a, 0x363a4f, 0x494d64, 0xcad3f5, 0xa5adcb, 0x888ea8, 0xc6a0f6},
+        {0x303446, 0x414559, 0x51576d, 0xc6d0f5, 0xa5adce, 0x969cb4, 0xca9ee6},
+        {0x191724, 0x1f1d2e, 0x26233a, 0xe0def4, 0xebbcba, 0x908caa, 0xc4a7e7},
+        {0x2a273f, 0x393552, 0x44415a, 0xe0def4, 0x918dab, 0x918ea3, 0xc4a7e7},
+        {0x2e3440, 0x3b4252, 0x434c5e, 0xeceff4, 0x8fbcbb, 0xd8dee9, 0x88c0d0},
+        {0x1a1b26, 0x24283b, 0x292e42, 0xc0caf5, 0xbb9af7, 0x9aa5ce, 0x7aa2f7},
+        {0x24283b, 0x292e42, 0x3b4261, 0xc0caf5, 0xa9b1d6, 0x898fac, 0x7aa2f7},
+        {0x282a36, 0x343746, 0x44475a, 0xf8f8f2, 0xff79c6, 0xadb5cb, 0xbd93f9},
+        {0x282828, 0x32302f, 0x45403d, 0xddc7a1, 0xd4be98, 0xa89984, 0xa9b665},
+        {0x2d353b, 0x3d484d, 0x475258, 0xd3c6aa, 0x9da9a0, 0x949f97, 0xa7c080},
+        {0x1f1f28, 0x2a2a37, 0x363646, 0xdcd7ba, 0xc8c093, 0x898881, 0x7e9cd8},
+        {0x002b36, 0x073642, 0x0d4452, 0x9fabab, 0x839496, 0x809196, 0x3794d6},
+        {0x282c34, 0x2c313a, 0x3e4451, 0xabb2bf, 0x9da5b4, 0x8f939c, 0x61afef},
+        {0x121212, 0x1f1f1f, 0x2a2a2a, 0xffffff, 0xb3b3b3, 0x7d7d7d, 0x1ed760},
+        {0x19191b, 0x232326, 0x2e2e31, 0xececee, 0xa9a9ae, 0x818187, 0xececed}};
+
+    /** The chosen fixed palette (null for Dynamic) as bg, surf, surfHi, ink, inkDim, accent, accent2, onAccent. */
+    int[] fixedPalette() {
+        int pick = prefs.getInt("palette", 0);
+        int[] p = pick > 0 && pick < PALETTES.length ? PALETTES[pick] : null;
+        if (p == null) return null;
+        int a = p[6] | 0xff000000;
+        return new int[]{p[0] | 0xff000000, p[1] | 0xff000000, p[2] | 0xff000000, p[3] | 0xff000000, p[5] | 0xff000000, a, p[4] | 0xff000000,
+            luminance(a) > .55f ? 0xff101014 : 0xffffffff};
+    }
+
+    private static float luminance(int c) { return (.2126f * Color.red(c) + .7152f * Color.green(c) + .0722f * Color.blue(c)) / 255f; }
+
     /** Colours from the cover when there is one, else from the chosen accent; animated smoothly in place. */
     private void applyPalette(Integer seed) {
         int theme = prefs.getInt("theme", 1);
         dark = theme == 1 || (theme == 0 && (getResources().getConfiguration().uiMode & 0x30) == 0x20);
         int accentChoice = Math.max(0, Math.min(ACCENTS.length - 1, prefs.getInt("accent", 0)));
         if (seed == null && accentChoice > 0) seed = ACCENTS[accentChoice];
-        int[] target = nativePalette(seed == null ? 0 : seed, seed != null, dark);
+        int[] fixed = fixedPalette();
+        if (fixed != null) dark = true;
+        int[] target = fixed != null ? fixed : nativePalette(seed == null ? 0 : seed, seed != null, dark);
         View decor = activity.getWindow().getDecorView();
         int bars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         decor.setSystemUiVisibility(dark ? decor.getSystemUiVisibility() & ~bars : decor.getSystemUiVisibility() | bars);
@@ -3607,9 +3645,12 @@ public final class SpatchUi extends FrameLayout {
         switch (settingsSection) {
         case 0: {
             LinearLayout look = card(page, "Look");
-            choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 1, true);
-            toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, true);
-            accentRow(look);
+            paletteRow(look);
+            if (fixedPalette() == null) {
+                choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 1, true);
+                toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, true);
+                accentRow(look);
+            }
             toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
 
             LinearLayout player = card(page, "Player visuals");
@@ -3943,6 +3984,59 @@ public final class SpatchUi extends FrameLayout {
             group.addView(option, p);
         }
         box.addView(group, fill(-2));
+    }
+
+    /** A strip of palette cards: Dynamic follows the cover and accent, the rest are fixed palettes. */
+    private void paletteRow(LinearLayout box) {
+        TextView label = text("Palette", 16, () -> ink, true);
+        label.setPadding(dp(18), dp(12), dp(18), dp(8));
+        box.addView(label);
+        HorizontalScrollView strip = new HorizontalScrollView(activity);
+        strip.setHorizontalScrollBarEnabled(false);
+        strip.setClipToPadding(false);
+        strip.setPadding(dp(14), 0, dp(14), dp(12));
+        LinearLayout cards = row();
+        int chosen = Math.max(0, Math.min(PALETTES.length - 1, prefs.getInt("palette", 0)));
+        for (int i = 0; i < PALETTES.length; i++) {
+            final int pick = i;
+            int[] p = PALETTES[i];
+            View card = new View(activity) {
+                private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                @Override protected void onDraw(Canvas c) {
+                    float w = getWidth(), h = getHeight(), r = dp(16);
+                    int back = p == null ? blend(bg, accent, .18f) : p[0] | 0xff000000;
+                    int fore = p == null ? accent : p[6] | 0xff000000, second = p == null ? accent2 : p[4] | 0xff000000;
+                    int words = p == null ? ink : p[3] | 0xff000000;
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(back);
+                    c.drawRoundRect(0, 0, w, h, r, r, paint);
+                    paint.setColor(fore);
+                    c.drawCircle(dp(22), dp(22), dp(9), paint);
+                    paint.setColor(second);
+                    c.drawCircle(dp(38), dp(22), dp(6), paint);
+                    paint.setColor(words);
+                    paint.setTextSize(dp(12));
+                    paint.setFakeBoldText(true);
+                    String name = PALETTE_NAMES[pick];
+                    c.drawText(name, dp(12), h - dp(12), paint);
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setStrokeWidth(dp(pick == chosen ? 2.5f : 1));
+                    paint.setColor(pick == chosen ? ink : blend(back, words, .15f));
+                    float in = paint.getStrokeWidth() / 2;
+                    c.drawRoundRect(in, in, w - in, h - in, r - in, r - in, paint);
+                }
+            };
+            tappable(card, PALETTE_NAMES[i] + " palette" + (i == chosen ? ", selected" : ""), () -> {
+                prefs.edit().putInt("palette", pick).apply();
+                settingsChanged(true);
+            });
+            LinearLayout.LayoutParams at = lp(dp(132), dp(76));
+            at.setMarginEnd(dp(8));
+            cards.addView(card, at);
+        }
+        strip.addView(cards);
+        box.addView(strip, fill(-2));
+        if (chosen > 1) strip.post(() -> strip.scrollTo((chosen - 1) * dp(140), 0));
     }
 
     /** Accent swatches: used when the cover can’t colour the app (or Artwork colours is off). */
