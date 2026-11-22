@@ -418,7 +418,8 @@ fn log_product_state() {
     }
 }
 
-/// Loads the current account's library; "" on success, otherwise Spotify's error.
+/// Loads the current account's library; "" on success, "cached" on a last-launch copy (a real refresh
+/// follows close behind, same as the core's own screens), otherwise Spotify's error.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JClass) -> jstring {
     #[cfg(not(feature = "preview"))]
@@ -427,6 +428,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JC
     log_product_state();
     if LIBRARY.lock().unwrap().is_some() {
         return string(&mut env, "");
+    }
+    // Show last launch's copy at once instead of blocking the first paint on a live round trip.
+    if let Some(bytes) = crate::cache::get("library") {
+        if let Ok(items) = library::decode(&bytes) {
+            if let Some(name) = library::username(&bytes) { remember_username(&name); }
+            set_library(items);
+            return string(&mut env, "cached");
+        }
     }
     let status = match fetch_library() {
         Ok(_) => String::new(),

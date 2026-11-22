@@ -187,6 +187,7 @@ public final class SpatchUi extends FrameLayout {
 
     // player state
     private long revision, lastConnect, libraryRetry, libraryLoadedAt, stamp, position, duration;
+    private int libraryAttempts;
     boolean polling, fetching, libraryReady, refreshing, playing, shuffle;
     private int repeat;
     private Boolean pending, saved;
@@ -764,6 +765,7 @@ public final class SpatchUi extends FrameLayout {
                 boolean cached = "cached".equals(status);
                 libraryReady = status != null && (status.isEmpty() || cached);
                 if (libraryReady) {
+                    libraryAttempts = 0;
                     // Last launch's copy shows at once; backdating it makes the next check ask Spotify again.
                     libraryLoadedAt = SystemClock.uptimeMillis() - (cached ? 90_000 : 0);
                     libraryStatus = "Nothing saved here yet";
@@ -774,8 +776,12 @@ public final class SpatchUi extends FrameLayout {
                         submit(PLAYLISTS, SpatchUi::nativeDownloadsStart);
                     }
                 } else {
-                    libraryStatus = "Couldn’t load your library";
-                    libraryRetry = SystemClock.uptimeMillis() + 4_000;
+                    libraryAttempts++;
+                    // A slow Spotify core or a flaky network can take a few tries; say so once it's been a while,
+                    // instead of repeating the same unqualified error.
+                    libraryStatus = libraryAttempts < 4 ? "Couldn’t load your library"
+                        : "Still trying to load your library. This is taking longer than usual.";
+                    libraryRetry = SystemClock.uptimeMillis() + Math.min(20_000, 4_000L << Math.min(libraryAttempts - 1, 2));
                     android.util.Log.w("SpatchUi", "Library request failed: " + (status == null ? "no response" : status));
                 }
                 if (playlist == null) showPage();
@@ -1337,6 +1343,16 @@ public final class SpatchUi extends FrameLayout {
         return photo;
     }
 
+    /** A short "updated Xs/Xm/Xh ago" style label from an `uptimeMillis()` timestamp. */
+    private static String ago(long at) {
+        long secs = (SystemClock.uptimeMillis() - at) / 1000;
+        if (secs < 5) return "just now";
+        if (secs < 60) return secs + "s ago";
+        long mins = secs / 60;
+        if (mins < 60) return mins + "m ago";
+        return (mins / 60) + "h ago";
+    }
+
     private void loadProfile(boolean force) {
         if (closed) return;
         long now = SystemClock.uptimeMillis();
@@ -1538,7 +1554,9 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout words = column();
         words.setPadding(dp(18), 0, 0, 0);
         words.addView(text(profileName.isEmpty() ? "Your profile" : profileName, 24, () -> ink, true));
-        words.addView(text(profileUsername.isEmpty() ? (profileLoading ? "Connecting to your Spotify account…" : "Couldn’t read your username yet. Still trying.") : "@" + profileUsername, 13, () -> inkDim, false));
+        TextView profileUsernameLine = text(profileUsername.isEmpty() ? (profileLoading ? "Connecting to your Spotify account…" : "Couldn’t read your username yet. Still trying.") : "@" + profileUsername, 13, () -> inkDim, false);
+        if (!profileUsername.isEmpty()) oneLine(profileUsernameLine);
+        words.addView(profileUsernameLine);
         if (profileUsername.isEmpty() && !profileError.isEmpty() && !profileLoading) words.addView(text(profileError, 12, () -> inkDim, false));
         photo.addView(words, weight());
         identity.addView(photo, fill(-2));
@@ -1548,7 +1566,11 @@ public final class SpatchUi extends FrameLayout {
             if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spotify profile", link));
             Toast.makeText(activity, "Profile link copied", Toast.LENGTH_SHORT).show();
         });
-        settingsAction(identity, "Refresh profile", profileUsername.isEmpty() ? "Spatch is still working out who you are. Tap to check now." : "Reload your name and photo from Spotify", () -> {
+        String refreshSubtitle = profileUsername.isEmpty() ? "Spatch is still working out who you are. Tap to check now."
+            : profileLoading ? "Checking your Spotify account…"
+            : profileAt == 0 ? "Reload your name and photo from Spotify"
+            : "Reload your name and photo from Spotify · Updated " + ago(profileAt);
+        settingsAction(identity, "Refresh profile", refreshSubtitle, () -> {
             profileAnnounce = true;
             Toast.makeText(activity, profileLoading ? "Still checking your Spotify account…" : "Checking your Spotify account…", Toast.LENGTH_SHORT).show();
             loadProfile(true);
