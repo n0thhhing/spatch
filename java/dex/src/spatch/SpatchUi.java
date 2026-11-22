@@ -1925,7 +1925,7 @@ public final class SpatchUi extends FrameLayout {
         }
         if (searchHits.length < HIT_FIELDS) {
             if (searchBusy) {
-                box.addView(text("Searching…", 15, () -> inkDim, false), fill(-2));
+                box.addView(loader("Searching"), fill(-2));
                 return;
             }
             box.addView(emptyState("search", "badge8", "Nothing found for “" + q + "”",
@@ -5012,7 +5012,7 @@ public final class SpatchUi extends FrameLayout {
         scroll.setOnTouchListener((v, e) -> { touched[0] = SystemClock.uptimeMillis(); return false; });
         LinearLayout lines = column();
         lines.setPadding(0, dp(12), 0, dp(32));
-        TextView status = text("Loading lyrics…", 16, () -> inkDim, false);
+        View status = loader("Loading lyrics");
         lines.addView(status, fill(-2));
         scroll.addView(lines, new ScrollView.LayoutParams(-1, -2));
         host.addView(scroll, new LayoutParams(-1, -1));
@@ -5556,6 +5556,48 @@ public final class SpatchUi extends FrameLayout {
             canvas.drawPath(path, paint);
         }
         canvas.restore();
+    }
+
+    /** A loading indicator: a tonal shape that turns and morphs between four, six and eight lobes, over `label`. */
+    View loader(String label) {
+        LinearLayout box = column();
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        box.setPadding(0, dp(28), 0, dp(20));
+        box.setContentDescription(label);
+        float[][] shapes = {nativeGeometry("badge4"), nativeGeometry("badge6"), nativeGeometry("badge8")};
+        long born = SystemClock.uptimeMillis();
+        View blob = new View(activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Path path = new Path();
+            @Override protected void onDraw(Canvas c) {
+                float r = Math.min(getWidth(), getHeight()) / 2f, t = motion() ? (SystemClock.uptimeMillis() - born) / 700f : 0f;
+                int k = (int) t % 3;
+                float f = t - (int) t;
+                f = f * f * (3 - 2 * f); // ease each morph, then hold briefly at the next shape
+                float[] a = shapes[k], b = shapes[(k + 1) % 3];
+                path.rewind();
+                for (int i = 0; i + 1 < a.length && i + 1 < b.length; i += 2) {
+                    float x = (a[i] + (b[i] - a[i]) * f) * r, y = (a[i + 1] + (b[i + 1] - a[i + 1]) * f) * r;
+                    if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+                }
+                path.close();
+                c.save();
+                c.translate(getWidth() / 2f, getHeight() / 2f);
+                c.rotate(t * 60f);
+                paint.setColor(blend(surfHi, accent, .5f));
+                c.drawPath(path, paint);
+                c.restore();
+                if (motion() && isShown()) postInvalidateOnAnimation();
+            }
+        };
+        blob.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        box.addView(blob, lp(dp(44), dp(44)));
+        TextView words = text(label + "…", 14, () -> inkDim, false);
+        words.setGravity(Gravity.CENTER);
+        words.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        words.setPadding(0, dp(12), 0, 0);
+        box.addView(words, lp(-2, -2));
+        return box;
     }
 
     /** An empty state: `symbol` on a lobed tonal badge (`shape` is a badge geometry) that springs in, over a title and a hint. */
