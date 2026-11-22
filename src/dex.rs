@@ -38,7 +38,7 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Paths are relative to the decoded APK.
-const RELOCATED: [&str; 10] = [
+const RELOCATED: [&str; 11] = [
     "smali_classes2/p/h3u0.smali",
     "smali_classes9/p/kls0.smali",
     "smali/p/ohj0.smali",
@@ -51,6 +51,8 @@ const RELOCATED: [&str; 10] = [
     "smali/com/spotify/esperanto/esperanto/ClientBase.smali",
     // So is classes2.dex, for the audio session hooks.
     "smali_classes2/com/spotify/playbacknative/AudioEffectsListener.smali",
+    // And for the audio tap in the PCM writer.
+    "smali_classes2/com/spotify/playbacknative/AudioDriver.smali",
 ];
 
 /// Each relocated class as (smali folder, path in it, original DEX, descriptor).

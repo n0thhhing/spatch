@@ -80,6 +80,7 @@ public final class Audio {
     static synchronized void initialize(Context app, SharedPreferences prefs) {
         context = app;
         eqPrefs = prefs;
+        directOn = prefs.getBoolean("audio_direct", false);
         refreshEqualizer();
     }
 
@@ -1141,6 +1142,51 @@ public final class Audio {
     private static byte[] fft;
     private static long sampled, retryAt;
 
+    /** On when the bars read Spotify's audio directly (see feed) instead of an Android Visualizer, which needs the microphone permission. */
+    static volatile boolean directOn;
+    private static final float[] RING = new float[PcmSpectrum.N];
+    private static int ringAt;
+    private static volatile long fedAt;
+    private static volatile int fedRate = 44100;
+    private static byte[] directFft;
+
+    static void setDirect(boolean on) {
+        directOn = on;
+        fedAt = 0;
+        refreshEqualizer();
+    }
+
+    /**
+     * Hook: Spotify's AudioDriver calls this with each block of decoded PCM just before it is written to the AudioTrack, so
+     * before any volume is applied (the bars keep moving at volume 0) and with no microphone. Runs on the audio thread,
+     * so it only copies the newest window into a ring; it never throws.
+     */
+    public static void feed(byte[] pcm, int len, int rate, int channelConfig, int encoding) {
+        if (!directOn) return;
+        try {
+            int channels = channelConfig == 12 ? 2 : 1, width = encoding == 4 ? 4 : 2, frame = channels * width;
+            int frames = Math.min(len, pcm.length) / frame, take = Math.min(frames, PcmSpectrum.N), first = (frames - take) * frame;
+            synchronized (RING) {
+                for (int i = 0; i < take; i++) {
+                    int at = first + i * frame;
+                    float sum = 0;
+                    for (int c = 0; c < channels; c++) {
+                        int o = at + c * width;
+                        sum += width == 2
+                            ? (short) ((pcm[o] & 255) | (pcm[o + 1] << 8)) / 32768f
+                            : Float.intBitsToFloat((pcm[o] & 255) | ((pcm[o + 1] & 255) << 8) | ((pcm[o + 2] & 255) << 16) | ((pcm[o + 3] & 255) << 24));
+                    }
+                    RING[ringAt] = sum / channels;
+                    ringAt = (ringAt + 1) % PcmSpectrum.N;
+                }
+            }
+            fedRate = rate > 0 ? rate : 44100;
+            fedAt = SystemClock.uptimeMillis();
+        } catch (RuntimeException ignored) {
+            // A malformed block is simply skipped: the music must never depend on the visuals.
+        }
+    }
+
     static boolean permitted(Context context) {
         return context.checkSelfPermission(PERMISSION) == 0;
     }
@@ -1199,6 +1245,7 @@ public final class Audio {
 
     /** One capture; false clears stale levels and schedules a slower retry. */
     private static boolean sample(long now) {
+        if (directOn) return sampleDirect(now);
         int id = session;
         if (context == null || !permitted(context)) { say("Needs the microphone permission"); return false; }
         if (id <= 0) { say("Waiting for Spotify to start playing"); return false; }
@@ -1230,6 +1277,24 @@ public final class Audio {
             retryAt = now + 2000;
             return false;
         }
+    }
+
+    /** One analysis from the audio fed by the hook; false (bars decay) when no audio has arrived lately. */
+    private static boolean sampleDirect(long now) {
+        if (fedAt == 0 || now - fedAt > 400) { say("Waiting for Spotify's audio"); return false; }
+        if (directFft == null) directFft = new byte[PcmSpectrum.N];
+        float[] window = new float[PcmSpectrum.N];
+        synchronized (RING) {
+            for (int i = 0; i < window.length; i++) window[i] = RING[(ringAt + i) % PcmSpectrum.N];
+        }
+        PcmSpectrum.fftBytes(window, directFft);
+        say("Reading Spotify's audio directly");
+        float dt = sampled == 0 ? 16 : Math.min(100, now - sampled);
+        sampled = now;
+        nativeAnalyse(directFft, fedRate, dt, now, OUT);
+        System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
+        bass = OUT[48]; level = OUT[49]; kick = OUT[50];
+        return true;
     }
 
     // The analysis and EQ curve solver are in Rust (app/src/spectrum.rs, eq.rs).

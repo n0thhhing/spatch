@@ -3615,6 +3615,7 @@ public final class SpatchUi extends FrameLayout {
             LinearLayout player = card(page, "Player visuals");
             choice(player, "Visualizer", new String[]{"Ring and bars", "Ring only", "Off"}, "viz", 0, false);
             toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
+            toggle(player, "Read audio directly", "Experimental: take Spotify’s audio before the volume, so the bars keep moving at volume 0 and no microphone permission is needed", "audio_direct", false, false);
             TextView audioStatus = text("Status: " + Audio.status, 12, () -> inkDim, false);
             audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
             player.addView(audioStatus);
@@ -4063,7 +4064,8 @@ public final class SpatchUi extends FrameLayout {
             if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
             if (key.equals("equalizer") || key.startsWith("eq_")) Audio.refreshEqualizer();
             if (key.equals("auto_hide_dock") && !sw.on) setDockHidden(false);
-            if (key.equals("audio") && sw.on && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
+            if (key.equals("audio_direct")) Audio.setDirect(sw.on);
+            if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
             else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
             else if (key.equals("rotate")) applyRotation();
