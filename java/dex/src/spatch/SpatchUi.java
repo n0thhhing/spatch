@@ -4690,6 +4690,8 @@ public final class SpatchUi extends FrameLayout {
                     String line = found.words[i];
                     views[i] = text(line.isEmpty() ? " " : line, 22, () -> synced ? inkDim : ink, true);
                     lines.addView(views[i], fill(-2));
+                    final long at = found.starts[i];
+                    if (synced) tappable(views[i], null, () -> { setPosition(at); command(SEEK, at, ""); }); // tap a line to jump there
                 }
                 if (synced) syncLyrics(panel, scroll, views, found.starts, new int[] { -2 });
             });
