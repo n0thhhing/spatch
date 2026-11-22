@@ -57,6 +57,8 @@ public class SpatchWidget extends AppWidgetProvider {
     private static final Bitmap[] slotArt = new Bitmap[2];
     /** Colours for the current cover: background, accent, and what sits on the accent. */
     private static int background = 0xFF1D1A2A, accent = 0xFFD0BCFF, accent2 = 0xFFE8DEFF, onAccent = 0xFF14121C;
+    /** Whether a skip is possible right now (from the player state); dims the button rather than disabling it. */
+    private static boolean canNext = true, canPrevious = true;
 
     /** Remembers a context to draw with; the receiver calls this. */
     static void attach(Context context) {
@@ -99,6 +101,7 @@ public class SpatchWidget extends AppWidgetProvider {
                     backdrop = cover == null ? null : backdrop(cover);
                 }
                 title = s[2]; artist = s[3]; playing = Boolean.parseBoolean(s[6]);
+                canNext = Boolean.parseBoolean(s[16]); canPrevious = Boolean.parseBoolean(s[17]);
             } else if (!force) {
                 return;
             }
@@ -114,8 +117,9 @@ public class SpatchWidget extends AppWidgetProvider {
             slotTitle[shown] = title.isEmpty() ? "Spatch" : title;
             slotArtist[shown] = title.isEmpty() ? "Nothing playing" : artist;
             slotArt[shown] = cover == null ? placeholder() : square(cover);
-            for (int id : big) manager.updateAppWidget(id, views(context, "spatch_widget", flip));
-            for (int id : small) manager.updateAppWidget(id, views(context, "spatch_widget_small", flip));
+            // One RemoteViews per layout, pushed to every instance of it at once instead of redrawn per widget id.
+            if (big.length > 0) manager.updateAppWidget(big, views(context, "spatch_widget", flip));
+            if (small.length > 0) manager.updateAppWidget(small, views(context, "spatch_widget_small", flip));
         } catch (RuntimeException e) {
             android.util.Log.e("SpatchWidget", "refresh failed", e);
         }
@@ -139,13 +143,14 @@ public class SpatchWidget extends AppWidgetProvider {
 
     /** A deep background and a bright accent in the cover's hue, so the widget follows what is playing. */
     private static void colors(Bitmap art) {
-        if (art == null) { background = 0xFF1D1A2A; accent = 0xFFD0BCFF; accent2 = 0xFFE8DEFF; onAccent = 0xFF14121C; return; }
+        if (art == null) { background = 0xFF1D1A2A; accent = 0xFFD0BCFF; accent2 = 0xFFE8DEFF; onAccent = 0xFF14121C; recenter(); return; }
         Bitmap tiny = Bitmap.createScaledBitmap(art, 8, 8, true);
         long r = 0, g = 0, b = 0;
         for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) {
             int c = tiny.getPixel(x, y);
             r += Color.red(c); g += Color.green(c); b += Color.blue(c);
         }
+        tiny.recycle();
         float[] hsv = new float[3];
         Color.RGBToHSV((int) (r / 64), (int) (g / 64), (int) (b / 64), hsv);
         float hue = hsv[0], sat = hsv[1];
@@ -153,6 +158,14 @@ public class SpatchWidget extends AppWidgetProvider {
         accent = Color.HSVToColor(new float[] { hue, Math.max(.3f, Math.min(sat, .75f)), .96f });
         accent2 = Color.HSVToColor(new float[] { (hue + 340) % 360, Math.max(.25f, Math.min(sat, .6f)), 1f });
         onAccent = Color.HSVToColor(new float[] { hue, .5f, .12f });
+        recenter();
+    }
+
+    /** Redraws the play/pause glyph for the current onAccent; colors() calls this whenever the cover (and so the
+     * colour) changes, so views() can just reuse the cached pair instead of drawing it on every refresh. */
+    private static void recenter() {
+        centerPlay = center(false, 96);
+        centerPause = center(true, 96);
     }
 
     private static int id(Context context, String name, String type) {
@@ -201,6 +214,7 @@ public class SpatchWidget extends AppWidgetProvider {
         Bitmap out = Bitmap.createBitmap(200, 100, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(out);
         canvas.drawBitmap(soft, 0, 0, null);
+        soft.recycle();
         canvas.drawColor((background & 0x00FFFFFF) | 0xB8000000);
         return out;
     }
@@ -210,6 +224,14 @@ public class SpatchWidget extends AppWidgetProvider {
     private static final float[][] G_PAUSE = { { 6, 5, 10, 5, 10, 19, 6, 19 }, { 14, 5, 18, 5, 18, 19, 14, 19 } };
     private static final float[][] G_PREVIOUS = { { 19, 4, 7, 12, 19, 20 } };
     private static final float[][] G_NEXT = { { 5, 4, 17, 12, 5, 20 } };
+
+    /** The skip glyphs never change (fixed colour and size): built once. Declared after G_PREVIOUS/G_NEXT, which
+     * skip() needs; static fields initialise in textual order. */
+    private static final Bitmap SKIP_PREV = skip(0, 108), SKIP_NEXT = skip(1, 108);
+    /** The play/pause glyph for the current accent colour: rebuilt only when the colour changes, in colors(). Never
+     * null, so a views() call before the first cover arrives still has something to draw. Also declared here, after
+     * G_PLAY/G_PAUSE, for the same reason. */
+    private static Bitmap centerPlay = center(false, 96), centerPause = center(true, 96);
 
     /** Draws a glyph from the 24-unit grid into the square of side `box` at (x, y). */
     private static void glyph(Canvas canvas, float[][] fills, float[] line, int color, float x, float y, float box) {
@@ -264,11 +286,12 @@ public class SpatchWidget extends AppWidgetProvider {
         if (modern) v.setColorStateList(root, "setBackgroundTintList", ColorStateList.valueOf(background));
         String[][] slots = { { "title", "subtitle", "artwork" }, { "title2", "subtitle2", "thumbnail" } };
         for (int k = 0; k < 2; k++) {
-            int i = flip ? k : shown; // a steady update shows the current song in both slots
+            if (!flip && k != shown) continue; // the hidden slot isn't on screen: no point resending its text and cover
+            int i = flip ? k : shown;
             v.setTextViewText(id(context, slots[k][0], "id"), slotTitle[i] == null ? "" : slotTitle[i]);
             v.setTextColor(id(context, slots[k][0], "id"), 0xFFF3EEFF);
             v.setTextViewText(id(context, slots[k][1], "id"), slotArtist[i] == null ? "" : slotArtist[i]);
-            v.setTextColor(id(context, slots[k][1], "id"), 0xFFBCB3DC);
+            v.setTextColor(id(context, slots[k][1], "id"), accent2);
             if (slotArt[i] != null) v.setImageViewBitmap(id(context, slots[k][2], "id"), slotArt[i]);
         }
         // A ViewFlipper restarts its animation on every setDisplayedChild, so it is sent only on the flip itself.
@@ -288,13 +311,16 @@ public class SpatchWidget extends AppWidgetProvider {
             for (String name : new String[] { "spinner", "image", "text1", "text2", "icon_view", "image_view" }) v.setColorStateList(id(context, name, "id"), "setIndeterminateTintList", tint);
         }
         int icon = id(context, "icon", "id");
-        v.setImageViewBitmap(icon, center(playing, 96));
+        v.setImageViewBitmap(icon, playing ? centerPause : centerPlay);
         v.setContentDescription(id(context, "play_button", "id"), playing ? "Pause" : "Play");
-        v.setImageViewBitmap(id(context, "previous_button", "id"), skip(0, 108));
-        v.setImageViewBitmap(id(context, "next_button", "id"), skip(1, 108));
+        int prevId = id(context, "previous_button", "id"), nextId = id(context, "next_button", "id");
+        v.setImageViewBitmap(prevId, SKIP_PREV);
+        v.setImageViewBitmap(nextId, SKIP_NEXT);
+        v.setInt(prevId, "setImageAlpha", canPrevious ? 255 : 110);
+        v.setInt(nextId, "setImageAlpha", canNext ? 255 : 110);
         v.setOnClickPendingIntent(id(context, "play_button", "id"), broadcast(context, TOGGLE));
-        v.setOnClickPendingIntent(id(context, "previous_button", "id"), broadcast(context, PREVIOUS));
-        v.setOnClickPendingIntent(id(context, "next_button", "id"), broadcast(context, NEXT));
+        v.setOnClickPendingIntent(prevId, broadcast(context, PREVIOUS));
+        v.setOnClickPendingIntent(nextId, broadcast(context, NEXT));
         Intent open = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         if (open != null) v.setOnClickPendingIntent(root, PendingIntent.getActivity(context, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         return v;
