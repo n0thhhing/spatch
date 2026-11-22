@@ -252,8 +252,8 @@ public class SpatchWidget extends AppWidgetProvider {
         return out;
     }
 
-    /** For the Quick Settings tile: the same play/pause glyph the widget draws, and the state behind it. */
-    static Bitmap tileIcon(int px) { return center(playing, px); }
+    /** For the Quick Settings tile: the same play/pause glyph the widget draws. */
+    static Bitmap tileIcon(boolean pause, int px) { return center(pause, px); }
     static boolean playing() { return playing; }
     static String title() { return title; }
 
