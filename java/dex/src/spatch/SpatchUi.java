@@ -959,14 +959,16 @@ public final class SpatchUi extends FrameLayout {
         nextKey = "";
         setBackgroundColor(bg);
         pageHost = new FrameLayout(activity);
-        addView(pageHost, new LayoutParams(-1, -1));
+        LayoutParams hostAt = new LayoutParams(-1, -1);
+        hostAt.leftMargin = inset.left; hostAt.rightMargin = inset.right; // landscape: clear of the side system bar and cutout
+        addView(pageHost, hostAt);
         // Lists dim as they pass under the mini player and bar instead of showing through them.
         View fade = new View(activity);
         dockFade = fade;
         GradientDrawable fadeBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg});
         fade.setBackground(fadeBg);
         colored(fade, () -> fadeBg.setColors(new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg}));
-        addView(fade, new LayoutParams(-1, dp(190) + inset.bottom, Gravity.BOTTOM));
+        addView(fade, new LayoutParams(-1, dockRoom() + dp(20), Gravity.BOTTOM));
         // And under the status bar, so scrolled content doesn't collide with the clock and icons: solid behind
         // the bar itself, then a short fade below it.
         View topSolid = new View(activity);
@@ -982,12 +984,20 @@ public final class SpatchUi extends FrameLayout {
         dock = column();
         dockHidden = false;
         scrollTravel = 0;
-        dock.setPadding(dp(12), 0, dp(12), dp(10) + inset.bottom);
+        dock.setPadding(dp(12) + inset.left, 0, dp(12) + inset.right, dp(10) + inset.bottom);
+        if (landscape()) dock.setOrientation(LinearLayout.HORIZONTAL); // nav and mini player share one row, so pages keep the height
         addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
         buildDock();
         player = null;
         showPage();
         if (playerOpen) { playerOpen = false; openPlayer(false); }
+    }
+
+    /** Room a page leaves at its foot for the dock: two rows in portrait, one in landscape. */
+    int dockRoom() { return dp(landscape() ? 96 : 170) + inset.bottom; }
+
+    boolean landscape() {
+        return activity.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
     }
 
     static final android.view.animation.Interpolator EMPHASIZED = new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f);
@@ -1862,7 +1872,7 @@ public final class SpatchUi extends FrameLayout {
         scroll.setClipToPadding(true);
         scroll.setPadding(0, 0, 0, imeInset);
         LinearLayout results = column();
-        results.setPadding(dp(18), dp(4), dp(18), dp(170) + inset.bottom);
+        results.setPadding(dp(18), dp(4), dp(18), dockRoom());
         scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
         scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> scrollDock(y - oldY, y <= 0));
         page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -2023,15 +2033,21 @@ public final class SpatchUi extends FrameLayout {
         tappable(mini, "Open player", () -> openPlayer(true));
         miniGestures(mini);
         mini.setOnLongClickListener(v -> { currentSongActions(); return true; });
-        LinearLayout.LayoutParams mp = fill(-2);
-        mp.bottomMargin = dp(8);
-        dock.addView(mini, mp);
+        boolean wide = landscape();
+        LinearLayout.LayoutParams mp = wide ? new LinearLayout.LayoutParams(0, dp(58), 1) : fill(-2);
+        if (wide) mp.leftMargin = dp(10); else mp.bottomMargin = dp(8);
 
         dockBar = new Navigator();
         dockBar.setGravity(Gravity.CENTER);
         bgRound(dockBar, 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
         dockBar.setPadding(dp(6), dp(5), dp(6), dp(5));
-        dock.addView(dockBar, fill(dp(56)));
+        if (wide) {
+            dock.addView(dockBar, new LinearLayout.LayoutParams(dp(300), dp(58)));
+            dock.addView(mini, mp);
+        } else {
+            dock.addView(mini, mp);
+            dock.addView(dockBar, fill(dp(56)));
+        }
         updateDock();
         refresh();
     }
@@ -2276,7 +2292,7 @@ public final class SpatchUi extends FrameLayout {
         s.setVerticalScrollBarEnabled(false);
         s.setClipToPadding(false);
         s.setPadding(0, inset.top, 0, 0);
-        content.setPadding(dp(18), dp(10), dp(18), dp(170) + inset.bottom);
+        content.setPadding(dp(18), dp(10), dp(18), dockRoom());
         content.setClipToPadding(false); // edge-to-edge shelves draw into the side padding
         s.addView(content, new ScrollView.LayoutParams(-1, -2));
         s.setOnScrollChangeListener((view, x, y, oldX, oldY) -> scrollDock(y - oldY, y <= 0));
@@ -2616,7 +2632,7 @@ public final class SpatchUi extends FrameLayout {
             page.addView(noMatch);
             android.widget.AbsListView list = grid ? entryGrid(shown) : entryList(shown, null);
             list.setOnScrollListener(new DockScroll());
-            list.setPadding(dp(grid ? 14 : 18), dp(4), dp(grid ? 14 : 18), dp(170) + inset.bottom);
+            list.setPadding(dp(grid ? 14 : 18), dp(4), dp(grid ? 14 : 18), dockRoom());
             list.setClipToPadding(false);
             page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
             if (list instanceof ListView) pageList = (ListView) list;
@@ -2640,7 +2656,9 @@ public final class SpatchUi extends FrameLayout {
     /** The library as big covers, two to a row. */
     private android.widget.GridView entryGrid(List<MediaEntry> items) {
         android.widget.GridView grid = new android.widget.GridView(activity);
-        grid.setNumColumns(2);
+        grid.setNumColumns(android.widget.GridView.AUTO_FIT); // two on a phone, more when there's width (landscape)
+        grid.setColumnWidth(dp(160));
+        grid.setStretchMode(android.widget.GridView.STRETCH_COLUMN_WIDTH);
         grid.setHorizontalSpacing(dp(12));
         grid.setVerticalSpacing(dp(16));
         grid.setVerticalScrollBarEnabled(false);
@@ -3474,7 +3492,7 @@ public final class SpatchUi extends FrameLayout {
         if (playlistTracks.isEmpty() && releases.isEmpty()) {
             ScrollView s = new ScrollView(activity);
             s.setVerticalScrollBarEnabled(false);
-            header.setPadding(dp(20), inset.top + dp(56), dp(20), dp(170) + inset.bottom);
+            header.setPadding(dp(20), inset.top + dp(56), dp(20), dockRoom());
             s.addView(header);
             s.setOnScrollChangeListener((v, sx, sy, osx, osy) -> { syncFab.run(); scrollDock(sy - osy, sy <= 0); });
             page.addView(s, new LayoutParams(-1, -1));
@@ -3520,7 +3538,7 @@ public final class SpatchUi extends FrameLayout {
                 shelf(footer, "Releases", releases, null);
                 list.addFooterView(footer, null, false);
             }
-            list.setPadding(dp(18), 0, dp(18), dp(170) + inset.bottom);
+            list.setPadding(dp(18), 0, dp(18), dockRoom());
             // The cover shrinks up and fades, the atmospheric wash recedes, and the floating bar brings in the title.
             View coverView = headCover;
             if (coverView != null) coverView.setPivotY(0);
@@ -4594,7 +4612,7 @@ public final class SpatchUi extends FrameLayout {
         motes = pref("motes", true) ? artwork.new Motes() : null;
         if (motes != null) player.addView(motes, new LayoutParams(-1, -1));
         LinearLayout col = column();
-        boolean land = activity.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        boolean land = landscape();
         LinearLayout sideColumn = null;
         if (land) {
             // Cover, title and controls on the left; the lyrics, with the top buttons above them, take the right.
