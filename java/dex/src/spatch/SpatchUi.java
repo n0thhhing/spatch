@@ -226,8 +226,8 @@ public final class SpatchUi extends FrameLayout {
     String lastCoverUrl = "", nextKey = "";
     private TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
     /** The optional one-line lyric under the player's cover, and the lyrics it follows. */
-    private TextView pLyric;
-    private String lyricsUri = "";
+    private LinearLayout pLyric;
+    private String lyricsUri = "", lyricKey = "";
     private CoreBridge.Lyrics lyricsData;
     private Icon pLike, pShuffle, pRepeat, pSparkle;
     /** Whether the playing playlist is in Smart Shuffle, as Spotify keeps it (read when the context changes). */
@@ -4327,35 +4327,51 @@ public final class SpatchUi extends FrameLayout {
         nextKey = "";
     }
 
-    /** Keeps the player's lyric line on the line being sung: fetches the song's lyrics once, then follows the playhead. */
-    private void playerLyrics(TextView view) {
-        if (player == null || pLyric != view) return;
+    /** Keeps the player's three lyric lines on the line being sung: fetches the song's lyrics once, then follows the playhead. */
+    private void playerLyrics(LinearLayout box) {
+        if (player == null || pLyric != box) return;
+        TextView[] rows = (TextView[]) box.getTag();
         if (!uri.equals(lyricsUri)) {
             String forUri = lyricsUri = uri;
             lyricsData = null;
-            view.setText("");
             if (!forUri.isEmpty()) {
                 String track = forUri.substring(forUri.lastIndexOf(':') + 1);
                 submit(ART, () -> {
                     CoreBridge.Lyrics got = null;
-                    try { got = CoreBridge.lyrics(track); } catch (Throwable none) { /* no lyrics, or offline: the line just stays empty */ }
+                    try { got = CoreBridge.lyrics(track); } catch (Throwable none) { /* no lyrics, or offline: the lines just stay empty */ }
                     CoreBridge.Lyrics found = got;
                     post(() -> { if (forUri.equals(lyricsUri)) lyricsData = found; });
                 });
             }
         }
-        String line = "";
+        String[] want = { "", "", "" };
         CoreBridge.Lyrics l = lyricsData;
         if (l != null && l.words.length > 0 && l.starts[l.starts.length - 1] > 0) {
             long now = playhead();
-            for (int i = 0; i < l.starts.length; i++) if (l.starts[i] > 0 && l.starts[i] <= now) line = l.words[i];
+            int current = -1;
+            for (int i = 0; i < l.starts.length; i++) if (l.starts[i] > 0 && l.starts[i] <= now) current = i;
+            if (current > 0) want[0] = l.words[current - 1];
+            if (current >= 0) want[1] = l.words[current];
+            if (current + 1 < l.words.length) want[2] = l.words[current + 1];
         }
-        if (!line.contentEquals(view.getText())) {
-            String next = line;
-            if (motion()) view.animate().alpha(0).setDuration(120).withEndAction(() -> { view.setText(next); view.animate().alpha(1).setDuration(180).start(); }).start();
-            else view.setText(next);
+        String key = want[0] + '\n' + want[1] + '\n' + want[2];
+        if (!key.equals(lyricKey)) {
+            lyricKey = key;
+            for (int i = 0; i < 3; i++) rows[i].setText(want[i]);
+            float[] from = { 1f, .35f, 0f }, to = { .35f, 1f, .35f };
+            if (motion() && !want[1].isEmpty()) {
+                // The lines step up: each fades to the look of the one above it while the block slides up into place.
+                // Moved row by row inside the box (which clips its children), so nothing slides over the title below.
+                for (int i = 0; i < 3; i++) {
+                    rows[i].setAlpha(from[i]);
+                    rows[i].setTranslationY(dp(24));
+                    rows[i].animate().alpha(to[i]).translationY(0).setDuration(520).setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
+                }
+            } else {
+                for (int i = 0; i < 3; i++) { rows[i].setAlpha(to[i]); rows[i].setTranslationY(0); }
+            }
         }
-        view.postDelayed(() -> playerLyrics(view), 400);
+        box.postDelayed(() -> playerLyrics(box), 250);
     }
 
     private void buildPlayer() {
@@ -4423,19 +4439,30 @@ public final class SpatchUi extends FrameLayout {
         gestures(disc);
         pLyric = null;
         if (pref("player_lyrics", false)) {
-            // One quiet line, always one line tall (so nothing shifts when it fills in or empties); tap for all of it.
-            TextView line = pLyric = text("", 18, () -> accent, true);
-            line.setGravity(Gravity.CENTER);
-            line.setSingleLine(true);
-            line.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            tappable(line, "Open lyrics", this::openLyrics);
+            // Three quiet lines (the one before, the sung one, the one after), always three lines tall so nothing
+            // shifts when they fill in or empty; tap for all of it.
+            LinearLayout box = pLyric = column();
+            TextView[] rows = new TextView[3];
+            for (int k = 0; k < 3; k++) {
+                final boolean sung = k == 1;
+                rows[k] = text("", sung ? 19 : 15, () -> sung ? accent : ink, true);
+                rows[k].setGravity(Gravity.CENTER);
+                rows[k].setSingleLine(true);
+                rows[k].setEllipsize(android.text.TextUtils.TruncateAt.END);
+                rows[k].setAlpha(sung ? 1f : .35f);
+                box.addView(rows[k], fill(-2));
+            }
+            box.setTag(rows);
+            box.setClipChildren(true);
+            tappable(box, "Open lyrics", this::openLyrics);
             LinearLayout.LayoutParams lineParams = lp(-1, -2);
-            lineParams.topMargin = dp(10);
-            lineParams.bottomMargin = dp(12);
-            col.addView(line, lineParams);
+            lineParams.topMargin = dp(6);
+            lineParams.bottomMargin = dp(8);
+            col.addView(box, lineParams);
             lyricsUri = "";
+            lyricKey = "";
             lyricsData = null;
-            playerLyrics(line);
+            playerLyrics(box);
         }
 
         LinearLayout titleRow = row();
