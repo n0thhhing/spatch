@@ -437,7 +437,9 @@ public final class CoreBridge implements Transport {
             activity.startActivity(delegate);
             return "";
         } catch (Throwable t) {
-            return "Couldn’t open Spotify’s sign-in: " + t.getMessage();
+            String msg = t.getMessage();
+            return "Couldn’t open Spotify’s sign-in: "
+                + (msg != null && !msg.isEmpty() ? msg : t.getClass().getSimpleName());
         }
     }
 

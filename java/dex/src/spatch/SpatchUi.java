@@ -611,6 +611,7 @@ public final class SpatchUi extends FrameLayout {
         super.onWindowVisibilityChanged(visibility);
         removeCallbacks(syncPush);
         removeCallbacks(poll);
+        removeCallbacks(profileRetry);
         if (visibility == VISIBLE && isAttachedToWindow()) {
             activeUi = new java.lang.ref.WeakReference<>(this);
             nativeAttachUi();
@@ -618,6 +619,7 @@ public final class SpatchUi extends FrameLayout {
                 libraryRetry = 0;
                 lastConnect = 0;
             }
+            if (profileUsername.isEmpty() || (!profileError.isEmpty() && profileAttempts < 12)) loadProfile(true);
             post(poll);
         }
     }
@@ -633,9 +635,12 @@ public final class SpatchUi extends FrameLayout {
         if (ref != null && ref.get() == this) activeUi = null;
         playlistRequest++;
         searchRequest++;
+        profileTicket++;
+        profileLoading = false;
         if (watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
         removeCallbacks(syncPush);
         removeCallbacks(poll);
+        removeCallbacks(profileRetry);
         if (paletteAnim != null) { paletteAnim.cancel(); paletteAnim = null; }
         super.onDetachedFromWindow();
     }
@@ -1333,6 +1338,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void loadProfile(boolean force) {
+        if (closed) return;
         long now = SystemClock.uptimeMillis();
         // A load that has hung for 20 s no longer blocks a new one (it used to, so Refresh did nothing).
         boolean hung = profileLoading && now - profileStartedAt > 20_000;
@@ -1348,21 +1354,24 @@ public final class SpatchUi extends FrameLayout {
             catch (RuntimeException | LinkageError failed) { result = new String[]{"", "", "", "", failed.toString()}; }
             final String[] info = result;
             post(() -> {
-                if (ticket != profileTicket) return; // a newer load took over
+                if (closed || ticket != profileTicket) return; // a newer load or detach took over
                 profileLoading = false;
                 profileAt = SystemClock.uptimeMillis();
                 if (info != null && info.length >= 5) {
+                    boolean fallback = !info[4].isEmpty();
                     if (!info[1].isEmpty()) {
-                        // Found: a missing photo or a name that fell back to the username keeps what was saved for the same account.
+                        // A failed profile fetch falls back to the username; keep the saved name/photo for that account,
+                        // but let a successful fetch update or clear them, and give a newly discovered username fresh retries.
                         boolean same = info[1].equals(profileUsername);
-                        String image = info[2].isEmpty() && same ? profileImage : info[2];
-                        String name = same && !profileName.isEmpty() && info[0].equals(info[1]) ? profileName : info[0];
+                        if (!same) profileAttempts = 0;
+                        String image = fallback && info[2].isEmpty() && same ? profileImage : info[2];
+                        String name = fallback && same && !profileName.isEmpty() && info[0].equals(info[1]) ? profileName : info[0];
                         profileName = name; profileUsername = info[1]; profileImage = image; profileUri = info[3];
                         prefs.edit().putString("profile_name", profileName).putString("profile_user", profileUsername)
                             .putString("profile_image", profileImage).putString("profile_uri", profileUri).apply();
                     }
                     // A failed lookup never blanks the account saved from last time.
-                    profileError = info[4];
+                    profileError = !fallback && info[1].isEmpty() ? "Profile information is not available yet" : info[4];
                     if (!profileError.isEmpty() && profileUsername.isEmpty()) profileName = "";
                     for (Art photo : avatars) {
                         photo.letter = initial(profileName.isEmpty() ? profileUsername.isEmpty() ? "You" : profileUsername : profileName);
@@ -1374,11 +1383,16 @@ public final class SpatchUi extends FrameLayout {
                     // Keep trying with a growing pause: 2, 4, 8, 16, then every 30 seconds (twelve times if the
                     // saved account is already showing).
                     profileAttempts++;
-                    postDelayed(profileRetry, Math.min(30_000, 2_000L << Math.min(profileAttempts - 1, 4)));
+                    if (isAttachedToWindow() && getWindowVisibility() == VISIBLE) {
+                        postDelayed(profileRetry, Math.min(30_000, 2_000L << Math.min(profileAttempts - 1, 4)));
+                    }
                 } else if (profileError.isEmpty()) profileAttempts = 0;
                 if (profileAnnounce) {
                     profileAnnounce = false;
-                    Toast.makeText(activity, profileUsername.isEmpty() ? "Couldn’t read your account yet. Spatch will keep trying." : "Signed in as @" + profileUsername, Toast.LENGTH_SHORT).show();
+                    String msg = profileUsername.isEmpty()
+                        ? "Couldn’t read your account yet. Spatch will keep trying."
+                        : profileError.isEmpty() ? "Signed in as @" + profileUsername : "Couldn’t refresh profile: " + profileError;
+                    Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show();
                 }
                 if (tab == PROFILE && playlist == null) showPage();
             });

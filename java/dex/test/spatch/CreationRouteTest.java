@@ -63,6 +63,7 @@ public final class CreationRouteTest {
         check(!SpatchApp.isAuthClassName("com.spotify.music.SpotifyMainActivity"), "main activity is not auth");
         check(!SpatchApp.isAuthClassName("android.app.Activity"), "generic activity is not auth");
         check(!CoreBridge.openLogin(null).isEmpty(), "openLogin(null) returns actionable message");
+        check(!CoreBridge.openSpotifyLogin(null).isEmpty(), "openSpotifyLogin(null) returns actionable message");
         check(!CoreBridge.openNativeSpotify(null).isEmpty(), "openNativeSpotify(null) returns actionable message");
         check(CoreBridge.LOGIN_TASK_FLAGS == 268468224, "login task flags match Spotify iwe0.b (NEW_TASK|CLEAR_TASK)");
 
