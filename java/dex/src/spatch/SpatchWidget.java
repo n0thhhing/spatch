@@ -244,13 +244,9 @@ public class SpatchWidget extends AppWidgetProvider {
      * strong blur), under a scrim in the cover's deep colour so the text stays readable.
      */
     private static Bitmap backdrop(Bitmap art) {
-        Bitmap tiny = Bitmap.createScaledBitmap(Bitmap.createScaledBitmap(art, 48, 48, true), 10, 10, true);
-        Bitmap soft = Bitmap.createScaledBitmap(Bitmap.createScaledBitmap(tiny, 40, 40, true), 200, 100, true);
-        Bitmap out = Bitmap.createBitmap(200, 100, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(out);
-        canvas.drawBitmap(soft, 0, 0, null);
-        soft.recycle();
-        canvas.drawColor((background & 0x00FFFFFF) | 0xB8000000);
+        // A real blur on a small square (the view fills it without stretching), under a scrim in the cover's deep colour.
+        Bitmap out = Blur.soft(art, 96, 96, 7);
+        new Canvas(out).drawColor((background & 0x00FFFFFF) | 0xA8000000);
         return out;
     }
 

@@ -20,6 +20,7 @@ final class CoreBridge {
     public static final class Lyrics {
         public final String[] words = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "That is all this sample has" };
         public final long[] starts = { 2000, 6000, 10000, 14000, 18000, 22000 };
+        public final long[] ends = { 5500, 9500, 13500, 17500, 21500, 26000 };
     }
 
     static Lyrics lyrics(String id) { return new Lyrics(); }

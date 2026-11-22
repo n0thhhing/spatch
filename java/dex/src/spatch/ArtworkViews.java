@@ -15,7 +15,8 @@ import android.view.View;
 
 /** Shared cover rendering and player artwork effects. */
 final class ArtworkViews {
-    private static final int[][] BLUR_SIZES = {{10, 10}, {4, 4}, {2, 16}};
+    /** Width, height and blur radius of each backdrop style: soft and deep are smooth blurs, streaks a stretched sliver. */
+    private static final int[][] BLUR_SIZES = {{56, 56, 4}, {40, 40, 6}, {2, 16, 0}};
     private static final int[] MOTE_COUNTS = {12, 30, 64};
     private static final int[] MOTE_SHAPES = {Confetti.DOT, Confetti.STAR, Confetti.HEART};
     private final SpatchUi ui;
@@ -25,7 +26,7 @@ final class ArtworkViews {
     static void cacheBlurs(String key, Bitmap cover) {
         for (int i = 0; i < BLUR_SIZES.length; i++) {
             int[] size = BLUR_SIZES[i];
-            SpatchUi.IMAGES.put(key + "/blur/" + i, Bitmap.createScaledBitmap(cover, size[0], size[1], true));
+            SpatchUi.IMAGES.put(key + "/blur/" + i, size[2] == 0 ? Bitmap.createScaledBitmap(cover, size[0], size[1], true) : Blur.soft(cover, size[0], size[1], size[2]));
         }
     }
 
@@ -218,7 +219,13 @@ final class ArtworkViews {
 
         private void wash(Canvas c, Bitmap blur, float w, float h, int alpha) {
             BitmapShader s = washShaderFor(blur);
-            m.setScale(w / blur.getWidth(), h / blur.getHeight());
+            if (blur.getWidth() < 8) m.setScale(w / blur.getWidth(), h / blur.getHeight()); // the streaks sliver is meant to stretch
+            else {
+                // Filled without stretching (a square cover stretched to a tall screen smears into bars), centred.
+                float k = Math.max(w / blur.getWidth(), h / blur.getHeight());
+                m.setScale(k, k);
+                m.postTranslate((w - blur.getWidth() * k) / 2, (h - blur.getHeight() * k) / 2);
+            }
             s.setLocalMatrix(m);
             paint.setShader(s);
             paint.setAlpha(alpha);

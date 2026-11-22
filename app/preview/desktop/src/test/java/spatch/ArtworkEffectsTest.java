@@ -97,7 +97,7 @@ public class ArtworkEffectsTest {
         ArtworkViews.Backdrop backdrop = ui.artwork.new Backdrop();
         canvas(backdrop);
         Bitmap[] rendered = new Bitmap[3];
-        int[][] sizes = {{10, 10}, {4, 4}, {2, 16}};
+        int[][] sizes = {{56, 56}, {40, 40}, {2, 16}};
         for (int style = 0; style < rendered.length; style++) {
             ui.prefs.edit().putInt("backdrop_blur", style).apply();
             rendered[style] = Bitmap.createBitmap(240, 400, Bitmap.Config.ARGB_8888);

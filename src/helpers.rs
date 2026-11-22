@@ -6,6 +6,7 @@ pub const HELPERS: &[(&str, &str)] = &[
     ("ArtworkViews", include_str!("../java/dex/src/spatch/ArtworkViews.java")),
     ("Audio", include_str!("../java/dex/src/spatch/Audio.java")),
     ("AutoEqCatalog", include_str!("../java/dex/src/spatch/AutoEqCatalog.java")),
+    ("Blur", include_str!("../java/dex/src/spatch/Blur.java")),
     ("Confetti", include_str!("../java/dex/src/spatch/Confetti.java")),
     ("CoreBridge", include_str!("../java/dex/src/spatch/CoreBridge.java")),
     ("CreationSheet", include_str!("../java/dex/src/spatch/CreationSheet.java")),
