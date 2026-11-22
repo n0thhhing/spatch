@@ -118,11 +118,43 @@ public class SpatchWidget extends AppWidgetProvider {
             slotArtist[shown] = title.isEmpty() ? "Nothing playing" : artist;
             slotArt[shown] = cover == null ? placeholder() : square(cover);
             // One RemoteViews per layout, pushed to every instance of it at once instead of redrawn per widget id.
-            if (big.length > 0) manager.updateAppWidget(big, views(context, "spatch_widget", flip));
-            if (small.length > 0) manager.updateAppWidget(small, views(context, "spatch_widget_small", flip));
+            push(context, manager, big, "spatch_widget", flip, 14, 16, 152);
+            push(context, manager, small, "spatch_widget_small", flip, 8, 12, 128);
         } catch (RuntimeException e) {
             android.util.Log.e("SpatchWidget", "refresh failed", e);
         }
+    }
+
+    /**
+     * The cover is always a square: its side follows the widget's actual size (the launcher reports it per widget), leaving
+     * room for the controls. One RemoteViews still goes to every widget of the same layout and size.
+     */
+    private static void push(Context context, AppWidgetManager manager, int[] ids, String layout, boolean flip, int pad, int gap, int controls) {
+        // Key: negative = the tall layout at that cover side; positive or 0 = the normal layout.
+        java.util.Map<Integer, java.util.List<Integer>> bySize = new java.util.TreeMap<>();
+        for (int id : ids) bySize.computeIfAbsent(artSize(context, manager, id, pad, gap, controls, layout.equals("spatch_widget")), k -> new java.util.ArrayList<>()).add(id);
+        for (java.util.Map.Entry<Integer, java.util.List<Integer>> group : bySize.entrySet()) {
+            int[] members = new int[group.getValue().size()];
+            for (int i = 0; i < members.length; i++) members[i] = group.getValue().get(i);
+            int key = group.getKey();
+            manager.updateAppWidget(members, views(context, key < 0 ? "spatch_widget_tall" : layout, flip, Math.abs(key)));
+        }
+    }
+
+    /** The cover's side in dp for one widget (negative for the tall layout), or 0 when the launcher hasn't said (the layout's own sizes then apply). */
+    private static int artSize(Context context, AppWidgetManager manager, int id, int pad, int gap, int controls, boolean mayBeTall) {
+        if (Build.VERSION.SDK_INT < 31) return 0;
+        android.os.Bundle o = manager.getAppWidgetOptions(id);
+        boolean landscape = context.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        int h = o.getInt(landscape ? AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT : AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0);
+        int w = o.getInt(landscape ? AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH : AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
+        if (h <= 0) return 0;
+        if (mayBeTall && w > 0 && h >= w * .8f) { // tall: the cover on top, room kept for the title and controls below
+            return -Math.max(56, Math.min(Math.min(w - 32, h - 32 - 14 - 56 - 60 - 12), 220));
+        }
+        int side = h - 2 * pad - 8; // the reported height includes the launcher's own inset
+        if (w > 0) side = Math.min(side, w - 2 * pad - gap - controls);
+        return Math.max(48, Math.min(side, 160));
     }
 
     private static Bitmap fetch(String url) {
@@ -282,11 +314,17 @@ public class SpatchWidget extends AppWidgetProvider {
     static boolean playing() { return playing; }
     static String title() { return title; }
 
-    private static RemoteViews views(Context context, String layout, boolean flip) {
+    private static RemoteViews views(Context context, String layout, boolean flip, int artSide) {
         RemoteViews v = new RemoteViews(context.getPackageName(), id(context, layout, "layout"));
         int root = android.R.id.background;
         boolean modern = Build.VERSION.SDK_INT >= 31;
         if (modern) v.setColorStateList(root, "setBackgroundTintList", ColorStateList.valueOf(background));
+        if (modern && artSide > 0) {
+            for (String name : new String[] { "artwork", "thumbnail" }) {
+                v.setViewLayoutWidth(id(context, name, "id"), artSide, android.util.TypedValue.COMPLEX_UNIT_DIP);
+                v.setViewLayoutHeight(id(context, name, "id"), artSide, android.util.TypedValue.COMPLEX_UNIT_DIP);
+            }
+        }
         String[][] slots = { { "title", "subtitle", "artwork" }, { "title2", "subtitle2", "thumbnail" } };
         for (int k = 0; k < 2; k++) {
             if (!flip && k != shown) continue; // the hidden slot isn't on screen: no point resending its text and cover

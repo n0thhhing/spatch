@@ -237,6 +237,7 @@ const WIDGET_RES: &[(&str, &str, &str)] = &[
     res!("drawable", "spatch_widget_tri_prev_in"),
     res!("layout", "spatch_widget"),
     res!("layout", "spatch_widget_small"),
+    res!("layout", "spatch_widget_tall"),
     res!("xml", "spatch_widget_info"),
     res!("xml", "spatch_widget_small_info"),
 ];

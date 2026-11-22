@@ -228,6 +228,7 @@ public final class SpatchUi extends FrameLayout {
     /** The optional one-line lyric under the player's cover, and the lyrics it follows. */
     private LinearLayout pLyric;
     private String lyricsUri = "", lyricKey = "";
+    private boolean lyricShown;
     private CoreBridge.Lyrics lyricsData;
     private Icon pLike, pShuffle, pRepeat, pSparkle;
     /** Whether the playing playlist is in Smart Shuffle, as Spotify keeps it (read when the context changes). */
@@ -4327,6 +4328,29 @@ public final class SpatchUi extends FrameLayout {
         nextKey = "";
     }
 
+    /** Opens or closes the player's lyric block: the cover area gives up its height smoothly and takes it back after. */
+    private void lyricBlock(LinearLayout box, boolean open) {
+        box.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1, getWidth() - dp(36)), View.MeasureSpec.AT_MOST), View.MeasureSpec.UNSPECIFIED);
+        int full = box.getMeasuredHeight();
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) box.getLayoutParams();
+        int from = params.height < 0 ? full : params.height, to = open ? full : 0;
+        if (!motion()) {
+            params.height = open ? -2 : 0;
+            box.setLayoutParams(params);
+            box.setAlpha(open ? 1f : 0f);
+            return;
+        }
+        android.animation.ValueAnimator grow = android.animation.ValueAnimator.ofInt(from, to);
+        grow.setDuration(420);
+        grow.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
+        grow.addUpdateListener(a -> { params.height = (int) a.getAnimatedValue(); box.setLayoutParams(params); });
+        grow.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator done) { if (open) { params.height = -2; box.setLayoutParams(params); } }
+        });
+        grow.start();
+        box.animate().alpha(open ? 1f : 0f).setDuration(open ? 420 : 260).start();
+    }
+
     /** Keeps the player's three lyric lines on the line being sung: fetches the song's lyrics once, then follows the playhead. */
     private void playerLyrics(LinearLayout box) {
         if (player == null || pLyric != box) return;
@@ -4346,16 +4370,23 @@ public final class SpatchUi extends FrameLayout {
         }
         String[] want = { "", "", "" };
         CoreBridge.Lyrics l = lyricsData;
+        boolean visible = false;
         if (l != null && l.words.length > 0 && l.starts[l.starts.length - 1] > 0) {
-            long now = playhead();
+            long now = playhead(), last = l.starts.length - 1;
+            long over = (l.ends[(int) last] > l.starts[(int) last] ? l.ends[(int) last] : l.starts[(int) last] + 6000) + 1500;
+            visible = now >= l.starts[0] - 1500 && now <= over; // the block lives only while there is something to sing
             int current = -1;
             for (int i = 0; i < l.starts.length; i++) if (l.starts[i] > 0 && l.starts[i] <= now) current = i;
             if (current > 0) want[0] = l.words[current - 1];
             if (current >= 0) want[1] = l.words[current];
             if (current + 1 < l.words.length) want[2] = l.words[current + 1];
         }
+        if (visible != lyricShown) {
+            lyricShown = visible;
+            lyricBlock(box, visible);
+        }
         String key = want[0] + '\n' + want[1] + '\n' + want[2];
-        if (!key.equals(lyricKey)) {
+        if (visible && !key.equals(lyricKey)) {
             lyricKey = key;
             for (int i = 0; i < 3; i++) rows[i].setText(want[i]);
             float[] from = { 1f, .35f, 0f }, to = { .35f, 1f, .35f };
@@ -4445,7 +4476,8 @@ public final class SpatchUi extends FrameLayout {
             TextView[] rows = new TextView[3];
             for (int k = 0; k < 3; k++) {
                 final boolean sung = k == 1;
-                rows[k] = text("", sung ? 19 : 15, () -> sung ? accent : ink, true);
+                rows[k] = text("", sung ? 19 : 15, () -> sung ? blend(ink, accent, .22f) : ink, true); // a soft cover-tinted white
+                if (sung) rows[k].setShadowLayer(dp(10), 0, 0, (accent & 0x00ffffff) | 0x66000000);
                 rows[k].setGravity(Gravity.CENTER);
                 rows[k].setSingleLine(true);
                 rows[k].setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -4455,10 +4487,12 @@ public final class SpatchUi extends FrameLayout {
             box.setTag(rows);
             box.setClipChildren(true);
             tappable(box, "Open lyrics", this::openLyrics);
-            LinearLayout.LayoutParams lineParams = lp(-1, -2);
+            LinearLayout.LayoutParams lineParams = lp(-1, 0); // collapsed until the song's lyrics are about to start
             lineParams.topMargin = dp(6);
             lineParams.bottomMargin = dp(8);
+            box.setAlpha(0f);
             col.addView(box, lineParams);
+            lyricShown = false;
             lyricsUri = "";
             lyricKey = "";
             lyricsData = null;

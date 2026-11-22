@@ -269,11 +269,11 @@ public final class CoreBridge implements Transport {
         }
     }
 
-    /** One song's lyrics: the text of each line and when it starts (ms; all 0 when the lyrics aren't time-synced). */
+    /** One song's lyrics: the text of each line and when it starts and ends (ms; all 0 when the lyrics aren't time-synced). */
     public static final class Lyrics {
         public final String[] words;
-        public final long[] starts;
-        Lyrics(int n) { words = new String[n]; starts = new long[n]; }
+        public final long[] starts, ends;
+        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; }
     }
 
     /**
@@ -292,6 +292,7 @@ public final class CoreBridge implements Transport {
         for (int i = 0; i < lines.size(); i++) {
             out.words[i] = (String) field(lines.get(i), "words_");
             out.starts[i] = (Long) field(lines.get(i), "startTimeMs_");
+            out.ends[i] = (Long) field(lines.get(i), "endTimeMs_");
         }
         return out;
     }
