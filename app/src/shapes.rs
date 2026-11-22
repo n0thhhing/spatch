@@ -71,6 +71,10 @@ pub fn geometry(kind: &str) -> Vec<f32> {
         // Scallops for the play button: five lobes at rest, nine while playing.
         "button5" => polygon(120, |a| 0.91 + 0.055 * (a * 5.0).cos()),
         "button9" => polygon(120, |a| 0.91 + 0.055 * (a * 9.0).cos()),
+        // Rounder lobes for empty-state badges: four (queue), six (lyrics), eight (search).
+        "badge4" => polygon(120, |a| 0.86 + 0.1 * (a * 4.0).cos()),
+        "badge6" => polygon(120, |a| 0.88 + 0.08 * (a * 6.0).cos()),
+        "badge8" => polygon(120, |a| 0.9 + 0.06 * (a * 8.0).cos()),
         "play" => fill(&[(7., 4.), (20., 12.), (7., 20.)]),
         "pause" => [fill(&[(6., 5.), (10., 5.), (10., 19.), (6., 19.)]), fill(&[(14., 5.), (18., 5.), (18., 19.), (14., 19.)])].concat(),
         "previous" => [fill(&[(19., 4.), (7., 12.), (19., 20.)]), stroke(&[(4., 5.), (4., 19.)])].concat(),

@@ -1928,12 +1928,8 @@ public final class SpatchUi extends FrameLayout {
                 box.addView(text("Searching…", 15, () -> inkDim, false), fill(-2));
                 return;
             }
-            TextView none = text("Nothing found for “" + q + "”", 16, () -> ink, true);
-            none.setPadding(dp(2), dp(14), dp(2), dp(4));
-            box.addView(none, fill(-2));
-            TextView why = text(catalogSearch ? "Try another title or artist." : "Searches your library and Spotify’s cached music on this device.", 13, () -> inkDim, false);
-            why.setPadding(dp(2), 0, dp(2), 0);
-            box.addView(why, fill(-2));
+            box.addView(emptyState("search", "badge8", "Nothing found for “" + q + "”",
+                catalogSearch ? "Try another title or artist." : "Searches your library and Spotify’s cached music on this device."), fill(-2));
             return;
         }
         String section = "";
@@ -4996,10 +4992,14 @@ public final class SpatchUi extends FrameLayout {
                 else android.util.Log.w("SpatchUi", "lyrics failed", failed);
             }
             CoreBridge.Lyrics found = got;
-            String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now";
+            String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now", hint = missing ? null : "Try again in a moment";
             post(() -> {
                 if (!alive.getAsBoolean()) return;
-                if (found == null || found.words.length == 0) { status.setText(empty); return; }
+                if (found == null || found.words.length == 0) {
+                    lines.removeView(status);
+                    lines.addView(emptyState("note", "badge6", empty, hint), fill(-2));
+                    return;
+                }
                 lines.removeView(status);
                 boolean synced = found.starts[found.starts.length - 1] > 0;
                 // Synced lyrics are read one line at a time: the sung line sits in the middle, so room above and below it.
@@ -5144,7 +5144,7 @@ public final class SpatchUi extends FrameLayout {
                 line.animate().alpha(1f).translationY(0).setStartDelay(60L + i * 30L).setDuration(380).setInterpolator(new android.view.animation.PathInterpolator(.38f, 1.21f, .22f, 1f)).start();
             }
         }
-        if (upcoming.isEmpty()) tracks.addView(text("Nothing queued after this", 16, () -> inkDim, false), fill(-2));
+        if (upcoming.isEmpty()) tracks.addView(emptyState("queue", "badge4", "Nothing queued after this", "Add songs from any list with Add to queue"), fill(-2));
         queueScroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
         queueFresh = false;
         body.addView(queueScroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -5524,14 +5524,58 @@ public final class SpatchUi extends FrameLayout {
         canvas.restore();
     }
 
+    /** An empty state: `symbol` on a lobed tonal badge (`shape` is a badge geometry) that springs in, over a title and a hint. */
+    View emptyState(String symbol, String shape, String title, String hint) {
+        LinearLayout box = column();
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        box.setPadding(dp(24), dp(28), dp(24), dp(20));
+        float[] outline = nativeGeometry(shape);
+        View badge = new View(activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Path lobes = new Path(), glyph = new Path();
+            @Override protected void onDraw(Canvas c) {
+                float r = Math.min(getWidth(), getHeight()) / 2f;
+                lobes.rewind();
+                for (int i = 0; i + 1 < outline.length; i += 2) {
+                    if (i == 0) lobes.moveTo(getWidth() / 2f + outline[i] * r, getHeight() / 2f + outline[i + 1] * r);
+                    else lobes.lineTo(getWidth() / 2f + outline[i] * r, getHeight() / 2f + outline[i + 1] * r);
+                }
+                lobes.close();
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(blend(surfHi, accent, .22f));
+                c.drawPath(lobes, paint);
+                c.save();
+                c.translate(getWidth() / 2f - r * .45f, getHeight() / 2f - r * .45f);
+                drawGlyph(c, paint, glyph, symbol, accent, r * .9f);
+                c.restore();
+            }
+        };
+        badge.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        box.addView(badge, lp(dp(80), dp(80)));
+        if (motion()) {
+            badge.setScaleX(.4f); badge.setScaleY(.4f); badge.setRotation(-60f);
+            badge.animate().scaleX(1f).scaleY(1f).rotation(0f).setDuration(520).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start();
+        }
+        TextView head = text(title, 17, () -> ink, true);
+        head.setGravity(Gravity.CENTER);
+        head.setPadding(0, dp(14), 0, dp(4));
+        box.addView(head, fill(-2));
+        if (hint != null) {
+            TextView sub = text(hint, 13, () -> inkDim, false);
+            sub.setGravity(Gravity.CENTER);
+            box.addView(sub, fill(-2));
+        }
+        return box;
+    }
+
     /** The scallop play button: five lobes at rest, nine while playing, turning slowly. */
     private final class PlayButton extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path scallop = new Path(), glyph = new Path();
         private final float[] five = nativeGeometry("button5"), nine = nativeGeometry("button9");
-        private float shape, angle;
+        private float shape, angle, pop = 1f;
         private boolean on, started;
-        private android.animation.ValueAnimator morph;
+        private android.animation.ValueAnimator morph, popping;
 
         PlayButton() { super(activity); playButtons.add(this); tappable(this, "Play or pause", SpatchUi.this::togglePlay); }
 
@@ -5551,6 +5595,13 @@ public final class SpatchUi extends FrameLayout {
             morph.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
             morph.addUpdateListener(a -> { shape = (float) a.getAnimatedValue(); invalidate(); });
             morph.start();
+            // The new glyph pops in from small with an overshoot.
+            if (popping != null) popping.cancel();
+            popping = android.animation.ValueAnimator.ofFloat(.55f, 1f);
+            popping.setDuration(420);
+            popping.setInterpolator(new android.view.animation.OvershootInterpolator(2.6f));
+            popping.addUpdateListener(a -> { pop = (float) a.getAnimatedValue(); invalidate(); });
+            popping.start();
         }
 
         @Override protected void onDraw(Canvas c) {
@@ -5579,6 +5630,7 @@ public final class SpatchUi extends FrameLayout {
             }
             c.restore();
             c.save();
+            c.scale(pop, pop, getWidth() / 2f, getHeight() / 2f);
             c.translate(getWidth() / 2f - r * .5f, getHeight() / 2f - r * .5f);
             drawGlyph(c, paint, glyph, on ? "pause" : "play", onAccent, r);
             c.restore();
