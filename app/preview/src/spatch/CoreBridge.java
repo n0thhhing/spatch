@@ -16,11 +16,14 @@ final class CoreBridge {
     // The preview nativeCatalog adapter reads this query and uses the existing Rust demo data.
     static byte[] search(String query, String pageToken) { return query.getBytes(java.nio.charset.StandardCharsets.UTF_8); }
 
-    /** Demo lyrics for the preview, with times so the synced view can be tried offline. */
+    /** Demo lyrics for the preview, spread over a whole song with times so the synced view can be tried offline. */
     public static final class Lyrics {
-        public final String[] words = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "That is all this sample has" };
-        public final long[] starts = { 2000, 6000, 10000, 14000, 18000, 22000 };
-        public final long[] ends = { 5500, 9500, 13500, 17500, 21500, 26000 };
+        private static final String[] SAMPLE = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "Dim lines melt into the edges", "The glow follows the cover", "Take it for a spin" };
+        public final String[] words = new String[40];
+        public final long[] starts = new long[40], ends = new long[40];
+        Lyrics() {
+            for (int i = 0; i < words.length; i++) { words[i] = SAMPLE[i % SAMPLE.length]; starts[i] = 3000L + i * 6000L; ends[i] = starts[i] + 5500L; }
+        }
     }
 
     static Lyrics lyrics(String id) { return new Lyrics(); }

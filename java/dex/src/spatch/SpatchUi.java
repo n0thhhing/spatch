@@ -228,6 +228,9 @@ public final class SpatchUi extends FrameLayout {
     /** The optional one-line lyric under the player's cover, and the lyrics it follows. */
     private LinearLayout pLyric;
     private View moreButton;
+    private int originalOrientation = -2;
+    /** In landscape the lyrics live beside the cover, in this host. */
+    private FrameLayout sideHost;
     private String lyricsUri = "", lyricKey = "";
     private boolean lyricShown;
     private CoreBridge.Lyrics lyricsData;
@@ -242,6 +245,8 @@ public final class SpatchUi extends FrameLayout {
         super(activity);
         this.activity = activity;
         SpatchWidget.uiStarted(activity);
+        originalOrientation = activity.getRequestedOrientation();
+        post(this::applyRotation);
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
         OfficialPlayback.init(activity);
@@ -840,6 +845,7 @@ public final class SpatchUi extends FrameLayout {
         }
         uri = s[1]; title = s[2]; artist = s[3]; album = s[4]; image = s[5];
         if (changed && lyricsPanel != null) { closeLyrics(); post(this::openLyrics); } // a new song: show its lyrics, not the last one's
+        if (changed && sideHost != null) post(this::loadSideLyrics);
         playing = Boolean.parseBoolean(s[6]);
         if (backdrop != null) backdrop.drifting(playing);
         if (pending != null && (changed || pending == playing)) pending = null;
@@ -3615,6 +3621,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
             toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
+            toggle(player, "Allow rotation", "Experimental: a landscape player with the lyrics beside the cover", "rotate", false, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
             toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
@@ -4059,6 +4066,7 @@ public final class SpatchUi extends FrameLayout {
             if (key.equals("audio") && sw.on && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
             else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
+            else if (key.equals("rotate")) applyRotation();
             else if (rebuild) { int y = pageScroll != null ? pageScroll.getScrollY() : 0; build(); keepScroll(pageScroll, y); }
         });
         box.addView(line, fill(-2));
@@ -4359,6 +4367,7 @@ public final class SpatchUi extends FrameLayout {
         pLike = pShuffle = pRepeat = pSparkle = null;
         pPlay = null;
         pLyric = null;
+        sideHost = null;
         nextKey = "";
     }
 
@@ -4447,8 +4456,21 @@ public final class SpatchUi extends FrameLayout {
         motes = pref("motes", true) ? artwork.new Motes() : null;
         if (motes != null) player.addView(motes, new LayoutParams(-1, -1));
         LinearLayout col = column();
-        col.setPadding(dp(18) + inset.left, dp(6) + inset.top, dp(18) + inset.right, dp(14) + inset.bottom);
-        player.addView(col, new LayoutParams(-1, -1));
+        boolean land = activity.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        LinearLayout sideColumn = null;
+        if (land) {
+            // Cover, title and controls on the left; the lyrics, with the top buttons above them, take the right.
+            col.setPadding(dp(18) + inset.left, dp(6) + inset.top, dp(10), dp(8) + inset.bottom);
+            LinearLayout split = row();
+            split.addView(col, new LinearLayout.LayoutParams(0, -1, 1f));
+            sideColumn = column();
+            sideColumn.setPadding(dp(10), dp(6) + inset.top, dp(18) + inset.right, dp(8) + inset.bottom);
+            split.addView(sideColumn, new LinearLayout.LayoutParams(0, -1, 1.15f));
+            player.addView(split, new LayoutParams(-1, -1));
+        } else {
+            col.setPadding(dp(18) + inset.left, dp(6) + inset.top, dp(18) + inset.right, dp(14) + inset.bottom);
+            player.addView(col, new LayoutParams(-1, -1));
+        }
 
         LinearLayout top = row();
         top.addView(iconButton(icon("down", () -> ink), "Close player", this::back), lp(dp(48), dp(48)));
@@ -4497,19 +4519,19 @@ public final class SpatchUi extends FrameLayout {
         // The bar keeps only what is used every song; the rest lives in the more menu unless pinned back in settings.
         if (pref("bar_timer", false)) top.addView(timerBox, lp(dp(48), dp(48)));
         if (pref("bar_devices", false)) top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
-        if (pref("bar_lyrics", true)) top.addView(iconButton(icon("note", () -> ink), "Lyrics", this::openLyrics), lp(dp(48), dp(48)));
+        if (pref("bar_lyrics", true) && !land) top.addView(iconButton(icon("note", () -> ink), "Lyrics", this::openLyrics), lp(dp(48), dp(48)));
         if (pref("bar_queue", true)) top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
         View[] more = new View[1];
         more[0] = iconButton(icon("more", () -> sleepAt > SystemClock.uptimeMillis() ? accent : ink), "More", () -> openPlayerMenu(more[0]));
         moreButton = more[0];
         top.addView(more[0], lp(dp(48), dp(48)));
-        col.addView(top, fill(-2));
+        (land ? sideColumn : col).addView(top, fill(-2));
 
         disc = artwork.new Disc();
         col.addView(disc, new LinearLayout.LayoutParams(-1, 0, 1));
         gestures(disc);
         pLyric = null;
-        if (pref("player_lyrics", false)) {
+        if (pref("player_lyrics", false) && !land) {
             // Three quiet lines (the one before, the sung one, the one after), always three lines tall so nothing
             // shifts when they fill in or empty; tap for all of it.
             LinearLayout box = pLyric = column();
@@ -4541,7 +4563,7 @@ public final class SpatchUi extends FrameLayout {
 
         LinearLayout titleRow = row();
         LinearLayout words = column();
-        pTitle = text("", 28, () -> ink, true);
+        pTitle = text("", land ? 22 : 28, () -> ink, true);
         marquee(pTitle);
         pTitle.setOnLongClickListener(v -> share());
         // The title opens the song's album, the artist line its artist, as in Spotify's player.
@@ -4571,7 +4593,7 @@ public final class SpatchUi extends FrameLayout {
         pQuality.setVisibility(INVISIBLE);
         LinearLayout.LayoutParams qp = lp(-2, -2);
         qp.topMargin = dp(6);
-        if (pref("player_quality", true)) words.addView(pQuality, qp);
+        if (!land && pref("player_quality", true)) words.addView(pQuality, qp);
         titleRow.addView(words, weight());
         pLike = new Icon("heart-outline", ink);
         colored(pLike, () -> {
@@ -4584,7 +4606,7 @@ public final class SpatchUi extends FrameLayout {
         col.addView(titleRow, fill(-2));
 
         wave = new Wave();
-        LinearLayout.LayoutParams wp = fill(dp(58));
+        LinearLayout.LayoutParams wp = fill(dp(land ? 56 : 58));
         wp.topMargin = dp(6);
         col.addView(wave, wp);
         LinearLayout controls = row();
@@ -4602,12 +4624,12 @@ public final class SpatchUi extends FrameLayout {
         sp.setMargins(0, dp(11), dp(9), 0);
         shuffleBox.addView(pSparkle, sp);
         boolean modes = pref("player_modes", true);
-        if (modes) controls.addView(shuffleBox, lp(dp(52), dp(52)));
-        controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", this::previousTrack), false), false), lp(dp(60), dp(60)));
+        if (modes) controls.addView(shuffleBox, lp(dp(land ? 44 : 52), dp(land ? 44 : 52)));
+        controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", this::previousTrack), false), false), lp(dp(land ? 48 : 60), dp(land ? 48 : 60)));
         pPlay = new PlayButton();
-        controls.addView(pPlay, lp(dp(86), dp(86)));
-        controls.addView(skip(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), true), lp(dp(60), dp(60)));
-        if (modes) controls.addView(iconButton(pRepeat, "Repeat", this::cycleRepeat), lp(dp(52), dp(52)));
+        controls.addView(pPlay, lp(dp(land ? 66 : 86), dp(land ? 66 : 86)));
+        controls.addView(skip(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), true), lp(dp(land ? 48 : 60), dp(land ? 48 : 60)));
+        if (modes) controls.addView(iconButton(pRepeat, "Repeat", this::cycleRepeat), lp(dp(land ? 44 : 52), dp(land ? 44 : 52)));
         col.addView(controls, fill(-2));
 
         nextPill = row();
@@ -4615,8 +4637,23 @@ public final class SpatchUi extends FrameLayout {
         bgRound(nextPill, 24, () -> (ink & 0x00ffffff) | 0x1a000000);
         LinearLayout.LayoutParams np = fill(-2);
         np.topMargin = dp(12);
-        if (pref("player_next", true)) col.addView(nextPill, np);
+        if (!land && pref("player_next", true)) col.addView(nextPill, np);
         tappable(nextPill, "Up next", this::openQueue);
+        if (land) {
+            FrameLayout host = new FrameLayout(activity);
+            sideColumn.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
+            sideHost = host;
+            loadSideLyrics();
+        }
+    }
+
+    /** Landscape: the lyrics beside the cover, reloaded for each song. */
+    private void loadSideLyrics() {
+        FrameLayout host = sideHost;
+        if (host == null) return;
+        host.removeAllViews();
+        if (uri.isEmpty()) return;
+        fillLyrics(host, () -> sideHost == host && player != null, uri.substring(uri.lastIndexOf(':') + 1));
     }
 
     /** Tap skips; holding the button jumps ten seconds at a time until it is released. */
@@ -4818,6 +4855,15 @@ public final class SpatchUi extends FrameLayout {
         header.addView(iconButton(icon("back", () -> ink), "Close lyrics", this::closeLyrics), lp(dp(48), dp(48)));
         header.addView(text(name, 22, () -> ink, true), weight());
         body.addView(header, fill(dp(64)));
+        FrameLayout host = new FrameLayout(activity);
+        body.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
+        lyricsPanel.addView(body, new LayoutParams(-1, -1));
+        FrameLayout panel = lyricsPanel;
+        fillLyrics(host, () -> lyricsPanel == panel, track);
+    }
+
+    /** Fills `host` with the song's lyrics (loading, none, or the lines); `alive` says the host is still on screen. */
+    private void fillLyrics(FrameLayout host, java.util.function.BooleanSupplier alive, String track) {
         ScrollView scroll = new ScrollView(activity);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -4830,9 +4876,7 @@ public final class SpatchUi extends FrameLayout {
         TextView status = text("Loading lyrics…", 16, () -> inkDim, false);
         lines.addView(status, fill(-2));
         scroll.addView(lines, new ScrollView.LayoutParams(-1, -2));
-        body.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        lyricsPanel.addView(body, new LayoutParams(-1, -1));
-        FrameLayout panel = lyricsPanel;
+        host.addView(scroll, new LayoutParams(-1, -1));
         submit(ART, () -> {
             CoreBridge.Lyrics got = null;
             boolean missing = false;
@@ -4845,12 +4889,13 @@ public final class SpatchUi extends FrameLayout {
             CoreBridge.Lyrics found = got;
             String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now";
             post(() -> {
-                if (lyricsPanel != panel) return;
+                if (!alive.getAsBoolean()) return;
                 if (found == null || found.words.length == 0) { status.setText(empty); return; }
                 lines.removeView(status);
                 boolean synced = found.starts[found.starts.length - 1] > 0;
                 // Synced lyrics are read one line at a time: the sung line sits in the middle, so room above and below it.
-                if (synced) lines.setPadding(0, getHeight() * 2 / 5, 0, getHeight() / 2);
+                int room = host.getHeight() > 0 ? host.getHeight() : getHeight();
+                if (synced) lines.setPadding(0, room * 2 / 5, 0, room / 2);
                 TextView[] views = new TextView[found.words.length];
                 for (int i = 0; i < views.length; i++) {
                     String line = found.words[i];
@@ -4867,7 +4912,7 @@ public final class SpatchUi extends FrameLayout {
                         tappable(views[i], null, () -> { setPosition(start); command(SEEK, start, ""); }); // tap a line to jump there
                     }
                 }
-                if (synced) syncLyrics(panel, scroll, views, found.starts, new int[] { -2 }, touched);
+                if (synced) syncLyrics(alive, scroll, views, found.starts, new int[] { -2 }, touched);
             });
         });
     }
@@ -4875,10 +4920,10 @@ public final class SpatchUi extends FrameLayout {
     /**
      * Keeps the sung line large, bright and centred while the lyrics screen is open (the others dim and shrink); `shown` holds the current line, -2 before the first pass, which snaps instead of animating.
      */
-    private void syncLyrics(FrameLayout panel, ScrollView scroll, TextView[] views, long[] starts, int[] shown, long[] touched) {
-        if (lyricsPanel != panel) return;
+    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, long[] starts, int[] shown, long[] touched) {
+        if (!alive.getAsBoolean()) return;
         if (shown[0] == -2 && (scroll.getHeight() == 0 || views[0].getHeight() == 0)) { // not laid out yet: the centring needs real sizes
-            postDelayed(() -> syncLyrics(panel, scroll, views, starts, shown, touched), 30);
+            postDelayed(() -> syncLyrics(alive, scroll, views, starts, shown, touched), 30);
             return;
         }
         long now = playhead();
@@ -4916,7 +4961,13 @@ public final class SpatchUi extends FrameLayout {
                 }
             }
         }
-        postDelayed(() -> syncLyrics(panel, scroll, views, starts, shown, touched), 250);
+        postDelayed(() -> syncLyrics(alive, scroll, views, starts, shown, touched), 250);
+    }
+
+    /** Rotation is opt-in (the landscape player is new): off keeps whatever orientation the app had. */
+    private void applyRotation() {
+        if (originalOrientation == -2) return;
+        activity.setRequestedOrientation(pref("rotate", false) ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER : originalOrientation);
     }
 
     private void openQueue() {
