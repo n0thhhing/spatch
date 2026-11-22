@@ -3660,6 +3660,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
             toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
+            toggle(player, "Hide controls when idle", "While music plays, the top bar and controls fade after five seconds; touch to bring them back", "idle_hide", false, false);
             toggle(player, "Allow rotation", "Experimental: a landscape player with the lyrics beside the cover", "rotate", false, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
@@ -4554,8 +4555,39 @@ public final class SpatchUi extends FrameLayout {
         box.postDelayed(() -> playerLyrics(box), 250);
     }
 
+    // Optional idle chrome: the top bar, controls and Next-up pill fade out after a quiet spell while music plays.
+    private View[] idleViews = new View[0];
+    private boolean idleHidden, idleSwallow;
+    private final Runnable idleHide = new Runnable() {
+        @Override public void run() {
+            if (player == null || !pref("idle_hide", false)) return;
+            if (!playing || queuePanel != null) { player.postDelayed(this, 5000); return; }
+            idleHidden = true;
+            for (View v : idleViews) v.animate().alpha(0f).setDuration(motion() ? 400 : 0).start();
+        }
+    };
+
+    private void idleTouched() {
+        if (player == null) return;
+        player.removeCallbacks(idleHide);
+        if (!pref("idle_hide", false)) return;
+        if (idleHidden) {
+            idleHidden = false;
+            for (View v : idleViews) v.animate().alpha(1f).setDuration(motion() ? 200 : 0).start();
+        }
+        player.postDelayed(idleHide, 5000);
+    }
+
     private void buildPlayer() {
-        player = new FrameLayout(activity);
+        idleHidden = false;
+        player = new FrameLayout(activity) {
+            @Override public boolean dispatchTouchEvent(MotionEvent e) {
+                // A touch while the chrome is hidden only brings it back; it must not press an invisible button.
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { idleSwallow = idleHidden; idleTouched(); }
+                if (idleSwallow) { if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) idleSwallow = false; return true; }
+                return super.dispatchTouchEvent(e);
+            }
+        };
         player.setClickable(true);
         backdrop = artwork.new Backdrop();
         player.addView(backdrop, new LayoutParams(-1, -1));
@@ -4744,6 +4776,8 @@ public final class SpatchUi extends FrameLayout {
         np.topMargin = dp(12);
         if (!land && pref("player_next", true)) col.addView(nextPill, np);
         tappable(nextPill, "Up next", this::openQueue);
+        idleViews = new View[]{top, controls, nextPill};
+        idleTouched();
         if (land) {
             FrameLayout host = new FrameLayout(activity);
             sideColumn.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
