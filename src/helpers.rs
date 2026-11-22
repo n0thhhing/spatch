@@ -22,6 +22,7 @@ pub const HELPERS: &[(&str, &str)] = &[
     ("SpatchWidgetSmall", include_str!("../java/dex/src/spatch/SpatchWidgetSmall.java")),
     ("SpotifyWeb", include_str!("../java/dex/src/spatch/SpotifyWeb.java")),
     ("Subscriptions", include_str!("../java/dex/src/spatch/Subscriptions.java")),
+    ("WebAuth", include_str!("../java/dex/src/spatch/WebAuth.java")),
 ];
 
 /// Stand-ins used by javac, never packaged in the helper DEX.

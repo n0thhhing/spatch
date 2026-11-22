@@ -69,7 +69,8 @@ final class PublicTrackMetadata {
         return PackedStrings.packStrings(found.toArray(new String[0]));
     }
 
-    private static String anonymousToken() throws IOException, JSONException {
+    // synchronized: lookup() already serializes on this monitor, and WebAuth calls this directly.
+    static synchronized String anonymousToken() throws IOException, JSONException {
         if (token != null && expiresAt > System.currentTimeMillis() + 30_000) return token;
         JSONObject session = getJson(TOKEN_URL, null, null);
         String access = field(session, "accessToken");

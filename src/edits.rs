@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 20] = [
+pub const EDITS: [Edit; 21] = [
     Edit { file: "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali", anchor: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/hv31;\n", replacement: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/hv31;\n\n    invoke-static {p0, p5}, Lspatch/CoreBridge;->webgate(Ljava/lang/Object;Ljava/lang/Object;)V\n" },
     // The Rust app reaches Spotify's core through the same Esperanto transports Spotify's screens use:
     // every client's transport passes through CoreBridge.
@@ -88,5 +88,12 @@ pub const EDITS: [Edit; 20] = [
         file: "smali_classes9/p/kls0.smali",
         anchor: "    check-cast v1, Lp/enf1;\n\n    .line 114\n",
         replacement: "    check-cast v1, Lp/enf1;\n\n    .line 114\n\n    invoke-static {v1}, Lspatch/DevIntegrity;->tokenOutcome(Ljava/lang/Object;)V\n",
+    },
+    // The extended-metadata service 502s the app's own token but accepts a web-player one; this
+    // swaps the bearer on that one webgate path only, falling back to the app's token on any error.
+    Edit {
+        file: "smali/p/w7m1.smali",
+        anchor: ".method public static b(Lp/hy01;Lp/a631;Ljava/lang/String;Lp/fh31;)Lp/fh31;\n    .locals 2\n\n",
+        replacement: ".method public static b(Lp/hy01;Lp/a631;Ljava/lang/String;Lp/fh31;)Lp/fh31;\n    .locals 2\n\n    invoke-static {p1, p2}, Lspatch/WebAuth;->auth(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/String;\n\n    move-result-object p2\n\n",
     },
 ];
