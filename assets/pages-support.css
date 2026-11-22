@@ -1,0 +1,318 @@
+/*
+ * Secondary page components for install, manager, faq, changelog, and 404.
+ * Reuses custom properties defined in assets/style.css.
+ */
+
+/* Compact page header for secondary pages */
+.page-hero {
+  position: relative;
+  padding: 56px 0 40px;
+  overflow: hidden;
+}
+
+.page-hero::before {
+  content: "";
+  position: absolute;
+  width: 440px;
+  height: 440px;
+  top: -180px;
+  right: -100px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow-1), var(--glow-2) 55%, transparent 75%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.page-hero h1 {
+  font-size: clamp(2.1rem, 5vw, 3.4rem);
+  margin-bottom: 14px;
+}
+
+.page-hero .lead {
+  margin-bottom: 0;
+}
+
+.page-hero .btn-row {
+  margin-top: 26px;
+}
+
+/* Numbered install steps */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  counter-reset: step;
+  margin-top: 28px;
+}
+
+.step {
+  counter-increment: step;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  box-shadow: var(--shadow-sm);
+}
+
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.step-head::before {
+  content: counter(step);
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--on-accent-soft);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.step h3 {
+  margin: 0;
+}
+
+.step p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* Code blocks */
+.code-block {
+  margin: 24px 0 14px;
+  padding: 20px 22px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.code-block code {
+  display: block;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre;
+}
+
+/* Accordions (FAQ & Troubleshooting) */
+.accordion-list {
+  display: grid;
+  gap: 12px;
+  max-width: 820px;
+}
+
+.accordion {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s var(--ease);
+}
+
+.accordion[open] {
+  border-color: var(--border-strong);
+}
+
+.accordion summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  font-weight: 650;
+  font-size: 1.0625rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.accordion summary::after {
+  content: "+";
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  display: grid;
+  place-items: center;
+  background: var(--bg-subtle);
+  color: var(--accent);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.accordion[open] summary::after {
+  content: "\2212";
+  background: var(--accent-soft);
+  color: var(--on-accent-soft);
+}
+
+.accordion-body {
+  padding: 0 22px 20px;
+  color: var(--text-muted);
+}
+
+.accordion-body p {
+  margin: 0;
+}
+
+/* Zoomable device frames */
+.device-frame[data-zoom] {
+  cursor: zoom-in;
+  transition: transform 0.24s var(--ease), box-shadow 0.24s var(--ease);
+}
+
+.device-frame[data-zoom]:hover {
+  transform: translateY(-3px);
+}
+
+/* Changelog filters & entries */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.filter-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.filter-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--on-accent-soft);
+  border-color: transparent;
+}
+
+.release-list {
+  display: grid;
+  gap: 16px;
+  max-width: 820px;
+}
+
+.release-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  box-shadow: var(--shadow-sm);
+}
+
+.release-card[hidden] {
+  display: none;
+}
+
+.release-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.release-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  background: var(--accent-soft);
+  color: var(--on-accent-soft);
+}
+
+.release-tag--manager {
+  background: var(--bg-subtle);
+  color: var(--accent-3);
+  border: 1px solid var(--border);
+}
+
+.release-card h2,
+.release-card h3 {
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+}
+
+.release-card p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* 404 */
+.not-found {
+  text-align: center;
+  padding: 96px 0 112px;
+}
+
+.not-found .lead {
+  margin: 0 auto 28px;
+}
+
+.not-found .btn-row {
+  justify-content: center;
+}
+
+/* Dark theme adjustments for extra components */
+@media (prefers-color-scheme: dark) {
+  .code-block {
+    background: var(--bg-subtle);
+  }
+}
+
+/* Responsive */
+@media (max-width: 720px) {
+  .steps {
+    grid-template-columns: 1fr;
+  }
+
+  .page-hero {
+    padding: 36px 0 28px;
+  }
+
+  .not-found {
+    padding: 64px 0 80px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accordion,
+  .device-frame[data-zoom],
+  .filter-btn {
+    transition-duration: 0.001ms !important;
+  }
+}
