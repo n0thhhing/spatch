@@ -193,7 +193,15 @@ final class ArtworkViews {
                 drift.setRepeatMode(android.animation.ValueAnimator.REVERSE);
                 drift.setRepeatCount(android.animation.ValueAnimator.INFINITE);
                 drift.start();
+                if (!ui.playing) drift.pause();
             }
+        }
+
+        /** The drift is mood lighting for music that is playing; frozen while paused so an idle player stops redrawing. */
+        void drifting(boolean on) {
+            if (drift == null) return;
+            if (on && drift.isPaused()) drift.resume();
+            else if (!on && drift.isRunning()) drift.pause();
         }
 
         private Bitmap washBmpA, washBmpB;
