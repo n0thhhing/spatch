@@ -861,7 +861,8 @@ public final class SpatchUi extends FrameLayout {
         quality = s[14];
         speed = OfficialPlayback.enabled() ? 1f : nativePlaybackSpeed();
         boolean wasBuffering = buffering;
-        buffering = Boolean.parseBoolean(s[15]);
+        // The core can report buffering while paused and idle; a spinner there would turn forever for nothing, so it shows only while playing or after a play tap.
+        buffering = Boolean.parseBoolean(s[15]) && (playing || Boolean.TRUE.equals(pending));
         boolean skipChanged = canNext != Boolean.parseBoolean(s[16]) || canPrevious != Boolean.parseBoolean(s[17]);
         canNext = Boolean.parseBoolean(s[16]);
         canPrevious = Boolean.parseBoolean(s[17]);
