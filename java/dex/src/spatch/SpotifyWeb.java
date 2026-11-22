@@ -2,6 +2,7 @@ package spatch;
 
 import com.spotify.extendedmetadata.proto.BatchedExtensionResponse;
 import com.spotify.playlist4.proto.Playlist4ApiProto;
+import com.spotify.lyrics.serviceretrofit.proto.v3.LyricsWrapperResponse;
 import io.reactivex.rxjava3.core.Single;
 
 /**
@@ -19,4 +20,9 @@ public interface SpotifyWeb {
     @p.ngr0("extended-metadata/v0/extended-metadata")
     @p.gf60(value = { "Accept: application/protobuf", "Content-Type: application/protobuf" }, allowUnsafeNonAsciiValues = false)
     Single<BatchedExtensionResponse> extendedMetadata(@p.xmb com.google.protobuf.Empty request);
+
+    /** A song's (time-synced) lyrics: color-lyrics v3, as the lyrics screen asks. */
+    @p.x740("color-lyrics/v3/track/{trackId}")
+    @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)
+    Single<LyricsWrapperResponse> lyrics(@p.brs0(value = "trackId", encoded = false) String trackId);
 }

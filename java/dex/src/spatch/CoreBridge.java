@@ -269,6 +269,29 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    /**
+     * A song's lyrics, one string per line; `id` is the base62 track id. The app's proto classes have no readable
+     * getters (obfuscated), but their field names survive, so the lines are read from lyrics_.lines_[].words_.
+     */
+    public static String[] lyrics(String id) throws Exception {
+        Object reply;
+        try {
+            reply = web().lyrics(id).timeout(15, TimeUnit.SECONDS).blockingGet();
+        } catch (RuntimeException failed) {
+            throw new IllegalStateException(httpDetail(failed), failed);
+        }
+        java.util.List<?> lines = (java.util.List<?>) field(field(reply, "lyrics_"), "lines_");
+        String[] out = new String[lines.size()];
+        for (int i = 0; i < out.length; i++) out[i] = (String) field(lines.get(i), "words_");
+        return out;
+    }
+
+    private static Object field(Object owner, String name) throws ReflectiveOperationException {
+        java.lang.reflect.Field f = owner.getClass().getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(owner);
+    }
+
     public static byte[] publicTrackMetadata(byte[] uris) {
         return PublicTrackMetadata.lookup(uris);
     }

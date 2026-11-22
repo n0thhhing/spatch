@@ -668,6 +668,7 @@ public final class SpatchUi extends FrameLayout {
         }
         else if (accountMenu != null && accountMenu.isShowing()) accountMenu.dismiss();
         else if (sheetClose != null) sheetClose.run();
+        else if (lyricsPanel != null) closeLyrics();
         else if (queuePanel != null) closeQueue();
         else if (playerOpen) closePlayer();
         else if (!pageStack.isEmpty()) openPlaylist(pageStack.pop(), false);
@@ -4373,6 +4374,7 @@ public final class SpatchUi extends FrameLayout {
         top.addView(pSpeed, speedParams);
         top.addView(timerBox, lp(dp(48), dp(48)));
         top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
+        top.addView(iconButton(icon("note", () -> ink), "Lyrics", this::openLyrics), lp(dp(48), dp(48)));
         top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
         col.addView(top, fill(-2));
 
@@ -4633,6 +4635,55 @@ public final class SpatchUi extends FrameLayout {
         if (queuePanel != null) removeView(queuePanel);
         queuePanel = null;
         queueScroll = null;
+    }
+
+    private FrameLayout lyricsPanel;
+
+    private void closeLyrics() {
+        if (lyricsPanel != null) removeView(lyricsPanel);
+        lyricsPanel = null;
+    }
+
+    /** The song's lyrics from Spotify's lyrics service, as plain scrollable lines (no sync yet). */
+    private void openLyrics() {
+        if (lyricsPanel != null || uri.isEmpty()) return;
+        String track = uri.substring(uri.lastIndexOf(':') + 1);
+        String name = title;
+        lyricsPanel = new FrameLayout(activity);
+        lyricsPanel.setClickable(true);
+        lyricsPanel.setBackgroundColor(bg);
+        addView(lyricsPanel, new LayoutParams(-1, -1));
+        LinearLayout body = column();
+        body.setPadding(dp(18), inset.top, dp(18), inset.bottom);
+        LinearLayout header = row();
+        header.addView(iconButton(icon("back", () -> ink), "Close lyrics", this::closeLyrics), lp(dp(48), dp(48)));
+        header.addView(text(name, 22, () -> ink, true), weight());
+        body.addView(header, fill(dp(64)));
+        ScrollView scroll = new ScrollView(activity);
+        LinearLayout lines = column();
+        lines.setPadding(0, dp(12), 0, dp(32));
+        TextView status = text("Loading lyrics…", 16, () -> inkDim, false);
+        lines.addView(status, fill(-2));
+        scroll.addView(lines, new ScrollView.LayoutParams(-1, -2));
+        body.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        lyricsPanel.addView(body, new LayoutParams(-1, -1));
+        FrameLayout panel = lyricsPanel;
+        submit(ART, () -> {
+            String[] words = null;
+            try { words = CoreBridge.lyrics(track); }
+            catch (Throwable failed) {
+                // The service answers 404 for a song with no lyrics; anything else is a real failure.
+                if (String.valueOf(failed.getMessage()).contains("HTTP 404")) words = new String[0];
+                else android.util.Log.w("SpatchUi", "lyrics failed", failed);
+            }
+            String[] got = words;
+            post(() -> {
+                if (lyricsPanel != panel) return;
+                if (got == null || got.length == 0) { status.setText(got == null ? "Lyrics aren’t available for this song" : "No lyrics for this song"); return; }
+                lines.removeView(status);
+                for (String line : got) lines.addView(text(line.isEmpty() ? " " : line, 22, () -> ink, true), fill(-2));
+            });
+        });
     }
 
     private void openQueue() {

@@ -53,6 +53,12 @@ pub const STUBS: &[(&str, &str)] = &[
     ("Observable.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/core/Observable.java")),
     ("Single.java", include_str!("../java/dex/stubs/io/reactivex/rxjava3/core/Single.java")),
     (
+        "LyricsWrapperResponse.java",
+        include_str!(
+            "../java/dex/stubs/com/spotify/lyrics/serviceretrofit/proto/v3/LyricsWrapperResponse.java"
+        ),
+    ),
+    (
         "BatchedExtensionResponse.java",
         include_str!(
             "../java/dex/stubs/com/spotify/extendedmetadata/proto/BatchedExtensionResponse.java"
