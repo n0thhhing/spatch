@@ -1409,8 +1409,12 @@ public final class SpatchUi extends FrameLayout {
         identity.addView(profilePhoto(), lp(dp(42), dp(42)));
         LinearLayout words = column();
         words.setPadding(dp(12), 0, 0, 0);
-        words.addView(text(profileName.isEmpty() ? "Your account" : profileName, 16, () -> ink, true));
-        words.addView(text(profileUsername.isEmpty() ? "Spotify profile" : "@" + profileUsername, 12, () -> inkDim, false));
+        TextView accountName = text(profileName.isEmpty() ? "Your account" : profileName, 16, () -> ink, true);
+        TextView accountHandle = text(profileUsername.isEmpty() ? "Spotify profile" : "@" + profileUsername, 12, () -> inkDim, false);
+        oneLine(accountName);
+        oneLine(accountHandle);
+        words.addView(accountName);
+        words.addView(accountHandle);
         identity.addView(words, weight());
         menu.addView(identity, fill(-2));
         android.widget.PopupWindow popup = new android.widget.PopupWindow(menu, dp(278), -2, true);
