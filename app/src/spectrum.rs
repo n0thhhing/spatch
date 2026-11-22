@@ -1,6 +1,5 @@
-//! The visualizer's analysis, from Android's Visualizer FFT of Spotify's audio session. Ported from Swiftify's
-//! spotify-core/src/spectrum.rs: band *amplitudes* (linear, not dB) over one slow shared reference, so balance
-//! between bands survives and a hit still lands tall, then a soft shoulder; dB scaling flattens it into equal bars.
+//! The visualizer's analysis, from Android's Visualizer FFT of Spotify's audio session: band *amplitudes*
+//! (linear, not dB) over one slow shared reference, so balance between bands survives and a hit still lands tall, then a soft shoulder; dB scaling flattens it into equal bars.
 
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JFloatArray};
@@ -106,7 +105,7 @@ fn display_level(fft: &[i8], rate_hz: f32, from: f32, to: f32) -> f32 {
     if mean <= 0.0 { 0.0 } else { (((10.0 * mean.log10() + 48.0) / 44.0) as f32).clamp(0.0, 1.0) }
 }
 
-/// Swiftify's SpectrumShaping::bassExpanded: `levels` spread over `per_side` bars with the bass given 46% of
+/// `levels` spread over `per_side` bars with the bass given 46% of
 /// them for 30% of the bands; a bar covering several bands shows the strongest, so a narrow peak survives.
 pub fn bass_expanded(levels: &[f32], per_side: usize) -> Vec<f32> {
     if levels.is_empty() || per_side == 0 {

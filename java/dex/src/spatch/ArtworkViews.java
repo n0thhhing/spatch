@@ -7,6 +7,7 @@ import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.SweepGradient;
@@ -331,6 +332,9 @@ final class ArtworkViews {
         private float angle;
         private SweepGradient sweep;
         private int sweepA, sweepB;
+        private RadialGradient glowA, glowB;
+        private int glowAccent, glowAccent2;
+        private float glowHalf;
         private Bitmap shown = ui.lastCover, previous;
         private String shownUrl = ui.lastCoverUrl;
         private long fadeAt, lastFrame;
@@ -347,6 +351,24 @@ final class ArtworkViews {
             c.drawBitmap(b, m, paint);
             paint.setAlpha(255);
         }
+
+        /** Two soft offset pools of the palette's colours behind the cover; both fade out before the view's edge. */
+        private void glow(Canvas c, float cx, float cy, float half, float artR) {
+            if (glowA == null || glowAccent != ui.accent || glowAccent2 != ui.accent2 || glowHalf != half) {
+                glowAccent = ui.accent; glowAccent2 = ui.accent2; glowHalf = half;
+                float r = half - artR * .24f;
+                glowA = new RadialGradient(cx - artR * .22f, cy + artR * .12f, r, new int[]{withAlpha(ui.accent, 150), withAlpha(ui.accent, 60), 0}, new float[]{.6f, .82f, 1f}, Shader.TileMode.CLAMP);
+                glowB = new RadialGradient(cx + artR * .24f, cy - artR * .08f, r, new int[]{withAlpha(ui.accent2, 110), withAlpha(ui.accent2, 40), 0}, new float[]{.6f, .82f, 1f}, Shader.TileMode.CLAMP);
+            }
+            paint.setStyle(Paint.Style.FILL);
+            paint.setShader(glowA);
+            c.drawCircle(cx, cy, half, paint);
+            paint.setShader(glowB);
+            c.drawCircle(cx, cy, half, paint);
+            paint.setShader(null);
+        }
+
+        private int withAlpha(int colour, int alpha) { return (colour & 0xffffff) | alpha << 24; }
 
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight(), cx = w / 2f, cy = h / 2f;
@@ -376,6 +398,7 @@ final class ArtworkViews {
             }
             float fade = previous == null ? 1f : Math.min(1f, (now - fadeAt) / 450f);
             if (fade >= 1f) previous = null;
+            if (ui.pref("cover_glow", true)) glow(c, cx, cy, s / 2f, artR);
             c.save();
             clip.rewind();
             clip.addCircle(cx, cy, artR, Path.Direction.CW);
@@ -422,7 +445,7 @@ final class ArtworkViews {
                     float swell = Math.max(0f, (float) Math.sin(t * 4.4f)) * (1f - i / (float) half) * .3f;
                     v = .25f + .18f * (float) Math.sin(t * 2.6f + i * .5f) + .12f * (float) Math.sin(t * 1.5f - i * .27f) + swell;
                 } else v = 0f;
-                // Swiftify's ring style: base .02 + 1.12 x level^1.1, rising in 16 ms and falling in 45 ms.
+                // Ring response: base .02 + 1.12 x level^1.1, rising in 16 ms and falling in 45 ms.
                 float shown = Math.max(0f, Math.min(1f, .02f + 1.12f * (float) Math.pow(Math.max(0f, v), 1.1)));
                 float tau = !run ? .16f : shown > level[i] ? .016f : .045f;
                 if (!animate || Math.abs(shown - level[i]) < .001f) level[i] = shown;

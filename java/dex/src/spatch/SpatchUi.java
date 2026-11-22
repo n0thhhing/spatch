@@ -3661,6 +3661,7 @@ public final class SpatchUi extends FrameLayout {
             audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
             player.addView(audioStatus);
             toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
+            toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
             toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
             toggle(player, "Allow rotation", "Experimental: a landscape player with the lyrics beside the cover", "rotate", false, false);
