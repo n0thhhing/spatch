@@ -314,6 +314,7 @@ fn widget(base: &Path, staging: &Path, tools: &Tools) -> Result<Widget> {
     let manifest = input::read_entry(base, "AndroidManifest.xml")?;
     let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidget", "Spatch", info("spatch_widget_info")?)?;
     let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidgetSmall", "Spatch", info("spatch_widget_small_info")?)?;
+    let manifest = manifest::add_official_playback(&manifest)?;
     Ok(Widget { manifest, table, files: paths.into_iter().zip(compiled).collect(), expect })
 }
 

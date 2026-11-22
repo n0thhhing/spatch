@@ -231,6 +231,108 @@ pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> R
     Ok(out)
 }
 
+/// Notification access is user-granted; the service reads media sessions, not notification contents.
+pub fn add_official_playback(manifest: &[u8]) -> Result<Vec<u8>> {
+    if u16_at(manifest, 0)? != XML {
+        return Err("not a compiled manifest".into());
+    }
+    let (mut pool, after_pool) = Pool::parse(manifest, u16_at(manifest, 2)? as usize)?;
+    let class = "spatch.OfficialPlayback";
+    if pool.find(class, usize::MAX).is_some() {
+        return Err("the manifest already has official playback".into());
+    }
+    if u16_at(manifest, after_pool)? != 0x0180 {
+        return Err("the manifest has no resource map".into());
+    }
+    let mapped = (u32_at(manifest, after_pool + 4)? as usize - 8) / 4;
+    let attr = |name: &str| {
+        pool.find(name, mapped)
+            .map(|i| i as u32)
+            .ok_or_else(|| format!("the manifest has no attribute {name}"))
+    };
+    let (name, exported, permission) = (attr("name")?, attr("exported")?, attr("permission")?);
+    let ns = pool
+        .find("http://schemas.android.com/apk/res/android", usize::MAX)
+        .ok_or("the manifest has no android namespace")? as u32;
+    let mut application_end = None;
+    let mut manifest_end = None;
+    let mut at = after_pool + u32_at(manifest, after_pool + 4)? as usize;
+    while at < manifest.len() {
+        let size = u32_at(manifest, at + 4)? as usize;
+        if size < 8 || at + size > manifest.len() {
+            return Err("invalid manifest chunk".into());
+        }
+        if u16_at(manifest, at)? == END {
+            match pool.text(u32_at(manifest, at + 20)? as usize).as_str() {
+                "application" => application_end = Some(at),
+                "manifest" => manifest_end = Some(at),
+                _ => {}
+            }
+        }
+        at += size;
+    }
+    let (app_end, root_end) = (
+        application_end.ok_or("the manifest has no application")?,
+        manifest_end.ok_or("the manifest has no root")?,
+    );
+    let service = pool.add("service");
+    let filter = pool.add("intent-filter");
+    let action = pool.add("action");
+    let class = pool.add(class) as u32;
+    let label_attr = pool
+        .find("label", mapped)
+        .ok_or("the manifest has no label attribute")? as u32;
+    let label = pool.add("Spotify playback fallback") as u32;
+    let bind = pool.add("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE") as u32;
+    let listener = pool.add("android.service.notification.NotificationListenerService") as u32;
+    let mut nodes = Vec::new();
+    // Android attribute order: label, name, permission, exported.
+    element(
+        &mut nodes,
+        START,
+        service,
+        &[
+            (ns, label_attr, label, STRING, label),
+            (ns, name, class, STRING, class),
+            (ns, permission, bind, STRING, bind),
+            (ns, exported, NONE, BOOLEAN, 0xffff_ffff),
+        ],
+    );
+    element(&mut nodes, START, filter, &[]);
+    element(
+        &mut nodes,
+        START,
+        action,
+        &[(ns, name, listener, STRING, listener)],
+    );
+    element(&mut nodes, END, action, &[]);
+    element(&mut nodes, END, filter, &[]);
+    element(&mut nodes, END, service, &[]);
+    let queries = pool.add("queries");
+    let package = pool.add("package");
+    let spotify = pool.add("com.spotify.music") as u32;
+    let mut query_nodes = Vec::new();
+    element(&mut query_nodes, START, queries, &[]);
+    element(
+        &mut query_nodes,
+        START,
+        package,
+        &[(ns, name, spotify, STRING, spotify)],
+    );
+    element(&mut query_nodes, END, package, &[]);
+    element(&mut query_nodes, END, queries, &[]);
+    let mut out = vec![3, 0, 8, 0, 0, 0, 0, 0];
+    pool.write(&mut out);
+    out.extend(&manifest[after_pool..app_end]);
+    out.extend(nodes);
+    out.extend(&manifest[app_end..root_end]);
+    out.extend(query_nodes);
+    out.extend(&manifest[root_end..]);
+    let total = out.len() as u32;
+    out[4..8].copy_from_slice(&total.to_le_bytes());
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,23 +340,78 @@ mod tests {
     /// A tiny manifest: `<manifest><application></application></manifest>` with the strings the editor needs.
     fn sample() -> Vec<u8> {
         let mut pool = Pool { flags: UTF8, strings: Vec::new() };
-        for s in ["name", "label", "exported", "resource", "http://schemas.android.com/apk/res/android", "manifest", "application", "receiver", "intent-filter", "action", "meta-data"] {
+        for s in ["name", "label", "exported", "resource", "permission", "http://schemas.android.com/apk/res/android", "manifest", "application", "receiver", "intent-filter", "action", "meta-data"] {
             pool.add(s);
         }
         let mut out = vec![3, 0, 8, 0, 0, 0, 0, 0];
         pool.write(&mut out);
         out.extend([0x80, 1, 8, 0]);
-        out.extend(24u32.to_le_bytes());
-        for id in [0x0101_0003u32, 0x0101_0001, 0x0101_0010, 0x0101_0025] {
+        out.extend(28u32.to_le_bytes());
+        for id in [0x0101_0003u32, 0x0101_0001, 0x0101_0010, 0x0101_0025, 0x0101_0006] {
             out.extend(id.to_le_bytes());
         }
-        element(&mut out, START, 5, &[]);
         element(&mut out, START, 6, &[]);
+        element(&mut out, START, 7, &[]);
+        element(&mut out, END, 7, &[]);
         element(&mut out, END, 6, &[]);
-        element(&mut out, END, 5, &[]);
         let total = out.len() as u32;
         out[4..8].copy_from_slice(&total.to_le_bytes());
         out
+    }
+
+    #[test]
+    fn official_playback_is_permission_protected_and_queries_the_original_package() {
+        let original = sample();
+        let widget = add_widget(&original, "spatch.SpatchWidget", "Spatch", 0x7f16_0021).unwrap();
+        let out = add_official_playback(&widget).unwrap();
+        let (pool, mut at) = Pool::parse(&out, 8).unwrap();
+        assert_eq!(u32_at(&out, 4).unwrap() as usize, out.len());
+        at += u32_at(&out, at + 4).unwrap() as usize;
+        let mut stack = Vec::new();
+        let mut service = false;
+        let mut query = false;
+        while at < out.len() {
+            let kind = u16_at(&out, at).unwrap();
+            let tag = pool.text(u32_at(&out, at + 20).unwrap() as usize);
+            if kind == START {
+                if tag == "service" {
+                    assert_eq!(stack.last().unwrap(), "application");
+                    let count = u16_at(&out, at + 28).unwrap() as usize;
+                    let attrs: Vec<_> = (0..count)
+                        .map(|i| {
+                            let a = at + 36 + i * 20;
+                            (
+                                pool.text(u32_at(&out, a + 4).unwrap() as usize),
+                                u32_at(&out, a + 16).unwrap(),
+                            )
+                        })
+                        .collect();
+                    assert!(
+                        attrs.iter().any(|(n, v)| n == "name"
+                            && pool.text(*v as usize) == "spatch.OfficialPlayback")
+                    );
+                    assert!(attrs.iter().any(|(n, v)| n == "permission"
+                        && pool.text(*v as usize)
+                            == "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"));
+                    service = true;
+                }
+                if tag == "package" {
+                    assert_eq!(stack.last().unwrap(), "queries");
+                    assert_eq!(
+                        pool.text(u32_at(&out, at + 52).unwrap() as usize),
+                        "com.spotify.music"
+                    );
+                    query = true;
+                }
+                stack.push(tag);
+            } else if kind == END {
+                assert_eq!(stack.pop().unwrap(), tag);
+            }
+            at += u32_at(&out, at + 4).unwrap() as usize;
+        }
+        assert!(service && query && stack.is_empty());
+        assert!(pool.find("spatch.SpatchWidget", usize::MAX).is_some());
+        assert!(add_official_playback(&out).is_err());
     }
 
     #[test]

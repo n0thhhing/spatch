@@ -10,7 +10,7 @@ use std::fs;
 use std::path::Path;
 
 /// Original DEX entries that get reassembled, with their pinned SHA-256.
-pub const DEX_TARGETS: [(&str, &str); 2] = [
+pub const DEX_TARGETS: [(&str, &str); 5] = [
     (
         "classes.dex",
         "3a33a4237ff8b008cad33816d9b37a805f671178a0362a40d9f48b221450cf33",
@@ -19,6 +19,18 @@ pub const DEX_TARGETS: [(&str, &str); 2] = [
         "classes2.dex",
         "8201d12fb2c54137501cb6b3153a6102014637dda22d2b66c9b4678f54190b4d",
     ),
+    (
+        "classes3.dex",
+        "5f36125547473f6c1778216a6ec0c038be0c554aaf739b6650384ef1dff03cda",
+    ),
+    (
+        "classes9.dex",
+        "22eda3384309ba102085e1b87b90a667642da30c419b2f4ed97c30c6e80bbd8f",
+    ),
+    (
+        "classes11.dex",
+        "322d85ef81b244237b61b46138b67116f0ea898afa23e6048a8d3e1331ec38f8",
+    ),
 ];
 /// Next free multidex slot (base ships classes.dex..classes15.dex).
 pub const HELPER_DEX: &str = "classes16.dex";
@@ -26,7 +38,14 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Paths are relative to the decoded APK.
-const RELOCATED: [&str; 3] = [
+const RELOCATED: [&str; 10] = [
+    "smali_classes2/p/h3u0.smali",
+    "smali_classes9/p/kls0.smali",
+    "smali/p/ohj0.smali",
+    "smali_classes3/p/zob1.smali",
+    "smali_classes11/p/xa50.smali",
+    "smali_classes9/p/mts0.smali",
+    "smali_classes2/p/h631.smali",
     "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali",
     // classes.dex is at the method-reference limit: the core hooks' classes move out with their new calls.
     "smali/com/spotify/esperanto/esperanto/ClientBase.smali",

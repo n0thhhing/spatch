@@ -237,6 +237,7 @@ public final class SpatchUi extends FrameLayout {
         SpatchWidget.uiStarted(activity);
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
+        OfficialPlayback.init(activity);
         if (forgetProfile) {
             forgetProfile = false;
             prefs.edit().remove("profile_name").remove("profile_user").remove("profile_image").remove("profile_uri").apply();
@@ -489,11 +490,24 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
+    private static boolean playerCommand(int action, long value, String target) {
+        return OfficialPlayback.enabled() ? OfficialPlayback.command(action, value, target) : nativeCommand(action, value, target);
+    }
+
+    private static boolean playerPlayFrom(String context, String track, int index) {
+        return OfficialPlayback.enabled() ? OfficialPlayback.command(PLAY, 0, track) : nativePlayFrom(context, track, index);
+    }
+
+    private static String playbackFailure() {
+        return OfficialPlayback.enabled() ? OfficialPlayback.status() + " · this action may be unavailable" : "That didn’t go through";
+    }
+
     private void command(int action, long value, String target) {
         if (action == NEXT || action == PLAY || action == SKIP_TO) prevTappedAt = 0;
         submit(COMMANDS, () -> {
-            if (!nativeCommand(action, value, target)) post(() -> {
-                if (isAttachedToWindow()) Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show();
+            if (!playerCommand(action, value, target)) post(() -> {
+                if (OfficialPlayback.enabled()) { revision = -1; syncNativeState(); }
+                if (isAttachedToWindow()) Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show();
             });
         });
     }
@@ -673,10 +687,10 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** The player's fields when they changed since `revision`, for the home-screen widget. */
-    static String[] widgetState(long revision) { return unpackStrings(nativePlayer(revision)); }
+    static String[] widgetState(long revision) { return OfficialPlayback.enabled() ? OfficialPlayback.state(revision) : unpackStrings(nativePlayer(revision)); }
 
     /** A button on the home-screen widget: pause, resume, previous or next. */
-    static void widgetCommand(int action) { COMMANDS.execute(() -> nativeCommand(action, 0, "")); }
+    static void widgetCommand(int action) { COMMANDS.execute(() -> playerCommand(action, 0, "")); }
 
     private final Runnable syncPush = this::syncNativeState;
     private boolean libraryRedrawPending;
@@ -684,8 +698,8 @@ public final class SpatchUi extends FrameLayout {
     private void syncNativeState() {
         if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
         nativeRevisions(revisions);
-        if (revisions[0] != revision) {
-            String[] state = unpackStrings(nativePlayer(revision));
+        if (OfficialPlayback.enabled() || revisions[0] != revision) {
+            String[] state = widgetState(revision);
             if (state != null) applyPlayer(state);
         }
         long listRevision = revisions[1];
@@ -833,7 +847,7 @@ public final class SpatchUi extends FrameLayout {
         // Home and Library mark what's playing; redraw them in place when that changes.
         if (contextChanged && playlist == null && sheetClose == null && !playerOpen && tab != SETTINGS && tab != SEARCH && !(findFocus() instanceof android.widget.EditText)) post(this::showPageKeepingPlace);
         quality = s[14];
-        speed = nativePlaybackSpeed();
+        speed = OfficialPlayback.enabled() ? 1f : nativePlaybackSpeed();
         boolean wasBuffering = buffering;
         buffering = Boolean.parseBoolean(s[15]);
         canNext = Boolean.parseBoolean(s[16]);
@@ -2705,7 +2719,7 @@ public final class SpatchUi extends FrameLayout {
             int index = e instanceof Song ? ((Song) e).index : Math.max(0, playlistTracks.indexOf(e));
             String context = playUri();
             submit(COMMANDS, () -> {
-                if (!nativePlayFrom(context, e.uri, index)) post(() -> Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show());
+                if (!playerPlayFrom(context, e.uri, index)) post(() -> Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show());
             });
             return;
         }
@@ -3106,6 +3120,10 @@ public final class SpatchUi extends FrameLayout {
         };
         colored(shuffleBox, paintMode);
         tappable(shuffleBox, "Shuffle: off, on or Smart Shuffle", () -> {
+            if (OfficialPlayback.enabled()) {
+                Toast.makeText(activity, "Change shuffle in official Spotify", Toast.LENGTH_SHORT).show();
+                return;
+            }
             // Off → Shuffle → Smart Shuffle (playlists only) → Off, stored with Spotify for this list.
             int next = listShuffle <= 0 ? 1 : listShuffle == 1 && smartAllowed ? 2 : 0;
             int before = listShuffle;
@@ -3123,9 +3141,10 @@ public final class SpatchUi extends FrameLayout {
         });
         actions.addView(shuffleBox, lp(dp(46), dp(46)));
 
-        listShuffle = -1;
+        listShuffle = OfficialPlayback.enabled() ? 0 : -1;
+        if (OfficialPlayback.enabled()) shuffleBox.setVisibility(GONE);
         paintMode.run();
-        submit(PLAYLISTS, () -> {
+        if (!OfficialPlayback.enabled()) submit(PLAYLISTS, () -> {
             int known = nativeShuffleMode(listUri);
             post(() -> { if (playlist != null && listUri.equals(playUri()) && known >= 0) { listShuffle = known; paintMode.run(); } });
         });
@@ -3502,15 +3521,49 @@ public final class SpatchUi extends FrameLayout {
             break;
         }
         case 1: {
-            LinearLayout spotify = card(page, "Spotify");
-            spotifyCard(spotify);
+            if (!OfficialPlayback.enabled()) {
+                LinearLayout spotify = card(page, "Spotify");
+                spotifyCard(spotify);
+            }
+
+            LinearLayout backend = card(page, "Playback backend");
+            settingsAction(backend, "Playback backend", OfficialPlayback.enabled() ? "Official Spotify fallback" : "Built-in player", () -> {
+                sheet("Playback backend", "Official Spotify plays audio while Spatch shows your library and controls. Keep it installed and signed in; normal ads and free-account restrictions apply. Some selections may open Spotify.",
+                    new String[]{"Built-in player", "Official Spotify fallback"}, selected -> {
+                        boolean official = selected == 1;
+                        if (official && !OfficialPlayback.installed()) {
+                            Toast.makeText(activity, OfficialPlayback.status(), Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        if (official) COMMANDS.execute(() -> nativeCommand(PAUSE, 0, ""));
+                        OfficialPlayback.setEnabled(official);
+                        revision = -1;
+                        syncNativeState();
+                        settingsChanged(false);
+                        if (official && !OfficialPlayback.allowed()) OfficialPlayback.configure(activity);
+                    });
+            });
+            if (OfficialPlayback.enabled()) {
+                settingsAction(backend, "Notification access", OfficialPlayback.status(), () -> OfficialPlayback.configure(activity));
+                settingsAction(backend, "Open official Spotify", "Sign in or start a session, then return to Spatch", () -> {
+                    android.content.Intent launch = activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
+                    if (launch != null) activity.startActivity(launch);
+                    else Toast.makeText(activity, OfficialPlayback.status(), Toast.LENGTH_LONG).show();
+                });
+            }
 
             LinearLayout playback = card(page, "Player");
             toggle(playback, "Keep screen on", "While the player is open", "keep_on", true, false);
             break;
         }
         case 2: {
-            sound.render(page);
+            if (OfficialPlayback.enabled()) {
+                LinearLayout note = card(page, "Official Spotify audio");
+                settingsAction(note, "Audio settings", "Manage sound in official Spotify while using the fallback", () -> {
+                    android.content.Intent launch = activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
+                    if (launch != null) activity.startActivity(launch);
+                });
+            } else sound.render(page);
             break;
         }
         case 3: {
@@ -3535,6 +3588,11 @@ public final class SpatchUi extends FrameLayout {
         }
         case 5: {
             LinearLayout developer = card(page, "Developer");
+            toggle(developer, "Skip integrity attestation", "Experiment only. Restart Spotify after changing; verification may run only once a day.",
+                "integrity_skip", false, false);
+            choice(developer, "Integrity experiment", new String[]{"Skip call", "Empty token"}, "integrity_variant", 0, false);
+            toggle(developer, "Trace signature reads", "Log certificate digests and matching request bodies. Restart to trace startup reads.",
+                "integrity_trace", false, false);
             settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
                 String report = "Build " + nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
                     + "\nPlaying " + playing + " · buffering " + buffering
@@ -4430,7 +4488,7 @@ public final class SpatchUi extends FrameLayout {
         pending = want;
         refresh();
         submit(COMMANDS, () -> {
-            boolean ok = nativeCommand(want ? RESUME : PAUSE, 0, "");
+            boolean ok = playerCommand(want ? RESUME : PAUSE, 0, "");
             post(() -> {
                 if (!ok) { pending = null; refresh(); }
                 else postDelayed(() -> { if (pending != null && pending == want) { pending = null; refresh(); } }, 2500);
@@ -4452,14 +4510,14 @@ public final class SpatchUi extends FrameLayout {
         refresh();
         String list = context;
         submit(COMMANDS, () -> {
-            boolean ok = nativeCommand(SHUFFLE, want ? 1 : 0, "");
+            boolean ok = playerCommand(SHUFFLE, want ? 1 : 0, "");
             if (ok && isPlaylistLink(list)) {
                 String error = nativeSetShuffleMode(list, mode);
                 if (error != null && !error.isEmpty()) android.util.Log.w("SpatchUi", "Shuffle mode: " + error);
             }
             if (!ok) post(() -> {
                 if (shuffle == want) { shuffle = before; smartShuffle = beforeSmart; refresh(); }
-                if (isAttachedToWindow()) Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show();
+                if (isAttachedToWindow()) Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show();
             });
         });
     }
@@ -4469,9 +4527,9 @@ public final class SpatchUi extends FrameLayout {
         repeat = want;
         refresh();
         submit(COMMANDS, () -> {
-            if (!nativeCommand(REPEAT, want, "")) post(() -> {
+            if (!playerCommand(REPEAT, want, "")) post(() -> {
                 if (repeat == want) { repeat = before; refresh(); }
-                if (isAttachedToWindow()) Toast.makeText(activity, "That didn’t go through", Toast.LENGTH_SHORT).show();
+                if (isAttachedToWindow()) Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show();
             });
         });
     }
@@ -4552,7 +4610,7 @@ public final class SpatchUi extends FrameLayout {
     private static final Runnable SLEEP = () -> {
         sleepAt = 0;
         long generation = accountGeneration;
-        COMMANDS.execute(() -> { if (generation == accountGeneration) nativeCommand(PAUSE, 0, ""); });
+        COMMANDS.execute(() -> { if (generation == accountGeneration) playerCommand(PAUSE, 0, ""); });
     };
 
     /** Set when Spotify's login opens: the next screen drops the saved profile so another account never shows it. */
@@ -4603,6 +4661,10 @@ public final class SpatchUi extends FrameLayout {
 
     /** Lists the devices Spotify can play on and moves playback to the one you pick. */
     private void openDevices() {
+        if (OfficialPlayback.enabled()) {
+            Toast.makeText(activity, "Choose playback devices in official Spotify", Toast.LENGTH_LONG).show();
+            return;
+        }
         Toast.makeText(activity, "Looking for devices…", Toast.LENGTH_SHORT).show();
         submit(PLAYLISTS, () -> {
             String[] f = nativeDevices();

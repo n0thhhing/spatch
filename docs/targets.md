@@ -4,7 +4,7 @@ Spatch supports the exact ARM64 Spotify APKM for `com.spotify.music` version **9
 (`148387875`). [src/input.rs](../src/input.rs) pins the APKM and every split by SHA-256.
 `spatch inspect <input.apkm>` checks the archive and prints the supported hashes.
 
-Spatch reassembles `classes.dex` and `classes2.dex` and adds `classes16.dex`.
+Spatch reassembles `classes.dex`, `classes2.dex`, `classes3.dex`, `classes9.dex` and `classes11.dex`, and adds `classes16.dex`.
 Spotify's resources and other DEX entries stay byte-identical; the manifest and resources table gain Spatch's two home-screen widgets (4×2 and 4×1, the old Spatch widget design: layouts, animations and drawables in `java/widget/res`, compiled by aapt2 and listed by `src/resources.rs`; the layouts reuse the ids of Spotify's own widget views, read from the app being patched).
 metadata from the original resources and manifests. See the [hook map](spotify-map.md) for the
 classes and calls involved.

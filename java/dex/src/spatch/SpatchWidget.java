@@ -61,6 +61,7 @@ public class SpatchWidget extends AppWidgetProvider {
     /** Remembers a context to draw with; the receiver calls this. */
     static void attach(Context context) {
         if (app == null) app = context.getApplicationContext();
+        OfficialPlayback.init(context);
     }
 
     /** The UI calls this once it is up, which also means the Rust app is loaded. */
@@ -87,7 +88,7 @@ public class SpatchWidget extends AppWidgetProvider {
             int[] small = manager.getAppWidgetIds(new ComponentName(context, SpatchWidgetSmall.class));
             placed = big.length + small.length > 0;
             if (!placed) return;
-            String[] s = ready ? SpatchUi.widgetState(force ? -1 : seen) : null;
+            String[] s = ready || OfficialPlayback.enabled() ? SpatchUi.widgetState(force ? -1 : seen) : null;
             if (s != null) {
                 seen = Long.parseLong(s[0]);
                 String url = s[5];
@@ -302,7 +303,7 @@ public class SpatchWidget extends AppWidgetProvider {
     @Override public void onReceive(Context context, Intent intent) {
         attach(context);
         String action = intent.getAction();
-        if (!ready && action != null && action.startsWith("spatch.widget.")) return; // nothing is running to take the tap
+        if (!ready && !OfficialPlayback.enabled() && action != null && action.startsWith("spatch.widget.")) return;
         if (PREVIOUS.equals(action)) SpatchUi.widgetCommand(PREVIOUS_ACTION);
         else if (NEXT.equals(action)) SpatchUi.widgetCommand(NEXT_ACTION);
         else if (TOGGLE.equals(action)) SpatchUi.widgetCommand(playing ? PAUSE_ACTION : RESUME_ACTION);

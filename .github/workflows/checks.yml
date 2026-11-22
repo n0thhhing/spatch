@@ -31,6 +31,8 @@ jobs:
           cargo clippy --all-targets --features preview --locked -- -D warnings
       - name: Check nightly input selection
         run: python3 tests/nightly-inputs.py
+      - name: Check integrity diagnostics
+        run: python3 tests/integrity-diagnostics.py
       - name: Check Java bridge contracts
         run: python3 tests/java-contracts.py
 

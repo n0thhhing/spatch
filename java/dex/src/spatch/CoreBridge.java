@@ -44,16 +44,19 @@ public final class CoreBridge implements Transport {
     }
 
     public Single callSingle(String service, String method, byte[] request) {
+        DevIntegrity.outbound(service + "/" + method, request);
         seen(service);
         return inner.callSingle(service, method, request);
     }
 
     public Observable callStream(String service, String method, byte[] request) {
+        DevIntegrity.outbound(service + "/" + method, request);
         seen(service);
         return inner.callStream(service, method, request);
     }
 
     public byte[] callSync(String service, String method, byte[] request) {
+        DevIntegrity.outbound(service + "/" + method, request);
         seen(service);
         return inner.callSync(service, method, request);
     }
@@ -74,6 +77,7 @@ public final class CoreBridge implements Transport {
     }
 
     public static byte[] callTimed(String service, String method, byte[] request, long timeoutMs) {
+        DevIntegrity.outbound(service + "/" + method, request);
         long wait = Math.max(1, Math.min(8000, timeoutMs));
         Transport first = pick(service);
         try {
@@ -130,6 +134,7 @@ public final class CoreBridge implements Transport {
 
     /** Rust owns the token; completion, error and cancellation release both sides. */
     public static synchronized long subscribe(String service, String method, byte[] request, final long token) {
+        DevIntegrity.outbound(service + "/" + method, request);
         Subscriptions.Slot slot = STREAMS.open(token);
         try {
             Disposable d = streamTransport(service).callStream(service, method, request).subscribe(new Consumer() {

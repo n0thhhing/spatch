@@ -8,6 +8,10 @@ See [the app README](app/README.md) for UI features and the standalone preview, 
 [Development notes](docs/development.md) map the sources, lifecycle rules and validation commands.
 The earlier redesign lives on the `main` branch.
 
+An optional [official Spotify playback fallback](docs/official-playback-fallback.md) keeps Spatch's
+interface while the installed official app handles audio. Enable it in Settings → Playback;
+it requires Android notification access and retains normal account restrictions and ads.
+
 ## Requirements
 
 - Rust with 2024 edition support, a JDK, apktool, Android SDK platform 35 or later, and Android SDK build tools
@@ -63,7 +67,7 @@ adb install-multiple -r base.apk split_config.*.apk
 
 ## How it works
 
-The patcher checks the input hashes, applies six guarded smali edits, then builds the Java helper
+The patcher checks the input hashes, applies twenty guarded smali edits, then builds the Java helper
 DEX. Signed patches and Manager bundles also include the ARM64 Rust library. See the
 [hook map](docs/spotify-map.md) and [porting notes](docs/targets.md).
 
@@ -76,6 +80,20 @@ DEX. Signed patches and Manager bundles also include the ARM64 Rust library. See
 | `java/dex/stubs/` | Compile-only Spotify Transport and RxJava stubs |
 | `src/source.rs` | APKM and index staging for private sources |
 
+## Integrity diagnostics
+
+Settings → Developer has two default-off experiments: **Skip integrity attestation** and
+**Trace signature reads**. The integrity choice selects either suppressing the verification request
+with a default protobuf reply or forwarding a copy with an empty token. Restart after changing a
+setting and confirm a new `SpatchIntegrity` verification log before comparing playback; Spotify's
+session plugin may run only once per day. No account data needs clearing.
+
+These controls test an unproven explanation for free-account metadata and playback failures.
+They do not establish that free accounts need an integrity workaround. Tracing logs certificate
+digests, request sizes, caller types and matching event/request bodies, never tokens or full bodies.
+A missing match is inconclusive: streamed/compressed bodies and traffic inside the native core
+are outside the byte scanner's coverage. See [the diagnostic hook map](docs/spotify-map.md#integrity-diagnostics).
+
 ## Checks
 
 ```bash
@@ -84,6 +102,7 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --manifest-path app/Cargo.toml --locked
 cargo test --manifest-path app/Cargo.toml --features preview --locked
 python3 tests/nightly-inputs.py
+JAVA_HOME=/path/to/jdk python3 tests/integrity-diagnostics.py
 JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 tests/java-contracts.py
 app/preview/mac.sh --check
 ```
