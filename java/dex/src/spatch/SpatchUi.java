@@ -2888,9 +2888,13 @@ public final class SpatchUi extends FrameLayout {
                 }
                 if (duration > 0) animateProgress(from);
             }
-            songFields = kept.toArray(new String[0]);
-            nativeSongs(packStrings(songFields));
+            String[] next = kept.toArray(new String[0]);
+            // Only the recommended songs changed: the list on screen is already right, so don't repack or rebind it.
+            boolean unchanged = inPlace && pageList != null && songCount != null && java.util.Arrays.equals(next, songFields);
+            songFields = next;
+            if (!unchanged) nativeSongs(packStrings(songFields));
             arrangeSongs();
+            if (unchanged) return;
             if (inPlace && pageList != null && songCount != null) {
                 notifyList(pageList);
                 int total = allSongs.size();
