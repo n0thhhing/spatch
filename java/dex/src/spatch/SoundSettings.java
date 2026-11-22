@@ -192,7 +192,8 @@ final class SoundSettings {
         private int gradAccent;
         Runnable selection, edit;
         private float downY;
-        private boolean moved;
+        private boolean moved, drawnOnce;
+        private final float[] shown = new float[10];
         EqualizerCurve() { super(ui.activity); setContentDescription("Equalizer curve. Drag a point to adjust a frequency, or use Fine adjustment below."); }
         void select(int band) { eqSelectedBand = Math.max(0, Math.min(9, band)); if (selection != null) selection.run(); invalidate(); }
         void refresh() { if (selection != null) selection.run(); if (edit != null) edit.run(); invalidate(); }
@@ -213,11 +214,20 @@ final class SoundSettings {
                 paint.setAlpha(180); paint.setTextAlign(Paint.Align.RIGHT);
                 c.drawText(db > 0 ? "+" + db : Integer.toString(db), left() - ui.dp(8), y(db) + ui.dp(3), paint);
             }
-            float[] gains = eqGains();
+            // The drawn gains glide to the stored ones, so a preset change sweeps instead of jumping.
+            float[] want = eqGains(), gains = shown;
+            boolean settling = false;
+            for (int i = 0; i < 10; i++) {
+                float d = want[i] - gains[i];
+                gains[i] = !ui.motion() || !drawnOnce || Math.abs(d) < .05f ? want[i] : gains[i] + d * .2f;
+                settling |= gains[i] != want[i];
+            }
+            drawnOnce = true;
             line.rewind();
             for (int i = 0; i < 10; i++) {
-                float x = left() + width * i / 9f;
-                if (i == 0) line.moveTo(x, y(gains[i])); else line.lineTo(x, y(gains[i]));
+                float x = left() + width * i / 9f, px = left() + width * (i - 1) / 9f;
+                // Flat tangents at each band: a smooth S between neighbours that never overshoots past either gain.
+                if (i == 0) line.moveTo(x, y(gains[i])); else line.cubicTo((px + x) / 2, y(gains[i - 1]), (px + x) / 2, y(gains[i]), x, y(gains[i]));
                 paint.setColor(ui.inkDim); paint.setAlpha(18); c.drawLine(x, top(), x, bottom(), paint);
                 paint.setAlpha(220); paint.setTextAlign(Paint.Align.CENTER);
                 String hz = Audio.EQ_HZ[i] < 1000 ? Integer.toString(Audio.EQ_HZ[i]) : (Audio.EQ_HZ[i] / 1000) + "k";
@@ -231,7 +241,9 @@ final class SoundSettings {
             }
             paint.setShader(fillGradient);
             paint.setStyle(Paint.Style.FILL); paint.setAlpha(255); c.drawPath(area, paint); paint.setShader(null);
-            paint.setColor(ui.accent); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(ui.dp(2.5f)); paint.setStrokeJoin(Paint.Join.ROUND); c.drawPath(line, paint);
+            paint.setStyle(Paint.Style.STROKE); paint.setStrokeJoin(Paint.Join.ROUND); paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setColor((ui.accent & 0xffffff) | 0x30000000); paint.setStrokeWidth(ui.dp(9)); c.drawPath(line, paint); // soft glow under the line
+            paint.setColor(ui.accent); paint.setStrokeWidth(ui.dp(2.5f)); c.drawPath(line, paint);
             paint.setStyle(Paint.Style.FILL);
             for (int i = 0; i < 10; i++) {
                 float x = left() + width * i / 9f, yy = y(gains[i]);
@@ -239,6 +251,7 @@ final class SoundSettings {
                 paint.setColor(ui.accent); c.drawCircle(x, yy, ui.dp(i == eqSelectedBand ? 5 : 3.5f), paint);
                 paint.setColor(ui.surf); c.drawCircle(x, yy, ui.dp(1.5f), paint);
             }
+            if (settling) postInvalidateOnAnimation();
         }
         @Override public boolean onTouchEvent(MotionEvent event) {
             int action = event.getActionMasked();
@@ -253,6 +266,7 @@ final class SoundSettings {
                 if (moved) {
                     float gain = Math.max(-12, Math.min(12, 12 - (event.getY() - top()) / Math.max(1, bottom() - top()) * 24));
                     ui.prefs.edit().putFloat("eq_band_" + eqSelectedBand, Math.round(gain * 10) / 10f).apply();
+                    shown[eqSelectedBand] = Math.round(gain * 10) / 10f; // the finger's point follows at once
                     Audio.refreshEqualizer();
                     if (edit != null) edit.run();
                     invalidate();
