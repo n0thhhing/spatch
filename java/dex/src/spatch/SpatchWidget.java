@@ -252,6 +252,11 @@ public class SpatchWidget extends AppWidgetProvider {
         return out;
     }
 
+    /** For the Quick Settings tile: the same play/pause glyph the widget draws, and the state behind it. */
+    static Bitmap tileIcon(int px) { return center(playing, px); }
+    static boolean playing() { return playing; }
+    static String title() { return title; }
+
     private static RemoteViews views(Context context, String layout, boolean flip) {
         RemoteViews v = new RemoteViews(context.getPackageName(), id(context, layout, "layout"));
         int root = android.R.id.background;

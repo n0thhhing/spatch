@@ -177,6 +177,9 @@ pub fn run(
     if !tree.contains("spatch.SpatchWidgetSmall") || !tree.contains("spatch.SpatchWidget\"") || !tree.contains("npvwidget.NpvWidgetProvider") {
         return Err("the rebuilt manifest must hold both Spatch's widget and Spotify's".into());
     }
+    if !tree.contains("spatch.PlaybackTile") {
+        return Err("the rebuilt manifest is missing the playback tile".into());
+    }
     let originals = dex::DEX_TARGETS;
     for (entry, sha) in originals {
         let got = input::read_entry(&result.join("base.apk"), entry)?;
@@ -315,6 +318,7 @@ fn widget(base: &Path, staging: &Path, tools: &Tools) -> Result<Widget> {
     let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidget", "Spatch", info("spatch_widget_info")?)?;
     let manifest = manifest::add_widget(&manifest, "spatch.SpatchWidgetSmall", "Spatch", info("spatch_widget_small_info")?)?;
     let manifest = manifest::add_official_playback(&manifest)?;
+    let manifest = manifest::add_quick_settings_tile(&manifest)?;
     Ok(Widget { manifest, table, files: paths.into_iter().zip(compiled).collect(), expect })
 }
 

@@ -231,6 +231,69 @@ pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> R
     Ok(out)
 }
 
+/// A passive Quick Settings tile (its own name, icon and state are all set at runtime, not in the manifest):
+///
+/// ```xml
+/// <service android:name="spatch.PlaybackTile" android:label="Spatch" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE" android:exported="true">
+///   <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
+/// </service>
+/// ```
+pub fn add_quick_settings_tile(manifest: &[u8]) -> Result<Vec<u8>> {
+    if u16_at(manifest, 0)? != XML {
+        return Err("not a compiled manifest".into());
+    }
+    let (mut pool, after_pool) = Pool::parse(manifest, u16_at(manifest, 2)? as usize)?;
+    let class = "spatch.PlaybackTile";
+    if pool.find(class, usize::MAX).is_some() {
+        return Err("the manifest already has the playback tile".into());
+    }
+    if u16_at(manifest, after_pool)? != 0x0180 {
+        return Err("the manifest has no resource map".into());
+    }
+    let mapped = (u32_at(manifest, after_pool + 4)? as usize - 8) / 4;
+    let attr = |name: &str| pool.find(name, mapped).map(|i| i as u32).ok_or_else(|| format!("the manifest has no attribute {name}"));
+    let (name, exported, permission) = (attr("name")?, attr("exported")?, attr("permission")?);
+    let ns = pool.find("http://schemas.android.com/apk/res/android", usize::MAX).ok_or("the manifest has no android namespace")? as u32;
+    let application = pool.find("application", usize::MAX).ok_or("the manifest has no application")? as u32;
+    let mut at = after_pool;
+    at += u32_at(manifest, at + 4)? as usize;
+    let mut insert = None;
+    while at < manifest.len() {
+        let size = u32_at(manifest, at + 4)? as usize;
+        if u16_at(manifest, at)? == END && u32_at(manifest, at + 20)? as usize == application as usize {
+            insert = Some(at);
+        }
+        at += size.max(8);
+    }
+    let insert = insert.ok_or("the manifest has no application element")?;
+    let service = pool.add("service");
+    let filter = pool.add("intent-filter");
+    let action = pool.add("action");
+    let class = pool.add(class) as u32;
+    let label_attr = pool.find("label", mapped).ok_or("the manifest has no label attribute")? as u32;
+    let label = pool.add("Spatch") as u32;
+    let bind = pool.add("android.permission.BIND_QUICK_SETTINGS_TILE") as u32;
+    let tile_action = pool.add("android.service.quicksettings.action.QS_TILE") as u32;
+    let mut nodes = Vec::new();
+    element(&mut nodes, START, service, &[(ns, label_attr, label, STRING, label), (ns, name, class, STRING, class), (ns, permission, bind, STRING, bind), (ns, exported, NONE, BOOLEAN, 0xffff_ffff)]);
+    element(&mut nodes, START, filter, &[]);
+    element(&mut nodes, START, action, &[(ns, name, tile_action, STRING, tile_action)]);
+    element(&mut nodes, END, action, &[]);
+    element(&mut nodes, END, filter, &[]);
+    element(&mut nodes, END, service, &[]);
+    let mut out = Vec::with_capacity(manifest.len() + nodes.len() + 256);
+    out.extend(XML.to_le_bytes());
+    out.extend(8u16.to_le_bytes());
+    out.extend(0u32.to_le_bytes());
+    pool.write(&mut out);
+    out.extend(&manifest[after_pool..insert]);
+    out.extend(nodes);
+    out.extend(&manifest[insert..]);
+    let total = out.len() as u32;
+    out[4..8].copy_from_slice(&total.to_le_bytes());
+    Ok(out)
+}
+
 /// Notification access is user-granted; the service reads media sessions, not notification contents.
 pub fn add_official_playback(manifest: &[u8]) -> Result<Vec<u8>> {
     if u16_at(manifest, 0)? != XML {
@@ -412,6 +475,47 @@ mod tests {
         assert!(service && query && stack.is_empty());
         assert!(pool.find("spatch.SpatchWidget", usize::MAX).is_some());
         assert!(add_official_playback(&out).is_err());
+    }
+
+    #[test]
+    fn quick_settings_tile_is_permission_protected_inside_the_application() {
+        let original = sample();
+        let out = add_quick_settings_tile(&original).unwrap();
+        assert_eq!(u32_at(&out, 4).unwrap() as usize, out.len());
+        let (pool, mut at) = Pool::parse(&out, 8).unwrap();
+        at += u32_at(&out, at + 4).unwrap() as usize;
+        let mut stack = Vec::new();
+        let mut service = false;
+        while at < out.len() {
+            let kind = u16_at(&out, at).unwrap();
+            let tag = pool.text(u32_at(&out, at + 20).unwrap() as usize);
+            if kind == START {
+                if tag == "service" {
+                    assert_eq!(stack.last().unwrap(), "application");
+                    let count = u16_at(&out, at + 28).unwrap() as usize;
+                    let attrs: Vec<_> = (0..count)
+                        .map(|i| {
+                            let a = at + 36 + i * 20;
+                            (pool.text(u32_at(&out, a + 4).unwrap() as usize), u32_at(&out, a + 16).unwrap())
+                        })
+                        .collect();
+                    assert!(attrs.iter().any(|(n, v)| n == "name" && pool.text(*v as usize) == "spatch.PlaybackTile"));
+                    assert!(attrs.iter().any(|(n, v)| n == "permission" && pool.text(*v as usize) == "android.permission.BIND_QUICK_SETTINGS_TILE"));
+                    service = true;
+                }
+                if tag == "action" {
+                    assert_eq!(stack.last().unwrap(), "intent-filter");
+                    let a = at + 36;
+                    assert_eq!(pool.text(u32_at(&out, a + 16).unwrap() as usize), "android.service.quicksettings.action.QS_TILE");
+                }
+                stack.push(tag);
+            } else if kind == END {
+                assert_eq!(stack.pop().unwrap(), tag);
+            }
+            at += u32_at(&out, at + 4).unwrap() as usize;
+        }
+        assert!(service && stack.is_empty());
+        assert!(add_quick_settings_tile(&out).is_err());
     }
 
     #[test]
