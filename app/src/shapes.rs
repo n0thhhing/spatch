@@ -101,6 +101,7 @@ pub fn geometry(kind: &str) -> Vec<f32> {
             if kind == "repeat" { arrows } else { [arrows, stroke(&[(11., 11.), (12.5, 10.), (12.5, 14.)])].concat() }
         }
         "volume" => [fill(&[(4., 9.), (8., 9.), (13., 5.), (13., 19.), (8., 15.), (4., 15.)]), stroke(&[(16., 8.), (18., 11.), (18., 13.), (16., 16.)])].concat(),
+        "more" => [ring(12., 5., 1.2, 12), ring(12., 12., 1.2, 12), ring(12., 19., 1.2, 12)].concat(),
         "queue" => [stroke(&[(4., 6.), (20., 6.)]), stroke(&[(4., 11.), (20., 11.)]), stroke(&[(4., 16.), (14., 16.)])].concat(),
         "home" => stroke(&[(3., 12.), (12., 3.), (21., 12.), (19., 12.), (19., 20.), (14., 20.), (14., 14.), (10., 14.), (10., 20.), (5., 20.), (5., 12.), (3., 12.)]),
         "library" => [stroke(&[(5., 4.), (5., 20.)]), stroke(&[(9., 4.), (9., 20.)]), stroke(&[(14., 5.), (19., 19.)])].concat(),
@@ -152,9 +153,9 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeGeometry(mut env: JNIEnv, _: J
 mod tests {
     use super::*;
 
-    const ICONS: [&str; 34] = [
+    const ICONS: [&str; 35] = [
         "play", "pause", "previous", "next", "back", "down", "chevron", "check", "close", "add", "note", "people", "mix", "blend", "prompt", "jam", "shuffle", "repeat", "repeat-one", "volume", "queue",
-        "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices", "album", "artist", "share", "sparkle", "download",
+        "home", "library", "settings", "heart", "heart-outline", "search", "timer", "devices", "album", "artist", "share", "sparkle", "download", "more",
     ];
 
     #[test]

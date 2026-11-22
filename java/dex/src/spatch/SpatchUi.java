@@ -227,6 +227,7 @@ public final class SpatchUi extends FrameLayout {
     private TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
     /** The optional one-line lyric under the player's cover, and the lyrics it follows. */
     private LinearLayout pLyric;
+    private View moreButton;
     private String lyricsUri = "", lyricKey = "";
     private boolean lyricShown;
     private CoreBridge.Lyrics lyricsData;
@@ -260,7 +261,7 @@ public final class SpatchUi extends FrameLayout {
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "add", "note", "people", "mix", "blend", "prompt", "jam", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download"}) {
+                "queue", "home", "library", "settings", "add", "note", "people", "mix", "blend", "prompt", "jam", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download", "more"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null);
@@ -1461,6 +1462,11 @@ public final class SpatchUi extends FrameLayout {
         menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); updateDock(); } else goFromLink(LIBRARY); });
         menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(true); });
         popup.showAsDropDown(anchor, 0, dp(8), Gravity.END);
+        popIn(menu);
+    }
+
+    /** The menu grows out of its corner. */
+    private void popIn(LinearLayout menu) {
         if (motion()) {
             menu.setAlpha(0f);
             menu.setTranslationY(-dp(8));
@@ -1477,6 +1483,26 @@ public final class SpatchUi extends FrameLayout {
                 }
             });
         }
+    }
+
+    /** The player's more menu: what is not pinned to the bar, plus share and settings. */
+    private void openPlayerMenu(View anchor) {
+        if (accountMenu != null) accountMenu.dismiss();
+        LinearLayout menu = column();
+        menu.setPadding(dp(8), dp(8), dp(8), dp(8));
+        android.widget.PopupWindow popup = new android.widget.PopupWindow(menu, dp(272), -2, true);
+        accountMenu = popup;
+        popup.setBackgroundDrawable(round(surf, 24));
+        popup.setElevation(dp(14));
+        popup.setOutsideTouchable(true);
+        popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
+        popup.setOnDismissListener(() -> { if (accountMenu == popup) accountMenu = null; });
+        if (!pref("bar_timer", false)) menuAction(menu, sleepAt > SystemClock.uptimeMillis() ? "Sleep timer (running)" : "Sleep timer", "timer", () -> { popup.dismiss(); openSleepTimer(); });
+        if (!pref("bar_devices", false)) menuAction(menu, "Play on another device", "devices", () -> { popup.dismiss(); openDevices(); });
+        menuAction(menu, "Share", "share", () -> { popup.dismiss(); share(); });
+        menuAction(menu, "Player settings", "settings", () -> { popup.dismiss(); closePlayer(); openSettings(true); });
+        popup.showAsDropDown(anchor, 0, dp(4), Gravity.END);
+        popIn(menu);
     }
 
     private void menuAction(LinearLayout menu, String title, String symbol, Runnable action) {
@@ -3588,7 +3614,15 @@ public final class SpatchUi extends FrameLayout {
             player.addView(audioStatus);
             toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
-            toggle(player, "Lyrics in the player", "The line being sung, under the cover", "player_lyrics", false, false);
+            toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
+            toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
+            toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
+            toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
+            toggle(player, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
+            toggle(player, "Quality line", "What Spotify says is playing, under the artist", "player_quality", true, false);
+            toggle(player, "Heart button", "Save to Liked Songs from the player", "player_heart", true, false);
+            toggle(player, "Shuffle and repeat", "The buttons on either side of play", "player_modes", true, false);
+            toggle(player, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
             if (pref("backdrop", true)) choice(player, "Backdrop blur", new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
             toggle(player, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
             if (pref("motes", true)) {
@@ -4443,6 +4477,7 @@ public final class SpatchUi extends FrameLayout {
                 long ms = sleepAt - SystemClock.uptimeMillis();
                 left.setVisibility(ms > 0 ? VISIBLE : GONE);
                 recolorView(timerBox);
+                if (moreButton != null) recolorView(moreButton);
                 if (ms <= 0) return;
                 left.setText(Math.max(1, (ms + 59_999) / 60_000) + "m");
                 left.postDelayed(this, 15_000);
@@ -4459,10 +4494,15 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout.LayoutParams speedParams = lp(-2, dp(32));
         speedParams.rightMargin = dp(6);
         top.addView(pSpeed, speedParams);
-        top.addView(timerBox, lp(dp(48), dp(48)));
-        top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
-        top.addView(iconButton(icon("note", () -> ink), "Lyrics", this::openLyrics), lp(dp(48), dp(48)));
-        top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
+        // The bar keeps only what is used every song; the rest lives in the more menu unless pinned back in settings.
+        if (pref("bar_timer", false)) top.addView(timerBox, lp(dp(48), dp(48)));
+        if (pref("bar_devices", false)) top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
+        if (pref("bar_lyrics", true)) top.addView(iconButton(icon("note", () -> ink), "Lyrics", this::openLyrics), lp(dp(48), dp(48)));
+        if (pref("bar_queue", true)) top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
+        View[] more = new View[1];
+        more[0] = iconButton(icon("more", () -> sleepAt > SystemClock.uptimeMillis() ? accent : ink), "More", () -> openPlayerMenu(more[0]));
+        moreButton = more[0];
+        top.addView(more[0], lp(dp(48), dp(48)));
         col.addView(top, fill(-2));
 
         disc = artwork.new Disc();
@@ -4531,7 +4571,7 @@ public final class SpatchUi extends FrameLayout {
         pQuality.setVisibility(INVISIBLE);
         LinearLayout.LayoutParams qp = lp(-2, -2);
         qp.topMargin = dp(6);
-        words.addView(pQuality, qp);
+        if (pref("player_quality", true)) words.addView(pQuality, qp);
         titleRow.addView(words, weight());
         pLike = new Icon("heart-outline", ink);
         colored(pLike, () -> {
@@ -4540,7 +4580,7 @@ public final class SpatchUi extends FrameLayout {
             pLike.color = isLiked ? accent : ink;
             pLike.invalidate();
         });
-        titleRow.addView(iconButton(pLike, "Save to Liked Songs", this::toggleSaved), lp(dp(52), dp(52)));
+        if (pref("player_heart", true)) titleRow.addView(iconButton(pLike, "Save to Liked Songs", this::toggleSaved), lp(dp(52), dp(52)));
         col.addView(titleRow, fill(-2));
 
         wave = new Wave();
@@ -4561,12 +4601,13 @@ public final class SpatchUi extends FrameLayout {
         LayoutParams sp = new LayoutParams(dp(11), dp(11), Gravity.TOP | Gravity.END);
         sp.setMargins(0, dp(11), dp(9), 0);
         shuffleBox.addView(pSparkle, sp);
-        controls.addView(shuffleBox, lp(dp(52), dp(52)));
+        boolean modes = pref("player_modes", true);
+        if (modes) controls.addView(shuffleBox, lp(dp(52), dp(52)));
         controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", this::previousTrack), false), false), lp(dp(60), dp(60)));
         pPlay = new PlayButton();
         controls.addView(pPlay, lp(dp(86), dp(86)));
         controls.addView(skip(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), true), lp(dp(60), dp(60)));
-        controls.addView(iconButton(pRepeat, "Repeat", this::cycleRepeat), lp(dp(52), dp(52)));
+        if (modes) controls.addView(iconButton(pRepeat, "Repeat", this::cycleRepeat), lp(dp(52), dp(52)));
         col.addView(controls, fill(-2));
 
         nextPill = row();
@@ -4574,7 +4615,7 @@ public final class SpatchUi extends FrameLayout {
         bgRound(nextPill, 24, () -> (ink & 0x00ffffff) | 0x1a000000);
         LinearLayout.LayoutParams np = fill(-2);
         np.topMargin = dp(12);
-        col.addView(nextPill, np);
+        if (pref("player_next", true)) col.addView(nextPill, np);
         tappable(nextPill, "Up next", this::openQueue);
     }
 
