@@ -1599,6 +1599,14 @@ public final class SpatchUi extends FrameLayout {
         int[] counts = new int[4]; // playlists, albums, artists, podcasts, by chip index
         for (MediaEntry e : entries(-1, "", false, 4000)) if (e.category >= 0 && e.category < counts.length) counts[e.category]++;
         LinearLayout glance = card(page, "Saved");
+        if (motion()) {
+            android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
+            rise.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
+            rise.addAnimation(new android.view.animation.TranslateAnimation(0, 0, dp(18), 0));
+            rise.setDuration(320);
+            rise.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+            glance.setLayoutAnimation(new android.view.animation.LayoutAnimationController(rise, .07f));
+        }
         String[] kindNames = {"Playlists", "Albums", "Artists", "Podcasts"};
         for (int i = 0; i < counts.length; i++) {
             LinearLayout row = row();
