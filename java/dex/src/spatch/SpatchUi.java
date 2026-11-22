@@ -861,11 +861,13 @@ public final class SpatchUi extends FrameLayout {
         speed = OfficialPlayback.enabled() ? 1f : nativePlaybackSpeed();
         boolean wasBuffering = buffering;
         buffering = Boolean.parseBoolean(s[15]);
+        boolean skipChanged = canNext != Boolean.parseBoolean(s[16]) || canPrevious != Boolean.parseBoolean(s[17]);
         canNext = Boolean.parseBoolean(s[16]);
         canPrevious = Boolean.parseBoolean(s[17]);
         albumUri = s[18];
         artistUri = s[19];
-        for (View b : skipButtons.keySet()) {
+        // New skip buttons set their own initial state (skip()), so only a real change needs the fade.
+        if (skipChanged) for (View b : skipButtons.keySet()) {
             boolean allowed = skipButtons.get(b) ? canNext : canPrevious;
             b.setEnabled(allowed);
             b.animate().alpha(allowed ? 1f : .35f).setDuration(200).start();
@@ -1076,7 +1078,12 @@ public final class SpatchUi extends FrameLayout {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private float value;
         Meter() { super(activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
-        void set(float v) { value = Math.max(0f, Math.min(1f, v)); invalidate(); }
+        void set(float v) {
+            float next = Math.max(0f, Math.min(1f, v));
+            if (next == value) return;
+            value = next;
+            invalidate();
+        }
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight(), r = h / 2;
             paint.setColor((ink & 0x00ffffff) | 0x24000000);
@@ -4019,10 +4026,17 @@ public final class SpatchUi extends FrameLayout {
         boolean on;
         private float t;
         Switch(boolean on) { super(activity); this.on = on; t = on ? 1 : 0; setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
+        private android.animation.ValueAnimator anim;
+        @Override protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            if (anim != null) anim.cancel();
+        }
         void set(boolean v) {
+            if (v == on) return;
             on = v;
+            if (anim != null) anim.cancel(); // a quick double toggle must not leave two animators fighting over t
             if (!motion()) { t = v ? 1 : 0; invalidate(); return; }
-            android.animation.ValueAnimator a = android.animation.ValueAnimator.ofFloat(t, v ? 1 : 0);
+            android.animation.ValueAnimator a = anim = android.animation.ValueAnimator.ofFloat(t, v ? 1 : 0);
             a.setDuration(260);
             a.setInterpolator(new android.view.animation.OvershootInterpolator(1.3f));
             a.addUpdateListener(f -> { t = (float) f.getAnimatedValue(); invalidate(); });
