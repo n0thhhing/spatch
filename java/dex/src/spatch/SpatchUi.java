@@ -4663,6 +4663,12 @@ public final class SpatchUi extends FrameLayout {
         header.addView(text(name, 22, () -> ink, true), weight());
         body.addView(header, fill(dp(64)));
         ScrollView scroll = new ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scroll.setVerticalFadingEdgeEnabled(true); // lines melt into the top and bottom edges instead of being cut
+        scroll.setFadingEdgeLength(dp(96));
+        long[] touched = { 0 }; // while the reader is dragging, the screen must not scroll under their finger
+        scroll.setOnTouchListener((v, e) -> { touched[0] = SystemClock.uptimeMillis(); return false; });
         LinearLayout lines = column();
         lines.setPadding(0, dp(12), 0, dp(32));
         TextView status = text("Loading lyrics…", 16, () -> inkDim, false);
@@ -4687,31 +4693,74 @@ public final class SpatchUi extends FrameLayout {
                 if (found == null || found.words.length == 0) { status.setText(empty); return; }
                 lines.removeView(status);
                 boolean synced = found.starts[found.starts.length - 1] > 0;
+                // Synced lyrics are read one line at a time: the sung line sits in the middle, so room above and below it.
+                if (synced) lines.setPadding(0, getHeight() * 2 / 5, 0, getHeight() / 2);
                 TextView[] views = new TextView[found.words.length];
                 for (int i = 0; i < views.length; i++) {
                     String line = found.words[i];
-                    views[i] = text(line.isEmpty() ? " " : line, 22, () -> synced ? inkDim : ink, true);
-                    lines.addView(views[i], fill(-2));
-                    final long at = found.starts[i];
-                    if (synced) tappable(views[i], null, () -> { setPosition(at); command(SEEK, at, ""); }); // tap a line to jump there
+                    views[i] = text(line.isEmpty() ? " " : line, synced ? 30 : 22, () -> ink, true);
+                    views[i].setLineSpacing(0, 1.05f);
+                    if (synced) views[i].setPadding(dp(16), dp(8), dp(16), dp(8));
+                    LinearLayout.LayoutParams at = fill(-2);
+                    if (synced) at.bottomMargin = dp(14);
+                    lines.addView(views[i], at);
+                    final long start = found.starts[i];
+                    if (synced) {
+                        views[i].setPivotX(0);
+                        views[i].addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> v.setPivotY((b - t) / 2f));
+                        tappable(views[i], null, () -> { setPosition(start); command(SEEK, start, ""); }); // tap a line to jump there
+                    }
                 }
-                if (synced) syncLyrics(panel, scroll, views, found.starts, new int[] { -2 });
+                if (synced) syncLyrics(panel, scroll, views, found.starts, new int[] { -2 }, touched);
             });
         });
     }
 
-    /** Lights the line being sung (and keeps it in view) while the lyrics screen is open; `shown` holds the lit line. */
-    private void syncLyrics(FrameLayout panel, ScrollView scroll, TextView[] views, long[] starts, int[] shown) {
+    /**
+     * Keeps the sung line large, bright and centred while the lyrics screen is open (the others dim and shrink); `shown` holds the current line, -2 before the first pass, which snaps instead of animating.
+     */
+    private void syncLyrics(FrameLayout panel, ScrollView scroll, TextView[] views, long[] starts, int[] shown, long[] touched) {
         if (lyricsPanel != panel) return;
+        if (shown[0] == -2 && (scroll.getHeight() == 0 || views[0].getHeight() == 0)) { // not laid out yet: the centring needs real sizes
+            postDelayed(() -> syncLyrics(panel, scroll, views, starts, shown, touched), 30);
+            return;
+        }
         long now = playhead();
         int current = -1;
         for (int i = 0; i < starts.length; i++) if (starts[i] > 0 && starts[i] <= now) current = i;
         if (current != shown[0]) {
+            boolean first = shown[0] == -2, glide = motion() && !first;
             shown[0] = current;
-            for (int i = 0; i < views.length; i++) views[i].setTextColor(i == current ? ink : inkDim);
-            if (current >= 0) scroll.smoothScrollTo(0, Math.max(0, views[current].getTop() - scroll.getHeight() / 3));
+            for (int i = 0; i < views.length; i++) {
+                boolean on = i == current;
+                float alpha = on ? 1f : .3f, size = on ? 1f : .95f;
+                // The sung line glows in the cover's accent and sits on a soft pill.
+                views[i].setShadowLayer(on ? dp(14) : 0, 0, 0, (accent & 0x00ffffff) | 0x80000000);
+                views[i].setBackground(on ? round(0x14ffffff, 24) : null);
+                if (glide) views[i].animate().alpha(alpha).scaleX(size).scaleY(size).setDuration(320).start();
+                else { views[i].setAlpha(alpha); views[i].setScaleX(size); views[i].setScaleY(size); }
+            }
+            if (SystemClock.uptimeMillis() - touched[0] > 4000) {
+                View focus = views[Math.max(current, 0)]; // in the intro, the first line waits in the middle
+                int to = Math.max(0, focus.getTop() + focus.getHeight() / 2 - scroll.getHeight() / 2), before = scroll.getScrollY();
+                scroll.scrollTo(0, to);
+                int delta = scroll.getScrollY() - before;
+                // The column jumps and every line springs from where it was to its place, nearest the sung line first:
+                // it arrives as a ripple rather than a block.
+                if (glide && delta != 0) for (int i = 0; i < views.length; i++) {
+                    if (views[i].getTag() instanceof android.animation.ObjectAnimator) ((android.animation.ObjectAnimator) views[i].getTag()).cancel();
+                    float lag = views[i].getTranslationY() + delta;
+                    views[i].setTranslationY(lag);
+                    android.animation.ObjectAnimator settle = android.animation.ObjectAnimator.ofFloat(views[i], "translationY", lag, 0f);
+                    settle.setStartDelay(Math.min(Math.abs(i - Math.max(current, 0)), 8) * 16L);
+                    settle.setDuration(560);
+                    settle.setInterpolator(new android.view.animation.OvershootInterpolator(.6f));
+                    views[i].setTag(settle);
+                    settle.start();
+                }
+            }
         }
-        postDelayed(() -> syncLyrics(panel, scroll, views, starts, shown), 250);
+        postDelayed(() -> syncLyrics(panel, scroll, views, starts, shown, touched), 250);
     }
 
     private void openQueue() {
