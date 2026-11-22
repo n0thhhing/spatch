@@ -168,8 +168,11 @@ public class SpatchWidget extends AppWidgetProvider {
         centerPause = center(true, 96);
     }
 
+    /** getIdentifier walks the resource table by name; views() asks ~30 times per refresh, and ids never change at run time. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, Integer> IDS = new java.util.concurrent.ConcurrentHashMap<>();
+
     private static int id(Context context, String name, String type) {
-        return context.getResources().getIdentifier(name, type, context.getPackageName());
+        return IDS.computeIfAbsent(type + "/" + name, k -> context.getResources().getIdentifier(name, type, context.getPackageName()));
     }
 
     private static PendingIntent broadcast(Context context, String action) {
