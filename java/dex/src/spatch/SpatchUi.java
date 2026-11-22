@@ -225,6 +225,10 @@ public final class SpatchUi extends FrameLayout {
     Bitmap lastBlur, lastCover;
     String lastCoverUrl = "", nextKey = "";
     private TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
+    /** The optional one-line lyric under the player's cover, and the lyrics it follows. */
+    private TextView pLyric;
+    private String lyricsUri = "";
+    private CoreBridge.Lyrics lyricsData;
     private Icon pLike, pShuffle, pRepeat, pSparkle;
     /** Whether the playing playlist is in Smart Shuffle, as Spotify keeps it (read when the context changes). */
     private boolean smartShuffle;
@@ -3583,6 +3587,7 @@ public final class SpatchUi extends FrameLayout {
             player.addView(audioStatus);
             toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
+            toggle(player, "Lyrics in the player", "The line being sung, under the cover", "player_lyrics", false, false);
             if (pref("backdrop", true)) choice(player, "Backdrop blur", new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
             toggle(player, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
             if (pref("motes", true)) {
@@ -4318,7 +4323,39 @@ public final class SpatchUi extends FrameLayout {
         pTitle = pArtist = pSource = pBadge = pQuality = pSpeed = null;
         pLike = pShuffle = pRepeat = pSparkle = null;
         pPlay = null;
+        pLyric = null;
         nextKey = "";
+    }
+
+    /** Keeps the player's lyric line on the line being sung: fetches the song's lyrics once, then follows the playhead. */
+    private void playerLyrics(TextView view) {
+        if (player == null || pLyric != view) return;
+        if (!uri.equals(lyricsUri)) {
+            String forUri = lyricsUri = uri;
+            lyricsData = null;
+            view.setText("");
+            if (!forUri.isEmpty()) {
+                String track = forUri.substring(forUri.lastIndexOf(':') + 1);
+                submit(ART, () -> {
+                    CoreBridge.Lyrics got = null;
+                    try { got = CoreBridge.lyrics(track); } catch (Throwable none) { /* no lyrics, or offline: the line just stays empty */ }
+                    CoreBridge.Lyrics found = got;
+                    post(() -> { if (forUri.equals(lyricsUri)) lyricsData = found; });
+                });
+            }
+        }
+        String line = "";
+        CoreBridge.Lyrics l = lyricsData;
+        if (l != null && l.words.length > 0 && l.starts[l.starts.length - 1] > 0) {
+            long now = playhead();
+            for (int i = 0; i < l.starts.length; i++) if (l.starts[i] > 0 && l.starts[i] <= now) line = l.words[i];
+        }
+        if (!line.contentEquals(view.getText())) {
+            String next = line;
+            if (motion()) view.animate().alpha(0).setDuration(120).withEndAction(() -> { view.setText(next); view.animate().alpha(1).setDuration(180).start(); }).start();
+            else view.setText(next);
+        }
+        view.postDelayed(() -> playerLyrics(view), 400);
     }
 
     private void buildPlayer() {
@@ -4384,6 +4421,22 @@ public final class SpatchUi extends FrameLayout {
         disc = artwork.new Disc();
         col.addView(disc, new LinearLayout.LayoutParams(-1, 0, 1));
         gestures(disc);
+        pLyric = null;
+        if (pref("player_lyrics", false)) {
+            // One quiet line, always one line tall (so nothing shifts when it fills in or empties); tap for all of it.
+            TextView line = pLyric = text("", 18, () -> accent, true);
+            line.setGravity(Gravity.CENTER);
+            line.setSingleLine(true);
+            line.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            tappable(line, "Open lyrics", this::openLyrics);
+            LinearLayout.LayoutParams lineParams = lp(-1, -2);
+            lineParams.topMargin = dp(10);
+            lineParams.bottomMargin = dp(12);
+            col.addView(line, lineParams);
+            lyricsUri = "";
+            lyricsData = null;
+            playerLyrics(line);
+        }
 
         LinearLayout titleRow = row();
         LinearLayout words = column();
