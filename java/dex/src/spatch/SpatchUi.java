@@ -833,6 +833,7 @@ public final class SpatchUi extends FrameLayout {
             if (wave != null) wave.cancelScrub();
         }
         uri = s[1]; title = s[2]; artist = s[3]; album = s[4]; image = s[5];
+        if (changed && lyricsPanel != null) { closeLyrics(); post(this::openLyrics); } // a new song: show its lyrics, not the last one's
         playing = Boolean.parseBoolean(s[6]);
         if (pending != null && (changed || pending == playing)) pending = null;
         shuffle = Boolean.parseBoolean(s[7]);
