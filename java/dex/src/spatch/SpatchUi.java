@@ -4654,6 +4654,7 @@ public final class SpatchUi extends FrameLayout {
         lyricsPanel.setClickable(true);
         lyricsPanel.setBackgroundColor(bg);
         addView(lyricsPanel, new LayoutParams(-1, -1));
+        if (pref("backdrop", true)) lyricsPanel.addView(artwork.new Backdrop(), new LayoutParams(-1, -1)); // the player's blurred cover, so the two screens match
         LinearLayout body = column();
         body.setPadding(dp(18), inset.top, dp(18), inset.bottom);
         LinearLayout header = row();
