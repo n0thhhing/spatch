@@ -4381,6 +4381,8 @@ public final class SpatchUi extends FrameLayout {
         int from = params.height < 0 ? full : params.height, to = open ? full : 0;
         if (!motion()) {
             params.height = open ? -2 : 0;
+            params.topMargin = open ? dp(6) : 0;
+            params.bottomMargin = open ? dp(8) : 0;
             box.setLayoutParams(params);
             box.setAlpha(open ? 1f : 0f);
             return;
@@ -4388,9 +4390,20 @@ public final class SpatchUi extends FrameLayout {
         android.animation.ValueAnimator grow = android.animation.ValueAnimator.ofInt(from, to);
         grow.setDuration(420);
         grow.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
-        grow.addUpdateListener(a -> { params.height = (int) a.getAnimatedValue(); box.setLayoutParams(params); });
+        grow.addUpdateListener(a -> {
+            params.height = (int) a.getAnimatedValue();
+            float shown = full == 0 ? 0 : Math.min(1f, params.height / (float) full);
+            params.topMargin = Math.round(dp(6) * shown);
+            params.bottomMargin = Math.round(dp(8) * shown);
+            box.setLayoutParams(params);
+        });
         grow.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override public void onAnimationEnd(android.animation.Animator done) { if (open) { params.height = -2; box.setLayoutParams(params); } }
+            @Override public void onAnimationEnd(android.animation.Animator done) {
+                params.topMargin = open ? dp(6) : 0;
+                params.bottomMargin = open ? dp(8) : 0;
+                if (open) params.height = -2;
+                box.setLayoutParams(params);
+            }
         });
         grow.start();
         box.animate().alpha(open ? 1f : 0f).setDuration(open ? 420 : 260).start();
@@ -4552,8 +4565,7 @@ public final class SpatchUi extends FrameLayout {
             box.setClipChildren(true);
             tappable(box, "Open lyrics", this::openLyrics);
             LinearLayout.LayoutParams lineParams = lp(-1, 0); // collapsed until the song's lyrics are about to start
-            lineParams.topMargin = dp(6);
-            lineParams.bottomMargin = dp(8);
+            // No margins while collapsed: a song without lyrics must not move anything (lyricBlock grows them with the height).
             box.setAlpha(0f);
             col.addView(box, lineParams);
             lyricShown = false;
@@ -4911,7 +4923,19 @@ public final class SpatchUi extends FrameLayout {
                     if (synced) {
                         views[i].setPivotX(0);
                         views[i].addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> v.setPivotY((b - t) / 2f));
-                        tappable(views[i], null, () -> { setPosition(start); command(SEEK, start, ""); }); // tap a line to jump there
+                        final TextView tapped = views[i];
+                        tappable(views[i], null, () -> {
+                            setPosition(start);
+                            command(SEEK, start, ""); // tap a line to jump there
+                            GradientDrawable flash = round(0x33ffffff, 24); // the tap shows where it landed: a pill that fades
+                            tapped.setBackground(flash);
+                            tapped.postDelayed(() -> {
+                                android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(0x33, 0);
+                                fade.setDuration(220);
+                                fade.addUpdateListener(f -> flash.setColor(((int) f.getAnimatedValue() << 24) | 0xffffff));
+                                fade.start();
+                            }, 80);
+                        });
                     }
                 }
                 if (synced) syncLyrics(alive, scroll, views, found.starts, new int[] { -2 }, touched);
@@ -4978,9 +5002,12 @@ public final class SpatchUi extends FrameLayout {
             queuePanel = new FrameLayout(activity);
             queuePanel.setClickable(true);
             addView(queuePanel, new LayoutParams(-1, -1));
+            queueFresh = true;
         }
         renderQueue();
     }
+
+    private boolean queueFresh;
 
     private void renderQueue() {
         int offset = queueScroll == null ? 0 : queueScroll.getScrollY();
@@ -4993,6 +5020,10 @@ public final class SpatchUi extends FrameLayout {
         header.addView(text("Queue", 30, () -> ink, true), weight());
         body.addView(header, fill(dp(64)));
         queueScroll = new ScrollView(activity);
+        queueScroll.setVerticalScrollBarEnabled(false);
+        queueScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        queueScroll.setVerticalFadingEdgeEnabled(true); // rows melt into the top and bottom
+        queueScroll.setFadingEdgeLength(dp(56));
         LinearLayout tracks = column();
         tracks.setPadding(0, dp(12), 0, dp(24));
         tracks.addView(text("Now playing", 14, () -> accent, true), fill(-2));
@@ -5012,9 +5043,15 @@ public final class SpatchUi extends FrameLayout {
             line.addView(options, lp(dp(48), dp(48)));
             song.setOnLongClickListener(v -> { queueActions(index, entry); return true; });
             tracks.addView(line, fill(-2));
+            if (queueFresh && motion() && i < 12) { // the first rows cascade in when the queue opens
+                line.setAlpha(0f);
+                line.setTranslationY(dp(18));
+                line.animate().alpha(1f).translationY(0).setStartDelay(60L + i * 30L).setDuration(380).setInterpolator(new android.view.animation.PathInterpolator(.38f, 1.21f, .22f, 1f)).start();
+            }
         }
         if (upcoming.isEmpty()) tracks.addView(text("Nothing queued after this", 16, () -> inkDim, false), fill(-2));
         queueScroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
+        queueFresh = false;
         body.addView(queueScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         queuePanel.addView(body, new LayoutParams(-1, -1));
         keepScroll(queueScroll, offset);
@@ -5292,7 +5329,14 @@ public final class SpatchUi extends FrameLayout {
             }
             pTitle.setText(shown);
         }
-        if (pArtist != null) pArtist.setText(artist);
+        if (pArtist != null) {
+            if (pArtist.getText().length() > 0 && !artist.contentEquals(pArtist.getText()) && motion()) {
+                pArtist.setAlpha(0f);
+                pArtist.setTranslationY(dp(8));
+                pArtist.animate().alpha(1f).translationY(0).setStartDelay(60).setDuration(360).start(); // a beat behind the title
+            }
+            pArtist.setText(artist);
+        }
         if (pSource != null) pSource.setText(source.isEmpty() ? album : source);
         if (pBadge != null) pBadge.setVisibility(rating.isEmpty() ? GONE : VISIBLE);
         if (pSpeed != null) {
