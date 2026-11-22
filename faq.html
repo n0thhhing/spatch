@@ -1,184 +1,142 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FAQ · Spatch</title>
-<meta name="description" content="Common questions about Spatch: safety, accounts, ads, versions and keys.">
-<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/style.css">
-<link rel="stylesheet" href="assets/pages-support.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FAQ · Spatch</title>
+  <meta name="description" content="Common questions about Spatch: safety, accounts, ads, versions and keys.">
+  <meta name="theme-color" content="#14121c">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/pages-support.css">
 </head>
 <body>
-<a class="skip-link" href="#main">Skip to content</a>
-
-<header class="site-header">
-  <div class="wrap nav-wrap">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <nav class="site-nav" aria-label="Primary">
-      <a href="index.html">Home</a>
-      <a href="features.html">Features</a>
-      <a href="themes.html">Themes</a>
-      <a href="install.html">Install</a>
-      <a href="manager.html">Manager</a>
-      <a href="gallery.html">Gallery</a>
-      <a href="faq.html" aria-current="page">FAQ</a>
-      <a href="changelog.html">Changelog</a>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap nav-wrap">
+      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html" aria-current="page">FAQ</a><a href="changelog.html">Changelog</a>
+      </nav>
+      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+    </div>
+    <nav class="mobile-drawer" aria-label="Mobile">
+      <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html" aria-current="page">FAQ</a><a href="changelog.html">Changelog</a>
     </nav>
-    <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-drawer">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 5h14v1.8H3V5zm0 4.1h14v1.8H3V9.1zm0 4.1h14V15H3v-1.8z"/></svg>
-    </button>
-  </div>
-</header>
+  </header>
 
-<div class="drawer-backdrop"></div>
-<nav id="mobile-drawer" class="mobile-drawer" aria-label="Mobile navigation">
-  <div class="drawer-head">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <button class="nav-toggle drawer-close" type="button" aria-label="Close navigation">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M5.3 4.3 10 9l4.7-4.7 1 1L11 10l4.7 4.7-1 1L10 11l-4.7 4.7-1-1L9 10 4.3 5.3l1-1z"/></svg>
-    </button>
-  </div>
-  <a href="index.html">Home</a>
-  <a href="features.html">Features</a>
-  <a href="themes.html">Themes</a>
-  <a href="install.html">Install</a>
-  <a href="manager.html">Manager</a>
-  <a href="gallery.html">Gallery</a>
-  <a href="faq.html" aria-current="page">FAQ</a>
-  <a href="changelog.html">Changelog</a>
-</nav>
-
-<main id="main">
-  <section class="page-hero">
-    <div class="wrap">
-      <p class="eyebrow">FAQ</p>
-      <h1>Questions, answered</h1>
-      <p class="lead">Everything to know about safety, accounts, supported versions, and your signing key.</p>
-    </div>
-  </section>
-
-  <section class="section" style="padding-top:12px">
-    <div class="wrap">
-      <div class="accordion-list">
-        <details class="accordion">
-          <summary>Is Spatch safe?</summary>
-          <div class="accordion-body">
-            <p>Spatch is open source: everything it changes is in the repository, and the manager checks every file against its SHA-256. It needs no account and sends nothing anywhere. It is still a modified app, so it can't come with Spotify's guarantees.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Can my account get banned?</summary>
-          <div class="accordion-body">
-            <p>Modified clients are against Spotify's terms. Spatch only changes how the app looks and doesn't unlock anything, so the risk is low, but it isn't zero. Use it at your own risk.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Does Spatch remove ads or unlock Premium?</summary>
-          <div class="accordion-body">
-            <p>No. Spatch is cosmetic by design. It doesn't skip, block, or hide ads, and it doesn't unlock Premium features. On free accounts it only makes sure its own artwork doesn't fight with Spotify's ad cards.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Why do I need a specific Spotify version?</summary>
-          <div class="accordion-body">
-            <p>Spatch edits Spotify's own code in exact places. Each Spotify release moves those places, so every version needs its own patches. Spatch refuses anything it wasn't built for instead of patching blindly.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Why does Spotify have to be uninstalled the first time?</summary>
-          <div class="accordion-body">
-            <p>Android only updates an app with one signed by the same key. Spatch is signed with your phone's key, not Spotify's, so the original has to go first. After that every update installs in place.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>What happens if I lose my key?</summary>
-          <div class="accordion-body">
-            <p>You'd have to uninstall Spatch to install a build signed by a new key, losing downloads. Export the key from the manager and keep it safe.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Does Spatch work on free accounts?</summary>
-          <div class="accordion-body">
-            <p>Yes. Free accounts can also hide the Premium tab.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Can I go back to normal Spotify?</summary>
-          <div class="accordion-body">
-            <p>Uninstall Spatch and install Spotify from the Play Store.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Where are Spatch's settings?</summary>
-          <div class="accordion-body">
-            <p>Open Spotify's side panel (your profile picture) and choose <strong>Spatch</strong>.</p>
-          </div>
-        </details>
-        <details class="accordion">
-          <summary>Who makes Spatch?</summary>
-          <div class="accordion-body">
-            <p>Spatch is an independent, unofficial project. It is not affiliated with or endorsed by Spotify AB.</p>
-          </div>
-        </details>
+  <main id="main">
+    <section class="page-hero">
+      <div class="wrap">
+        <p class="eyebrow">FAQ</p>
+        <h1>Questions, answered.</h1>
+        <p class="lead">Everything to know about safety, accounts, supported versions, and your signing key.</p>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section class="section section--tinted">
-    <div class="wrap">
-      <div class="callout">
-        <div>
-          <h2>Ready to install?</h2>
-          <p class="muted">Follow the step-by-step guide using Spatch Manager on Android 10 or newer.</p>
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="faq-group reveal">
+          <h2 class="faq-group-title">Safety &amp; account</h2>
+          <details class="accordion">
+            <summary>Is Spatch safe?</summary>
+            <div>
+              <p>Spatch is open source: everything it changes is in the repository, and the manager checks every file against its SHA-256. It needs no account and sends nothing anywhere. It is still a modified app, so it can't come with Spotify's guarantees.</p>
+            </div>
+          </details>
+          <details class="accordion">
+            <summary>Can my account get banned?</summary>
+            <div>
+              <p>Modified clients are against Spotify's terms. Spatch only changes how the app looks and doesn't unlock anything, so the risk is low, but it isn't zero. Use it at your own risk.</p>
+            </div>
+          </details>
+          <details class="accordion">
+            <summary>Does Spatch remove ads or unlock Premium?</summary>
+            <div>
+              <p>No. Spatch is cosmetic by design. It doesn't skip, block, or hide ads, and it doesn't unlock Premium features. On free accounts it only makes sure its own artwork doesn't fight with Spotify's ad cards.</p>
+            </div>
+          </details>
+          <details class="accordion">
+            <summary>Does Spatch work on free accounts?</summary>
+            <div>
+              <p>Yes. Free accounts can also hide the Premium tab.</p>
+            </div>
+          </details>
         </div>
-        <div class="btn-row">
-          <a class="btn btn--primary" href="install.html">Install guide</a>
-          <a class="btn btn--ghost" href="manager.html">About Manager</a>
+
+        <div class="faq-group reveal">
+          <h2 class="faq-group-title">Versions &amp; signing keys</h2>
+          <details class="accordion">
+            <summary>Why do I need a specific Spotify version?</summary>
+            <div>
+              <p>Spatch edits Spotify's own code in exact places. Each Spotify release moves those places, so every version needs its own patches. Spatch is built for Spotify <strong>9.2.0.2053</strong> (version code <code>148387875</code>) and refuses anything it wasn't built for instead of patching blindly.</p>
+            </div>
+          </details>
+          <details class="accordion">
+            <summary>Why does Spotify have to be uninstalled the first time?</summary>
+            <div>
+              <p>Android only updates an app with one signed by the same key. Spatch is signed with your phone's key, not Spotify's, so the original has to go first. After that every update installs in place.</p>
+            </div>
+          </details>
+          <details class="accordion">
+            <summary>What happens if I lose my key?</summary>
+            <div>
+              <p>You'd have to uninstall Spatch to install a build signed by a new key, losing downloads. Export the key from the manager and keep it safe.</p>
+            </div>
+          </details>
+          <details class="accordion">
+            <summary>Can I go back to normal Spotify?</summary>
+            <div>
+              <p>Uninstall Spatch and install Spotify from the Play Store.</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="faq-group reveal">
+          <h2 class="faq-group-title">Using Spatch</h2>
+          <details class="accordion">
+            <summary>Where are Spatch's settings?</summary>
+            <div>
+              <p>Open Spotify's side panel (your profile picture) and choose <strong>Spatch</strong>. Every piece of the player is optional in settings, so you can keep only what you want.</p>
+            </div>
+          </details>
+          <details class="accordion">
+            <summary>Who makes Spatch?</summary>
+            <div>
+              <p>Spatch is an independent, unofficial project. It is not affiliated with or endorsed by Spotify AB.</p>
+            </div>
+          </details>
         </div>
       </div>
-    </div>
-  </section>
-</main>
+    </section>
 
-<footer class="site-footer">
-  <div class="wrap footer-grid">
-    <div>
-      <a class="brand" href="index.html">
-        <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-        <span>Spatch</span>
-      </a>
-      <p class="muted" style="margin-top:14px">An unofficial, cosmetic redesign for Spotify on Android. Not affiliated with or endorsed by Spotify AB. Spotify is a trademark of Spotify AB.</p>
-    </div>
-    <div>
-      <h4>Pages</h4>
-      <ul>
-        <li><a href="features.html">Features</a></li>
-        <li><a href="themes.html">Themes</a></li>
-        <li><a href="install.html">Install</a></li>
-        <li><a href="manager.html">Manager</a></li>
-      </ul>
-    </div>
-    <div>
-      <h4>Project</h4>
-      <ul>
-        <li><a href="gallery.html">Gallery</a></li>
-        <li><a href="faq.html">FAQ</a></li>
-        <li><a href="changelog.html">Changelog</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch">GitHub</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/blob/main/LICENSE">MIT licence</a></li>
-      </ul>
-    </div>
-  </div>
-</footer>
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="callout callout-split reveal">
+          <div>
+            <h2>Ready to install?</h2>
+            <p class="muted">Follow the step-by-step guide using Spatch Manager on Android 10 or newer.</p>
+          </div>
+          <div class="btn-row">
+            <a class="btn btn--primary" href="install.html">Install guide</a>
+            <a class="btn btn--ghost" href="manager.html">About Manager</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
 
-<script src="assets/site.js"></script>
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
+        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
+      </div>
+      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
+    </div>
+  </footer>
+  <script src="assets/site.js"></script>
 </body>
 </html>

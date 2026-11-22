@@ -1,243 +1,178 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gallery · Spatch</title>
-<meta name="description" content="Screenshots of Spatch on a Pixel: player, immersive view, home, playlists, library, search, settings, widgets, and Spatch Manager.">
-<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/style.css">
-<link rel="stylesheet" href="assets/pages-showcase.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gallery · Spatch</title>
+  <meta name="description" content="Screenshots of Spatch on a Pixel: player, time-synced lyrics, immersive view, home, playlists, library, search, settings, widgets, and Spatch Manager.">
+  <meta name="theme-color" content="#14121c">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/pages-showcase.css">
 </head>
 <body>
-<a class="skip-link" href="#main">Skip to content</a>
-
-<header class="site-header">
-  <div class="wrap nav-wrap">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <nav class="site-nav" aria-label="Primary">
-      <a href="index.html">Home</a>
-      <a href="features.html">Features</a>
-      <a href="themes.html">Themes</a>
-      <a href="install.html">Install</a>
-      <a href="manager.html">Manager</a>
-      <a href="gallery.html" aria-current="page">Gallery</a>
-      <a href="faq.html">FAQ</a>
-      <a href="changelog.html">Changelog</a>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap nav-wrap">
+      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html" aria-current="page">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
+      </nav>
+      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+    </div>
+    <nav class="mobile-drawer" aria-label="Mobile">
+      <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html" aria-current="page">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
     </nav>
-    <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-drawer">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 5h14v1.8H3V5zm0 4.1h14v1.8H3V9.1zm0 4.1h14V15H3v-1.8z"/></svg>
-    </button>
-  </div>
-</header>
+  </header>
 
-<div class="drawer-backdrop"></div>
-<nav id="mobile-drawer" class="mobile-drawer" aria-label="Mobile navigation">
-  <div class="drawer-head">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <button class="nav-toggle drawer-close" type="button" aria-label="Close navigation">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M5.3 4.3 10 9l4.7-4.7 1 1L11 10l4.7 4.7-1 1L10 11l-4.7 4.7-1-1L9 10 4.3 5.3l1-1z"/></svg>
-    </button>
-  </div>
-  <a href="index.html">Home</a>
-  <a href="features.html">Features</a>
-  <a href="themes.html">Themes</a>
-  <a href="install.html">Install</a>
-  <a href="manager.html">Manager</a>
-  <a href="gallery.html" aria-current="page">Gallery</a>
-  <a href="faq.html">FAQ</a>
-  <a href="changelog.html">Changelog</a>
-</nav>
-
-<main id="main">
-  <section class="page-hero">
-    <div class="wrap">
-      <p class="eyebrow">Gallery</p>
-      <h1>Spatch on a Pixel</h1>
-      <p class="lead">Real screenshots in the Lavender theme. Tap any screenshot to see it larger.</p>
-      <div class="chip-bar" role="group" aria-label="Filter screenshots by category">
-        <button class="chip is-active" type="button" data-filter="all" aria-pressed="true">All</button>
-        <button class="chip" type="button" data-filter="player" aria-pressed="false">Player</button>
-        <button class="chip" type="button" data-filter="screens" aria-pressed="false">Screens</button>
-        <button class="chip" type="button" data-filter="settings" aria-pressed="false">Settings</button>
-        <button class="chip" type="button" data-filter="widget" aria-pressed="false">Widget</button>
-        <button class="chip" type="button" data-filter="manager" aria-pressed="false">Manager</button>
+  <main id="main">
+    <section class="page-hero">
+      <div class="wrap">
+        <p class="eyebrow">Gallery</p>
+        <h1>Spatch on a Pixel</h1>
+        <p class="lead">Real screenshots in the Lavender theme. Tap any screenshot to see it larger.</p>
+        <div class="chip-bar" role="group" aria-label="Filter screenshots by category">
+          <button class="chip is-active" type="button" data-filter="all" aria-pressed="true">All</button>
+          <button class="chip" type="button" data-filter="player" aria-pressed="false">Player</button>
+          <button class="chip" type="button" data-filter="screens" aria-pressed="false">Screens</button>
+          <button class="chip" type="button" data-filter="settings" aria-pressed="false">Settings</button>
+          <button class="chip" type="button" data-filter="widget" aria-pressed="false">Widget</button>
+          <button class="chip" type="button" data-filter="manager" aria-pressed="false">Manager</button>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section class="section">
-    <div class="wrap">
-      <div class="gallery-grid">
-        <figure class="gallery-item" data-kind="player" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/player_main.jpg" alt="Spatch player screen with circular album art and ring of bars" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Player<span>Round cover &amp; ring of bars</span></figcaption>
-        </figure>
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="gallery-grid">
+          <figure class="gallery-item reveal" data-kind="player">
+            <div class="phone">
+              <img src="assets/app/player.jpg" width="720" height="1478" loading="lazy" alt="Spatch player screen with circular album art, ring of bars, cover blur backdrop and three-line lyric strip" data-zoom>
+            </div>
+            <figcaption>Player<span>Round cover, blur &amp; three-line lyrics</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="player" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/immersive.jpg" alt="Spatch immersive full-screen player with audio visualizer" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Immersive view<span>Full-screen art &amp; visualizer</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="player">
+            <div class="phone">
+              <img src="assets/app/lyrics.jpg" width="720" height="1478" loading="lazy" alt="Spatch time-synced lyrics screen with glowing active line and gliding column" data-zoom>
+            </div>
+            <figcaption>Time-synced lyrics<span>Glowing active line &amp; tap to jump</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="settings" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/playerset.jpg" alt="Spatch player settings page" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Player settings<span>Switches and fine-grained controls</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="screens">
+            <div class="phone">
+              <img src="assets/app/home.jpg" width="720" height="1478" loading="lazy" alt="Spatch home screen with large now-playing card and recently played playlists" data-zoom>
+            </div>
+            <figcaption>Home<span>Now-playing card &amp; sliding filter pills</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="screens" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/home_main.jpg" alt="Home screen with Spatch floating navigation and sliding filter pills" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Home<span>Floating nav &amp; sliding filter pills</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="settings">
+            <div class="phone">
+              <img src="assets/app/settings.jpg" width="720" height="1478" loading="lazy" alt="Spatch settings overview with search, presets and switches" data-zoom>
+            </div>
+            <figcaption>Spatch settings<span>Search, presets &amp; toggles</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="screens" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/playlist.jpg" alt="Playlist page with themed header" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Playlist header<span>Theme-tinted artwork header</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="settings">
+            <div class="phone">
+              <img src="assets/app/appearance.jpg" width="720" height="1478" loading="lazy" alt="Spatch appearance settings with palette picker" data-zoom>
+            </div>
+            <figcaption>Appearance<span>Palette picker in settings</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="screens" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/playlist2.jpg" alt="Playlist track list rendered as rounded cards" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Track cards<span>Rounded cards in playlists</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="player">
+            <div class="phone">
+              <img src="assets/shots/immersive.jpg" width="720" height="1487" loading="lazy" alt="Spatch immersive full-screen player with live audio visualizer" data-zoom>
+            </div>
+            <figcaption>Immersive view<span>Full-screen art &amp; visualizer</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="screens" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/library.jpg" alt="Library screen with Spatch cards" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Library<span>Rebuilt library grid &amp; cards</span></figcaption>
-        </figure>
+          <figure class="gallery-item gallery-item--wide reveal" data-kind="widget">
+            <div class="widget-frame" data-zoom>
+              <img src="assets/app/widget.png" width="972" height="240" loading="lazy" alt="Spatch home-screen widget with square cover, title and morphing controls">
+            </div>
+            <figcaption>Widget<span>Adaptive square cover &amp; morphing controls</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="screens" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/search.jpg" alt="Search screen styled with Spatch theme" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Search<span>Themed browse &amp; results</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="screens">
+            <div class="phone">
+              <img src="assets/shots/playlist.jpg" width="720" height="1487" loading="lazy" alt="Playlist page with Spatch themed header and rounded track cards" data-zoom>
+            </div>
+            <figcaption>Playlist header<span>Theme-tinted artwork header</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="settings" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/settings.jpg" alt="Spatch settings main screen" width="540" height="1205" loading="lazy">
-          </div>
-          <figcaption>Spatch settings<span>Search, presets &amp; toggles</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="screens">
+            <div class="phone">
+              <img src="assets/shots/library.jpg" width="720" height="1487" loading="lazy" alt="Library screen with Spatch rounded cards" data-zoom>
+            </div>
+            <figcaption>Library<span>Rebuilt library grid &amp; cards</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="settings" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/settings2.jpg" alt="Spatch settings categories with expressive icon shapes" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Categories<span>Expressive icon shapes</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="screens">
+            <div class="phone">
+              <img src="assets/shots/search.jpg" width="720" height="1487" loading="lazy" alt="Search screen styled with Spatch theme" data-zoom>
+            </div>
+            <figcaption>Search<span>Themed browse &amp; results</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="settings" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/appearance.jpg" alt="Theme grid in Spatch settings" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Themes<span>Palette picker in settings</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="settings">
+            <div class="phone">
+              <img src="assets/shots/appearance2.jpg" width="720" height="1487" loading="lazy" alt="Typography options in Spatch settings" data-zoom>
+            </div>
+            <figcaption>Typography<span>Bundled &amp; custom fonts</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="settings" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/appearance2.jpg" alt="Typography options in Spatch settings" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Typography<span>Bundled &amp; custom fonts</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="manager">
+            <div class="phone">
+              <img src="assets/shots/manager.jpg" width="720" height="1487" loading="lazy" alt="Spatch Manager showing Spatch installed and ready to update" data-zoom>
+            </div>
+            <figcaption>Spatch Manager<span>Patch, sign &amp; update on-device</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="manager" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/manager.jpg" alt="Spatch Manager showing Spatch installed and ready to update" width="720" height="1487" loading="lazy">
-          </div>
-          <figcaption>Spatch Manager<span>Patch, sign &amp; update on-device</span></figcaption>
-        </figure>
+          <figure class="gallery-item reveal" data-kind="manager">
+            <div class="phone">
+              <img src="assets/shots/manager_clones.jpg" width="540" height="1205" loading="lazy" alt="Spatch Manager clone configuration screen" data-zoom>
+            </div>
+            <figcaption>Manager clones<span>Run a second copy alongside</span></figcaption>
+          </figure>
 
-        <figure class="gallery-item" data-kind="manager" data-zoom>
-          <div class="device-frame">
-            <img src="assets/shots/manager_clones.jpg" alt="Spatch Manager clone configuration screen" width="540" height="1205" loading="lazy">
-          </div>
-          <figcaption>Manager clones<span>Run a second copy alongside</span></figcaption>
-        </figure>
-
-        <figure class="gallery-item" data-kind="widget" data-zoom>
-          <div class="widget-card">
-            <img src="assets/shots/widget.jpg" alt="Spatch 4x2 home-screen widget in Spatch colours" width="720" height="378" loading="lazy">
-          </div>
-          <figcaption>Widget<span>Spatch colours</span></figcaption>
-        </figure>
-
-        <figure class="gallery-item" data-kind="widget" data-zoom>
-          <div class="widget-card">
-            <img src="assets/shots/widget_wallpaper.jpg" alt="Spatch home-screen widget styled from wallpaper colours" width="720" height="378" loading="lazy">
-          </div>
-          <figcaption>Widget (wallpaper)<span>Material You wallpaper palette</span></figcaption>
-        </figure>
+          <figure class="gallery-item gallery-item--wide reveal" data-kind="widget">
+            <div class="widget-frame" data-zoom>
+              <img src="assets/shots/widget_wallpaper.jpg" width="720" height="378" loading="lazy" alt="Spatch 4x2 home-screen widget styled from Material You wallpaper colours">
+            </div>
+            <figcaption>Widget (wallpaper)<span>Material You wallpaper palette</span></figcaption>
+          </figure>
+        </div>
       </div>
-    </div>
-  </section>
-</main>
+    </section>
+  </main>
 
-<footer class="site-footer">
-  <div class="wrap footer-grid">
-    <div>
-      <a class="brand" href="index.html">
-        <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-        <span>Spatch</span>
-      </a>
-      <p class="muted" style="margin-top:14px">An unofficial, cosmetic redesign for Spotify on Android. Not affiliated with or endorsed by Spotify AB. Spotify is a trademark of Spotify AB.</p>
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
+        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
+      </div>
+      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify AB. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
     </div>
-    <div>
-      <h4>Pages</h4>
-      <ul>
-        <li><a href="features.html">Features</a></li>
-        <li><a href="themes.html">Themes</a></li>
-        <li><a href="install.html">Install</a></li>
-        <li><a href="manager.html">Manager</a></li>
-      </ul>
-    </div>
-    <div>
-      <h4>Project</h4>
-      <ul>
-        <li><a href="gallery.html">Gallery</a></li>
-        <li><a href="faq.html">FAQ</a></li>
-        <li><a href="changelog.html">Changelog</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch">GitHub</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/blob/main/LICENSE">MIT licence</a></li>
-      </ul>
-    </div>
-  </div>
-</footer>
-
-<script src="assets/site.js"></script>
-<script>
-document.querySelectorAll("[data-filter]").forEach(function (btn) {
-  btn.addEventListener("click", function () {
-    var filter = btn.dataset.filter;
-    document.querySelectorAll("[data-filter]").forEach(function (other) {
-      var active = other === btn;
-      other.classList.toggle("is-active", active);
-      other.setAttribute("aria-pressed", active ? "true" : "false");
-    });
-    document.querySelectorAll("[data-kind]").forEach(function (item) {
-      item.hidden = filter !== "all" && item.dataset.kind !== filter;
+  </footer>
+  <script src="assets/site.js"></script>
+  <script>
+  document.querySelectorAll("[data-filter]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var filter = btn.dataset.filter;
+      document.querySelectorAll("[data-filter]").forEach(function (other) {
+        var active = other === btn;
+        other.classList.toggle("is-active", active);
+        other.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      document.querySelectorAll("[data-kind]").forEach(function (item) {
+        item.hidden = filter !== "all" && item.dataset.kind !== filter;
+      });
     });
   });
-});
-</script>
+  </script>
 </body>
 </html>

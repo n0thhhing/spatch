@@ -1,282 +1,257 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Features · Spatch</title>
-<meta name="description" content="Everything Spatch changes in Spotify for Android: player, time-synced lyrics, immersive view, screens, motion, widgets, content controls, settings, and developer tools.">
-<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/style.css">
-<link rel="stylesheet" href="assets/pages-showcase.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Features · Spatch</title>
+  <meta name="description" content="Everything Spatch changes in Spotify for Android: round-cover player, time-synced lyrics, immersive view, redesigned screens, motion, widgets, content controls, settings, and developer tools.">
+  <meta name="theme-color" content="#14121c">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/pages-showcase.css">
 </head>
 <body>
-<a class="skip-link" href="#main">Skip to content</a>
-
-<header class="site-header">
-  <div class="wrap nav-wrap">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <nav class="site-nav" aria-label="Primary">
-      <a href="index.html">Home</a>
-      <a href="features.html" aria-current="page">Features</a>
-      <a href="themes.html">Themes</a>
-      <a href="install.html">Install</a>
-      <a href="manager.html">Manager</a>
-      <a href="gallery.html">Gallery</a>
-      <a href="faq.html">FAQ</a>
-      <a href="changelog.html">Changelog</a>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap nav-wrap">
+      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="index.html">Home</a><a href="features.html" aria-current="page">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
+      </nav>
+      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+    </div>
+    <nav class="mobile-drawer" aria-label="Mobile">
+      <a href="index.html">Home</a><a href="features.html" aria-current="page">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
     </nav>
-    <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-drawer">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 5h14v1.8H3V5zm0 4.1h14v1.8H3V9.1zm0 4.1h14V15H3v-1.8z"/></svg>
-    </button>
-  </div>
-</header>
+  </header>
 
-<div class="drawer-backdrop"></div>
-<nav id="mobile-drawer" class="mobile-drawer" aria-label="Mobile navigation">
-  <div class="drawer-head">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <button class="nav-toggle drawer-close" type="button" aria-label="Close navigation">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M5.3 4.3 10 9l4.7-4.7 1 1L11 10l4.7 4.7-1 1L10 11l-4.7 4.7-1-1L9 10 4.3 5.3l1-1z"/></svg>
-    </button>
-  </div>
-  <a href="index.html">Home</a>
-  <a href="features.html" aria-current="page">Features</a>
-  <a href="themes.html">Themes</a>
-  <a href="install.html">Install</a>
-  <a href="manager.html">Manager</a>
-  <a href="gallery.html">Gallery</a>
-  <a href="faq.html">FAQ</a>
-  <a href="changelog.html">Changelog</a>
-</nav>
+  <main id="main">
+    <section class="page-hero">
+      <div class="wrap">
+        <p class="eyebrow">Features</p>
+        <h1>What Spatch changes</h1>
+        <p class="lead">Every change below has its own switch in Spatch settings, with finer options behind it. Presets turn the playful extras on or off together, and Copy and Paste move a whole setup between phones.</p>
+        <div class="chip-bar" aria-label="Feature sections">
+          <a class="chip" href="#player">Player</a>
+          <a class="chip" href="#lyrics">Lyrics</a>
+          <a class="chip" href="#immersive">Immersive</a>
+          <a class="chip" href="#screens">Screens</a>
+          <a class="chip" href="#motion">Motion</a>
+          <a class="chip" href="#widget">Widget</a>
+          <a class="chip" href="#content">Content</a>
+          <a class="chip" href="#settings">Settings</a>
+          <a class="chip" href="#developer">Developer</a>
+        </div>
+      </div>
+    </section>
 
-<main id="main">
-  <section class="page-hero">
+    <section class="section" id="player">
+      <div class="wrap feature-row">
+        <div class="reveal">
+          <p class="eyebrow">Now Playing</p>
+          <h2>Artwork that feels alive</h2>
+          <p class="lead">The player is rebuilt around the album art: shaped, glowing, and moving with the music. Every piece of the player is optional in settings.</p>
+          <ul class="checks">
+            <li><strong>Circular or shaped art:</strong> Circle, scallop, squircle, or soft square, with a slowly turning scalloped ring around it.</li>
+            <li><strong>Smooth cover blur backdrop:</strong> A real blurred glow in the cover's own colours that drifts slowly while music plays and rests when paused.</li>
+            <li><strong>Audio-reactive:</strong> The ring can follow the music's real spectrum, and the art pulses with the bass.</li>
+            <li><strong>Wavy progress:</strong> A seek bar that waves while music plays, with styles, speed, and a time bubble while you seek.</li>
+            <li><strong>Hands on:</strong> Hold Next or Previous to run through a song, tilt the art under your finger, or hold it and spin it like a record to seek.</li>
+            <li><strong>Three-line lyric strip:</strong> Show an optional three-line live lyric strip right inside the player that tucks away when the song's lyrics end.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone"><img src="assets/app/player.jpg" width="720" height="1478" loading="lazy" alt="Spatch player screen with round cover art, ring of bars, cover blur backdrop and three-line lyric strip" data-zoom></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--glow" id="lyrics">
+      <div class="wrap feature-row feature-row--flip">
+        <div class="reveal">
+          <p class="eyebrow">Lyrics</p>
+          <h2>Time-synced lyrics that glide</h2>
+          <p class="lead">Open the lyrics screen for big, readable lines that follow the playhead without clutter.</p>
+          <ul class="checks">
+            <li><strong>Sung line glows:</strong> The active line lights up on a soft pill in the cover's colour while other lines dim and shrink into the edges.</li>
+            <li><strong>Gliding column:</strong> The column glides smoothly to keep the sung line centred; songs without lyrics simply show none.</li>
+            <li><strong>Tap a line to jump:</strong> Seeking is one touch—tap any line to jump straight to that moment.</li>
+            <li><strong>Yours to place:</strong> Read full screen, or keep the optional three-line lyric strip in the player.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone"><img src="assets/app/lyrics.jpg" width="720" height="1478" loading="lazy" alt="Spatch time-synced lyrics screen with a glowing active line and dimmed surrounding lines" data-zoom></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="immersive">
+      <div class="wrap feature-row">
+        <div class="reveal">
+          <p class="eyebrow">Immersive</p>
+          <h2>A full-screen view for listening</h2>
+          <p class="lead">Double-tap the artwork for a distraction-free player with large art, swipe-to-skip, and a real spectrum of Spotify's audio.</p>
+          <ul class="checks">
+            <li><strong>Big, calm, centred:</strong> Title, artist, controls, and volume—nothing else.</li>
+            <li><strong>Swipe to skip:</strong> Flick the art left or right to change song.</li>
+            <li><strong>Visualizers:</strong> Bars, centre, contour, or dots, mirrored, smoothed, and placed where you like.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone"><img src="assets/shots/immersive.jpg" width="720" height="1487" loading="lazy" alt="Spatch immersive full-screen player with live audio visualizer" data-zoom></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="screens">
+      <div class="wrap feature-row feature-row--flip">
+        <div class="reveal">
+          <p class="eyebrow">Screens</p>
+          <h2>The whole app, redrawn</h2>
+          <p class="lead">Home, Search, Library, playlists, and the side panel all pick up Spatch's look.</p>
+          <ul class="checks">
+            <li><strong>Material You 3 icons:</strong> Native Google Material Symbols Rounded vectors replacing proprietary Encore glyphs across player, navigation, and settings.</li>
+            <li><strong>Floating navigation:</strong> A rounded bar with a sliding selection pill, drag between tabs, and an option to hide it while you scroll.</li>
+            <li><strong>Detached quick menu:</strong> Long-press the Home tab for a floating context card with quick actions, contoured highlight borders, and fluid hover pills.</li>
+            <li><strong>Sliding filter pills:</strong> Home's filters travel as one pill that stretches between chips and can be dragged.</li>
+            <li><strong>Cards everywhere:</strong> Library rows, playlist tracks, and search results sit on rounded cards that rise in as lists load.</li>
+            <li><strong>Themed headers:</strong> Playlist and album headers take a tint of your theme instead of flat greys and loud colours.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone"><img src="assets/app/home.jpg" width="720" height="1478" loading="lazy" alt="Spatch home screen with large now-playing card, sliding filter pills and floating navigation" data-zoom></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="motion">
+      <div class="wrap feature-row">
+        <div class="reveal">
+          <p class="eyebrow">Motion &amp; haptics</p>
+          <h2>Feel every press</h2>
+          <p class="lead">Spring physics, ripples, and haptics make Spotify respond like a modern Android app—or keep everything still with Reduce motion.</p>
+          <ul class="checks">
+            <li><strong>Bouncy presses:</strong> Tiles and buttons squash and spring back; the press colour follows your theme.</li>
+            <li><strong>Haptics:</strong> Gentle feedback on playback, navigation, and sliders, each with its own switch.</li>
+            <li><strong>Bursts:</strong> Shapes burst from the play button, mini player, and lists, in your colours.</li>
+            <li><strong>Spinning mini player:</strong> The mini player's cover turns like a record while music plays.</li>
+            <li><strong>Jelly everywhere:</strong> Switch thumbs stretch as they slide, settings rows trail your scroll and spring back together, and the navigation pill wobbles into place.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone"><img src="assets/shots/playlist.jpg" width="720" height="1487" loading="lazy" alt="A playlist page with Spatch's themed header and rounded track cards" data-zoom></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="widget">
+      <div class="wrap feature-row feature-row--flip">
+        <div class="reveal">
+          <p class="eyebrow">Widget &amp; Quick Settings</p>
+          <h2>A widget that fits in</h2>
+          <p class="lead">Spatch replaces Spotify's Now Playing widget with a Material You design in 4×2 and 4×1 sizes, plus a Quick Settings play/pause tile.</p>
+          <ul class="checks">
+            <li><strong>Adaptive square cover:</strong> A square cover that adapts to the size you give it, plus a stacked layout for tall widgets.</li>
+            <li><strong>Morphing play button:</strong> The scallop grows from five bumps to eight as music starts, and settles back on pause.</li>
+            <li><strong>Bouncing equaliser:</strong> Animated by the launcher itself, so it moves without waking the app.</li>
+            <li><strong>Follows your wallpaper:</strong> Turn on "Widget follows wallpaper" and it takes your Material You colours, light or dark.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="widget-stack">
+            <div class="widget-frame" data-zoom>
+              <img src="assets/app/widget.png" width="972" height="240" loading="lazy" alt="Spatch home-screen widget with a square cover, track title and morphing controls">
+            </div>
+            <div class="widget-frame" data-zoom>
+              <img src="assets/shots/widget_wallpaper.jpg" width="720" height="378" loading="lazy" alt="Spatch 4x2 home-screen widget styled from Material You wallpaper colours">
+            </div>
+            <p class="zoom-hint">Spatch colours, then Widget follows wallpaper (tap to enlarge)</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="content">
+      <div class="wrap feature-row">
+        <div class="reveal">
+          <p class="eyebrow">Content</p>
+          <h2>Only what you want to see</h2>
+          <p class="lead">Hide the parts of Spotify you never use. Hiding is cosmetic: nothing is removed from your account.</p>
+          <ul class="checks">
+            <li><strong>Podcasts and audiobooks:</strong> Drop their filters and shelves from Home.</li>
+            <li><strong>Home sections:</strong> Pick any section Spotify has shown you and hide it.</li>
+            <li><strong>Side menu:</strong> Hide Recents, Listening stats, Your plan, and more.</li>
+            <li><strong>Premium tab:</strong> Free accounts can take the Premium tab out of the bottom bar.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone"><img src="assets/shots/library.jpg" width="720" height="1487" loading="lazy" alt="Library screen with Spatch's rounded cards" data-zoom></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="settings">
+      <div class="wrap feature-row feature-row--flip">
+        <div class="reveal">
+          <p class="eyebrow">Spatch settings</p>
+          <h2>Every detail is yours</h2>
+          <p class="lead">Open the side panel and choose Spatch. Search finds any setting by name; each feature has a main switch and a page of finer options.</p>
+          <ul class="checks">
+            <li><strong>Search:</strong> Type what you're after and jump straight to it.</li>
+            <li><strong>Presets:</strong> Calm turns the playful extras off; Everything turns them all on.</li>
+            <li><strong>Copy and Paste:</strong> Move your whole setup between phones as text.</li>
+            <li><strong>Reset per page:</strong> Every page can put its own settings back without touching the rest.</li>
+            <li><strong>Expressive shapes:</strong> Each category's icon sits in its own cookie, clover, or flower, which rounds out when you press it.</li>
+            <li><strong>Live themes &amp; sound:</strong> Switch between 18 built-in palettes or your wallpaper's colours on the spot, plus headphone correction, tone and dynamics.</li>
+          </ul>
+          <div class="btn-row">
+            <a class="btn btn--primary" href="themes.html">Browse themes</a>
+          </div>
+        </div>
+        <div class="feature-media reveal">
+          <div class="device-pair">
+            <div class="phone phone--sm"><img src="assets/app/settings.jpg" width="720" height="1478" loading="lazy" alt="Spatch settings overview with search, presets and category icons" data-zoom></div>
+            <div class="phone phone--sm"><img src="assets/app/appearance.jpg" width="720" height="1478" loading="lazy" alt="Spatch appearance settings with palette selection" data-zoom></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="developer">
+      <div class="wrap feature-row">
+        <div class="reveal">
+          <p class="eyebrow">Developer build</p>
+          <h2>Built-in tools for tinkerers</h2>
+          <p class="lead">Turn on Developer build in Spatch Manager for a Developer options page.</p>
+          <ul class="checks">
+            <li><strong>Self tests:</strong> Dozens of on-device checks of Spatch's hooks and drawing.</li>
+            <li><strong>Frame monitor:</strong> Live frame times and slow-frame counts over the app.</li>
+            <li><strong>Touch inspector:</strong> Names the view under your finger and what paints it.</li>
+            <li><strong>Crash record and logs:</strong> The last crash and Spotify's recent warnings, ready to copy.</li>
+          </ul>
+          <div class="btn-row">
+            <a class="btn btn--primary" href="install.html">Install Spatch</a>
+            <a class="btn btn--ghost" href="manager.html">About Spatch Manager</a>
+          </div>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone"><img src="assets/shots/settings2.jpg" width="720" height="1487" loading="lazy" alt="Spatch settings categories with expressive icon shapes" data-zoom></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
     <div class="wrap">
-      <p class="eyebrow">Features</p>
-      <h1>What Spatch changes</h1>
-      <p class="lead">Every change below has its own switch in Spatch settings, with finer options behind it. Presets turn the playful extras on or off together, and Copy and Paste move a whole setup between phones.</p>
-      <div class="chip-bar" aria-label="Feature sections">
-        <a class="chip" href="#player">Player</a>
-        <a class="chip" href="#immersive">Immersive</a>
-        <a class="chip" href="#screens">Screens</a>
-        <a class="chip" href="#motion">Motion</a>
-        <a class="chip" href="#widget">Widget</a>
-        <a class="chip" href="#content">Content</a>
-        <a class="chip" href="#settings">Settings</a>
-        <a class="chip" href="#developer">Developer</a>
+      <div class="footer-grid">
+        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
+        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
       </div>
+      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify AB. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
     </div>
-  </section>
-
-  <section class="section" id="player">
-    <div class="wrap feature-row">
-      <div>
-        <p class="eyebrow">Now Playing &amp; Lyrics</p>
-        <h2>Artwork that feels alive</h2>
-        <p class="lead">The player is rebuilt around the album art: shaped, glowing, and moving with the music.</p>
-        <ul class="feature-list">
-          <li><strong>Circular or shaped art:</strong> Circle, scallop, squircle, or soft square, with a slowly turning scalloped ring around it.</li>
-          <li><strong>Audio-reactive:</strong> The ring can follow the music's real spectrum, and the art pulses with the bass.</li>
-          <li><strong>Wavy progress:</strong> A seek bar that waves while music plays, with styles, speed, and a time bubble while you seek.</li>
-          <li><strong>Hands on:</strong> Hold Next or Previous to run through a song, tilt the art under your finger, or hold it and spin it like a record to seek.</li>
-          <li><strong>Time-synced lyrics screen:</strong> The sung line glows in the cover's colour while other lines shrink and the column glides to keep it centred; tap any line to jump straight there.</li>
-          <li><strong>One-line lyric in the player:</strong> Show an optional single-line live lyric right inside the player.</li>
-        </ul>
-      </div>
-      <div class="device-frame" data-zoom>
-        <img src="assets/shots/player_main.jpg" alt="Spatch player screen with circular album art and a lavender ring of bars" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--tinted" id="immersive">
-    <div class="wrap feature-row feature-row--flip">
-      <div>
-        <p class="eyebrow">Immersive</p>
-        <h2>A full-screen view for listening</h2>
-        <p class="lead">Double-tap the artwork for a distraction-free player with large art, swipe-to-skip, and a real spectrum of Spotify's audio.</p>
-        <ul class="feature-list">
-          <li><strong>Big, calm, centred:</strong> Title, artist, controls, and volume—nothing else.</li>
-          <li><strong>Swipe to skip:</strong> Flick the art left or right to change song.</li>
-          <li><strong>Visualizers:</strong> Bars, centre, contour, or dots, mirrored, smoothed, and placed where you like.</li>
-        </ul>
-      </div>
-      <div class="device-frame" data-zoom>
-        <img src="assets/shots/immersive.jpg" alt="Spatch immersive full-screen player with live audio visualizer" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="screens">
-    <div class="wrap feature-row">
-      <div>
-        <p class="eyebrow">Screens</p>
-        <h2>The whole app, redrawn</h2>
-        <p class="lead">Home, Search, Library, playlists, and the side panel all pick up Spatch's look.</p>
-        <ul class="feature-list">
-          <li><strong>Material You 3 icons:</strong> Native Google Material Symbols Rounded vectors replacing proprietary Encore glyphs across player, navigation, and settings.</li>
-          <li><strong>Floating navigation:</strong> A rounded bar with a sliding selection pill, drag between tabs, and an option to hide it while you scroll.</li>
-          <li><strong>Detached quick menu:</strong> Long-press the Home tab for a floating context card with quick actions, contoured highlight borders, and fluid hover pills.</li>
-          <li><strong>Sliding filter pills:</strong> Home's filters travel as one pill that stretches between chips and can be dragged.</li>
-          <li><strong>Cards everywhere:</strong> Library rows, playlist tracks, and search results sit on rounded cards that rise in as lists load.</li>
-          <li><strong>Themed headers:</strong> Playlist and album headers take a tint of your theme instead of flat greys and loud colours.</li>
-        </ul>
-      </div>
-      <div class="device-frame" data-zoom>
-        <img src="assets/shots/playlist.jpg" alt="A playlist page with Spatch's themed header and rounded track cards" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--tinted" id="motion">
-    <div class="wrap feature-row feature-row--flip">
-      <div>
-        <p class="eyebrow">Motion &amp; haptics</p>
-        <h2>Feel every press</h2>
-        <p class="lead">Spring physics, ripples, and haptics make Spotify respond like a modern Android app—or keep everything still with Reduce motion.</p>
-        <ul class="feature-list">
-          <li><strong>Bouncy presses:</strong> Tiles and buttons squash and spring back; the press colour follows your theme.</li>
-          <li><strong>Haptics:</strong> Gentle feedback on playback, navigation, and sliders, each with its own switch.</li>
-          <li><strong>Bursts:</strong> Shapes burst from the play button, mini player, and lists, in your colours.</li>
-          <li><strong>Spinning mini player:</strong> The mini player's cover turns like a record while music plays.</li>
-          <li><strong>Jelly everywhere:</strong> Switch thumbs stretch as they slide, settings rows trail your scroll and spring back together, and the navigation pill wobbles into place.</li>
-        </ul>
-      </div>
-      <div class="device-frame" data-zoom>
-        <img src="assets/shots/home_main.jpg" alt="Home screen with Spatch's floating navigation bar and sliding filter pills" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="widget">
-    <div class="wrap feature-row">
-      <div>
-        <p class="eyebrow">Widget &amp; Quick Settings</p>
-        <h2>A widget that fits in</h2>
-        <p class="lead">Spatch replaces Spotify's Now Playing widget with a Material You design in 4x2 and 4x1 sizes, plus a Quick Settings play/pause tile.</p>
-        <ul class="feature-list">
-          <li><strong>Morphing play button:</strong> The scallop grows from five bumps to eight as music starts, and settles back on pause.</li>
-          <li><strong>Bouncing equaliser:</strong> Animated by the launcher itself, so it moves without waking the app.</li>
-          <li><strong>Follows your wallpaper:</strong> Turn on "Widget follows wallpaper" and it takes your Material You colours, light or dark.</li>
-        </ul>
-      </div>
-      <div class="widget-stack">
-        <div class="widget-card" data-zoom>
-          <img src="assets/shots/widget.jpg" alt="Spatch 4x2 home-screen widget in Spatch colours" width="720" height="378" loading="lazy">
-        </div>
-        <div class="widget-card" data-zoom>
-          <img src="assets/shots/widget_wallpaper.jpg" alt="Spatch home-screen widget styled from wallpaper colours" width="720" height="378" loading="lazy">
-        </div>
-        <p class="zoom-hint">Spatch colours, then Widget follows wallpaper (tap to enlarge)</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--tinted" id="content">
-    <div class="wrap feature-row feature-row--flip">
-      <div>
-        <p class="eyebrow">Content</p>
-        <h2>Only what you want to see</h2>
-        <p class="lead">Hide the parts of Spotify you never use. Hiding is cosmetic: nothing is removed from your account.</p>
-        <ul class="feature-list">
-          <li><strong>Podcasts and audiobooks:</strong> Drop their filters and shelves from Home.</li>
-          <li><strong>Home sections:</strong> Pick any section Spotify has shown you and hide it.</li>
-          <li><strong>Side menu:</strong> Hide Recents, Listening stats, Your plan, and more.</li>
-          <li><strong>Premium tab:</strong> Free accounts can take the Premium tab out of the bottom bar.</li>
-        </ul>
-      </div>
-      <div class="device-frame" data-zoom>
-        <img src="assets/shots/library.jpg" alt="Library screen with Spatch's rounded cards" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="settings">
-    <div class="wrap feature-row">
-      <div>
-        <p class="eyebrow">Spatch settings</p>
-        <h2>Every detail is yours</h2>
-        <p class="lead">Open the side panel and choose Spatch. Search finds any setting by name; each feature has a main switch and a page of finer options.</p>
-        <ul class="feature-list">
-          <li><strong>Search:</strong> Type what you're after and jump straight to it.</li>
-          <li><strong>Presets:</strong> Calm turns the playful extras off; Everything turns them all on.</li>
-          <li><strong>Copy and Paste:</strong> Move your whole setup between phones as text.</li>
-          <li><strong>Reset per page:</strong> Every page can put its own settings back without touching the rest.</li>
-          <li><strong>Expressive shapes:</strong> Each category's icon sits in its own cookie, clover, or flower, which rounds out when you press it.</li>
-          <li><strong>Live themes:</strong> Switch between built-in palettes or your wallpaper's colours and the app recolours on the spot, no restart.</li>
-        </ul>
-        <div class="btn-row" style="margin-top:28px">
-          <a class="btn btn--secondary" href="themes.html">Browse themes</a>
-        </div>
-      </div>
-      <div class="device-frame" data-zoom>
-        <img src="assets/shots/settings.jpg" alt="Spatch settings screen" width="540" height="1205" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--tinted" id="developer">
-    <div class="wrap feature-row feature-row--flip">
-      <div>
-        <p class="eyebrow">Developer build</p>
-        <h2>Built-in tools for tinkerers</h2>
-        <p class="lead">Turn on Developer build in Spatch Manager for a Developer options page.</p>
-        <ul class="feature-list">
-          <li><strong>Self tests:</strong> Dozens of on-device checks of Spatch's hooks and drawing.</li>
-          <li><strong>Frame monitor:</strong> Live frame times and slow-frame counts over the app.</li>
-          <li><strong>Touch inspector:</strong> Names the view under your finger and what paints it.</li>
-          <li><strong>Crash record and logs:</strong> The last crash and Spotify's recent warnings, ready to copy.</li>
-        </ul>
-        <div class="btn-row" style="margin-top:28px">
-          <a class="btn btn--primary" href="install.html">Install Spatch</a>
-          <a class="btn btn--ghost" href="manager.html">About Spatch Manager</a>
-        </div>
-      </div>
-      <div class="device-frame" data-zoom>
-        <img src="assets/shots/settings2.jpg" alt="Spatch settings categories" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer class="site-footer">
-  <div class="wrap footer-grid">
-    <div>
-      <a class="brand" href="index.html">
-        <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-        <span>Spatch</span>
-      </a>
-      <p class="muted" style="margin-top:14px">An unofficial, cosmetic redesign for Spotify on Android. Not affiliated with or endorsed by Spotify AB. Spotify is a trademark of Spotify AB.</p>
-    </div>
-    <div>
-      <h4>Pages</h4>
-      <ul>
-        <li><a href="features.html">Features</a></li>
-        <li><a href="themes.html">Themes</a></li>
-        <li><a href="install.html">Install</a></li>
-        <li><a href="manager.html">Manager</a></li>
-      </ul>
-    </div>
-    <div>
-      <h4>Project</h4>
-      <ul>
-        <li><a href="gallery.html">Gallery</a></li>
-        <li><a href="faq.html">FAQ</a></li>
-        <li><a href="changelog.html">Changelog</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch">GitHub</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/blob/main/LICENSE">MIT licence</a></li>
-      </ul>
-    </div>
-  </div>
-</footer>
-
-<script src="assets/site.js"></script>
+  </footer>
+  <script src="assets/site.js"></script>
 </body>
 </html>

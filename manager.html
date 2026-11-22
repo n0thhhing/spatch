@@ -1,182 +1,142 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manager · Spatch</title>
-<meta name="description" content="Spatch Manager patches, signs and installs Spatch on your phone and keeps it updated.">
-<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/style.css">
-<link rel="stylesheet" href="assets/pages-support.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manager · Spatch</title>
+  <meta name="description" content="Spatch Manager patches, signs and installs Spatch on your phone and keeps it updated.">
+  <meta name="theme-color" content="#14121c">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/pages-support.css">
 </head>
 <body>
-<a class="skip-link" href="#main">Skip to content</a>
-
-<header class="site-header">
-  <div class="wrap nav-wrap">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <nav class="site-nav" aria-label="Primary">
-      <a href="index.html">Home</a>
-      <a href="features.html">Features</a>
-      <a href="themes.html">Themes</a>
-      <a href="install.html">Install</a>
-      <a href="manager.html" aria-current="page">Manager</a>
-      <a href="gallery.html">Gallery</a>
-      <a href="faq.html">FAQ</a>
-      <a href="changelog.html">Changelog</a>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap nav-wrap">
+      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html" aria-current="page">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
+      </nav>
+      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+    </div>
+    <nav class="mobile-drawer" aria-label="Mobile">
+      <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html" aria-current="page">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
     </nav>
-    <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-drawer">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 5h14v1.8H3V5zm0 4.1h14v1.8H3V9.1zm0 4.1h14V15H3v-1.8z"/></svg>
-    </button>
-  </div>
-</header>
+  </header>
 
-<div class="drawer-backdrop"></div>
-<nav id="mobile-drawer" class="mobile-drawer" aria-label="Mobile navigation">
-  <div class="drawer-head">
-    <a class="brand" href="index.html">
-      <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-      <span>Spatch</span>
-    </a>
-    <button class="nav-toggle drawer-close" type="button" aria-label="Close navigation">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M5.3 4.3 10 9l4.7-4.7 1 1L11 10l4.7 4.7-1 1L10 11l-4.7 4.7-1-1L9 10 4.3 5.3l1-1z"/></svg>
-    </button>
-  </div>
-  <a href="index.html">Home</a>
-  <a href="features.html">Features</a>
-  <a href="themes.html">Themes</a>
-  <a href="install.html">Install</a>
-  <a href="manager.html" aria-current="page">Manager</a>
-  <a href="gallery.html">Gallery</a>
-  <a href="faq.html">FAQ</a>
-  <a href="changelog.html">Changelog</a>
-</nav>
+  <main id="main">
+    <section class="page-hero">
+      <div class="wrap">
+        <p class="eyebrow">Spatch Manager</p>
+        <h1>The app that keeps Spatch current.</h1>
+        <p class="lead">A small Material You app that patches, signs, and installs Spatch on your phone, and keeps it up to date.</p>
+        <div class="btn-row">
+          <a class="btn btn--primary" href="https://github.com/n0thhhing/spatch/releases/latest">Download the manager</a>
+          <a class="btn btn--ghost" href="install.html">Install guide</a>
+        </div>
+      </div>
+    </section>
 
-<main id="main">
-  <section class="page-hero">
+    <section class="section section--tight" id="m1">
+      <div class="wrap feature-row">
+        <div class="reveal">
+          <p class="eyebrow">On your phone</p>
+          <h2>Patches, signs, installs.</h2>
+          <p class="lead">Every step runs on the phone, from your own copy of Spotify.</p>
+          <ul class="checks">
+            <li><strong>Patch bundles.</strong> Spatch's changes ship as small diffs against your APKM, so the releases contain none of Spotify's files.</li>
+            <li><strong>Exact checks.</strong> The APKM, each APK, and every patched entry are matched against their SHA-256.</li>
+            <li><strong>Your key.</strong> Made on the phone at first run; export and import it as a password-protected <code>.p12</code>.</li>
+            <li><strong>Quick updates.</strong> Only <code>base.apk</code> changes between versions, so updates replace just that one, silently on Android 12+.</li>
+          </ul>
+        </div>
+        <div class="feature-media reveal">
+          <div class="phone">
+            <img src="assets/shots/manager.jpg" width="720" height="1487" loading="lazy" alt="Spatch Manager showing Spatch installed and ready to update" data-zoom>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="clones">
+      <div class="wrap feature-row feature-row--flip">
+        <div class="feature-media reveal">
+          <div class="phone">
+            <img src="assets/shots/manager_clones.jpg" width="540" height="1205" loading="lazy" alt="Spatch Manager Clones page with Spotify Two installed" data-zoom>
+          </div>
+        </div>
+        <div class="reveal">
+          <p class="eyebrow">Clones</p>
+          <h2>A second Spotify, your way.</h2>
+          <p class="lead">Install Spatch again beside the first, with its own package name, app name, and icon. Each clone keeps its own login and downloads.</p>
+          <ul class="checks">
+            <li><strong>Your name, your icon.</strong> Call it anything and pick any picture; the manager turns it into an adaptive launcher icon.</li>
+            <li><strong>Updates with the rest.</strong> A clone updates from the same patches as Spatch, in one tap.</li>
+            <li><strong>Beside Spatch.</strong> Clones are signed with your phone's key, so they install next to Spatch but not next to Spotify's own app.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--glow">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="eyebrow">Built in</p>
+          <h2>Everything the manager handles.</h2>
+        </div>
+        <div class="grid grid--3 reveal">
+          <div class="card">
+            <div class="card-icon" aria-hidden="true">🔔</div>
+            <h3>Update notifications</h3>
+            <p>Checks twice a day while you're online and tells you when new patches are out.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" aria-hidden="true">🎨</div>
+            <h3>Material You 3</h3>
+            <p>Takes its colours from your wallpaper, light or dark, with tonal cards and pill buttons.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" aria-hidden="true">↻</div>
+            <h3>Updates itself</h3>
+            <p>When a newer manager is released, <em>Update manager</em> appears and installs it in place.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" aria-hidden="true">🌙</div>
+            <h3>Nightly patches</h3>
+            <p>Turn on <em>Nightly patches</em> to get each change as soon as it lands, built automatically from every commit. Off by default.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" aria-hidden="true">⚡</div>
+            <h3>Live build progress</h3>
+            <p>While a nightly builds, <em>Changes</em> shows its current step, a wavy progress bar, and about how long is left. <em>Home</em> mentions it too. If a build fails, the card says so and opens the log.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" aria-hidden="true">🔑</div>
+            <h3>Invites</h3>
+            <p>With an invite to a private Spatch source, the manager fetches the exact Spotify build (9.2.0.2053) the patches need, checked byte for byte.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" aria-hidden="true">✨</div>
+            <h3>Playful motion</h3>
+            <p>A jelly navigation pill you can drag, buttons that squish and spring back, and pages that rise in. One switch turns it all off.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
     <div class="wrap">
-      <p class="eyebrow">Spatch Manager</p>
-      <h1>The app that keeps Spatch current</h1>
-      <p class="lead">A small Material You app that patches, signs, and installs Spatch on your phone, and keeps it up to date.</p>
-      <div class="btn-row">
-        <a class="btn btn--primary" href="https://github.com/n0thhhing/spatch/releases/latest">Download the manager</a>
-        <a class="btn btn--secondary" href="install.html">Install guide</a>
+      <div class="footer-grid">
+        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
+        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
       </div>
+      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
     </div>
-  </section>
-
-  <section class="section section--tinted" id="m1">
-    <div class="wrap feature-row">
-      <div>
-        <p class="eyebrow">On your phone</p>
-        <h2>Patches, signs, installs</h2>
-        <p class="lead">Every step runs on the phone, from your own copy of Spotify.</p>
-        <ul class="feature-list">
-          <li><strong>Patch bundles:</strong> Spatch's changes ship as small diffs against your APKM, so the releases contain none of Spotify's files.</li>
-          <li><strong>Exact checks:</strong> The APKM, each APK, and every patched entry are matched against their SHA-256.</li>
-          <li><strong>Your key:</strong> Made on the phone at first run; export and import it as a password-protected <code>.p12</code>.</li>
-          <li><strong>Quick updates:</strong> Only <code>base.apk</code> changes between versions, so updates replace just that one, silently on Android 12+.</li>
-        </ul>
-      </div>
-      <div class="device-frame" data-zoom tabindex="0" role="button" aria-label="Enlarge Spatch Manager screenshot">
-        <img src="assets/shots/manager.jpg" alt="Spatch Manager showing Spatch installed and ready to update" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="clones">
-    <div class="wrap feature-row feature-row--flip">
-      <div>
-        <p class="eyebrow">Clones</p>
-        <h2>A second Spotify, your way</h2>
-        <p class="lead">Install Spatch again beside the first, with its own package name, app name, and icon. Each clone keeps its own login and downloads.</p>
-        <ul class="feature-list">
-          <li><strong>Your name, your icon:</strong> Call it anything and pick any picture; the manager turns it into an adaptive launcher icon.</li>
-          <li><strong>Updates with the rest:</strong> A clone updates from the same patches as Spatch, in one tap.</li>
-          <li><strong>Beside Spatch:</strong> Clones are signed with your phone's key, so they install next to Spatch but not next to Spotify's own app.</li>
-        </ul>
-      </div>
-      <div class="device-frame" data-zoom tabindex="0" role="button" aria-label="Enlarge Spatch Manager Clones screenshot">
-        <img src="assets/shots/manager_clones.jpg" alt="Spatch Manager Clones page with Spotify Two installed" width="720" height="1487" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--tinted">
-    <div class="wrap">
-      <div class="section-head">
-        <p class="eyebrow">Built in</p>
-        <h2>Everything the manager handles</h2>
-      </div>
-      <div class="card-grid card-grid--3">
-        <div class="card">
-          <h3>Update notifications</h3>
-          <p>Checks twice a day while you're online and tells you when new patches are out.</p>
-        </div>
-        <div class="card">
-          <h3>Material You 3</h3>
-          <p>Takes its colours from your wallpaper, light or dark, with tonal cards and pill buttons.</p>
-        </div>
-        <div class="card">
-          <h3>Updates itself</h3>
-          <p>When a newer manager is released, <em>Update manager</em> appears and installs it in place.</p>
-        </div>
-        <div class="card">
-          <h3>Nightly patches</h3>
-          <p>Turn on <em>Nightly patches</em> to get each change as soon as it lands, built automatically from every commit. Off by default.</p>
-        </div>
-        <div class="card">
-          <h3>Live build progress</h3>
-          <p>While a nightly builds, <em>Changes</em> shows its current step, a wavy progress bar, and about how long is left. <em>Home</em> mentions it too. If a build fails, the card says so and opens the log.</p>
-        </div>
-        <div class="card">
-          <h3>Invites</h3>
-          <p>With an invite to a private Spatch source, the manager fetches the exact Spotify build the patches need, checked byte for byte.</p>
-        </div>
-        <div class="card">
-          <h3>Playful motion</h3>
-          <p>A jelly navigation pill you can drag, buttons that squish and spring back, and pages that rise in. One switch turns it all off.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer class="site-footer">
-  <div class="wrap footer-grid">
-    <div>
-      <a class="brand" href="index.html">
-        <img src="assets/icon.svg" alt="" width="34" height="34" loading="lazy">
-        <span>Spatch</span>
-      </a>
-      <p class="muted" style="margin-top:14px">An unofficial, cosmetic redesign for Spotify on Android. Not affiliated with or endorsed by Spotify AB. Spotify is a trademark of Spotify AB.</p>
-    </div>
-    <div>
-      <h4>Pages</h4>
-      <ul>
-        <li><a href="features.html">Features</a></li>
-        <li><a href="themes.html">Themes</a></li>
-        <li><a href="install.html">Install</a></li>
-        <li><a href="manager.html">Manager</a></li>
-      </ul>
-    </div>
-    <div>
-      <h4>Project</h4>
-      <ul>
-        <li><a href="gallery.html">Gallery</a></li>
-        <li><a href="faq.html">FAQ</a></li>
-        <li><a href="changelog.html">Changelog</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch">GitHub</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></li>
-        <li><a href="https://github.com/n0thhhing/spatch/blob/main/LICENSE">MIT licence</a></li>
-      </ul>
-    </div>
-  </div>
-</footer>
-
-<script src="assets/site.js"></script>
+  </footer>
+  <script src="assets/site.js"></script>
 </body>
 </html>
