@@ -2827,17 +2827,27 @@ public final class SpatchUi extends FrameLayout {
         ListView list = pageList;
         int first = replacing && list != null ? list.getFirstVisiblePosition() : 0;
         int top = replacing && list != null && list.getChildCount() > 0 ? list.getChildAt(0).getTop() : 0;
+        // A newer copy of the playlist that's already on screen updates the list where it stands: rebuilding the page
+        // flashed it and moved the list every time Spotify pushed the playlist, which it does whenever a song starts.
+        boolean inPlace = replacing && !isDetail(e) && !playlistLoading && !playlistFailed && list != null && songCount != null && list.isAttachedToWindow();
         shownReply = r;
         shownCached = cached;
-        playlistTracks = new ArrayList<>();
-        releases = new ArrayList<>();
+        if (inPlace) {
+            playlistTracks.clear();
+        } else {
+            playlistTracks = new ArrayList<>();
+            releases = new ArrayList<>();
+        }
         if (isDetail(e)) applyDetail(r);
-        else applyPlaylist(r);
+        else applyPlaylist(r, inPlace);
         ListView again = pageList;
-        if (replacing && again != null && first > 0) again.setSelectionFromTop(Math.min(first, Math.max(0, again.getCount() - 1)), top);
+        if (replacing && again != null && first > 0 && again != list) again.setSelectionFromTop(Math.min(first, Math.max(0, again.getCount() - 1)), top);
     }
 
-    private void applyPlaylist(String[] r) {
+    private void applyPlaylist(String[] r) { applyPlaylist(r, false); }
+
+    /** inPlace: the page already lists this playlist, so only its songs and count change. */
+    private void applyPlaylist(String[] r, boolean inPlace) {
         playlistLoading = false;
         playlistFailed = r == null || r.length < 2 || !r[0].isEmpty();
         playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
@@ -2867,6 +2877,16 @@ public final class SpatchUi extends FrameLayout {
             songFields = kept.toArray(new String[0]);
             nativeSongs(packStrings(songFields));
             arrangeSongs();
+            if (inPlace && pageList != null && songCount != null) {
+                notifyList(pageList);
+                int total = allSongs.size();
+                String time = totalTime();
+                songCountText = total + (total == 1 ? " song" : " songs") + (time.isEmpty() ? "" : " • " + time);
+                String q = songQuery.trim();
+                songCount.setText(q.isEmpty() ? songCountText : playlistTracks.size() + " of " + allSongs.size() + " songs");
+                if (songsNoMatch != null) songsNoMatch.setVisibility(playlistTracks.isEmpty() && !q.isEmpty() ? VISIBLE : GONE);
+                return;
+            }
         }
         showPage();
     }
