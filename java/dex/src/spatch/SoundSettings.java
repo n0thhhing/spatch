@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -55,6 +56,33 @@ final class SoundSettings {
     private void openPanel(int next) { panel = next; ui.showPage(); ui.enter(ui.dp(28), 0); }
 
     private int eqSelectedBand = 5;
+    private boolean eqFadersMode;
+
+    private boolean easeGains(float[] want, float[] shown, boolean drawnOnce) {
+        boolean settling = false;
+        for (int i = 0; i < 10; i++) {
+            float d = want[i] - shown[i];
+            shown[i] = !ui.motion() || !drawnOnce || Math.abs(d) < .05f ? want[i] : shown[i] + d * .2f;
+            settling |= shown[i] != want[i];
+        }
+        return settling;
+    }
+
+    private void drawDbPill(Canvas c, Paint paint, RectF box, Typeface face, float gain, float cx, float by, float left, float right) {
+        float g = Math.round(gain * 10) / 10f;
+        String badge = (Math.abs(g) < 0.05f ? "0" : (g > 0 ? "+" : "") + (Math.abs(g - Math.round(g)) < 0.05f ? Integer.toString(Math.round(g)) : String.format(java.util.Locale.ROOT, "%.1f", g))) + " dB";
+        paint.setTypeface(face);
+        paint.setTextSize(ui.dp(10));
+        float bw = paint.measureText(badge) + ui.dp(14), bh = ui.dp(18);
+        float bx = Math.max(left, Math.min(right - bw, cx - bw / 2f));
+        box.set(bx, by, bx + bw, by + bh);
+        paint.setColor(ui.accent);
+        paint.setAlpha(255);
+        c.drawRoundRect(box, ui.dp(9), ui.dp(9), paint);
+        paint.setColor(ui.onAccent);
+        paint.setTextAlign(Paint.Align.CENTER);
+        c.drawText(badge, box.centerX(), box.centerY() - (paint.descent() + paint.ascent()) / 2f, paint);
+    }
     private static final String[] EQ_PRESETS = {"Flat", "Bass boost", "Warm", "Vocals", "Treble boost", "Rock", "Electronic", "Acoustic"};
     private static final float[][] EQ_CURVES = {
         {0,0,0,0,0,0,0,0,0,0}, {6,5,4,2,0,0,0,0,0,0}, {3,3,2,1,0,0,-1,-1,-2,-2},
@@ -104,7 +132,8 @@ final class SoundSettings {
 
     private void eqToolbarButton(TextView button) {
         button.setTextSize(13);
-        button.setPadding(ui.dp(10), 0, ui.dp(10), 0);
+        button.setPadding(ui.dp(8), 0, ui.dp(8), 0);
+        ui.oneLine(button);
         GradientDrawable background = ui.round(ui.surfHi, 14);
         button.setBackground(background);
         ui.colored(button, () -> { button.setTextColor(ui.ink); background.setColor(ui.surfHi); });
@@ -119,15 +148,29 @@ final class SoundSettings {
         LinearLayout toolbar = ui.row();
         toolbar.setPadding(ui.dp(14), 0, ui.dp(14), ui.dp(4));
         EqualizerCurve graph = new EqualizerCurve();
+        EqualizerFaders faders = new EqualizerFaders();
+        graph.setVisibility(eqFadersMode ? View.GONE : View.VISIBLE);
+        faders.setVisibility(eqFadersMode ? View.VISIBLE : View.GONE);
         TextView preset = ui.pill(eqPresetName() + "  ⌄", () -> {});
         eqToolbarButton(preset);
         toolbar.addView(preset, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
+        TextView[] viewToggle = new TextView[1];
+        viewToggle[0] = ui.pill(eqFadersMode ? "Curve" : "Faders", () -> {
+            eqFadersMode = !eqFadersMode;
+            viewToggle[0].setText(eqFadersMode ? "Curve" : "Faders");
+            graph.setVisibility(eqFadersMode ? View.GONE : View.VISIBLE);
+            faders.setVisibility(eqFadersMode ? View.VISIBLE : View.GONE);
+            if (eqFadersMode) faders.invalidate(); else graph.invalidate();
+        });
+        eqToolbarButton(viewToggle[0]);
+        LinearLayout.LayoutParams toggleParams = ui.lp(ui.dp(60), ui.dp(48)); toggleParams.leftMargin = ui.dp(6);
+        toolbar.addView(viewToggle[0], toggleParams);
         TextView save = ui.pill("Save", () -> {
             ui.prefs.edit().putString("eq_saved_curve", graphicEqString()).apply();
             Toast.makeText(ui.activity, "Curve saved in Presets", Toast.LENGTH_SHORT).show();
         });
         eqToolbarButton(save);
-        LinearLayout.LayoutParams saveParams = ui.lp(ui.dp(68), ui.dp(48)); saveParams.leftMargin = ui.dp(6);
+        LinearLayout.LayoutParams saveParams = ui.lp(ui.dp(54), ui.dp(48)); saveParams.leftMargin = ui.dp(6);
         toolbar.addView(save, saveParams);
         TextView copy = ui.pill("Copy", () -> {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
@@ -137,33 +180,38 @@ final class SoundSettings {
             }
         });
         eqToolbarButton(copy);
-        LinearLayout.LayoutParams copyParams = ui.lp(ui.dp(68), ui.dp(48)); copyParams.leftMargin = ui.dp(6);
+        LinearLayout.LayoutParams copyParams = ui.lp(ui.dp(54), ui.dp(48)); copyParams.leftMargin = ui.dp(6);
         toolbar.addView(copy, copyParams);
         TextView reset = ui.pill("Reset", () -> { applyEqCurve(new float[10]); graph.refresh(); });
         eqToolbarButton(reset);
-        LinearLayout.LayoutParams resetParams = ui.lp(ui.dp(68), ui.dp(48)); resetParams.leftMargin = ui.dp(6);
+        LinearLayout.LayoutParams resetParams = ui.lp(ui.dp(54), ui.dp(48)); resetParams.leftMargin = ui.dp(6);
         toolbar.addView(reset, resetParams);
         tone.addView(toolbar, ui.fill(-2));
-        tone.addView(graph, ui.fill(ui.dp(224)));
+        FrameLayout eqSlot = new FrameLayout(ui.activity);
+        eqSlot.addView(graph, new FrameLayout.LayoutParams(-1, -1));
+        eqSlot.addView(faders, new FrameLayout.LayoutParams(-1, -1));
+        tone.addView(eqSlot, ui.fill(ui.dp(224)));
         LinearLayout editor = ui.column();
         tone.addView(editor, ui.fill(-2));
         final android.widget.SeekBar[] fine = {null};
-        graph.selection = () -> {
+        graph.selection = faders.selection = () -> {
             editor.removeAllViews();
             TextView band = ui.text(eqFrequency(eqSelectedBand) + "  ⌄", 15, () -> ui.ink, true);
             band.setPadding(ui.dp(18), 0, ui.dp(18), 0);
             ui.tappable(band, "Choose frequency band", () -> {
                 String[] names = new String[10];
                 for (int i = 0; i < names.length; i++) names[i] = eqFrequency(i) + " · " + audioNumber(Audio.gain(ui.prefs, i), "dB");
-                ui.sheet("Frequency band", "Choose a band, or drag a point on the curve", names, pick -> graph.select(pick));
+                ui.sheet("Frequency band", "Choose a band, or drag on the EQ", names, pick -> { graph.select(pick); faders.invalidate(); });
             });
             editor.addView(band, ui.fill(ui.dp(42)));
             fine[0] = audioSlider(editor, "Fine adjustment", "eq_band_" + eqSelectedBand, -12, 12, 0, .1f, "dB", true,
-                () -> { graph.invalidate(); preset.setText(eqPresetName() + "  ⌄"); });
+                () -> { graph.invalidate(); faders.invalidate(); preset.setText(eqPresetName() + "  ⌄"); });
         };
-        graph.edit = () -> {
+        graph.edit = faders.edit = () -> {
             if (fine[0] != null) fine[0].setProgress(Math.round((Audio.gain(ui.prefs, eqSelectedBand) + 12) * 10));
             preset.setText(eqPresetName() + "  ⌄");
+            faders.invalidate();
+            graph.invalidate();
         };
         ui.tappable(preset, "Equalizer presets", () -> {
             List<String> names = new ArrayList<>(java.util.Arrays.asList(EQ_PRESETS));
@@ -218,13 +266,8 @@ final class SoundSettings {
                 c.drawText(db > 0 ? "+" + db : Integer.toString(db), left() - ui.dp(8), y(db) + ui.dp(3), paint);
             }
             // The drawn gains glide to the stored ones, so a preset change sweeps instead of jumping.
-            float[] want = eqGains(), gains = shown;
-            boolean settling = false;
-            for (int i = 0; i < 10; i++) {
-                float d = want[i] - gains[i];
-                gains[i] = !ui.motion() || !drawnOnce || Math.abs(d) < .05f ? want[i] : gains[i] + d * .2f;
-                settling |= gains[i] != want[i];
-            }
+            float[] gains = shown;
+            boolean settling = easeGains(eqGains(), gains, drawnOnce);
             drawnOnce = true;
             for (int i = 0; i < 10; i++) {
                 float x = left() + width * i / 9f;
@@ -271,18 +314,8 @@ final class SoundSettings {
             }
             // Floating dB pill near the selected handle, kept strictly within view bounds.
             float selX = left() + width * eqSelectedBand / 9f, selY = y(gains[eqSelectedBand]);
-            float g = Math.round(gains[eqSelectedBand] * 10) / 10f;
-            String badge = (Math.abs(g) < 0.05f ? "0" : (g > 0 ? "+" : "") + (Math.abs(g - Math.round(g)) < 0.05f ? Integer.toString(Math.round(g)) : String.format(java.util.Locale.ROOT, "%.1f", g))) + " dB";
-            paint.setTypeface(badgeFace);
-            paint.setTextSize(ui.dp(10));
-            float bw = paint.measureText(badge) + ui.dp(14), bh = ui.dp(18);
-            float bx = Math.max(left(), Math.min(right() - bw, selX - bw / 2f));
             float by = selY - ui.dp(28) >= ui.dp(4) ? selY - ui.dp(28) : selY + ui.dp(10);
-            pill.set(bx, by, bx + bw, by + bh);
-            paint.setColor(ui.accent); paint.setAlpha(255);
-            c.drawRoundRect(pill, ui.dp(9), ui.dp(9), paint);
-            paint.setColor(ui.onAccent); paint.setTextAlign(Paint.Align.CENTER);
-            c.drawText(badge, pill.centerX(), pill.centerY() - (paint.descent() + paint.ascent()) / 2f, paint);
+            drawDbPill(c, paint, pill, badgeFace, gains[eqSelectedBand], selX, by, left(), right());
             if (settling) postInvalidateOnAnimation();
         }
         @Override public boolean onTouchEvent(MotionEvent event) {
@@ -300,6 +333,116 @@ final class SoundSettings {
                     float gain = Math.max(-12, Math.min(12, downGain - (event.getY() - downY) / Math.max(1, bottom() - top()) * 24f));
                     ui.prefs.edit().putFloat("eq_band_" + eqSelectedBand, Math.round(gain * 10) / 10f).apply();
                     shown[eqSelectedBand] = Math.round(gain * 10) / 10f; // the finger's point follows at once
+                    Audio.refreshEqualizer();
+                    if (edit != null) edit.run();
+                    invalidate();
+                }
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                getParent().requestDisallowInterceptTouchEvent(false);
+                if (action == MotionEvent.ACTION_UP) performClick();
+                return true;
+            }
+            return false;
+        }
+        @Override public boolean performClick() { super.performClick(); return true; }
+    }
+
+    /** 10 vertical center-zero band faders with relative delta drag. */
+    private final class EqualizerFaders extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF box = new RectF();
+        private final Typeface labelFace = Typeface.create("sans-serif", Typeface.NORMAL);
+        private final Typeface badgeFace = Typeface.create("sans-serif", Typeface.BOLD);
+        private final float[] shown = new float[10];
+        Runnable selection, edit;
+        private float downY, downGain;
+        private boolean moved, drawnOnce;
+
+        EqualizerFaders() {
+            super(ui.activity);
+            setContentDescription("Equalizer faders. Drag up or down on any band to adjust its gain.");
+        }
+
+        private float left() { return ui.dp(18); }
+        private float right() { return getWidth() - ui.dp(18); }
+        private float top() { return ui.dp(28); }
+        private float bottom() { return getHeight() - ui.dp(28); }
+
+        @Override protected void onDraw(Canvas c) {
+            super.onDraw(c);
+            float w = right() - left(), t = top(), b = bottom();
+            if (w <= 0 || b <= t) return;
+            float[] gains = shown;
+            boolean settling = easeGains(eqGains(), gains, drawnOnce);
+            drawnOnce = true;
+            float colW = w / 10f, midY = (t + b) / 2f;
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(ui.dp(1));
+            paint.setColor(ui.inkDim);
+            paint.setAlpha(48);
+            c.drawLine(left(), midY, right(), midY, paint);
+            paint.setStyle(Paint.Style.FILL);
+            float trackHalf = ui.dp(2.5f);
+            for (int i = 0; i < 10; i++) {
+                float cx = left() + colW * (i + .5f);
+                boolean sel = i == eqSelectedBand;
+                paint.setColor(sel ? ui.accent : ui.inkDim);
+                paint.setAlpha(sel ? 52 : 36);
+                box.set(cx - trackHalf, t, cx + trackHalf, b);
+                c.drawRoundRect(box, trackHalf, trackHalf, paint);
+
+                float valY = t + (12f - gains[i]) / 24f * (b - t);
+                paint.setColor(ui.accent);
+                paint.setAlpha(sel ? 255 : 190);
+                box.set(cx - trackHalf, Math.min(midY, valY), cx + trackHalf, Math.max(midY, valY));
+                c.drawRoundRect(box, trackHalf, trackHalf, paint);
+
+                box.set(cx - ui.dp(11), valY - ui.dp(4.5f), cx + ui.dp(11), valY + ui.dp(4.5f));
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(sel ? ui.ink : ui.surfHi);
+                paint.setAlpha(255);
+                c.drawRoundRect(box, ui.dp(4.5f), ui.dp(4.5f), paint);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(ui.dp(1.5f));
+                paint.setColor(ui.accent);
+                c.drawRoundRect(box, ui.dp(4.5f), ui.dp(4.5f), paint);
+                paint.setStyle(Paint.Style.FILL);
+
+                paint.setTypeface(labelFace);
+                paint.setTextSize(ui.dp(9));
+                paint.setTextAlign(Paint.Align.CENTER);
+                paint.setColor(sel ? ui.accent : ui.inkDim);
+                paint.setAlpha(sel ? 255 : 210);
+                String hz = Audio.EQ_HZ[i] < 1000 ? Integer.toString(Audio.EQ_HZ[i]) : (Audio.EQ_HZ[i] / 1000) + "k";
+                c.drawText(hz, cx, b + ui.dp(18), paint);
+            }
+            float selX = left() + colW * (eqSelectedBand + .5f);
+            drawDbPill(c, paint, box, badgeFace, gains[eqSelectedBand], selX, ui.dp(4), left(), right());
+            if (settling) postInvalidateOnAnimation();
+        }
+
+        @Override public boolean onTouchEvent(MotionEvent event) {
+            float w = right() - left(), travel = Math.max(1f, bottom() - top());
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                downY = event.getY();
+                moved = false;
+                if (w > 0) eqSelectedBand = Math.max(0, Math.min(9, (int) ((event.getX() - left()) / (w / 10f))));
+                downGain = Audio.gain(ui.prefs, eqSelectedBand);
+                if (selection != null) selection.run();
+                getParent().requestDisallowInterceptTouchEvent(true);
+                invalidate();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (Math.abs(event.getY() - downY) > ui.dp(3)) moved = true;
+                if (moved) {
+                    float gain = Math.max(-12f, Math.min(12f, downGain - (event.getY() - downY) / travel * 24f));
+                    float rounded = Math.round(gain * 10) / 10f;
+                    ui.prefs.edit().putFloat("eq_band_" + eqSelectedBand, rounded).apply();
+                    shown[eqSelectedBand] = rounded;
                     Audio.refreshEqualizer();
                     if (edit != null) edit.run();
                     invalidate();
