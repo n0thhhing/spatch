@@ -230,8 +230,10 @@ public final class SpatchUi extends FrameLayout {
     private LinearLayout pLyric;
     private View moreButton;
     private int originalOrientation = -2;
-    /** In landscape the lyrics live beside the cover, in this host. */
+    /** In landscape the right panel switches between Lyrics (0) and Up next (1) beside the cover. */
     private FrameLayout sideHost;
+    private int sideTab, sideQueueOffset;
+    private ScrollView sideQueueScroll;
     private String lyricsUri = "", lyricKey = "";
     private boolean lyricShown;
     private CoreBridge.Lyrics lyricsData;
@@ -526,6 +528,10 @@ public final class SpatchUi extends FrameLayout {
 
     /** Tap with a springy press; nothing highlights outside the view's own shape. */
     void tappable(View v, String label, Runnable action) {
+        tappable(v, label, .96f, action);
+    }
+
+    void tappable(View v, String label, float pressScale, Runnable action) {
         if (label != null) v.setContentDescription(label);
         v.setClickable(true);
         v.setFocusable(true);
@@ -533,7 +539,7 @@ public final class SpatchUi extends FrameLayout {
         if (motion()) {
             v.setOnTouchListener((view, e) -> {
                 int a = e.getActionMasked();
-                if (a == MotionEvent.ACTION_DOWN) view.animate().scaleX(.96f).scaleY(.96f).setDuration(90).start();
+                if (a == MotionEvent.ACTION_DOWN) view.animate().scaleX(pressScale).scaleY(pressScale).setDuration(90).start();
                 else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL)
                     view.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start();
                 return false;
@@ -889,7 +895,8 @@ public final class SpatchUi extends FrameLayout {
         }
         uri = s[1]; title = s[2]; artist = s[3]; album = s[4]; image = s[5];
         if (changed && lyricsPanel != null) { closeLyrics(); post(this::openLyrics); } // a new song: show its lyrics, not the last one's
-        if (changed && sideHost != null) post(this::loadSideLyrics);
+        if (changed) sideQueueOffset = 0;
+        if (changed && sideHost != null && sideTab == 0) post(() -> loadSidePanel(false));
         playing = Boolean.parseBoolean(s[6]);
         if (backdrop != null) backdrop.drifting(playing);
         if (pending != null && (changed || pending == playing)) pending = null;
@@ -948,6 +955,7 @@ public final class SpatchUi extends FrameLayout {
         for (int i = 0; !queueChanged && i < next.size(); i++) queueChanged = !next.get(i).queueKey.equals(upcoming.get(i).queueKey);
         upcoming = next;
         if (queuePanel != null && queueChanged) renderQueue();
+        if (queueChanged && sideHost != null && sideTab == 1) post(() -> loadSidePanel(false));
         if (changed) checkSaved(uri);
         refreshPalette();
         refresh();
@@ -4561,6 +4569,8 @@ public final class SpatchUi extends FrameLayout {
         pPlay = null;
         pLyric = null;
         sideHost = null;
+        sideQueueScroll = null;
+        sideQueueOffset = 0;
         nextKey = "";
         for (PlayButton b : playButtons) b.invalidate();
         for (Bars b : attachedBars) b.invalidate();
@@ -4841,7 +4851,7 @@ public final class SpatchUi extends FrameLayout {
             pLike.color = isLiked ? accent : ink;
             pLike.invalidate();
         });
-        if (pref("player_heart", true)) titleRow.addView(iconButton(pLike, "Save to Liked Songs", this::toggleSaved), lp(dp(52), dp(52)));
+        if (pref("player_heart", true)) titleRow.addView(iconButton(pLike, "Save to Liked Songs", .90f, this::toggleSaved), lp(dp(52), dp(52)));
         col.addView(titleRow, fill(-2));
 
         wave = new Wave();
@@ -4856,7 +4866,7 @@ public final class SpatchUi extends FrameLayout {
         colored(pRepeat, () -> { pRepeat.symbol = repeat == 2 ? "repeat-one" : "repeat"; pRepeat.color = repeat != 0 ? accent : inkDim; pRepeat.invalidate(); });
         // Smart Shuffle shows as a small sparkle on the shuffle icon.
         FrameLayout shuffleBox = new FrameLayout(activity);
-        shuffleBox.addView(iconButton(pShuffle, "Shuffle: off, on or Smart Shuffle", this::toggleShuffle), new LayoutParams(-1, -1));
+        shuffleBox.addView(iconButton(pShuffle, "Shuffle: off, on or Smart Shuffle", .90f, this::toggleShuffle), new LayoutParams(-1, -1));
         pSparkle = new Icon("sparkle", accent);
         colored(pSparkle, () -> { pSparkle.color = accent; pSparkle.setVisibility(shuffle && smartShuffle ? VISIBLE : GONE); pSparkle.invalidate(); });
         LayoutParams sp = new LayoutParams(dp(11), dp(11), Gravity.TOP | Gravity.END);
@@ -4868,7 +4878,7 @@ public final class SpatchUi extends FrameLayout {
         pPlay = new PlayButton();
         controls.addView(pPlay, lp(dp(land ? 66 : 86), dp(land ? 66 : 86)));
         controls.addView(skip(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), true), lp(dp(land ? 48 : 60), dp(land ? 48 : 60)));
-        if (modes) controls.addView(iconButton(pRepeat, "Repeat", this::cycleRepeat), lp(dp(land ? 44 : 52), dp(land ? 44 : 52)));
+        if (modes) controls.addView(iconButton(pRepeat, "Repeat", .90f, this::cycleRepeat), lp(dp(land ? 44 : 52), dp(land ? 44 : 52)));
         col.addView(controls, fill(-2));
 
         nextPill = row();
@@ -4883,24 +4893,74 @@ public final class SpatchUi extends FrameLayout {
         if (pref("idle_hide_title", false)) hide.add(titleRow);
         if (pref("idle_hide_wave", false)) hide.add(wave);
         if (pref("idle_hide_controls", true)) hide.add(controls);
-        if (pref("idle_hide_next", true)) hide.add(nextPill);
+        if (!land && pref("player_next", true) && pref("idle_hide_next", true)) hide.add(nextPill);
         idleViews = hide.toArray(new View[0]);
         idleTouched();
         if (land) {
+            LinearLayout tabRow = row();
+            tabRow.setPadding(dp(3), dp(3), dp(3), dp(3));
+            GradientDrawable tabTrack = round((ink & 0x00ffffff) | 0x16000000, 18);
+            tabRow.setBackground(tabTrack);
+            TextView[] tabViews = new TextView[2];
+            GradientDrawable[] tabBgs = { round(accent, 15), round(0, 15) };
+            String[] tabNames = { "Lyrics", "Up next" };
+            Runnable syncTabs = () -> {
+                tabTrack.setColor((ink & 0x00ffffff) | 0x16000000);
+                for (int i = 0; i < 2; i++) {
+                    boolean on = sideTab == i;
+                    tabViews[i].setTextColor(on ? onAccent : inkDim);
+                    tabBgs[i].setColor(on ? accent : 0);
+                }
+            };
+            for (int i = 0; i < 2; i++) {
+                final int pick = i;
+                tabViews[i] = text(tabNames[i], 13, () -> sideTab == pick ? onAccent : inkDim, true);
+                tabViews[i].setGravity(Gravity.CENTER);
+                tabViews[i].setBackground(tabBgs[i]);
+                tappable(tabViews[i], tabNames[i], .94f, () -> {
+                    if (sideTab == pick) return;
+                    sideTab = pick;
+                    syncTabs.run();
+                    loadSidePanel(true);
+                });
+                tabRow.addView(tabViews[i], new LinearLayout.LayoutParams(0, -1, 1));
+            }
+            colored(tabRow, syncTabs);
+            LinearLayout.LayoutParams tp = lp(-1, dp(36));
+            tp.topMargin = dp(2);
+            tp.bottomMargin = dp(6);
+            sideColumn.addView(tabRow, tp);
+
             FrameLayout host = new FrameLayout(activity);
             sideColumn.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
             sideHost = host;
-            loadSideLyrics();
+            loadSidePanel(false);
         }
     }
 
-    /** Landscape: the lyrics beside the cover, reloaded for each song. */
-    private void loadSideLyrics() {
+    /** Landscape: fills the right panel with synced lyrics or the interactive Up next queue. */
+    private void loadSidePanel(boolean cascade) {
         FrameLayout host = sideHost;
         if (host == null) return;
+        if (sideQueueScroll != null) sideQueueOffset = sideQueueScroll.getScrollY();
+        sideQueueScroll = null;
         host.removeAllViews();
+        if (sideTab == 1) {
+            ScrollView scroll = sideQueueScroll = new ScrollView(activity);
+            scroll.setVerticalScrollBarEnabled(false);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            scroll.setVerticalFadingEdgeEnabled(true);
+            scroll.setFadingEdgeLength(dp(56));
+            LinearLayout tracks = column();
+            tracks.setPadding(0, dp(4), 0, dp(24));
+            fillQueueList(tracks, cascade, false);
+            scroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
+            host.addView(scroll, new LayoutParams(-1, -1));
+            keepScroll(scroll, sideQueueOffset);
+            return;
+        }
         if (uri.isEmpty()) return;
-        fillLyrics(host, () -> sideHost == host && player != null, uri.substring(uri.lastIndexOf(':') + 1));
+        fillLyrics(host, () -> sideHost == host && sideTab == 0 && player != null, uri.substring(uri.lastIndexOf(':') + 1));
     }
 
     /** Tap skips; holding the button jumps ten seconds at a time until it is released. */
@@ -4939,10 +4999,10 @@ public final class SpatchUi extends FrameLayout {
         button.setOnTouchListener(new View.OnTouchListener() {
             @Override public boolean onTouch(View v, MotionEvent e) {
                 int a = e.getActionMasked();
-                if (a == MotionEvent.ACTION_DOWN) v.animate().scaleX(.96f).scaleY(.96f).setDuration(90).start();
+                if (a == MotionEvent.ACTION_DOWN && motion()) v.animate().scaleX(.90f).scaleY(.90f).setDuration(90).start();
                 else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
                     if (held[0]) stopHeldSeek();
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start();
+                    if (motion()) v.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start();
                 }
                 return false;
             }
@@ -4951,9 +5011,13 @@ public final class SpatchUi extends FrameLayout {
     }
 
     View iconButton(Icon icon, String label, Runnable action) {
+        return iconButton(icon, label, .96f, action);
+    }
+
+    View iconButton(Icon icon, String label, float pressScale, Runnable action) {
         FrameLayout box = new FrameLayout(activity);
         box.addView(icon, new LayoutParams(dp(24), dp(24), Gravity.CENTER));
-        tappable(box, label, action);
+        tappable(box, label, pressScale, action);
         return box;
     }
 
@@ -5247,6 +5311,7 @@ public final class SpatchUi extends FrameLayout {
     private boolean queueFresh;
 
     private void renderQueue() {
+        if (queuePanel == null) return;
         int offset = queueScroll == null ? 0 : queueScroll.getScrollY();
         queuePanel.removeAllViews();
         queuePanel.setBackgroundColor(bg);
@@ -5263,10 +5328,21 @@ public final class SpatchUi extends FrameLayout {
         queueScroll.setFadingEdgeLength(dp(56));
         LinearLayout tracks = column();
         tracks.setPadding(0, dp(12), 0, dp(24));
-        tracks.addView(text("Now playing", 14, () -> accent, true), fill(-2));
-        tracks.addView(text(title.isEmpty() ? "Nothing playing" : title, 22, () -> ink, true), fill(-2));
-        tracks.addView(text(artist, 14, () -> inkDim, false), fill(-2));
-        tracks.addView(text(source.isEmpty() ? "Up next" : "Next from " + source, 16, () -> accent, true), fill(dp(48)));
+        fillQueueList(tracks, queueFresh, true);
+        queueScroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
+        queueFresh = false;
+        body.addView(queueScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        queuePanel.addView(body, new LayoutParams(-1, -1));
+        keepScroll(queueScroll, offset);
+    }
+
+    private void fillQueueList(LinearLayout tracks, boolean cascade, boolean showNowPlaying) {
+        if (showNowPlaying) {
+            tracks.addView(text("Now playing", 14, () -> accent, true), fill(-2));
+            tracks.addView(text(title.isEmpty() ? "Nothing playing" : title, 22, () -> ink, true), fill(-2));
+            tracks.addView(text(artist, 14, () -> inkDim, false), fill(-2));
+        }
+        tracks.addView(text(source.isEmpty() ? "Up next" : "Next from " + source, showNowPlaying ? 16 : 14, () -> accent, true), fill(dp(showNowPlaying ? 48 : 36)));
         for (int i = 0; i < upcoming.size(); i++) {
             final int index = i;
             MediaEntry entry = upcoming.get(i);
@@ -5275,23 +5351,17 @@ public final class SpatchUi extends FrameLayout {
             song.bind(entry);
             song.setOnClickListener(v -> command(SKIP_TO, index, entry.queueKey));
             line.addView(song, weight());
-            TextView options = pill("⋮", () -> queueActions(index, entry));
-            options.setContentDescription("Queue options for " + entry.title);
+            View options = iconButton(icon("more", () -> inkDim), "Queue options for " + entry.title, .90f, () -> queueActions(index, entry));
             line.addView(options, lp(dp(48), dp(48)));
             song.setOnLongClickListener(v -> { queueActions(index, entry); return true; });
             tracks.addView(line, fill(-2));
-            if (queueFresh && motion() && i < 12) { // the first rows cascade in when the queue opens
+            if (cascade && motion() && i < 12) { // the first rows cascade in when the queue opens
                 line.setAlpha(0f);
                 line.setTranslationY(dp(18));
                 line.animate().alpha(1f).translationY(0).setStartDelay(60L + i * 30L).setDuration(380).setInterpolator(new android.view.animation.PathInterpolator(.38f, 1.21f, .22f, 1f)).start();
             }
         }
         if (upcoming.isEmpty()) tracks.addView(emptyState("queue", "badge4", "Nothing queued after this", "Add songs from any list with Add to queue"), fill(-2));
-        queueScroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
-        queueFresh = false;
-        body.addView(queueScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        queuePanel.addView(body, new LayoutParams(-1, -1));
-        keepScroll(queueScroll, offset);
     }
 
     private void queueActions(int index, MediaEntry entry) {
@@ -5761,7 +5831,7 @@ public final class SpatchUi extends FrameLayout {
         private boolean on, started;
         private android.animation.ValueAnimator morph, popping;
 
-        PlayButton() { super(activity); playButtons.add(this); tappable(this, "Play or pause", SpatchUi.this::togglePlay); }
+        PlayButton() { super(activity); playButtons.add(this); tappable(this, "Play or pause", .90f, SpatchUi.this::togglePlay); }
 
         @Override protected void onDetachedFromWindow() {
             if (morph != null) morph.cancel();
