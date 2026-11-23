@@ -4205,7 +4205,7 @@ public final class SpatchUi extends FrameLayout {
         box.addView(wrap, fill(-2));
     }
 
-    /** A strip of palette cards: Dynamic follows the cover and accent, the rest are fixed palettes. */
+    /** A strip of miniature app-window palette cards: Dynamic follows the cover and accent, the rest are fixed palettes. */
     private void paletteRow(LinearLayout box) {
         TextView label = text("Palette", 16, () -> ink, true);
         label.setPadding(dp(18), dp(12), dp(18), dp(8));
@@ -4221,41 +4221,85 @@ public final class SpatchUi extends FrameLayout {
             int[] p = PALETTES[i];
             View card = new View(activity) {
                 private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                private final Path glyphPath = new Path();
+                private final RectF box = new RectF();
                 @Override protected void onDraw(Canvas c) {
                     float w = getWidth(), h = getHeight(), r = dp(16);
                     int back = p == null ? blend(bg, accent, .18f) : p[0] | 0xff000000;
-                    int fore = p == null ? accent : p[6] | 0xff000000, second = p == null ? accent2 : p[4] | 0xff000000;
+                    int cardSurf = p == null ? surf : p[1] | 0xff000000;
+                    int cardHi = p == null ? surfHi : p[2] | 0xff000000;
                     int words = p == null ? ink : p[3] | 0xff000000;
+                    int second = p == null ? accent2 : p[4] | 0xff000000;
+                    int dim = p == null ? inkDim : p[5] | 0xff000000;
+                    int fore = p == null ? accent : p[6] | 0xff000000;
                     paint.setStyle(Paint.Style.FILL);
                     paint.setColor(back);
-                    c.drawRoundRect(0, 0, w, h, r, r, paint);
+                    box.set(0, 0, w, h);
+                    c.drawRoundRect(box, r, r, paint);
+                    // Miniature hero card preview: cover swatch, two text lines and a play badge.
+                    paint.setColor(cardSurf);
+                    box.set(dp(10), dp(10), w - dp(10), dp(50));
+                    c.drawRoundRect(box, dp(10), dp(10), paint);
                     paint.setColor(fore);
-                    c.drawCircle(dp(22), dp(22), dp(9), paint);
+                    box.set(dp(15), dp(15), dp(43), dp(43));
+                    c.drawRoundRect(box, dp(6), dp(6), paint);
                     paint.setColor(second);
-                    c.drawCircle(dp(38), dp(22), dp(6), paint);
+                    c.drawCircle(dp(34), dp(24), dp(4), paint);
+                    float textL = dp(49), textR = w - dp(35);
+                    if (textR > textL + dp(12)) {
+                        paint.setColor(words);
+                        box.set(textL, dp(19), textR, dp(24));
+                        c.drawRoundRect(box, dp(2.5f), dp(2.5f), paint);
+                        paint.setColor(dim);
+                        box.set(textL, dp(28), textL + (textR - textL) * .68f, dp(32));
+                        c.drawRoundRect(box, dp(2), dp(2), paint);
+                    }
+                    paint.setColor(fore);
+                    c.drawCircle(w - dp(21), dp(37), dp(6.5f), paint);
+                    // Miniature dock bar preview with active pill indicator.
+                    paint.setColor(cardHi);
+                    box.set(dp(10), dp(55), w - dp(10), dp(67));
+                    c.drawRoundRect(box, dp(6), dp(6), paint);
+                    paint.setColor(fore);
+                    box.set(dp(14), dp(58), dp(42), dp(64));
+                    c.drawRoundRect(box, dp(3), dp(3), paint);
+                    paint.setColor(second);
+                    c.drawCircle(w - dp(18), dp(61), dp(2.5f), paint);
+                    // Palette label and selected checkmark badge.
                     paint.setColor(words);
                     paint.setTextSize(dp(12));
                     paint.setFakeBoldText(true);
-                    String name = PALETTE_NAMES[pick];
-                    c.drawText(name, dp(12), h - dp(12), paint);
+                    c.drawText(PALETTE_NAMES[pick], dp(12), h - dp(11), paint);
+                    paint.setFakeBoldText(false);
+                    if (pick == chosen) {
+                        float cx = w - dp(14), cy = dp(14), cr = dp(7.5f);
+                        paint.setColor(fore);
+                        c.drawCircle(cx, cy, cr, paint);
+                        int onDot = luminance(fore) > .55f ? 0xff101014 : 0xffffffff;
+                        c.save();
+                        c.translate(cx - dp(5), cy - dp(5));
+                        drawGlyph(c, paint, glyphPath, "check", onDot, dp(10));
+                        c.restore();
+                    }
                     paint.setStyle(Paint.Style.STROKE);
                     paint.setStrokeWidth(dp(pick == chosen ? 2.5f : 1));
-                    paint.setColor(pick == chosen ? ink : blend(back, words, .15f));
+                    paint.setColor(pick == chosen ? fore : blend(back, words, .15f));
                     float in = paint.getStrokeWidth() / 2;
-                    c.drawRoundRect(in, in, w - in, h - in, r - in, r - in, paint);
+                    box.set(in, in, w - in, h - in);
+                    c.drawRoundRect(box, r - in, r - in, paint);
                 }
             };
             tappable(card, PALETTE_NAMES[i] + " palette" + (i == chosen ? ", selected" : ""), () -> {
                 prefs.edit().putInt("palette", pick).apply();
                 settingsChanged(true);
             });
-            LinearLayout.LayoutParams at = lp(dp(132), dp(76));
+            LinearLayout.LayoutParams at = lp(dp(146), dp(98));
             at.setMarginEnd(dp(8));
             cards.addView(card, at);
         }
         strip.addView(cards);
         box.addView(strip, fill(-2));
-        if (chosen > 1) strip.post(() -> strip.scrollTo((chosen - 1) * dp(140), 0));
+        if (chosen > 1) strip.post(() -> strip.scrollTo((chosen - 1) * dp(154), 0));
     }
 
     /** Accent swatches: used when the cover can’t colour the app (or Artwork colours is off). */
