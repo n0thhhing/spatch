@@ -298,7 +298,8 @@ public final class SpatchUi extends FrameLayout {
             android.graphics.Rect next = new android.graphics.Rect();
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                next.set(bars.left, bars.top, bars.right, bars.bottom);
+                android.graphics.Insets sides = insets.getInsets(WindowInsets.Type.systemBars());
+                next.set(cutoutSide(insets, true, sides.left, bars.left), bars.top, cutoutSide(insets, false, sides.right, bars.right), bars.bottom);
             } else {
                 next.set(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
             }
@@ -317,6 +318,25 @@ public final class SpatchUi extends FrameLayout {
             return insets;
         });
         build();
+    }
+
+    /**
+     * A side inset that keeps clear of the camera hole, not of the whole strip Android reserves for it. In landscape
+     * the safe area is the full height of the screen, but the hole is a small circle; content already sits dp(18)
+     * in from the edge, so the inset only needs to make up the rest of the hole's width (plus a little air).
+     */
+    private int cutoutSide(WindowInsets insets, boolean left, int bars, int safe) {
+        if (safe <= bars) return bars;
+        android.view.DisplayCutout cutout = insets.getDisplayCutout();
+        int width = getWidth() > 0 ? getWidth() : getResources().getDisplayMetrics().widthPixels;
+        if (cutout == null || width <= 0) return safe;
+        int reach = 0;
+        for (android.graphics.Rect r : cutout.getBoundingRects()) {
+            if (left && r.left < width / 4) reach = Math.max(reach, r.right);
+            else if (!left && r.right > width * 3 / 4) reach = Math.max(reach, width - r.left);
+        }
+        if (reach == 0) return safe; // the cutout isn't on this side after all: keep what Android asked for
+        return Math.max(bars, Math.min(safe, reach + dp(6) - dp(18)));
     }
 
     private void applyPendingInsets() {
@@ -1016,6 +1036,7 @@ public final class SpatchUi extends FrameLayout {
         pageHost = new FrameLayout(activity);
         LayoutParams hostAt = new LayoutParams(-1, -1);
         hostAt.leftMargin = inset.left; hostAt.rightMargin = inset.right; // landscape: clear of the side system bar and cutout
+        pageHost.setClipChildren(false); // page backdrops may reach out under those insets
         addView(pageHost, hostAt);
         // Lists dim as they pass under the mini player and bar instead of showing through them.
         View fade = new View(activity);
@@ -3637,9 +3658,13 @@ public final class SpatchUi extends FrameLayout {
             }
             washBg.setColors(new int[]{top, mid, bg});
         });
-        page.addView(wash, new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP));
+        // The wash runs under the side insets too (past the page's edges), so no plain strip shows beside it in landscape.
+        page.setClipChildren(false);
+        LayoutParams washAt = new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP);
+        washAt.setMargins(-inset.left, 0, -inset.right, 0);
+        page.addView(wash, washAt);
         StickerBackdrop stickers = new StickerBackdrop(playlist.uri + ":" + headTitle);
-        page.addView(stickers, new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP));
+        page.addView(stickers, new LayoutParams(washAt));
 
         LinearLayout header = column();
         header.setPadding(dp(2), inset.top + dp(56), dp(2), dp(14));
