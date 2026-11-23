@@ -3,10 +3,6 @@
 @property --t2 { syntax: "<color>"; inherits: true; initial-value: #2d4278; }
 @property --t3 { syntax: "<color>"; inherits: true; initial-value: #5a3f6e; }
 @property --acc { syntax: "<color>"; inherits: true; initial-value: #a9c2ff; }
-/* Font axes as registered properties so they can animate. */
-@property --wg { syntax: "<number>"; inherits: true; initial-value: 820; }
-@property --wd { syntax: "<number>"; inherits: true; initial-value: 116; }
-@property --rd { syntax: "<number>"; inherits: true; initial-value: 100; }
 
 :root {
   color-scheme: dark;
@@ -121,25 +117,28 @@ main { padding: 0 var(--gutter); overflow-x: clip; }
 .panel { max-width: 74rem; margin: 0 auto; animation: rise .7s cubic-bezier(.2, 1, .3, 1); }
 @keyframes rise { from { opacity: 0; transform: translateY(28px); } }
 
-/* Expressive type: Google Sans Flex, wide and round. */
+/* Expressive type: Google Sans Flex, wide and round.
+   Each letter's box is locked to its resting width (site.js), so the sweep and the
+   hover swell draw inside that box and never reflow the line. */
 .flex {
-  --wg: 820; --wd: 116; --rd: 100;
   font-weight: 800;
-  font-variation-settings: "wght" var(--wg), "wdth" var(--wd), "ROND" var(--rd);
+  font-variation-settings: "wght" 820, "wdth" 116, "ROND" 100;
   text-wrap: balance;
 }
 .flex .w { display: inline-block; white-space: nowrap; }
 .flex .ch {
   display: inline-block;
-  font-variation-settings: "wght" var(--wg), "wdth" var(--wd), "ROND" var(--rd);
-  transition: --wg .45s var(--spring), --wd .45s var(--spring), color .3s ease;
+  text-align: center;
+  transition: font-variation-settings .7s cubic-bezier(.22, 1.2, .36, 1), color .5s ease;
 }
 @media (hover: hover) {
-  .flex .ch:hover { --wg: 1000; --wd: 151; color: var(--acc); }
+  .flex .ch:hover { font-variation-settings: "wght" 1000, "wdth" 140, "ROND" 100; color: var(--acc); transition-duration: .5s, .3s; }
 }
-.play .ch { animation: sweep 1.1s cubic-bezier(.2, 1.25, .4, 1) calc(var(--i) * 26ms) backwards; }
+.play .ch { animation: sweep 1.1s cubic-bezier(.2, 1.2, .4, 1) calc(var(--i) * 26ms) backwards; }
+.measure .ch { animation: none !important; transition: none !important; }
+.wait .flex .ch { opacity: 0; }
 @keyframes sweep {
-  from { --wg: 150; --wd: 30; --rd: 0; opacity: 0; transform: translateY(.35em); }
+  from { font-variation-settings: "wght" 150, "wdth" 30, "ROND" 0; opacity: 0; transform: translateY(.35em); }
   45% { opacity: 1; }
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

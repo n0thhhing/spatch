@@ -5,6 +5,7 @@ const ind = document.querySelector('.tab-ind');
 const fill = document.querySelector('.seek-fill');
 const names = { overview: 'Spatch', features: 'Features · Spatch', install: 'Install · Spatch', questions: 'Questions · Spatch' };
 
+if (!reduce) document.documentElement.classList.add('wait');
 // Split expressive headings into letters so each can sweep and swell; screen readers get the plain text.
 for (const h of document.querySelectorAll('.flex')) {
   const text = h.textContent.trim();
@@ -14,10 +15,22 @@ for (const h of document.querySelectorAll('.flex')) {
   h.innerHTML = `<span class="sr">${text}</span><span aria-hidden="true">${words.join(' ')}</span>`;
 }
 
+// Fix each letter's box to its resting width so animating the font never reflows the line.
+function lock(root) {
+  const heads = [...root.querySelectorAll('.flex')];
+  for (const h of heads) { h.classList.add('measure'); h.classList.remove('play'); }
+  const chars = heads.flatMap(h => [...h.querySelectorAll('.ch')]);
+  for (const c of chars) c.style.width = '';
+  const widths = chars.map(c => c.getBoundingClientRect().width);
+  chars.forEach((c, i) => { c.style.width = widths[i] + 'px'; });
+  for (const h of heads) h.classList.remove('measure');
+}
+
 function sweep(root) {
+  lock(root);
   if (reduce) return;
+  document.documentElement.classList.remove('wait');
   for (const h of root.querySelectorAll('.flex')) {
-    h.classList.remove('play');
     void h.offsetWidth; // restart the animation
     h.classList.add('play');
   }
@@ -44,7 +57,9 @@ function show(first) {
   document.title = names[name];
   placeIndicator();
   if (!first) scrollTo({ top: 0, behavior: 'instant' });
-  sweep(panels.find(p => p.dataset.panel === name));
+  const panel = panels.find(p => p.dataset.panel === name);
+  // The first sweep waits for the web font, so letters are measured in the right face.
+  first ? document.fonts.ready.then(() => sweep(panel)) : sweep(panel);
   updateSeek();
 }
 
@@ -54,7 +69,12 @@ document.documentElement.classList.add('no-anim');
 show(true);
 requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('no-anim')));
 document.fonts.ready.then(placeIndicator);
-addEventListener('resize', () => { placeIndicator(); updateSeek(); });
+let resizeTimer;
+addEventListener('resize', () => {
+  placeIndicator(); updateSeek();
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => lock(panels.find(p => !p.hidden)), 150);
+});
 // shortcut: unthrottled scroll handler; it is one style write per frame.
 addEventListener('scroll', () => requestAnimationFrame(updateSeek), { passive: true });
 
