@@ -207,7 +207,9 @@ pub fn decode(bytes: &[u8], offset: i32) -> Result<Reply, String> {
                 album: album.map_or_else(String::new, |a| a.name.clone()),
                 album_uri: album.map_or_else(String::new, |a| a.link.clone()),
                 artist_uri: track.and_then(|t| t.artist.first()).map_or_else(String::new, |a| a.link.clone()),
-                duration_ms: track.map_or(0, |t| t.length),
+                // TrackMetadata.length is whole seconds (Spotify's own reader converts its Duration to SECONDS for the
+                // same slot); read as milliseconds every song showed 0:00.
+                duration_ms: track.map_or(0, |t| t.length.saturating_mul(1000)),
                 added: item.add_time,
                 liked: item.track_collection_state.as_ref().is_some_and(|c| c.is_in_collection),
                 recommended: item.is_recommendation,
@@ -459,6 +461,21 @@ mod tests {
         let Ok(Reply::Page { tracks, .. }) = decode(&reply.encode_to_vec(), 0) else { panic!("not a page") };
         assert!(!tracks[0].recommended && tracks[1].recommended);
         assert_eq!(tracks[1].clone().fields()[10], "1");
+    }
+
+    #[test]
+    fn song_lengths_arrive_in_seconds() {
+        use crate::protos::com::spotify::cosmos::util::proto::TrackMetadata;
+        use crate::protos::com::spotify::playlist::proto as pl;
+        let reply = es::PlaylistGetResponse {
+            data: Some(pl::Response {
+                item: vec![pl::Item { uri: "spotify:track:1".into(), track_metadata: Some(TrackMetadata { length: 201, ..Default::default() }), ..Default::default() }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let Ok(Reply::Page { tracks, .. }) = decode(&reply.encode_to_vec(), 0) else { panic!("not a page") };
+        assert_eq!(tracks[0].duration_ms, 201_000);
     }
 
     #[test]
