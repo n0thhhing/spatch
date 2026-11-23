@@ -383,7 +383,7 @@ final class ArtworkViews {
             float artR = Math.max(ui.dp(18), ring - ui.dp(7));
             boolean animate = ui.motion();
             boolean run = ui.playing && animate;
-            boolean audio = ui.pref("audio", true) && Audio.permitted(ui.activity);
+            boolean audio = ui.pref("audio", true) && Audio.ready(ui.activity);
             long now = SystemClock.uptimeMillis();
             if (url.isEmpty()) { shown = previous = null; shownUrl = ""; }
             Bitmap b = ui.art(url, 440);

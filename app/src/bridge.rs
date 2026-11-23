@@ -49,6 +49,7 @@ fn handlers<R>(f: impl FnOnce(&mut HashMap<i64, Handler>) -> R) -> R {
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_CoreBridge_nativeInit<'l>(mut env: JNIEnv<'l>, _: JClass<'l>) {
     crate::init_log();
+    crate::audio_tap::install();
     let found = (|| -> jni::errors::Result<Java> {
         let vm = env.get_java_vm()?;
         let class = env.find_class("spatch/CoreBridge")?;

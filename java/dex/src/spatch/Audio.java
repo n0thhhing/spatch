@@ -81,6 +81,7 @@ public final class Audio {
         context = app;
         eqPrefs = prefs;
         directOn = prefs.getBoolean("audio_direct", false);
+        try { nativeSetDirect(directOn); } catch (UnsatisfiedLinkError ignored) {}
         refreshEqualizer();
     }
 
@@ -1153,6 +1154,7 @@ public final class Audio {
     static void setDirect(boolean on) {
         directOn = on;
         fedAt = 0;
+        try { nativeSetDirect(on); } catch (UnsatisfiedLinkError ignored) {}
         refreshEqualizer();
     }
 
@@ -1185,6 +1187,10 @@ public final class Audio {
         } catch (RuntimeException ignored) {
             // A malformed block is simply skipped: the music must never depend on the visuals.
         }
+    }
+
+    static boolean ready(Context context) {
+        return directOn || permitted(context);
     }
 
     static boolean permitted(Context context) {
@@ -1279,8 +1285,20 @@ public final class Audio {
         }
     }
 
-    /** One analysis from the audio fed by the hook; false (bars decay) when no audio has arrived lately. */
+    /** One analysis from the audio fed by the native Oboe tap or Java hook; false (bars decay) when no audio has arrived lately. */
     private static boolean sampleDirect(long now) {
+        float dt = sampled == 0 ? 16 : Math.min(100, now - sampled);
+        try {
+            if (nativeSampleDirect(dt, now, OUT)) {
+                sampled = now;
+                say("Reading Spotify's audio directly (Oboe)");
+                System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
+                bass = OUT[48]; level = OUT[49]; kick = OUT[50];
+                return true;
+            }
+        } catch (UnsatisfiedLinkError ignored) {
+            // Preview or standalone build without libspatch_app.
+        }
         if (fedAt == 0 || now - fedAt > 400) { say("Waiting for Spotify's audio"); return false; }
         if (directFft == null) directFft = new byte[PcmSpectrum.N];
         float[] window = new float[PcmSpectrum.N];
@@ -1289,7 +1307,6 @@ public final class Audio {
         }
         PcmSpectrum.fftBytes(window, directFft);
         say("Reading Spotify's audio directly");
-        float dt = sampled == 0 ? 16 : Math.min(100, now - sampled);
         sampled = now;
         nativeAnalyse(directFft, fedRate, dt, now, OUT);
         System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
@@ -1298,6 +1315,8 @@ public final class Audio {
     }
 
     // The analysis and EQ curve solver are in Rust (app/src/spectrum.rs, eq.rs).
+    private static native void nativeSetDirect(boolean on);
+    private static native boolean nativeSampleDirect(float dtMs, long nowMs, float[] out);
     private static native void nativeAnalyse(byte[] fft, int rateHz, float dtMs, long nowMs, float[] out);
     private static native void nativeReset();
     private static native float[] nativeParseGraphicEq(String raw);

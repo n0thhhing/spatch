@@ -141,6 +141,19 @@ pub fn bass_expanded(levels: &[f32], per_side: usize) -> Vec<f32> {
 
 static ANALYZER: Mutex<Analyzer> = Mutex::new(Analyzer::new());
 
+pub(crate) fn analyse_into(fft: &[i8], rate_hz: f32, dt_ms: f32, now_ms: i64) -> [f32; BANDS + 5] {
+    let mut a = ANALYZER.lock().unwrap();
+    a.step(fft, rate_hz, dt_ms, now_ms);
+    let mut values = [0.0f32; BANDS + 5];
+    values[..BANDS].copy_from_slice(&a.bands);
+    values[BANDS] = a.bass;
+    values[BANDS + 1] = a.level;
+    values[BANDS + 2] = a.kick;
+    values[BANDS + 3] = a.strongest;
+    values[BANDS + 4] = a.reference;
+    values
+}
+
 /// Analyses one capture and writes bands, then bass, level, kick, strongest and reference, into `out` (53 floats).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_Audio_nativeAnalyse(
@@ -151,10 +164,7 @@ pub extern "system" fn Java_spatch_Audio_nativeAnalyse(
     if env.get_byte_array_region(&fft, 0, &mut bytes).is_err() {
         return;
     }
-    let mut a = ANALYZER.lock().unwrap();
-    a.step(&bytes, rate_hz as f32, dt_ms, now_ms);
-    let mut values = a.bands.to_vec();
-    values.extend([a.bass, a.level, a.kick, a.strongest, a.reference]);
+    let values = analyse_into(&bytes, rate_hz as f32, dt_ms, now_ms);
     let _ = env.set_float_array_region(&out, 0, &values);
 }
 
