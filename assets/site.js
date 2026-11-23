@@ -118,6 +118,24 @@ function show(first) {
   updateSeek();
 }
 
+// GitHub replies are kept for 10 minutes (and reused if a later request fails), and a request
+// already on its way is shared, so the changelog and the last-updated line ask only once.
+const inflight = new Map();
+function gh(url) {
+  if (inflight.has(url)) return inflight.get(url);
+  const key = 'gh:' + url;
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(key)); } catch {}
+  if (cached && Date.now() - cached.t < 600000) return Promise.resolve(cached.data);
+  const p = fetch(url, { headers: { Accept: 'application/vnd.github+json' } })
+    .then(r => { if (!r.ok) throw r.status; return r.json(); })
+    .then(data => { try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), data })); } catch {} return data; })
+    .catch(status => { if (cached) return cached.data; throw status; })
+    .finally(() => inflight.delete(url));
+  inflight.set(url, p);
+  return p;
+}
+
 // Changelog: commits on the branch the nightlies build from, fetched live from GitHub.
 const REPO = 'n0thhhing/spatch', BRANCH = 'fresh', PER_PAGE = 40;
 const log = document.querySelector('.log');
@@ -224,10 +242,7 @@ async function loadLog() {
   logBusy = true;
   more.disabled = true;
   try {
-    const r = await fetch(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=${PER_PAGE}&page=${logPage + 1}`,
-      { headers: { Accept: 'application/vnd.github+json' } });
-    if (!r.ok) throw r.status;
-    const commits = await r.json();
+    const commits = await gh(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=${PER_PAGE}&page=${logPage + 1}`);
     if (logPage === 0) log.replaceChildren();
     logPage++;
     commits.forEach(addCommit);
@@ -255,9 +270,18 @@ more.addEventListener('click', loadLog);
     lit = ch;
     ch?.classList.add('on');
   };
-  const follow = e => { clearTimeout(fade); const t = e.touches[0]; if (t) light(t.clientX, t.clientY); };
-  addEventListener('touchstart', follow, { passive: true });
-  addEventListener('touchmove', follow, { passive: true });
+  // Only a touch that starts on a heading letter is followed, so ordinary scrolling does no hit-testing.
+  let tracking = false;
+  addEventListener('touchstart', e => {
+    tracking = !!e.target.closest?.('.flex .ch');
+    if (!tracking) return;
+    clearTimeout(fade);
+    const t = e.touches[0]; light(t.clientX, t.clientY);
+  }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (!tracking) return;
+    const t = e.touches[0]; if (t) light(t.clientX, t.clientY);
+  }, { passive: true });
   const release = () => { fade = setTimeout(() => { lit?.classList.remove('on'); lit = null; }, 300); };
   addEventListener('touchend', release, { passive: true });
   addEventListener('touchcancel', release, { passive: true });
@@ -396,10 +420,12 @@ function applyPalette(i) {
 // Latest build: when the nightly branch last changed, and the newest Manager release.
 (async () => {
   try {
-    const [c, r] = await Promise.all([
-      fetch(`https://api.github.com/repos/${REPO}/commits/${BRANCH}`).then(x => x.ok ? x.json() : Promise.reject()),
-      fetch(`https://api.github.com/repos/${REPO}/releases/latest`).then(x => x.ok ? x.json() : null).catch(() => null),
+    // Same first page the changelog uses, so this costs no extra request.
+    const [list, r] = await Promise.all([
+      gh(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=${PER_PAGE}&page=1`),
+      gh(`https://api.github.com/repos/${REPO}/releases/latest`).catch(() => null),
     ]);
+    const c = list[0];
     const mins = (new Date(c.commit.committer.date) - Date.now()) / 60000;
     const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
     const ago = Math.abs(mins) < 60 ? rtf.format(Math.round(mins), 'minute')

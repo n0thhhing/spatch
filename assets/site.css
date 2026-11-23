@@ -117,7 +117,12 @@ code { font: inherit; color: var(--fog); background: var(--raise); padding: .05e
 .tab-ind { scale: 1; transition: transform .55s var(--spring), width .55s var(--spring), background-color .8s ease, scale .35s var(--spring); }
 
 main { padding: 0 var(--gutter); overflow-x: clip; }
-.panel { max-width: 74rem; margin: 0 auto; animation: rise .7s cubic-bezier(.2, 1, .3, 1); }
+.panel { max-width: 74rem; margin: 0 auto; }
+/* Only the top of a new tab rises in: animating the whole tab made the browser prepare one huge layer. */
+.panel > :first-child { animation: rise .7s cubic-bezier(.2, 1, .3, 1); }
+/* Sections far off screen skip layout and painting until they come close. */
+.row, .wide, .day, .panel > .split, .steps, .faq { content-visibility: auto; contain-intrinsic-size: auto 640px; }
+.day { contain-intrinsic-size: auto 360px; }
 @keyframes rise { from { opacity: 0; transform: translateY(28px); } }
 
 /* Expressive type: Google Sans Flex, wide and round.

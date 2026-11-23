@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,100..1000,0..100&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/site.css?v=20261123i">
+  <link rel="stylesheet" href="assets/site.css?v=20261123j">
 </head>
 <body data-tab="overview">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -61,7 +61,7 @@
         <figure class="hero-shot">
           <svg class="halo" viewBox="0 0 100 100" aria-hidden="true"><path/></svg>
           <button class="heart" type="button" aria-pressed="false" aria-label="Like"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-7.8-4.7-7.8-10.3A4.4 4.4 0 0 1 12 7.4a4.4 4.4 0 0 1 7.8 2.6c0 5.6-7.8 10.3-7.8 10.3z"/></svg></button>
-          <img src="assets/screens/player.webp" width="720" height="1433" alt="The Spatch player: round cover art inside a ring of bars, the current lyric line, the song title with its audio quality, a wavy progress line and a large play button, on a backdrop tinted from the cover.">
+          <img src="assets/screens/player.webp" width="720" height="1433" fetchpriority="high" alt="The Spatch player: round cover art inside a ring of bars, the current lyric line, the song title with its audio quality, a wavy progress line and a large play button, on a backdrop tinted from the cover.">
         </figure>
       </section>
 
@@ -69,19 +69,19 @@
         <h2 id="screens-h" class="flex">Every screen is redrawn</h2>
         <div class="shots">
           <figure>
-            <img src="assets/screens/home.webp" width="720" height="1433" loading="lazy" alt="Home: a greeting, the song that’s playing as a large card, Liked Songs and recently played playlists.">
+            <img src="assets/screens/home.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Home: a greeting, the song that’s playing as a large card, Liked Songs and recently played playlists.">
             <figcaption><b>Home</b> opens on what you’re playing and what you played last.</figcaption>
           </figure>
           <figure>
-            <img src="assets/screens/library.webp" width="720" height="1433" loading="lazy" alt="Library: a search field, filters for playlists, albums and artists, and a list of saved items with their covers.">
+            <img src="assets/screens/library.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Library: a search field, filters for playlists, albums and artists, and a list of saved items with their covers.">
             <figcaption><b>Library</b> lists everything you’ve saved, with search and filters.</figcaption>
           </figure>
           <figure>
-            <img src="assets/screens/search.webp" width="720" height="1433" loading="lazy" alt="Search: a switch between Spotify and On this device, and a search field for songs, albums, playlists and podcasts.">
+            <img src="assets/screens/search.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Search: a switch between Spotify and On this device, and a search field for songs, albums, playlists and podcasts.">
             <figcaption><b>Search</b> looks through Spotify, or only what’s on your phone.</figcaption>
           </figure>
           <figure>
-            <img src="assets/screens/settings.webp" width="720" height="1433" loading="lazy" alt="Settings: Appearance, Playback, Equalizer and sound, Navigation and gestures, Downloads and storage, Developer and About.">
+            <img src="assets/screens/settings.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Settings: Appearance, Playback, Equalizer and sound, Navigation and gestures, Downloads and storage, Developer and About.">
             <figcaption><b>Settings</b> covers looks, playback, sound and storage.</figcaption>
           </figure>
         </div>
@@ -121,7 +121,7 @@
           <p>Open lyrics from the player and the current line lights up as it’s sung. The column glides to keep it centred, lines you’ve passed fade back, and tapping any line jumps the song there.</p>
         </div>
         <div class="row-shots">
-          <img src="assets/screens/lyrics.webp" width="720" height="1433" loading="lazy" alt="Full-screen lyrics with the current line highlighted and the lines around it dimmed.">
+          <img src="assets/screens/lyrics.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Full-screen lyrics with the current line highlighted and the lines around it dimmed.">
         </div>
       </article>
 
@@ -132,8 +132,8 @@
           <p>Your picture at the top of every page opens Profile, Queue, Downloads and Settings.</p>
         </div>
         <div class="row-shots two">
-          <img src="assets/screens/queue.webp" width="720" height="1433" loading="lazy" alt="The queue: the song that’s playing, then four songs up next with their covers.">
-          <img src="assets/screens/player-menu.webp" width="720" height="1433" loading="lazy" alt="The player menu open over the player, with Sleep timer, Play on another device, Share and Player settings.">
+          <img src="assets/screens/queue.webp" width="720" height="1433" loading="lazy" decoding="async" alt="The queue: the song that’s playing, then four songs up next with their covers.">
+          <img src="assets/screens/player-menu.webp" width="720" height="1433" loading="lazy" decoding="async" alt="The player menu open over the player, with Sleep timer, Play on another device, Share and Player settings.">
         </div>
       </article>
 
@@ -143,18 +143,18 @@
           <p>Turn on Allow rotation and the app follows your phone into landscape. The player puts lyrics and Up next beside the cover, and switches between them by itself.</p>
           <p>The rest of the app uses the width too. The navigator and mini player share one row, Library becomes a grid, and playlists show their cover beside the songs.</p>
         </div>
-        <img class="land-hero" src="assets/screens/land-player.webp" width="1200" height="468" loading="lazy" alt="The player in landscape: the cover in its ring with the title and controls on the left, and synced lyrics on the right under Lyrics and Up next tabs.">
+        <img class="land-hero" src="assets/screens/land-player.webp" width="1200" height="468" loading="lazy" decoding="async" alt="The player in landscape: the cover in its ring with the title and controls on the left, and synced lyrics on the right under Lyrics and Up next tabs.">
         <div class="land-row">
           <figure>
-            <img src="assets/screens/land-home.webp" width="1200" height="468" loading="lazy" alt="Home in landscape: the playing song as a wide card beside Liked Songs and Up next, with the navigator and mini player in one row along the bottom.">
+            <img src="assets/screens/land-home.webp" width="1200" height="468" loading="lazy" decoding="async" alt="Home in landscape: the playing song as a wide card beside Liked Songs and Up next, with the navigator and mini player in one row along the bottom.">
             <figcaption><b>Home</b> puts quick picks beside what’s playing.</figcaption>
           </figure>
           <figure>
-            <img src="assets/screens/land-library.webp" width="1200" height="468" loading="lazy" alt="Library in landscape as a grid of large playlist covers.">
+            <img src="assets/screens/land-library.webp" width="1200" height="468" loading="lazy" decoding="async" alt="Library in landscape as a grid of large playlist covers.">
             <figcaption><b>Library</b> switches between a grid and a two-column list.</figcaption>
           </figure>
           <figure>
-            <img src="assets/screens/land-playlist.webp" width="1200" height="468" loading="lazy" alt="A playlist in landscape: its cover, name, song count and buttons on the left, and the song list with a search field on the right.">
+            <img src="assets/screens/land-playlist.webp" width="1200" height="468" loading="lazy" decoding="async" alt="A playlist in landscape: its cover, name, song count and buttons on the left, and the song list with a search field on the right.">
             <figcaption><b>Playlists</b> keep the cover in view while you scroll the songs.</figcaption>
           </figure>
         </div>
@@ -171,8 +171,8 @@
           </div>
         </div>
         <div class="row-shots two">
-          <img src="assets/screens/appearance.webp" width="720" height="1433" loading="lazy" alt="Appearance settings: palettes named Dynamic, Lavender and Gruvbox, the theme switch, Artwork colours, accent colours and Expressive type.">
-          <img src="assets/screens/visuals.webp" width="720" height="1433" loading="lazy" alt="Player visuals settings: visualizer styles Bars, Ring, Off and Contour, and switches for Follow the music, Spinning artwork, Artwork pulse, Cover glow and Blurred backdrop.">
+          <img src="assets/screens/appearance.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Appearance settings: palettes named Dynamic, Lavender and Gruvbox, the theme switch, Artwork colours, accent colours and Expressive type.">
+          <img src="assets/screens/visuals.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Player visuals settings: visualizer styles Bars, Ring, Off and Contour, and switches for Follow the music, Spinning artwork, Artwork pulse, Cover glow and Blurred backdrop.">
         </div>
       </article>
 
@@ -183,7 +183,7 @@
           <p>Turn the curve off for a moment to hear the difference.</p>
         </div>
         <div class="row-shots">
-          <img src="assets/screens/equalizer.webp" width="720" height="1433" loading="lazy" alt="Equalizer and sound: a tone curve set to the Rock preset across ten bands from 31 Hz to 16 kHz, with Faders, Save, Copy and Reset buttons.">
+          <img src="assets/screens/equalizer.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Equalizer and sound: a tone curve set to the Rock preset across ten bands from 31 Hz to 16 kHz, with Faders, Save, Copy and Reset buttons.">
         </div>
       </article>
     </div>
@@ -220,8 +220,8 @@
           <p>Clones installs a second Spotify with its own name, icon, login and downloads, so you can keep the regular app as well.</p>
         </div>
         <div class="row-shots two">
-          <img src="assets/screens/manager-changes.webp" width="720" height="1433" loading="lazy" alt="Spatch Manager’s Changes page: Refresh and GitHub releases buttons above a timeline of nightly changes, newest first.">
-          <img src="assets/screens/manager-clones.webp" width="720" height="1433" loading="lazy" alt="Spatch Manager’s Clones page: an installed clone called Spotify Two with Open, Update and Uninstall, and a form to create a new clone.">
+          <img src="assets/screens/manager-changes.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Spatch Manager’s Changes page: Refresh and GitHub releases buttons above a timeline of nightly changes, newest first.">
+          <img src="assets/screens/manager-clones.webp" width="720" height="1433" loading="lazy" decoding="async" alt="Spatch Manager’s Clones page: an installed clone called Spotify Two with Open, Update and Uninstall, and a form to create a new clone.">
         </div>
       </article>
 
@@ -316,6 +316,6 @@
     <a href="https://github.com/n0thhhing/spatch">Source on GitHub</a>
   </footer>
 
-  <script src="assets/site.js?v=20261123i"></script>
+  <script src="assets/site.js?v=20261123j"></script>
 </body>
 </html>
