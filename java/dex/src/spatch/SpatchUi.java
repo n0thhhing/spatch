@@ -2312,6 +2312,7 @@ public final class SpatchUi extends FrameLayout {
         scrollTravel = 0;
         setDockHidden(false);
         if (playlist == null && watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
+        if (flightView != null) { removeView(flightView); flightView = null; }
         pageHost.removeAllViews();
         pageScroll = null;
         pageList = null;
@@ -2628,7 +2629,7 @@ public final class SpatchUi extends FrameLayout {
                 sub.setPadding(dp(2), 0, dp(2), 0);
                 tile.addView(sub);
             }
-            if (!e.uri.isEmpty()) tappable(tile, e.title, () -> open(e));
+            if (!e.uri.isEmpty()) tappable(tile, e.title, () -> { captureFlight(art, e.image, e.category == 2); open(e); });
             LinearLayout.LayoutParams p = lp(dp(width), -2);
             p.rightMargin = dp(14);
             tiles.addView(tile, p);
@@ -2773,7 +2774,11 @@ public final class SpatchUi extends FrameLayout {
                 return tile;
             }
         });
-        grid.setOnItemClickListener((p, v, i, id) -> open(items.get(i)));
+        grid.setOnItemClickListener((p, v, i, id) -> {
+            MediaEntry item = items.get(i);
+            if (v instanceof Tile) captureFlight(((Tile) v).art, item.image, item.category == 2);
+            open(item);
+        });
         grid.setOnItemLongClickListener((p, v, i, id) -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); actions(items.get(i)); return true; });
         if (motion()) {
             android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
@@ -3004,7 +3009,10 @@ public final class SpatchUi extends FrameLayout {
 
     /** Pages opened from another page (an album from a playlist...), so back retraces them. */
     private static boolean greeted;
-    private View headCover;
+    private View headCover, flightView;
+    private RectF flightFrom;
+    private String flightImage = "";
+    private boolean flightCircle;
     private TextView nowPlayingChip, songsNoMatch, songCount;
     private String songCountText = "";
     /** View tag key for the now-playing chip's position (any id unique to this file). */
@@ -3285,6 +3293,57 @@ public final class SpatchUi extends FrameLayout {
         runs.add(() -> setLikedSong(song, !song.liked));
         String note = song.album.isEmpty() ? song.subtitle : song.subtitle + " • " + song.album;
         sheet(song.title, note, names.toArray(new Option[0]), choice -> runs.get(choice).run());
+    }
+
+    private void captureFlight(View artView, String img, boolean circle) {
+        if (!motion() || artView == null || artView.getWidth() <= 0 || artView.getHeight() <= 0 || img.isEmpty()) {
+            flightFrom = null;
+            return;
+        }
+        int[] rootAt = new int[2], viewAt = new int[2];
+        getLocationInWindow(rootAt);
+        artView.getLocationInWindow(viewAt);
+        float l = viewAt[0] - rootAt[0], t = viewAt[1] - rootAt[1];
+        flightFrom = new RectF(l, t, l + artView.getWidth(), t + artView.getHeight());
+        flightImage = img;
+        flightCircle = circle;
+    }
+
+    private void launchHeroFlight(final View cover, final RectF from, final String img, final boolean circ) {
+        final android.view.ViewTreeObserver vto = cover.getViewTreeObserver();
+        vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                android.view.ViewTreeObserver curVto = cover.getViewTreeObserver();
+                if (curVto.isAlive()) curVto.removeOnPreDrawListener(this);
+                float tx = 0, ty = 0;
+                for (View cur = cover; cur != null && cur != SpatchUi.this; cur = cur.getParent() instanceof View ? (View) cur.getParent() : null) {
+                    tx += cur.getLeft();
+                    ty += cur.getTop();
+                }
+                float tw = cover.getWidth(), th = cover.getHeight();
+                if (tw <= 0 || th <= 0 || !cover.isAttachedToWindow()) return true;
+                cover.setAlpha(0f);
+                final Art flyer = artwork.new Art(circ ? Art.CIRCLE : Art.ROUNDED, false);
+                flyer.bind(img);
+                LayoutParams lp = new LayoutParams((int) Math.ceil(tw), (int) Math.ceil(th));
+                flyer.setPivotX(0f);
+                flyer.setPivotY(0f);
+                flyer.setX(from.left);
+                flyer.setY(from.top);
+                flyer.setScaleX(from.width() / tw);
+                flyer.setScaleY(from.height() / th);
+                addView(flyer, lp);
+                flightView = flyer;
+                final Runnable finish = () -> {
+                    cover.setAlpha(1f);
+                    if (flightView == flyer) flightView = null;
+                    if (flyer.getParent() != null) removeView(flyer);
+                };
+                cover.postDelayed(finish, 420);
+                flyer.animate().x(tx).y(ty).scaleX(1f).scaleY(1f).setDuration(340).setInterpolator(EMPHASIZED).withEndAction(finish).start();
+                return true;
+            }
+        });
     }
 
     private View playlistPage() {
@@ -3711,6 +3770,11 @@ public final class SpatchUi extends FrameLayout {
         LayoutParams fp = new LayoutParams(dp(62), dp(62), Gravity.TOP | Gravity.END);
         fp.rightMargin = dp(20);
         page.addView(fab, fp);
+        if (flightFrom != null && motion()) {
+            RectF from = flightFrom; String img = flightImage; boolean circ = flightCircle;
+            flightFrom = null;
+            launchHeroFlight(coverWrap, from, img, circ);
+        }
         return page;
     }
 
