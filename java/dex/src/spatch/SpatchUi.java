@@ -2351,7 +2351,7 @@ public final class SpatchUi extends FrameLayout {
         hero.setClipToOutline(true);
         heroArt = artwork.new Art(Art.WIDE, false);
         heroArt.crossfade = true;
-        hero.addView(heroArt, new LayoutParams(-1, dp(200)));
+        hero.addView(heroArt, new LayoutParams(-1, -1));
         View scrim = new View(activity);
         GradientDrawable scrimBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{surf & 0x00ffffff, (surf & 0x00ffffff) | 0xc8000000, surf});
         scrim.setBackground(scrimBg);
@@ -2372,7 +2372,6 @@ public final class SpatchUi extends FrameLayout {
         hp.setMargins(0, 0, dp(16), dp(14));
         hero.addView(heroPlay, hp);
         tappable(hero, "Open player", () -> openPlayer(true));
-        page.addView(hero, fill(dp(200)));
 
         LinearLayout liked = row();
         liked.setPadding(dp(14), dp(12), dp(16), dp(12));
@@ -2386,13 +2385,48 @@ public final class SpatchUi extends FrameLayout {
         liked.addView(badge, lp(dp(44), dp(44)));
         LinearLayout lw = column();
         lw.setPadding(dp(14), 0, 0, 0);
-        lw.addView(text("Liked Songs", 17, () -> ink, true));
-        lw.addView(text("Everything you’ve hearted", 13, () -> inkDim, false));
+        TextView likedTitle = text("Liked Songs", 17, () -> ink, true);
+        TextView likedSub = text("Everything you’ve hearted", 13, () -> inkDim, false);
+        oneLine(likedTitle); oneLine(likedSub);
+        lw.addView(likedTitle);
+        lw.addView(likedSub);
         liked.addView(lw, weight());
         tappable(liked, "Open Liked Songs", () -> openPlaylist(new MediaEntry("Liked Songs", "", "spotify:collection:tracks", "", 0)));
-        LinearLayout.LayoutParams likedParams = fill(-2);
-        likedParams.topMargin = dp(12);
-        page.addView(liked, likedParams);
+
+        if (landscape()) {
+            LinearLayout topRow = row();
+            topRow.addView(hero, new LinearLayout.LayoutParams(0, dp(190), 1.45f));
+            LinearLayout quickCol = column();
+            quickCol.addView(liked, new LinearLayout.LayoutParams(-1, 0, 1f));
+            LinearLayout queueCard = row();
+            queueCard.setPadding(dp(14), dp(12), dp(16), dp(12));
+            bgRound(queueCard, 26, () -> surfHi);
+            FrameLayout qBadge = new FrameLayout(activity);
+            bgRound(qBadge, 18, () -> (ink & 0x00ffffff) | 0x1a000000);
+            qBadge.addView(icon("queue", () -> ink), new LayoutParams(dp(22), dp(22), Gravity.CENTER));
+            queueCard.addView(qBadge, lp(dp(44), dp(44)));
+            LinearLayout qw = column();
+            qw.setPadding(dp(14), 0, 0, 0);
+            TextView qTitle = text("Up next", 17, () -> ink, true);
+            TextView qSub = text(upcoming.isEmpty() ? "Open your queue" : upcoming.get(0).title, 13, () -> inkDim, false);
+            oneLine(qTitle); oneLine(qSub);
+            qw.addView(qTitle);
+            qw.addView(qSub);
+            queueCard.addView(qw, weight());
+            tappable(queueCard, "Open queue", this::openQueue);
+            LinearLayout.LayoutParams qcp = new LinearLayout.LayoutParams(-1, 0, 1f);
+            qcp.topMargin = dp(10);
+            quickCol.addView(queueCard, qcp);
+            LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(0, dp(190), 1f);
+            colParams.leftMargin = dp(14);
+            topRow.addView(quickCol, colParams);
+            page.addView(topRow, fill(dp(190)));
+        } else {
+            page.addView(hero, fill(dp(200)));
+            LinearLayout.LayoutParams likedParams = fill(-2);
+            likedParams.topMargin = dp(12);
+            page.addView(liked, likedParams);
+        }
 
         boolean any = false, hidden = false;
         if (!pref("home_recent", true)) hidden = true;
@@ -4862,7 +4896,7 @@ public final class SpatchUi extends FrameLayout {
         col.addView(titleRow, fill(-2));
 
         wave = new Wave();
-        LinearLayout.LayoutParams wp = fill(dp(land ? 56 : 58));
+        LinearLayout.LayoutParams wp = fill(dp(land ? 60 : 62));
         wp.topMargin = dp(6);
         col.addView(wave, wp);
         LinearLayout controls = row();
@@ -6025,8 +6059,10 @@ public final class SpatchUi extends FrameLayout {
     private final class Wave extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
+        private final RectF bubble = new RectF();
         private float preview = -1, amp = -1, grow = 0;
         private int lastTenth = -1;
+        private String scrubUri = "";
         Wave() { super(activity); setContentDescription("Playback position"); }
 
         @Override protected void onWindowVisibilityChanged(int visibility) {
@@ -6037,13 +6073,14 @@ public final class SpatchUi extends FrameLayout {
         private void cancelScrub() {
             preview = -1;
             lastTenth = -1;
+            scrubUri = "";
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
         }
 
         @Override protected void onDraw(Canvas c) {
             long el = playhead();
             float f = shownProgress();
-            float x0 = dp(6), x1 = getWidth() - dp(6), y = dp(20), tip = x0 + (x1 - x0) * f;
+            float x0 = dp(6), x1 = getWidth() - dp(6), y = dp(26), tip = x0 + (x1 - x0) * f;
             // Scrubbing thickens the line; it eases back when you let go.
             float wantGrow = preview >= 0 ? 1f : 0f;
             grow = !motion() ? wantGrow : grow + (wantGrow - grow) * .25f;
@@ -6064,16 +6101,30 @@ public final class SpatchUi extends FrameLayout {
             c.drawPath(path, paint);
             paint.setStyle(Paint.Style.FILL);
             c.drawCircle(tip, y + amp * (float) Math.sin(((tip - x0) / dp(34) + phase) * 6.283f), dp(preview >= 0 ? 9 : 6), paint);
+            long shownTime = preview >= 0 ? Math.round(preview * (double) duration) : el;
+            if (preview >= 0) {
+                String seekLabel = time(shownTime);
+                paint.setTextSize(dp(10));
+                paint.setFakeBoldText(true);
+                float bw = paint.measureText(seekLabel) + dp(12), bh = dp(18);
+                float bx = Math.max(x0, Math.min(x1 - bw, tip - bw / 2f)), by = dp(2);
+                bubble.set(bx, by, bx + bw, by + bh);
+                paint.setColor(accent);
+                c.drawRoundRect(bubble, dp(9), dp(9), paint);
+                paint.setColor(onAccent);
+                paint.setTextAlign(Paint.Align.CENTER);
+                c.drawText(seekLabel, bubble.centerX(), bubble.centerY() - (paint.descent() + paint.ascent()) / 2f, paint);
+                paint.setFakeBoldText(false);
+            }
             paint.setTextSize(dp(12));
             paint.setTextAlign(Paint.Align.LEFT);
             paint.setColor(preview >= 0 ? accent : inkDim);
             paint.setFakeBoldText(preview >= 0);
-            long shownTime = preview >= 0 ? Math.round(preview * (double) duration) : el;
-            c.drawText(time(shownTime), x0, dp(50), paint);
+            c.drawText(time(shownTime), x0, dp(55), paint);
             paint.setFakeBoldText(false);
             paint.setColor(inkDim);
             paint.setTextAlign(Paint.Align.RIGHT);
-            c.drawText(duration > 0 ? "−" + time(Math.max(0, duration - shownTime)) : "—", x1, dp(50), paint);
+            c.drawText(duration > 0 ? "−" + time(Math.max(0, duration - shownTime)) : "—", x1, dp(55), paint);
             boolean settling = Math.abs(target - amp) > .05f || Math.abs(wantGrow - grow) > .01f;
             if ((playing || settling) && isShown() && getWindowVisibility() == VISIBLE && isAttachedToWindow()) { if (motion()) postInvalidateOnAnimation(); else postInvalidateDelayed(500); }
         }
@@ -6088,12 +6139,16 @@ public final class SpatchUi extends FrameLayout {
             if (duration <= 0) return false;
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
+                    scrubUri = uri;
                     stopHeldSeek();
                     progress.cancel();
                     getParent().requestDisallowInterceptTouchEvent(true);
                 case MotionEvent.ACTION_MOVE:
                 case MotionEvent.ACTION_UP:
-                    if (e.getActionMasked() != MotionEvent.ACTION_DOWN && preview < 0) return false;
+                    if (e.getActionMasked() != MotionEvent.ACTION_DOWN && (preview < 0 || !uri.equals(scrubUri))) {
+                        if (preview >= 0 && !uri.equals(scrubUri)) { cancelScrub(); invalidateProgress(); }
+                        return false;
+                    }
                     preview = Math.max(0, Math.min(1, (e.getX() - dp(6)) / Math.max(1, getWidth() - dp(12))));
                     // A light tick each time the drag crosses a tenth of the song.
                     int tenth = (int) (preview * 10);
