@@ -259,10 +259,13 @@ more.addEventListener('click', loadLog);
   let start = null, dragging = false, under = null;
   const tabAt = x => tabs.find(t => { const r = t.getBoundingClientRect(); return x >= r.left && x <= r.right; })
     || (x < tabs[0].getBoundingClientRect().left ? tabs[0] : tabs.at(-1));
+  // Finger and pen only: a mouse just clicks, and mouse drags would start the browser's link dragging.
   bar.addEventListener('pointerdown', e => {
-    if (e.button !== 0) return;
-    start = e.clientX; dragging = false;
+    if (e.button !== 0 || e.pointerType === 'mouse') return;
+    start = e.clientX; dragging = false; under = null;
   });
+  for (const t of tabs) t.draggable = false;
+  bar.addEventListener('dragstart', e => e.preventDefault());
   bar.addEventListener('pointermove', e => {
     if (start === null) return;
     if (!dragging && Math.abs(e.clientX - start) < 8) return;
@@ -287,10 +290,15 @@ more.addEventListener('click', loadLog);
     for (const t of tabs) t.style.color = '';
     // A cancelled drag (the page took the gesture to scroll) puts the pill back instead of switching.
     if (e.type === 'pointerup' && under && location.hash !== under.hash) location.hash = under.hash;
-    else { dragging = false; placeIndicator(); }
+    else placeIndicator();
+    // Swallow only the click that may directly follow this drag, not the next real tap.
+    setTimeout(() => { dragging = false; }, 60);
   };
   bar.addEventListener('pointerup', end);
   bar.addEventListener('pointercancel', end);
+  // If the pointer is lost some other way, put the pill back rather than leave it mid-drag.
+  bar.addEventListener('lostpointercapture', e => { if (start !== null) end({ type: 'cancel' }); });
+  addEventListener('blur', () => { if (start !== null) end({ type: 'cancel' }); });
   // A drag that ends on a tab shouldn't also count as a tap.
   bar.addEventListener('click', e => { if (dragging) { e.preventDefault(); dragging = false; } }, true);
 }
