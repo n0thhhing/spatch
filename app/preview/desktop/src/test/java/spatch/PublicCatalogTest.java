@@ -11,4 +11,8 @@ public class PublicCatalogTest {
     @Test public void decodesOnlyRequestedCatalogTracks() throws Exception {
         PublicTrackMetadataTest.main(new String[0]);
     }
+
+    @Test public void parsesLrclibLyrics() throws Exception {
+        LrclibTest.main(new String[0]);
+    }
 }

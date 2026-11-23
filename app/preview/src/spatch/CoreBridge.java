@@ -19,14 +19,18 @@ final class CoreBridge {
     /** Demo lyrics for the preview, spread over a whole song with times so the synced view can be tried offline. */
     public static final class Lyrics {
         private static final String[] SAMPLE = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "Dim lines melt into the edges", "The glow follows the cover", "Take it for a spin" };
-        public final String[] words = new String[40];
-        public final long[] starts = new long[40], ends = new long[40];
+        public final String[] words;
+        public final long[] starts, ends;
+        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; }
         Lyrics() {
+            this(40);
             for (int i = 0; i < words.length; i++) { words[i] = SAMPLE[i % SAMPLE.length]; starts[i] = 3000L + i * 6000L; ends[i] = starts[i] + 5500L; }
         }
     }
 
-    static Lyrics lyrics(String id) { return new Lyrics(); }
+    static Lyrics lyrics(String id, String title, String artist, long durationMs) { return new Lyrics(); }
+    static volatile android.content.SharedPreferences prefs;
+    static volatile java.io.File lyricsDir;
 
     public static String openCreation(android.app.Activity activity, String kind) {
         String normalized = kind == null ? "" : kind.trim().toLowerCase(java.util.Locale.ROOT);

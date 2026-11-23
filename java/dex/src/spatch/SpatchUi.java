@@ -275,6 +275,10 @@ public final class SpatchUi extends FrameLayout {
         java.io.File covers = new java.io.File(activity.getCacheDir(), "covers");
         covers.mkdirs();
         CoreBridge.cacheDir = covers;
+        java.io.File savedLyrics = new java.io.File(activity.getFilesDir(), "lyrics");
+        savedLyrics.mkdirs();
+        CoreBridge.lyricsDir = savedLyrics;
+        CoreBridge.prefs = prefs;
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
@@ -917,10 +921,10 @@ public final class SpatchUi extends FrameLayout {
                 post(() -> loadSidePanel(false, 0));
             } else {
                 String trackId = uri.substring(uri.lastIndexOf(':') + 1);
-                String trackUri = uri;
+                String trackUri = uri, trackTitle = title, trackArtist = artist;
                 submit(ART, () -> {
                     CoreBridge.Lyrics got = null;
-                    try { got = CoreBridge.lyrics(trackId); } catch (Throwable ignored) {}
+                    try { got = CoreBridge.lyrics(trackId, trackTitle, trackArtist, 0); } catch (Throwable ignored) {}
                     boolean has = got != null && got.words.length > 0;
                     if (!has) noLyricsUri = trackUri;
                     post(() -> {
@@ -4158,6 +4162,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
             if (pref("player_lyrics", false)) choice(player, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
+            toggle(player, "More lyrics from LRCLIB", "When Spotify has none, look the song up on lrclib.net, a free lyrics site", "lrclib_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
             toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
             toggle(player, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
@@ -5226,10 +5231,11 @@ public final class SpatchUi extends FrameLayout {
             String forUri = lyricsUri = uri;
             lyricsData = null;
             if (!forUri.isEmpty()) {
-                String track = forUri.substring(forUri.lastIndexOf(':') + 1);
+                String track = forUri.substring(forUri.lastIndexOf(':') + 1), songTitle = title, songArtist = artist;
+                long songLength = duration;
                 submit(ART, () -> {
                     CoreBridge.Lyrics got = null;
-                    try { got = CoreBridge.lyrics(track); } catch (Throwable none) { /* no lyrics, or offline: the lines just stay empty */ }
+                    try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); } catch (Throwable none) { /* no lyrics, or offline: the lines just stay empty */ }
                     CoreBridge.Lyrics found = got;
                     post(() -> { if (forUri.equals(lyricsUri)) lyricsData = found; });
                 });
@@ -5830,6 +5836,8 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private void fillLyrics(FrameLayout host, java.util.function.BooleanSupplier alive, String track, Runnable onEmpty) {
+        String songTitle = title, songArtist = artist;
+        long songLength = duration;
         ScrollView scroll = new ScrollView(activity);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -5846,7 +5854,7 @@ public final class SpatchUi extends FrameLayout {
         submit(ART, () -> {
             CoreBridge.Lyrics got = null;
             boolean missing = false;
-            try { got = CoreBridge.lyrics(track); }
+            try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); }
             catch (Throwable failed) {
                 // The service answers 404 for a song with no lyrics; anything else is a real failure.
                 if (String.valueOf(failed.getMessage()).contains("HTTP 404")) missing = true;
