@@ -15,15 +15,28 @@ for (const h of document.querySelectorAll('.flex')) {
   h.innerHTML = `<span class="sr">${text}</span><span aria-hidden="true">${words.join(' ')}</span>`;
 }
 
-// Fix each letter's box to its resting width so animating the font never reflows the line.
+// Freeze which words sit on each line, so letters can grow and push their neighbours
+// along the line without words jumping to the next line or the page moving.
 function lock(root) {
-  const heads = [...root.querySelectorAll('.flex')];
-  for (const h of heads) { h.classList.add('measure'); h.classList.remove('play'); }
-  const chars = heads.flatMap(h => [...h.querySelectorAll('.ch')]);
-  for (const c of chars) c.style.width = '';
-  const widths = chars.map(c => c.getBoundingClientRect().width);
-  chars.forEach((c, i) => { c.style.width = widths[i] + 'px'; });
-  for (const h of heads) h.classList.remove('measure');
+  for (const h of root.querySelectorAll('.flex')) {
+    h.classList.add('measure'); h.classList.remove('play');
+    const box = h.querySelector('[aria-hidden]');
+    const words = [...box.querySelectorAll('.w')];
+    box.replaceChildren(...words.flatMap((w, i) => i ? [' ', w] : [w]));
+    const lines = [];
+    for (const w of words) {
+      const top = w.offsetTop;
+      if (!lines.length || Math.abs(lines.at(-1).top - top) > 2) lines.push({ top, words: [] });
+      lines.at(-1).words.push(w);
+    }
+    box.replaceChildren(...lines.map(l => {
+      const line = document.createElement('span');
+      line.className = 'line';
+      line.append(...l.words.flatMap((w, i) => i ? [' ', w] : [w]));
+      return line;
+    }));
+    h.classList.remove('measure');
+  }
 }
 
 function sweep(root) {
