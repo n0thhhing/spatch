@@ -6786,13 +6786,30 @@ public final class SpatchUi extends FrameLayout {
         private final Path scallop = new Path(), glyph = new Path();
         private final float[] five = nativeGeometry("button5"), nine = nativeGeometry("button9");
         private float shape, angle, pop = 1f;
+        private long spunAt;
         private boolean on, started;
-        private android.animation.ValueAnimator morph, popping;
+        private android.animation.ValueAnimator popping;
+        /** The five-to-nine morph rides a loose spring, so the scallops overshoot and wobble into place. */
+        private final Spring morph = new Spring(0f, 14f, .35f, v -> { shape = v; invalidate(); });
+        /** Held down it squishes; let go and it springs back past full size before settling. */
+        private final Spring press = new Spring(1f, 22f, .28f, v -> { setScaleX(v); setScaleY(v); });
 
-        PlayButton() { super(activity); playButtons.add(this); tappable(this, "Play or pause", .90f, SpatchUi.this::togglePlay); }
+        PlayButton() {
+            super(activity);
+            playButtons.add(this);
+            tappable(this, "Play or pause", 1f, SpatchUi.this::togglePlay);
+            setOnTouchListener((view, e) -> {
+                int a = e.getActionMasked();
+                if (!motion()) return false;
+                if (a == MotionEvent.ACTION_DOWN) press.to(.88f);
+                else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) press.to(1f);
+                return false;
+            });
+        }
 
         @Override protected void onDetachedFromWindow() {
-            if (morph != null) morph.cancel();
+            morph.cancel();
+            press.snap(1f);
             if (popping != null) popping.cancel();
             super.onDetachedFromWindow();
         }
@@ -6811,34 +6828,34 @@ public final class SpatchUi extends FrameLayout {
             if (started && playingNow == on) return;
             started = true;
             on = playingNow;
-            if (morph != null) morph.cancel();
-            if (!motion()) { shape = on ? 1 : 0; invalidate(); return; }
-            morph = android.animation.ValueAnimator.ofFloat(shape, on ? 1 : 0);
-            morph.setDuration(300);
-            morph.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
-            morph.addUpdateListener(a -> { shape = (float) a.getAnimatedValue(); invalidate(); });
-            morph.start();
-            // The new glyph pops in from small with an overshoot.
+            if (!motion() || !isAttachedToWindow()) { morph.snap(on ? 1 : 0); return; }
+            morph.to(on ? 1 : 0);
+            // The new glyph pops in from small with a strong overshoot.
             if (popping != null) popping.cancel();
             popping = android.animation.ValueAnimator.ofFloat(.55f, 1f);
-            popping.setDuration(420);
+            popping.setDuration(480);
             popping.setInterpolator(new android.view.animation.OvershootInterpolator(2.6f));
             popping.addUpdateListener(a -> { pop = (float) a.getAnimatedValue(); invalidate(); });
             popping.start();
         }
 
         @Override protected void onDraw(Canvas c) {
-            float r = Math.min(getWidth(), getHeight()) / 2f;
+            float r = Math.min(getWidth(), getHeight()) / 2f, outline = r * .95f; // room for the morph's overshoot
             c.save();
             c.translate(getWidth() / 2f, getHeight() / 2f);
             scallop.rewind();
             for (int i = 0; i < five.length; i += 2) {
-                float x = (five[i] + (nine[i] - five[i]) * shape) * r, y = (five[i + 1] + (nine[i + 1] - five[i + 1]) * shape) * r;
+                float x = (five[i] + (nine[i] - five[i]) * shape) * outline, y = (five[i + 1] + (nine[i + 1] - five[i + 1]) * shape) * outline;
                 if (i == 0) scallop.moveTo(x, y); else scallop.lineTo(x, y);
             }
             scallop.close();
             // Buffering: the scallop spins faster and a bright arc chases round inside it until the audio arrives.
-            if ((on || buffering) && motion()) { angle = (angle + (buffering ? 2.2f : .35f)) % 360f; c.rotate(angle); }
+            // Turns by time, not by frame, so a 120 Hz screen doesn't spin it twice as fast.
+            long now = SystemClock.uptimeMillis();
+            float dt = spunAt == 0 ? 0f : Math.min(50, now - spunAt) / 1000f;
+            spunAt = now;
+            if ((on || buffering) && motion()) { angle = (angle + dt * (buffering ? 130f : 21f)) % 360f; c.rotate(angle); }
+            else spunAt = 0;
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(accent);
             c.drawPath(scallop, paint);
@@ -6858,6 +6875,59 @@ public final class SpatchUi extends FrameLayout {
             drawGlyph(c, paint, glyph, on ? "pause" : "play", onAccent, r);
             c.restore();
             if ((on || buffering) && motion() && isShown() && getWindowVisibility() == VISIBLE && (this == pPlay || !playerOpen)) postInvalidateOnAnimation();
+        }
+    }
+
+    /**
+     * A damped spring toward a target, stepped every frame by the real time elapsed (so it moves the same at 60 or
+     * 120 Hz); `omega` is its stiffness in radians a second, `zeta` its damping, below 1 for an overshoot.
+     */
+    static final class Spring implements android.view.Choreographer.FrameCallback {
+        private final float omega, zeta;
+        private final java.util.function.Consumer<Float> step;
+        private float value, velocity, target;
+        private long last;
+        private boolean running;
+
+        Spring(float start, float omega, float zeta, java.util.function.Consumer<Float> step) {
+            this.value = this.target = start; this.omega = omega; this.zeta = zeta; this.step = step;
+        }
+
+        void to(float next) {
+            target = next;
+            if (running) return;
+            running = true;
+            last = 0;
+            android.view.Choreographer.getInstance().postFrameCallback(this);
+        }
+
+        void snap(float next) {
+            cancel();
+            value = target = next;
+            velocity = 0;
+            step.accept(value);
+        }
+
+        void cancel() {
+            if (running) android.view.Choreographer.getInstance().removeFrameCallback(this);
+            running = false;
+        }
+
+        float advance(float seconds) {
+            for (int i = 0; i < 4; i++) { // small sub-steps keep a stiff spring stable
+                float h = seconds / 4, pull = -omega * omega * (value - target) - 2 * zeta * omega * velocity;
+                velocity += pull * h;
+                value += velocity * h;
+            }
+            if (Math.abs(value - target) < .001f && Math.abs(velocity) < .01f) { value = target; velocity = 0; running = false; }
+            return value;
+        }
+
+        @Override public void doFrame(long nanos) {
+            float dt = last == 0 ? 1 / 60f : Math.min(.05f, (nanos - last) / 1e9f);
+            last = nanos;
+            step.accept(advance(dt));
+            if (running) android.view.Choreographer.getInstance().postFrameCallback(this);
         }
     }
 
