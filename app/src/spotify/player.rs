@@ -329,6 +329,15 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
     }
 }
 
+/// Fallback commands when Spotify rejects `c` (for example, `SkipPrev` with `allow_seeking = false` when no previous track exists).
+pub fn command_fallbacks(c: &Command) -> Vec<Command> {
+    match c {
+        Command::Previous(false) => vec![Command::Previous(true), Command::SeekTo(0)],
+        Command::Previous(true) => vec![Command::SeekTo(0)],
+        _ => Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -468,5 +477,12 @@ mod tests {
         assert!(check_response(&es::ResponseWithReasons { error: 0, reasons: String::new() }.encode_to_vec()).is_ok());
         let err = check_response(&es::ResponseWithReasons { error: 1, reasons: "mft_disallow".into() }.encode_to_vec()).unwrap_err();
         assert!(err.contains("error 1") && err.contains("mft_disallow"));
+    }
+
+    #[test]
+    fn previous_command_fallbacks_restart_track_when_skip_rejected() {
+        assert_eq!(command_fallbacks(&Command::Previous(false)), vec![Command::Previous(true), Command::SeekTo(0)]);
+        assert_eq!(command_fallbacks(&Command::Previous(true)), vec![Command::SeekTo(0)]);
+        assert!(command_fallbacks(&Command::Next).is_empty());
     }
 }

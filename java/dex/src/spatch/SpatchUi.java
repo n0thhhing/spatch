@@ -564,6 +564,11 @@ public final class SpatchUi extends FrameLayout {
 
     /** Restarts the song when well into it on the first tap, then forces skipping to the previous song on repeat taps or near the start. */
     private void previousTrack() {
+        if (!canPrevious) {
+            setPosition(0);
+            command(SEEK, 0, "");
+            return;
+        }
         long now = SystemClock.uptimeMillis();
         boolean allowSeek = playhead() > 3000 && now - prevTappedAt > 4000;
         prevTappedAt = now;

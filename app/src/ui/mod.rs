@@ -400,11 +400,19 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayFrom(mut env: JNIEnv, _: J
 
 #[cfg(not(feature = "preview"))]
 fn send_player_command(command: player::Command) -> jboolean {
-    let (method, request) = player::command(command);
-    match bridge::call(player::SERVICE, method, &request).and_then(|b| player::check_response(&b)) {
+    let try_one = |cmd: player::Command| -> Result<(), String> {
+        let (method, request) = player::command(cmd);
+        bridge::call(player::SERVICE, method, &request).and_then(|b| player::check_response(&b))
+    };
+    match try_one(command.clone()) {
         Ok(()) => JNI_TRUE,
         Err(e) => {
-            log::warn!("ContextPlayer {method} failed: {e}");
+            for fallback in player::command_fallbacks(&command) {
+                if try_one(fallback).is_ok() {
+                    return JNI_TRUE;
+                }
+            }
+            log::warn!("ContextPlayer command failed: {e}");
             JNI_FALSE
         }
     }
