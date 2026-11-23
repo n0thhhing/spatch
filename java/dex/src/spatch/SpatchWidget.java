@@ -49,7 +49,7 @@ public class SpatchWidget extends AppWidgetProvider {
     private static volatile boolean ready;
     private static long seen = -1, checkedAt, flipAt = -FLIP_MS;
     private static boolean playing, placed;
-    private static String title = "", artist = "", coverUrl = "";
+    private static String title = "", artist = "", coverUrl = "", lastPushedKey = "";
     private static Bitmap cover, backdrop;
     /** Two song slots for the flip: the shown one and the one that slid out. */
     private static int shown;
@@ -105,6 +105,9 @@ public class SpatchWidget extends AppWidgetProvider {
             } else if (!force) {
                 return;
             }
+            String pushedKey = title + '\n' + artist + '\n' + coverUrl + '\n' + playing + '\n' + canNext + '\n' + canPrevious;
+            if (!force && pushedKey.equals(lastPushedKey)) return;
+            lastPushedKey = pushedKey;
             // A flip's slide-out must not be overwritten mid-animation: let it finish first.
             long wait = FLIP_MS - (SystemClock.uptimeMillis() - flipAt);
             if (wait > 0) try { Thread.sleep(wait); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
@@ -164,7 +167,19 @@ public class SpatchWidget extends AppWidgetProvider {
             c.setConnectTimeout(4000);
             c.setReadTimeout(4000);
             try (InputStream in = c.getInputStream()) {
-                return BitmapFactory.decodeStream(in);
+                java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+                byte[] chunk = new byte[8192];
+                int n, total = 0;
+                while ((n = in.read(chunk)) != -1 && (total += n) <= 4 * 1024 * 1024) buf.write(chunk, 0, n);
+                byte[] data = buf.toByteArray();
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(data, 0, data.length, opts);
+                int maxSide = Math.max(opts.outWidth, opts.outHeight), sample = 1;
+                while (maxSide / (sample * 2) >= 256) sample *= 2;
+                opts.inJustDecodeBounds = false;
+                opts.inSampleSize = sample;
+                return BitmapFactory.decodeByteArray(data, 0, data.length, opts);
             } finally {
                 c.disconnect();
             }
@@ -244,9 +259,13 @@ public class SpatchWidget extends AppWidgetProvider {
      * strong blur), under a scrim in the cover's deep colour so the text stays readable.
      */
     private static Bitmap backdrop(Bitmap art) {
-        // A real blur on a small square (the view fills it without stretching), under a scrim in the cover's deep colour.
+        // A real blur on a small square (the view fills it without stretching), under a directional scrim so title and controls stay crisp.
         Bitmap out = Blur.soft(art, 96, 96, 7);
-        new Canvas(out).drawColor((background & 0x00FFFFFF) | 0xA8000000);
+        Paint p = new Paint();
+        int left = (background & 0x00FFFFFF) | 0x80000000;
+        int right = (background & 0x00FFFFFF) | 0xCC000000;
+        p.setShader(new LinearGradient(0, 0, out.getWidth(), 0, left, right, Shader.TileMode.CLAMP));
+        new Canvas(out).drawRect(0, 0, out.getWidth(), out.getHeight(), p);
         return out;
     }
 
@@ -355,6 +374,8 @@ public class SpatchWidget extends AppWidgetProvider {
         v.setImageViewBitmap(nextId, SKIP_NEXT);
         v.setInt(prevId, "setImageAlpha", canPrevious ? 255 : 110);
         v.setInt(nextId, "setImageAlpha", canNext ? 255 : 110);
+        v.setBoolean(prevId, "setEnabled", canPrevious);
+        v.setBoolean(nextId, "setEnabled", canNext);
         v.setOnClickPendingIntent(id(context, "play_button", "id"), broadcast(context, TOGGLE));
         v.setOnClickPendingIntent(prevId, broadcast(context, PREVIOUS));
         v.setOnClickPendingIntent(nextId, broadcast(context, NEXT));
