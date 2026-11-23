@@ -3,28 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Spatch</title>
-  <meta name="description" content="Spatch patches the official Spotify app on Android so it shows its own interface. A new site is on the way.">
-  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <style>
-    :root { --bg: #f6f6f8; --ink: #141418; --dim: #5d5d68; --line: #d9d9e0; color-scheme: light dark; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #121216; --ink: #ececf1; --dim: #9b9ba8; --line: #2c2c34; } }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--ink); font: 400 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px; }
-    main { max-width: 34rem; }
-    img { width: 48px; height: 48px; display: block; margin-bottom: 20px; }
-    h1 { font-size: clamp(2.2rem, 7vw, 3rem); letter-spacing: -.04em; line-height: 1; margin: 0 0 14px; }
-    p { margin: 0 0 22px; color: var(--dim); }
-    a { color: var(--ink); font-weight: 650; text-underline-offset: .2em; }
-    a:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
-  </style>
+  <title>Page not found · Spatch</title>
+  <link rel="icon" href="/spatch/assets/icon.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/spatch/assets/site.css">
 </head>
 <body>
   <main>
-    <img src="assets/icon.svg" width="48" height="48" alt="">
-    <h1>Spatch</h1>
-    <p>Spatch patches the official Spotify app on Android so it shows its own interface. A new site is on the way.</p>
-    <a href="https://github.com/n0thhhing/spatch/releases">Get Spatch Manager on GitHub Releases</a>
+    <section class="hero" style="grid-template-columns: 1fr">
+      <div class="hero-text">
+        <h1>This page doesn’t exist.</h1>
+        <p class="lede">The site has one page now. Everything is on it.</p>
+        <a class="button" href="/spatch/">Go to the Spatch home page</a>
+      </div>
+    </section>
   </main>
 </body>
 </html>

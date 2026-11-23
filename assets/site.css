@@ -1,0 +1,175 @@
+:root {
+  color-scheme: dark;
+  --graphite: #2e2f34;
+  --deep: #25262a;
+  --raise: #3a3b41;
+  --fog: #ecedf1;
+  --dim: #a7a9b2;
+  --peri: #a9c2ff;
+  --lav: #d0bcff;
+  --umber: #5b473c;
+  --denim: #2d3e6a;
+  --line: rgba(236, 237, 241, .12);
+  --gutter: clamp(16px, 5vw, 64px);
+  --wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='10'%3E%3Cpath d='M0 5 Q6 0 12 5 T24 5' fill='none' stroke='%23a9c2ff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--graphite);
+  color: var(--fog);
+  font: 400 1.0625rem/1.6 "Familjen Grotesk", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+img { display: block; max-width: 100%; height: auto; }
+a { color: var(--peri); text-underline-offset: .2em; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--lav); outline-offset: 3px; border-radius: 6px; }
+b { font-weight: 600; color: var(--fog); }
+code { font: inherit; color: var(--fog); background: var(--raise); padding: .05em .35em; border-radius: 6px; }
+
+/* Reading progress drawn as the player's seek wave. */
+.seek { position: fixed; inset: 0 0 auto; height: 10px; z-index: 10; pointer-events: none; }
+.seek-fill {
+  --p: 0;
+  height: 100%;
+  width: calc(var(--p) * 100%);
+  background: var(--wave) repeat-x left center;
+  position: relative;
+}
+.seek-fill::after {
+  content: "";
+  position: absolute; right: -6px; top: 50%;
+  width: 12px; height: 12px; margin-top: -6px;
+  border-radius: 50%; background: var(--peri);
+}
+
+.top {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 28px var(--gutter) 0;
+  font-weight: 500;
+}
+.top a { color: var(--fog); text-decoration: none; }
+.top a:hover { color: var(--peri); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.25rem; letter-spacing: -.01em; }
+.brand img { border-radius: 8px; }
+
+main { padding: 0 var(--gutter); }
+section { max-width: 72rem; margin: 0 auto; }
+
+/* Hero: the backdrop is the player's own cover tint. */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+  padding: clamp(48px, 9vw, 120px) 0 clamp(64px, 10vw, 140px);
+  position: relative;
+  isolation: isolate;
+}
+.hero::before {
+  content: "";
+  position: absolute; z-index: -1;
+  inset: -10% -30% 0 30%;
+  background:
+    radial-gradient(40% 50% at 30% 35%, var(--umber), transparent 70%),
+    radial-gradient(45% 55% at 70% 30%, var(--denim), transparent 70%);
+  filter: blur(40px);
+  opacity: .9;
+}
+h1 {
+  font-size: clamp(2.75rem, 7.4vw, 6.25rem);
+  line-height: .94;
+  letter-spacing: -.045em;
+  font-weight: 700;
+  margin: 0 0 28px;
+  max-width: 9.5em;
+  text-wrap: balance;
+}
+.lede { font-size: clamp(1.125rem, 1.6vw, 1.3125rem); color: var(--fog); max-width: 32em; margin: 0 0 32px; opacity: .9; }
+.button {
+  display: inline-block;
+  background: var(--peri); color: #1c2333;
+  font-weight: 600; font-size: 1.125rem; text-decoration: none;
+  padding: 16px 28px; border-radius: 999px;
+}
+.button:hover { background: var(--lav); }
+.fine { color: var(--dim); font-size: .9375rem; margin: 18px 0 0; }
+
+.hero-shot { margin: 0; justify-self: center; width: min(100%, 380px); }
+.hero-shot img, .shots img {
+  border-radius: 34px;
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+}
+.hero-shot img { box-shadow: 0 40px 80px -30px rgba(10, 12, 20, .7); }
+
+h2 {
+  font-size: clamp(1.75rem, 3.4vw, 2.625rem);
+  line-height: 1.05;
+  letter-spacing: -.03em;
+  font-weight: 700;
+  margin: 0;
+}
+
+.screens { padding: 0 0 clamp(72px, 10vw, 128px); }
+.screens h2 { margin-bottom: 40px; }
+.shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 3vw, 40px); }
+.shots figure { margin: 0; }
+.shots figcaption { color: var(--dim); margin-top: 18px; max-width: 22em; font-size: 1rem; }
+
+/* Heading on the left, content on the right; a rule separates topics. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 24px clamp(32px, 6vw, 96px);
+  padding: 48px 0 clamp(64px, 8vw, 104px);
+  border-top: 1px solid var(--line);
+}
+
+.facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 40px; }
+.facts dt { font-weight: 600; font-size: 1.125rem; margin-bottom: 4px; }
+.facts dd { margin: 0; color: var(--dim); max-width: 30em; }
+
+.prose p { margin: 0 0 16px; max-width: 36em; color: var(--dim); }
+.prose p:first-child { color: var(--fog); font-size: 1.25rem; line-height: 1.5; }
+
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 28px; }
+.steps li { counter-increment: step; position: relative; padding-left: 48px; color: var(--dim); max-width: calc(38em + 48px); }
+.steps li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: -4px;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--raise); color: var(--peri);
+  display: grid; place-items: center;
+  font-weight: 700;
+}
+.after { grid-column: 2; margin: 8px 0 0; padding-left: 48px; color: var(--dim); max-width: calc(38em + 48px); font-size: 1rem; }
+
+.foot {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 32px;
+  padding: 32px var(--gutter) 48px;
+  border-top: 1px solid var(--line);
+  color: var(--dim); font-size: .9375rem;
+}
+.foot p { margin: 0; }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; padding-top: 40px; }
+  .hero::before { inset: 30% -40% -10% -40%; }
+  .hero-shot { width: min(100%, 320px); }
+  .split { grid-template-columns: 1fr; }
+  .after { grid-column: auto; }
+  .facts { grid-template-columns: 1fr; gap: 24px; }
+  .shots { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(72%, 280px); overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter) 8px; scroll-padding: 0 var(--gutter); }
+  .shots figure { scroll-snap-align: start; }
+}
+@media (max-width: 480px) {
+  .after { padding-left: 0; }
+  .top a:last-child { font-size: .9375rem; }
+}
