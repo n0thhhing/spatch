@@ -23,6 +23,7 @@ final class CoreBridge {
         public final long[] starts, ends;
         public final int[][] wordAt;
         public final long[][] wordStart;
+        public boolean generated;
         Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; wordAt = new int[n][]; wordStart = new long[n][]; }
         boolean wordSynced() { for (int[] w : wordAt) if (w != null) return true; return false; }
         Lyrics() {
@@ -39,6 +40,9 @@ final class CoreBridge {
     static Lyrics lyrics(String id, String title, String artist, long durationMs) { return new Lyrics(); }
     static volatile android.content.SharedPreferences prefs;
     static volatile java.io.File lyricsDir;
+    static void saveGenerated(String id, Lyrics l, java.util.List<long[]> covered) {}
+    static Lyrics savedGenerated(String id) { return null; }
+    static java.util.List<long[]> savedCoverage(String id) { return new java.util.ArrayList<>(); }
 
     public static String openCreation(android.app.Activity activity, String kind) {
         String normalized = kind == null ? "" : kind.trim().toLowerCase(java.util.Locale.ROOT);

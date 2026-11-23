@@ -557,7 +557,9 @@ mod native_hook {
     }
 
     fn feed_from_slot(slot: &StreamSlot, audio_data: *const c_void, num_frames: i32) {
-        if !DIRECT_ENABLED.load(Ordering::Relaxed) || audio_data.is_null() || num_frames <= 0 {
+        let direct = DIRECT_ENABLED.load(Ordering::Relaxed);
+        let capture = crate::lyric_gen::CAPTURE_ON.load(Ordering::Relaxed);
+        if !(direct || capture) || audio_data.is_null() || num_frames <= 0 {
             return;
         }
         let frames = num_frames as usize;
@@ -565,6 +567,22 @@ mod native_hook {
         let rate = slot.rate.load(Ordering::Acquire).max(8_000);
         let fmt = slot.format.load(Ordering::Acquire);
         let Some(total) = frames.checked_mul(ch) else { return };
+        if capture {
+            // The same mono mix the visualizer takes, kept longer for lyric generation.
+            let mono = |f: usize| -> f32 {
+                let base = f * ch;
+                let sum: f32 = match fmt {
+                    2 => unsafe { std::slice::from_raw_parts((audio_data as *const f32).add(base), ch) }.iter().sum(),
+                    4 => unsafe { std::slice::from_raw_parts((audio_data as *const i32).add(base), ch) }.iter().map(|&s| s as f32 / 2_147_483_648.0).sum(),
+                    _ => unsafe { std::slice::from_raw_parts((audio_data as *const i16).add(base), ch) }.iter().map(|&s| s as f32 / 32_768.0).sum(),
+                };
+                sum / ch as f32
+            };
+            crate::lyric_gen::push(frames, rate, mono);
+        }
+        if !direct {
+            return;
+        }
         match fmt {
             2 => RING.push_f32(unsafe { std::slice::from_raw_parts(audio_data as *const f32, total) }, ch, rate),
             4 => RING.push_i32(unsafe { std::slice::from_raw_parts(audio_data as *const i32, total) }, ch, rate),

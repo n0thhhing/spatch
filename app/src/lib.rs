@@ -8,6 +8,7 @@ pub mod autoeq;
 pub mod bridge;
 pub mod cache;
 pub mod eq;
+pub mod lyric_gen;
 pub mod palette;
 pub mod shapes;
 pub mod spectrum;

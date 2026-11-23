@@ -279,6 +279,8 @@ public final class SpatchUi extends FrameLayout {
         savedLyrics.mkdirs();
         CoreBridge.lyricsDir = savedLyrics;
         CoreBridge.prefs = prefs;
+        LyricGen.dir = new java.io.File(activity.getFilesDir(), "whisper");
+        LyricGen.prefs = prefs;
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
@@ -982,6 +984,7 @@ public final class SpatchUi extends FrameLayout {
             if (listFab != null) listFab.invalidate();
         }
         stamp = SystemClock.uptimeMillis();
+        LyricGen.playback(uri.substring(uri.lastIndexOf(':') + 1), position, playing, duration);
         if (changed || Math.abs(playbackFraction() - previousFraction) >= .0005f) animateProgress(from);
         List<MediaEntry> next = new ArrayList<>();
         for (int i = 20; i + 5 < s.length; i += 6) {
@@ -4166,6 +4169,23 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
             if (pref("player_lyrics", false)) choice(player, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
+            toggle(player, "Generate missing lyrics", "Experimental: when no service has a song's lyrics, listen to it on the phone and write rough timed lyrics, saved for next time. Downloads a 60 MB speech model once; uses extra battery while it listens", "lyric_gen", false, false);
+            TextView genStatus = text("", 12, () -> inkDim, false);
+            genStatus.setPadding(dp(18), 0, dp(18), dp(10));
+            player.addView(genStatus);
+            Runnable showGen = new Runnable() {
+                @Override public void run() {
+                    String now = pref("lyric_gen", false) ? (LyricGen.enabled() ? "Model ready" : LyricGen.status) : "";
+                    genStatus.setText(now);
+                    genStatus.setVisibility(now.isEmpty() ? View.GONE : View.VISIBLE);
+                    if (pref("lyric_gen", false) && !LyricGen.enabled() && genStatus.isAttachedToWindow()) genStatus.postDelayed(this, 500); // follow the download
+                }
+            };
+            genStatus.post(showGen);
+            genStatus.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override public void onViewAttachedToWindow(View v) { v.post(showGen); }
+                @Override public void onViewDetachedFromWindow(View v) {}
+            });
             toggle(player, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
             toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
@@ -4795,6 +4815,10 @@ public final class SpatchUi extends FrameLayout {
             if (key.equals("equalizer") || key.startsWith("eq_")) Audio.refreshEqualizer();
             if (key.equals("auto_hide_dock") && !sw.on) setDockHidden(false);
             if (key.equals("audio_direct")) Audio.setDirect(sw.on);
+            if (key.equals("lyric_gen") && sw.on) submit(ART, () -> {
+                try { LyricGen.download(); }
+                catch (Exception failed) { LyricGen.status = "Couldn’t get the model: " + failed.getMessage() + ". Turn this off and on to retry."; }
+            });
             if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
             else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
@@ -5895,7 +5919,8 @@ public final class SpatchUi extends FrameLayout {
                 else android.util.Log.w("SpatchUi", "lyrics failed", failed);
             }
             CoreBridge.Lyrics found = got;
-            String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now", hint = missing ? null : "Try again in a moment";
+            String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now",
+                hint = !missing ? "Try again in a moment" : LyricGen.enabled() ? "Being written on this phone as the song plays; they’ll be here next time" : null;
             post(() -> {
                 if (!alive.getAsBoolean()) return;
                 if (found == null || found.words.length == 0) {
@@ -5908,6 +5933,12 @@ public final class SpatchUi extends FrameLayout {
                     return;
                 }
                 lines.removeView(status);
+                if (found.generated) {
+                    TextView note = text("Generated on this phone · may be wrong", 12, () -> inkDim, false);
+                    note.setGravity(Gravity.CENTER);
+                    note.setPadding(0, dp(4), 0, dp(4));
+                    host.addView(note, new LayoutParams(-1, -2, Gravity.TOP));
+                }
                 boolean synced = found.starts[found.starts.length - 1] > 0;
                 // Synced lyrics are read one line at a time: the sung line sits in the middle, so room above and below it.
                 int room = host.getHeight() > 0 ? host.getHeight() : getHeight();

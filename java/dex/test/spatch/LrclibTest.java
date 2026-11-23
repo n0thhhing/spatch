@@ -44,5 +44,13 @@ public final class LrclibTest {
             .put(new JSONObject().put("duration", 180).put("syncedLyrics", "[00:01.00] lines").put("plainLyrics", "lines"))
             .put(new JSONObject().put("duration", 182).put("hasWordSync", true).put("syncedLyrics", "[00:24.28] I wear it").put("plainLyrics", "x").put("lyricsfile", file));
         check(Lrclib.pick(both, 180000).wordAt[0] != null, "Word-timed match preferred over a closer line-timed one");
+
+        java.util.List<long[]> ranges = java.util.Arrays.asList(new long[] { 0, 28000 }, new long[] { 20000, 50000 }, new long[] { 90000, 100000 });
+        check(LyricGen.coveredMs(ranges) == 60000, "Overlapping listens count once");
+        java.util.TreeMap<Long, String[]> heard = new java.util.TreeMap<>();
+        heard.put(0L, new String[] { "2000", "first" });
+        heard.put(5000L, new String[] { "7000", "second" });
+        CoreBridge.Lyrics made = LyricGen.toLyrics(heard);
+        check(made.generated && made.words.length == 2 && made.starts[0] == 1 && made.starts[1] == 5000, "Generated lines stay time-synced, even at 0");
     }
 }

@@ -276,6 +276,8 @@ public final class CoreBridge implements Transport {
         /** Per line, when the source times each word: where each word starts in the line's text, and when it is sung (ms). Null for a line without word timing. */
         public final int[][] wordAt;
         public final long[][] wordStart;
+        /** Made on the phone by {@link LyricGen}, not from a lyrics service: shown with a note that it may be wrong. */
+        public boolean generated;
         Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; wordAt = new int[n][]; wordStart = new long[n][]; }
         boolean wordSynced() { for (int[] w : wordAt) if (w != null) return true; return false; }
     }
@@ -322,6 +324,9 @@ public final class CoreBridge implements Transport {
         }
         Lyrics saved = savedLyrics(id);
         if (saved != null) return saved;
+        LyricGen.want(id); // no service has this song: the experimental generator may listen for it
+        Lyrics made = savedGenerated(id);
+        if (made != null) return made;
         throw spotify;
     }
 
@@ -364,17 +369,50 @@ public final class CoreBridge implements Transport {
     /** Where every song's last-found lyrics are kept, in app files rather than cache so Android doesn't clear them (set by the UI). */
     static volatile java.io.File lyricsDir;
 
-    private static java.io.File lyricsFile(String id) {
+    private static java.io.File lyricsFile(String id) { return lyricsFile(id, ""); }
+
+    private static java.io.File lyricsFile(String id, String suffix) {
         java.io.File dir = lyricsDir;
-        return dir == null || id == null || !id.matches("[A-Za-z0-9]{1,64}") ? null : new java.io.File(dir, id);
+        return dir == null || id == null || !id.matches("[A-Za-z0-9]{1,64}") ? null : new java.io.File(dir, id + suffix);
+    }
+
+    /** Generated lyrics live beside the real ones (".gen"), with the song ranges already heard (".cover", "from-to" lines). */
+    static void saveGenerated(String id, Lyrics l, java.util.List<long[]> covered) {
+        java.io.File file = lyricsFile(id, ".gen"), cover = lyricsFile(id, ".cover");
+        if (file == null) return;
+        saveLyrics(file, l);
+        StringBuilder ranges = new StringBuilder();
+        for (long[] r : covered) ranges.append(r[0]).append('-').append(r[1]).append('\n');
+        try { java.nio.file.Files.write(cover.toPath(), ranges.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+        catch (java.io.IOException failed) { android.util.Log.w("CoreBridge", "saving lyric coverage failed", failed); }
+    }
+
+    static Lyrics savedGenerated(String id) {
+        Lyrics l = readLyrics(lyricsFile(id, ".gen"));
+        if (l != null) l.generated = true;
+        return l;
+    }
+
+    static java.util.List<long[]> savedCoverage(String id) {
+        java.util.List<long[]> out = new java.util.ArrayList<>();
+        java.io.File cover = lyricsFile(id, ".cover");
+        if (cover == null || !cover.isFile()) return out;
+        try {
+            for (String line : java.nio.file.Files.readAllLines(cover.toPath())) {
+                String[] r = line.split("-");
+                if (r.length == 2) out.add(new long[] { Long.parseLong(r[0]), Long.parseLong(r[1]) });
+            }
+        } catch (java.io.IOException | NumberFormatException damaged) { /* start over */ }
+        return out;
     }
 
     // shortcut: saved lyrics are never pruned; a few KB per song, add pruning if the folder ever grows large.
-    private static void saveLyrics(String id, Lyrics l) {
-        java.io.File file = lyricsFile(id);
+    private static void saveLyrics(String id, Lyrics l) { saveLyrics(lyricsFile(id), l); }
+
+    private static void saveLyrics(java.io.File file, Lyrics l) {
         if (file == null) return;
         try {
-            java.io.File part = java.io.File.createTempFile(id, ".part", file.getParentFile());
+            java.io.File part = java.io.File.createTempFile(file.getName(), ".part", file.getParentFile());
             try {
                 try (java.io.DataOutputStream out = new java.io.DataOutputStream(new java.io.BufferedOutputStream(new java.io.FileOutputStream(part)))) {
                     out.writeInt(l.words.length);
@@ -395,8 +433,9 @@ public final class CoreBridge implements Transport {
         }
     }
 
-    static Lyrics savedLyrics(String id) {
-        java.io.File file = lyricsFile(id);
+    static Lyrics savedLyrics(String id) { return readLyrics(lyricsFile(id)); }
+
+    private static Lyrics readLyrics(java.io.File file) {
         if (file == null || !file.isFile()) return null;
         try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.BufferedInputStream(new java.io.FileInputStream(file)))) {
             int n = in.readInt();

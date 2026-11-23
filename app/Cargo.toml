@@ -17,6 +17,10 @@ jni = "0.21"
 log = "0.4"
 prost = "0.14"
 
+# On-phone lyric generation (experimental): speech recognition over the song's own audio.
+[target.'cfg(target_os = "android")'.dependencies]
+whisper-rs = "0.16"
+
 [build-dependencies]
 prost-build = "0.14"
 
