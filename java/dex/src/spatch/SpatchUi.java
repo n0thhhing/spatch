@@ -91,7 +91,9 @@ public final class SpatchUi extends FrameLayout {
     private static native byte[] nativeCached(String key);
     private static native void nativeRemember(String key, byte[] packed);
     private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
+    private static native int[] nativePalette2(int seed, boolean hasSeed, int seed2, boolean hasSeed2, boolean dark);
     private static native int nativeSeed(int[] pixels);
+    private static native int[] nativeSeedPair(int[] pixels);
     static native void nativeRing(int perSide, float[] out);
     private static native String[] nativeSpotifySettings();
     private static native String nativeSetSpotifySetting(String key, int value);
@@ -121,6 +123,7 @@ public final class SpatchUi extends FrameLayout {
         @Override protected int sizeOf(String key, Bitmap b) { return b.getAllocationByteCount(); }
     };
     private static final java.util.Map<String, Integer> SEEDS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, Integer> SEEDS2 = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
     static final ColorMatrixColorFilter VIVID;
     static {
@@ -272,7 +275,7 @@ public final class SpatchUi extends FrameLayout {
                 "queue", "home", "library", "settings", "add", "note", "people", "mix", "blend", "prompt", "jam", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download", "more"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
-        applyPalette(null);
+        applyPalette(null, null);
         setFocusableInTouchMode(true);
         setDescendantFocusability(FOCUS_BEFORE_DESCENDANTS);
         // Android otherwise lays a 12% white "focus highlight" over this focused view, washing out the whole app,
@@ -356,14 +359,16 @@ public final class SpatchUi extends FrameLayout {
     private static float luminance(int c) { return (.2126f * Color.red(c) + .7152f * Color.green(c) + .0722f * Color.blue(c)) / 255f; }
 
     /** Colours from the cover when there is one, else from the chosen accent; animated smoothly in place. */
-    private void applyPalette(Integer seed) {
+    private void applyPalette(Integer seed, Integer seed2) {
         int theme = prefs.getInt("theme", 1);
         dark = theme == 1 || (theme == 0 && (getResources().getConfiguration().uiMode & 0x30) == 0x20);
         int accentChoice = Math.max(0, Math.min(ACCENTS.length - 1, prefs.getInt("accent", 0)));
+        boolean artSeed = seed != null;
         if (seed == null && accentChoice > 0) seed = ACCENTS[accentChoice];
+        if (!artSeed) seed2 = null;
         int[] fixed = fixedPalette();
         if (fixed != null) dark = true;
-        int[] target = fixed != null ? fixed : nativePalette(seed == null ? 0 : seed, seed != null, dark);
+        int[] target = fixed != null ? fixed : nativePalette2(seed == null ? 0 : seed, seed != null, seed2 == null ? 0 : seed2, seed2 != null, dark);
         View decor = activity.getWindow().getDecorView();
         int bars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         decor.setSystemUiVisibility(dark ? decor.getSystemUiVisibility() & ~bars : decor.getSystemUiVisibility() | bars);
@@ -402,26 +407,27 @@ public final class SpatchUi extends FrameLayout {
             Math.round(Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t));
     }
 
-    /** The cover's seed colour: Rust picks the most colourful of a 6x6 shrink of it. */
-    private static int seedOf(Bitmap bitmap) {
-        Bitmap small = Bitmap.createScaledBitmap(bitmap, 6, 6, true);
-        int[] pixels = new int[36];
-        small.getPixels(pixels, 0, 6, 0, 0, 6, 6);
+    /** The cover's primary and secondary accents: Rust picks from a 12x12 shrink of it. */
+    private static int[] seedPairOf(Bitmap bitmap) {
+        Bitmap small = Bitmap.createScaledBitmap(bitmap, 12, 12, true);
+        int[] pixels = new int[144];
+        small.getPixels(pixels, 0, 12, 0, 0, 12, 12);
         if (small != bitmap) small.recycle();
-        return nativeSeed(pixels);
+        return nativeSeedPair(pixels);
     }
 
     /** Re-tints everything once the playing cover's colour is known; true if the palette changed. */
     private boolean refreshPalette() {
         boolean fromArt = pref("art_colors", true);
         Integer seed = fromArt ? SEEDS.get(image) : null;
+        Integer seed2 = fromArt ? SEEDS2.get(image) : null;
         // A new cover's colour is known once its art loads: keep the current colours until then rather than
         // flashing to the default palette and back on every skip. A forced refresh ("?") still applies.
         if (fromArt && seed == null && !image.isEmpty() && !"?".equals(paletteKey) && !artFailed(image + ":440")) return false;
-        String key = seed == null ? "" : String.valueOf(seed);
+        String key = seed == null ? "" : seed + (seed2 == null ? "" : ":" + seed2);
         if (key.equals(paletteKey)) return false;
         paletteKey = key;
-        applyPalette(seed);
+        applyPalette(seed, seed2);
         return true;
     }
 
@@ -3222,10 +3228,11 @@ public final class SpatchUi extends FrameLayout {
         final int[] headPal = {0, 0};
         colored(wash, () -> {
             Integer seed = headImage.isEmpty() ? null : SEEDS.get(headImage);
+            Integer seed2 = headImage.isEmpty() ? null : SEEDS2.get(headImage);
             int top, mid;
             if (seed != null) {
                 if (!seed.equals(lastSeed[0]) || lastDark[0] != dark || headPal[0] == 0) {
-                    int[] p = nativePalette(seed, true, dark);
+                    int[] p = nativePalette2(seed, true, seed2 == null ? 0 : seed2, seed2 != null, dark);
                     headPal[0] = p[5];
                     headPal[1] = p[6];
                     lastSeed[0] = seed;
@@ -5977,7 +5984,13 @@ public final class SpatchUi extends FrameLayout {
                 if (got != null) {
                     IMAGES.put(key, got);
                     if (size == 440) ArtworkViews.cacheBlurs(key, got);
-                    if (!SEEDS.containsKey(url)) SEEDS.put(url, seedOf(got));
+                    if (!SEEDS.containsKey(url)) {
+                        int[] pair = seedPairOf(got);
+                        if (pair != null && pair.length >= 2) {
+                            if (pair[0] != 0) SEEDS.put(url, pair[0]);
+                            if (pair[1] != 0) SEEDS2.put(url, pair[1]);
+                        }
+                    }
                 }
                 final Bitmap result = got;
                 post(() -> {

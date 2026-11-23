@@ -1,4 +1,4 @@
-//! The app's colours: one seed (from the cover, or the chosen accent) turned into a dark or light palette.
+//! The app's colours: one seed (or a cover's primary + secondary accents) turned into a dark or light palette.
 
 use jni::JNIEnv;
 use jni::objects::{JClass, JIntArray};
@@ -6,27 +6,61 @@ use jni::sys::{jboolean, jint, jintArray};
 
 /// bg, surf, surfHi, ink, inkDim, accent, accent2, onAccent as 0xAARRGGBB.
 pub fn palette(seed: Option<u32>, dark: bool) -> [u32; 8] {
+    palette_with_secondary(seed, None, dark)
+}
+
+/// Like [`palette`], but lets a distinct secondary cover hue drive `accent2` when present.
+pub fn palette_with_secondary(seed: Option<u32>, secondary: Option<u32>, dark: bool) -> [u32; 8] {
     let (h, c) = seed.map_or((262.0, 0.5), |s| {
         let (h, s, _) = hsv(s);
         (h, s.clamp(0.35, 0.85))
     });
+    let a1 = if dark { (c + 0.1).min(0.9) } else { (c + 0.05).min(0.85) };
+    let (h2, a2) = match secondary {
+        Some(s2) => {
+            let (sh, ss, _) = hsv(s2);
+            let sc = ss.clamp(0.35, 0.85);
+            (sh, if dark { (sc + 0.1).min(0.9) } else { (sc + 0.05).min(0.85) })
+        }
+        None => ((h + 42.0) % 360.0, a1),
+    };
     if dark {
-        let a = (c + 0.1).min(0.9);
         // Mixed 12% toward white: Android's default focus highlight used to lay exactly that over the whole app,
         // and the app is known by that look; the highlight is now off, so the lift lives here instead.
         [hsl(h, 0.28 * c, 0.06), hsl(h, 0.22 * c, 0.115), hsl(h, 0.22 * c, 0.17), hsl(h, 0.2 * c, 0.94),
-         hsl(h, 0.18 * c, 0.72), hsl(h, a, 0.74), hsl((h + 42.0) % 360.0, a, 0.70), hsl(h, 0.5, 0.13)]
+         hsl(h, 0.18 * c, 0.72), hsl(h, a1, 0.74), hsl(h2, a2, 0.70), hsl(h, 0.5, 0.13)]
             .map(|colour| toward_white(colour, 0.12))
     } else {
-        let a = (c + 0.05).min(0.85);
         [hsl(h, 0.3 * c, 0.965), hsl(h, 0.3 * c, 0.925), hsl(h, 0.3 * c, 0.875), hsl(h, 0.25 * c, 0.10),
-         hsl(h, 0.2 * c, 0.36), hsl(h, a, 0.40), hsl((h + 42.0) % 360.0, a, 0.46), hsl(h, 0.2, 0.98)]
+         hsl(h, 0.2 * c, 0.36), hsl(h, a1, 0.40), hsl(h2, a2, 0.46), hsl(h, 0.2, 0.98)]
     }
 }
 
 /// The cover's seed: the most colourful of its pixels (the cover scaled to a few pixels), not too dark or bright.
 pub fn seed(pixels: &[u32]) -> Option<u32> {
     pixels.iter().copied().max_by(|a, b| score(*a).total_cmp(&score(*b)))
+}
+
+/// Primary seed plus the strongest distant-hue pixel (>= 35° apart, non-neutral) for two-tone covers.
+pub fn seed_pair(pixels: &[u32]) -> (Option<u32>, Option<u32>) {
+    let Some(primary) = seed(pixels) else {
+        return (None, None);
+    };
+    let (h1, _, _) = hsv(primary);
+    let secondary = pixels
+        .iter()
+        .copied()
+        .filter(|&p| {
+            let (h, s, v) = hsv(p);
+            s >= 0.25 && v >= 0.20 && hue_distance(h, h1) >= 35.0
+        })
+        .max_by(|a, b| score(*a).total_cmp(&score(*b)));
+    (Some(primary), secondary)
+}
+
+fn hue_distance(a: f32, b: f32) -> f32 {
+    let d = (a - b).abs() % 360.0;
+    d.min(360.0 - d)
 }
 
 fn score(pixel: u32) -> f32 {
@@ -83,6 +117,25 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePalette(env: JNIEnv, _: JClass
     out.into_raw()
 }
 
+/// The palette for primary + optional secondary seeds in dark or light.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePalette2(
+    env: JNIEnv,
+    _: JClass,
+    seed: jint,
+    has_seed: jboolean,
+    seed2: jint,
+    has_seed2: jboolean,
+    dark: jboolean,
+) -> jintArray {
+    let primary = (has_seed != 0).then_some(seed as u32);
+    let secondary = (has_seed2 != 0).then_some(seed2 as u32);
+    let colours = palette_with_secondary(primary, secondary, dark != 0).map(|c| c as i32);
+    let Ok(out) = env.new_int_array(8) else { return std::ptr::null_mut() };
+    let _ = env.set_int_array_region(&out, 0, &colours);
+    out.into_raw()
+}
+
 /// The seed colour among a cover's sampled pixels.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeSeed(env: JNIEnv, _: JClass, pixels: JIntArray) -> jint {
@@ -92,6 +145,22 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSeed(env: JNIEnv, _: JClass, p
         return 0;
     }
     seed(&values.iter().map(|&p| p as u32).collect::<Vec<_>>()).unwrap_or(0) as jint
+}
+
+/// Primary and secondary distant-hue seed colours from sampled cover pixels (`[primary, secondary]`, 0 when absent).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeSeedPair(env: JNIEnv, _: JClass, pixels: JIntArray) -> jintArray {
+    let Ok(len) = env.get_array_length(&pixels) else { return std::ptr::null_mut() };
+    let mut values = vec![0i32; len as usize];
+    if env.get_int_array_region(&pixels, 0, &mut values).is_err() {
+        return std::ptr::null_mut();
+    }
+    let u32s: Vec<u32> = values.iter().map(|&p| p as u32).collect();
+    let (p1, p2) = seed_pair(&u32s);
+    let pair = [p1.unwrap_or(0) as i32, p2.unwrap_or(0) as i32];
+    let Ok(out) = env.new_int_array(2) else { return std::ptr::null_mut() };
+    let _ = env.set_int_array_region(&out, 0, &pair);
+    out.into_raw()
 }
 
 #[cfg(test)]
@@ -128,5 +197,28 @@ mod tests {
     fn the_seed_is_the_most_colourful_pixel() {
         assert_eq!(seed(&[0xff808080, 0xff2060e0, 0xff101010, 0xfff0f0f0]), Some(0xff2060e0));
         assert_eq!(seed(&[]), None);
+    }
+
+    #[test]
+    fn two_tone_cover_extracts_distinct_secondary_accent() {
+        let teal = 0xff009ea8;
+        let coral = 0xffe85d1a;
+        let (p1, p2) = seed_pair(&[0xff222222, teal, 0xff999999, coral]);
+        assert!(p1.is_some() && p2.is_some());
+        let (h1, h2) = (hsv(p1.unwrap()).0, hsv(p2.unwrap()).0);
+        assert!(hue_distance(h1, h2) >= 35.0, "expected distinct hues, got {h1} and {h2}");
+        let pal = palette_with_secondary(p1, p2, true);
+        let accent2_hue = hsv(pal[6]).0;
+        assert!(hue_distance(accent2_hue, h2) < 8.0, "accent2 should keep secondary hue {h2}, got {accent2_hue}");
+    }
+
+    #[test]
+    fn monochrome_cover_falls_back_to_offset_hue() {
+        let pixels = [0xffd6304a, 0xffb8283e, 0xff808080, 0xff181818];
+        let (p1, p2) = seed_pair(&pixels);
+        assert_eq!(p1, seed(&pixels));
+        assert_eq!(p2, None);
+        assert_eq!(palette_with_secondary(p1, p2, true), palette(p1, true));
+        assert_eq!(palette_with_secondary(p1, p2, false), palette(p1, false));
     }
 }
