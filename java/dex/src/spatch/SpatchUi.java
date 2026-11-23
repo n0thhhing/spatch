@@ -4156,6 +4156,7 @@ public final class SpatchUi extends FrameLayout {
                 });
             }
             toggle(player, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
+            if (pref("player_lyrics", false)) choice(player, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
             toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
@@ -5190,7 +5191,7 @@ public final class SpatchUi extends FrameLayout {
         if (!motion()) {
             params.height = open ? -2 : 0;
             params.topMargin = open ? dp(12) : 0;
-            params.bottomMargin = open ? dp(14) : 0;
+            params.bottomMargin = open ? dp(20) : 0;
             box.setLayoutParams(params);
             box.setAlpha(open ? 1f : 0f);
             return;
@@ -5202,13 +5203,13 @@ public final class SpatchUi extends FrameLayout {
             params.height = (int) a.getAnimatedValue();
             float shown = full == 0 ? 0 : Math.min(1f, params.height / (float) full);
             params.topMargin = Math.round(dp(12) * shown);
-            params.bottomMargin = Math.round(dp(14) * shown);
+            params.bottomMargin = Math.round(dp(20) * shown);
             box.setLayoutParams(params);
         });
         grow.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(android.animation.Animator done) {
                 params.topMargin = open ? dp(12) : 0;
-                params.bottomMargin = open ? dp(14) : 0;
+                params.bottomMargin = open ? dp(20) : 0;
                 if (open) params.height = -2;
                 box.setLayoutParams(params);
             }
@@ -5395,13 +5396,16 @@ public final class SpatchUi extends FrameLayout {
                 // Left-aligned with the title below it, so the lyrics read as part of the same column; the sung line is bright and glows.
                 rows[k] = text("", sung ? 22 : 15, () -> ink, true);
                 rows[k].setLineSpacing(0, 1.05f);
-                if (sung) rows[k].setShadowLayer(dp(12), 0, 0, (accent & 0x00ffffff) | 0x80000000);
                 rows[k].setGravity(Gravity.START);
                 rows[k].setSingleLine(true);
                 rows[k].setEllipsize(android.text.TextUtils.TruncateAt.END);
                 rows[k].setAlpha(sung ? 1f : .38f);
                 box.addView(rows[k], fill(-2));
             }
+            // How many lines show is the user's call (default two: the sung line and what comes next); the rest are hidden, not removed.
+            int shownLines = Math.max(1, Math.min(3, prefs.getInt("player_lyric_lines", 1) + 1));
+            rows[0].setVisibility(shownLines >= 3 ? VISIBLE : GONE);
+            rows[2].setVisibility(shownLines >= 2 ? VISIBLE : GONE);
             box.setTag(rows);
             box.setClipChildren(true);
             // The lines sit on a quiet glass card (rounded, a touch lighter than the backdrop) so they read as a part of the player.
@@ -5918,7 +5922,6 @@ public final class SpatchUi extends FrameLayout {
                 boolean on = i == current;
                 float alpha = on ? 1f : .3f, size = on ? 1f : .95f;
                 // The sung line glows in the cover's accent and sits on a soft pill.
-                views[i].setShadowLayer(on ? dp(14) : 0, 0, 0, (accent & 0x00ffffff) | 0x80000000);
                 views[i].setBackground(on ? round(0x14ffffff, 24) : null);
                 if (glide) views[i].animate().alpha(alpha).scaleX(size).scaleY(size).setDuration(320).start();
                 else { views[i].setAlpha(alpha); views[i].setScaleX(size); views[i].setScaleY(size); }
