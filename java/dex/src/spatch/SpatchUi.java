@@ -17,7 +17,9 @@ import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.SystemClock;
@@ -3288,7 +3290,38 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout header = column();
         header.setPadding(dp(2), inset.top + dp(56), dp(2), dp(14));
 
-        // Centered Material 3 Expressive hero cover with a soft shadow.
+        // Centered Material 3 Expressive hero cover over a dual-colour ambient cover glow.
+        FrameLayout glowBox = new FrameLayout(activity);
+        View heroGlow = new View(activity) {
+            private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private RadialGradient ga, gb;
+            private int ca, cb, gw, gh;
+            @Override protected void onDraw(Canvas c) {
+                int w = getWidth(), h = getHeight();
+                if (w <= 0 || h <= 0) return;
+                int c1 = headPal[0] != 0 ? headPal[0] : accent;
+                int c2 = headPal[1] != 0 ? headPal[1] : accent2;
+                if (ga == null || ca != c1 || cb != c2 || gw != w || gh != h) {
+                    ca = c1; cb = c2; gw = w; gh = h;
+                    float cx = w / 2f, cy = h / 2f, ox = dp(14), oy = dp(9);
+                    float r = Math.max(1f, Math.min(w, h) * .5f - Math.max(ox, oy) - dp(2));
+                    float[] stops = new float[]{0f, .45f, .78f, 1f};
+                    int a1 = (c1 & 0x00ffffff) | ((dark ? 78 : 56) << 24), a1m = (c1 & 0x00ffffff) | ((dark ? 28 : 18) << 24);
+                    int a2 = (c2 & 0x00ffffff) | ((dark ? 62 : 44) << 24), a2m = (c2 & 0x00ffffff) | ((dark ? 22 : 14) << 24);
+                    ga = new RadialGradient(cx - ox, cy + oy, r, new int[]{a1, a1m, c1 & 0x00ffffff, 0}, stops, Shader.TileMode.CLAMP);
+                    gb = new RadialGradient(cx + ox, cy - oy, r, new int[]{a2, a2m, c2 & 0x00ffffff, 0}, stops, Shader.TileMode.CLAMP);
+                }
+                glowPaint.setShader(ga);
+                c.drawRect(0, 0, w, h, glowPaint);
+                glowPaint.setShader(gb);
+                c.drawRect(0, 0, w, h, glowPaint);
+                glowPaint.setShader(null);
+            }
+        };
+        heroGlow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        colored(heroGlow, heroGlow::invalidate);
+        glowBox.addView(heroGlow, new LayoutParams(-1, -1));
+
         FrameLayout coverWrap = new FrameLayout(activity);
         boolean artistPage = playlist.uri.startsWith("spotify:artist:");
         GradientDrawable coverShape = round(surfHi, artistPage ? 104 : 26);
@@ -3308,9 +3341,12 @@ public final class SpatchUi extends FrameLayout {
             art.bind(headImage);
             coverWrap.addView(art, new LayoutParams(-1, -1));
         }
-        LinearLayout.LayoutParams covP = lp(dp(208), dp(208));
+        glowBox.addView(coverWrap, new LayoutParams(dp(208), dp(208), Gravity.CENTER));
+        LinearLayout.LayoutParams covP = lp(dp(260), dp(256));
         covP.gravity = Gravity.CENTER_HORIZONTAL;
-        header.addView(coverWrap, covP);
+        covP.topMargin = -dp(24);
+        covP.bottomMargin = -dp(24);
+        header.addView(glowBox, covP);
         headCover = coverWrap;
 
         // Left-aligned Spotify-style editorial title and stats block.

@@ -368,6 +368,7 @@ final class ArtworkViews {
         private Bitmap shown = ui.lastCover, previous;
         private String shownUrl = ui.lastCoverUrl;
         private long fadeAt, lastFrame;
+        private float bassBreath;
         private final float[] level = new float[36], ringTargets = new float[36];
 
         Disc() { super(ui.activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
@@ -418,6 +419,14 @@ final class ArtworkViews {
             boolean animate = ui.motion();
             boolean run = ui.playing && animate;
             boolean audio = ui.pref("audio", true) && Audio.ready(ui.activity);
+            boolean live = run && audio && Audio.BANDS[0] + Audio.BANDS[8] > 0;
+            float targetBass = live ? (level[0] + level[1] + level[2] + level[3]) * .25f : 0f;
+            if (!animate) bassBreath = 0f;
+            else {
+                bassBreath += (targetBass - bassBreath) * .18f;
+                if (!live && bassBreath < .002f) bassBreath = 0f;
+            }
+            float pulseR = Math.min(ring - ui.dp(3.5f), artR * (1f + bassBreath * .045f));
             long now = SystemClock.uptimeMillis();
             if (url.isEmpty()) { shown = previous = null; shownUrl = ""; }
             Bitmap b = ui.art(url, 440);
@@ -442,16 +451,16 @@ final class ArtworkViews {
             if (ui.pref("cover_glow", true)) glow(c, cx, cy, s / 2f);
             c.save();
             clip.rewind();
-            clip.addCircle(cx, cy, artR, Path.Direction.CW);
+            clip.addCircle(cx, cy, pulseR, Path.Direction.CW);
             c.clipPath(clip);
             if (shown != null) {
                 if (run && ui.pref("spin", true)) angle = (angle + .12f) % 360f;
                 paint.setShader(null);
-                if (previous != null) cover(c, previous, cx, cy, artR, 255);
-                cover(c, shown, cx, cy, artR, Math.round(255 * fade));
+                if (previous != null) cover(c, previous, cx, cy, pulseR, 255);
+                cover(c, shown, cx, cy, pulseR, Math.round(255 * fade));
             } else {
                 paint.setColor(ui.surfHi);
-                c.drawCircle(cx, cy, artR, paint);
+                c.drawCircle(cx, cy, pulseR, paint);
             }
             c.restore();
             if (fade < 1f && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
@@ -471,13 +480,12 @@ final class ArtworkViews {
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeWidth(stroke);
             float t = now / 1000f;
-            boolean live = run && audio && Audio.BANDS[0] + Audio.BANDS[8] > 0;
             int half = bars / 2;
             float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
             lastFrame = now;
             // The bands spread over each side's bars, bass-weighted (Rust: spectrum::bass_expanded).
             if (live) SpatchUi.nativeRing(half, ringTargets);
-            boolean settling = false;
+            boolean settling = bassBreath > 0f;
             for (int i = 0; i < half; i++) {
                 float v;
                 if (live) {
