@@ -1877,11 +1877,11 @@ public final class SpatchUi extends FrameLayout {
         page.setPadding(0, inset.top, 0, 0);
         pageHeading(page, "Search", true);
 
-        segmented(page, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, selected -> {
+        Pick searchIn = selected -> {
             catalogSearch = selected == 0;
             scheduleSearch();
             showPage();
-        });
+        };
 
         LinearLayout box = row();
         box.setPadding(dp(16), 0, dp(8), 0);
@@ -1899,9 +1899,6 @@ public final class SpatchUi extends FrameLayout {
         field.setText(searchQuery);
         box.addView(field, new LinearLayout.LayoutParams(0, dp(50), 1));
         clearButton(box, field);
-        LinearLayout.LayoutParams bp = fill(dp(50));
-        bp.setMargins(dp(18), 0, dp(18), dp(8));
-        page.addView(box, bp);
         searchField = field;
 
         ScrollView scroll = new ScrollView(activity);
@@ -1912,7 +1909,26 @@ public final class SpatchUi extends FrameLayout {
         results.setPadding(dp(18), dp(4), dp(18), dockRoom());
         scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
         scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> scrollDock(y - oldY, y <= 0));
-        page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        if (landscape()) {
+            LinearLayout split = row();
+            LinearLayout left = column();
+            left.setGravity(Gravity.TOP);
+            left.setPadding(0, 0, 0, dockRoom());
+            LinearLayout.LayoutParams bp = fill(dp(50));
+            bp.setMargins(dp(18), dp(4), dp(10), dp(10));
+            left.addView(box, bp);
+            segmented(left, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
+            split.addView(left, new LinearLayout.LayoutParams(0, -1, .85f));
+            results.setPadding(dp(10), dp(4), dp(18), dockRoom());
+            split.addView(scroll, new LinearLayout.LayoutParams(0, -1, 1.25f));
+            page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1));
+        } else {
+            segmented(page, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
+            LinearLayout.LayoutParams bp = fill(dp(50));
+            bp.setMargins(dp(18), 0, dp(18), dp(8));
+            page.addView(box, bp);
+            page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        }
         searchScroll = scroll;
         searchResults = results;
 
@@ -1955,8 +1971,7 @@ public final class SpatchUi extends FrameLayout {
                     label.setPadding(dp(14), dp(10), dp(8), dp(10));
                     oneLine(label);
                     line.addView(label, weight());
-                    line.setOnClickListener(v -> { searchField.setText(recent); searchField.setSelection(recent.length()); hideKeyboard(); });
-                    line.setClickable(true);
+                    tappable(line, recent, .98f, () -> { searchField.setText(recent); searchField.setSelection(recent.length()); hideKeyboard(); });
                     box.addView(line, fill(-2));
                 }
             }
@@ -1996,8 +2011,15 @@ public final class SpatchUi extends FrameLayout {
                 row.length.setText(ms > 0 ? time(ms) : "");
                 row.length.setVisibility(ms > 0 ? VISIBLE : GONE);
             }
+            row.setContentDescription(e.title);
             row.setClickable(true);
-            row.setOnClickListener(v -> { tick(v); rememberSearch(searchQuery); open(e); });
+            row.setFocusable(true);
+            row.setOnClickListener(v -> {
+                tick(v);
+                rememberSearch(searchQuery);
+                if (!isTrack(e.uri)) captureFlight(row.art, e.image, e.category == 2);
+                open(e);
+            });
             row.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
             box.addView(row, fill(-2));
         }
