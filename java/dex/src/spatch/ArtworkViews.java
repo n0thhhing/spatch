@@ -358,6 +358,7 @@ final class ArtworkViews {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final Path clip = new Path();
         private final Matrix m = new Matrix();
+        private final Path contour = new Path();
         private float angle;
         private SweepGradient sweep;
         private int sweepA, sweepB;
@@ -471,7 +472,7 @@ final class ArtworkViews {
                 sweepCy = cy;
                 sweep = new SweepGradient(cx, cy, new int[]{ui.accent, ui.accent2, ui.accent, ui.accent2, ui.accent}, null);
             }
-            // Visualizer style: 0 ring and bars, 1 ring only, 2 neither.
+            // Visualizer style: 0 bars, 1 ring only, 2 off, 3 smooth radial contour.
             int style = ui.prefs.getInt("viz", 0);
             paint.setShader(sweep);
             paint.setStyle(Paint.Style.STROKE);
@@ -504,17 +505,59 @@ final class ArtworkViews {
                     settling = true;
                 }
             }
-            for (int k = 0; k < bars && style == 0; k++) {
-                int bi = k < half ? k : bars - 1 - k;
-                double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
-                float len = ui.dp(3) + (bar - ui.dp(6)) * Math.min(1f, level[bi]), start = ring + ui.dp(10);
-                float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
-                c.drawLine(cx + cos * start, cy + sin * start, cx + cos * (start + len), cy + sin * (start + len), paint);
+            if (style == 0) {
+                for (int k = 0; k < bars; k++) {
+                    int bi = k < half ? k : bars - 1 - k;
+                    double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
+                    float len = ui.dp(3) + (bar - ui.dp(6)) * Math.min(1f, level[bi]), start = ring + ui.dp(10);
+                    float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
+                    c.drawLine(cx + cos * start, cy + sin * start, cx + cos * (start + len), cy + sin * (start + len), paint);
+                }
+            } else if (style == 3) {
+                float baseR = ring + ui.dp(8), span = (bar - ui.dp(6)) * .92f;
+                int lastIdx = bars - 1;
+                double aLast = -Math.PI / 2 + (lastIdx + .5) / bars * Math.PI * 2;
+                float rLast = baseR + span * Math.min(1f, level[lastIdx < half ? lastIdx : bars - 1 - lastIdx]);
+                float xPrev = cx + (float) Math.cos(aLast) * rLast, yPrev = cy + (float) Math.sin(aLast) * rLast;
+                double a0 = -Math.PI / 2 + .5 / bars * Math.PI * 2;
+                float r0 = baseR + span * Math.min(1f, level[0]);
+                float xc = cx + (float) Math.cos(a0) * r0, yc = cy + (float) Math.sin(a0) * r0;
+                contour.rewind();
+                contour.moveTo((xPrev + xc) * .5f, (yPrev + yc) * .5f);
+                for (int k = 0; k < bars; k++) {
+                    int nextK = (k + 1) % bars;
+                    int biNext = nextK < half ? nextK : bars - 1 - nextK;
+                    double aNext = -Math.PI / 2 + (nextK + .5) / bars * Math.PI * 2;
+                    float rNext = baseR + span * Math.min(1f, level[biNext]);
+                    float xn = cx + (float) Math.cos(aNext) * rNext, yn = cy + (float) Math.sin(aNext) * rNext;
+                    contour.quadTo(xc, yc, (xc + xn) * .5f, (yc + yn) * .5f);
+                    xc = xn;
+                    yc = yn;
+                }
+                contour.close();
+                c.save();
+                clip.rewind();
+                clip.addCircle(cx, cy, ring, Path.Direction.CW);
+                if (android.os.Build.VERSION.SDK_INT >= 26) c.clipOutPath(clip);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setAlpha(38);
+                c.drawPath(contour, paint);
+                c.restore();
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+                paint.setAlpha(72);
+                paint.setStrokeWidth(ui.dp(6));
+                c.drawPath(contour, paint);
+                paint.setAlpha(255);
+                paint.setStrokeWidth(ui.dp(2.5f));
+                c.drawPath(contour, paint);
             }
+            paint.setAlpha(255);
             paint.setShader(null);
             paint.setStyle(Paint.Style.FILL);
-            if (run && audio && style == 0) Audio.want();
-            if ((run || (settling && style == 0)) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
+            boolean reactiveStyle = style == 0 || style == 3;
+            if (run && audio && reactiveStyle) Audio.want();
+            if ((run || (settling && reactiveStyle)) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
         }
     }
 

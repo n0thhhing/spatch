@@ -3767,7 +3767,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
 
             LinearLayout player = card(page, "Player visuals");
-            choice(player, "Visualizer", new String[]{"Ring and bars", "Ring only", "Off"}, "viz", 0, false);
+            choice(player, "Visualizer", new String[]{"Bars", "Ring", "Off", "Contour"}, "viz", 0, false);
             toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
             toggle(player, "Read audio directly", "Experimental: take Spotify’s audio before the volume, so the bars keep moving at volume 0 and no microphone permission is needed", "audio_direct", false, false);
             TextView audioStatus = text("Status: " + Audio.status, 12, () -> inkDim, false);
