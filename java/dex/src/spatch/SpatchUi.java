@@ -5553,7 +5553,7 @@ public final class SpatchUi extends FrameLayout {
                 syncTabs.run();
                 int halfW = pillInd.getWidth() > 0 ? pillInd.getWidth() : Math.max(0, (tabContainer.getWidth() - dp(6)) / 2);
                 float targetX = sideTab * (float) halfW;
-                if (animate && motion()) pillInd.animate().translationX(targetX).setDuration(280).setInterpolator(new android.view.animation.OvershootInterpolator(.9f)).start();
+                if (animate && motion()) pillInd.animate().translationX(targetX).setDuration(280).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start(); // no overshoot: the end tab sits flush with the track, so any overshoot was clipped
                 else pillInd.setTranslationX(targetX);
                 loadSidePanel(animate, prev != target ? (target > prev ? 1 : -1) : 0);
             };
