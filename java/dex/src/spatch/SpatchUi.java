@@ -1099,6 +1099,9 @@ public final class SpatchUi extends FrameLayout {
     void enter(float dx, float dy) {
         if (!motion() || pageHost.getChildCount() == 0) return;
         View page = pageHost.getChildAt(0);
+        // Fading a page normally draws it through an offscreen layer cut to the page's bounds, which hid a backdrop
+        // reaching past them (under the rail and camera strip) until the fade ended; fade each child in place instead.
+        page.forceHasOverlappingRendering(false);
         page.setAlpha(0f);
         page.setTranslationX(dx);
         page.setTranslationY(dy);
@@ -3784,8 +3787,7 @@ public final class SpatchUi extends FrameLayout {
             }
         });
         LinearLayout.LayoutParams covP = lp(dp(land ? 212 : 260), dp(land ? 208 : 256));
-        covP.gravity = land ? Gravity.START : Gravity.CENTER_HORIZONTAL;
-        if (land) covP.leftMargin = -dp(20); // the glow reaches past the cover; this lines the cover itself up with the title
+        covP.gravity = Gravity.CENTER_HORIZONTAL;
         covP.topMargin = -dp(land ? 18 : 24);
         covP.bottomMargin = -dp(land ? 16 : 24);
         header.addView(glowBox, covP);
@@ -4070,7 +4072,7 @@ public final class SpatchUi extends FrameLayout {
             page.addView(split, new LayoutParams(-1, -1));
             pageList = list;
             LayoutParams bp = new LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.START);
-            bp.setMargins(dp(26), inset.top + dp(24), 0, 0); // over the cover's top-left corner, inside its rounding
+            bp.setMargins(dp(14), inset.top + dp(6), 0, 0);
             page.addView(backBox, bp);
         } else {
             ListView list = entryList(playlistTracks, header);
