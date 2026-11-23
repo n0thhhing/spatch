@@ -45,10 +45,61 @@
           <figcaption><b>Library</b> lists everything you’ve saved, with search and filters.</figcaption>
         </figure>
         <figure>
+          <img src="assets/screens/search.webp" width="720" height="1433" loading="lazy" alt="Search: a switch between Spotify and On this device, and a search field for songs, albums, playlists and podcasts.">
+          <figcaption><b>Search</b> looks through Spotify, or only what’s on your phone.</figcaption>
+        </figure>
+        <figure>
           <img src="assets/screens/settings.webp" width="720" height="1433" loading="lazy" alt="Settings: Appearance, Playback, Equalizer and sound, Navigation and gestures, Downloads and storage, Developer and About.">
           <figcaption><b>Settings</b> covers looks, playback, sound and storage.</figcaption>
         </figure>
       </div>
+    </section>
+
+    <section class="tour" aria-label="A closer look">
+      <article class="row">
+        <div class="row-text">
+          <h2>Lyrics that keep your place</h2>
+          <p>Open lyrics from the player and the current line lights up as it’s sung. The column glides to keep it centred, lines you’ve passed fade back, and tapping any line jumps the song there.</p>
+        </div>
+        <div class="row-shots">
+          <img src="assets/screens/lyrics.webp" width="720" height="1433" loading="lazy" alt="Full-screen lyrics with the current line highlighted and the lines around it dimmed.">
+        </div>
+      </article>
+
+      <article class="row flip">
+        <div class="row-text">
+          <h2>Everything is a tap from the player</h2>
+          <p>The queue shows what’s playing and what comes next. The player menu has a sleep timer, Play on another device for Connect speakers, Share and the player’s own settings.</p>
+          <p>Your picture at the top of every page opens Profile, Queue, Downloads and Settings.</p>
+        </div>
+        <div class="row-shots two">
+          <img src="assets/screens/queue.webp" width="720" height="1433" loading="lazy" alt="The queue: the song that’s playing, then four songs up next with their covers.">
+          <img src="assets/screens/player-menu.webp" width="720" height="1433" loading="lazy" alt="The player menu open over the player, with Sleep timer, Play on another device, Share and Player settings.">
+        </div>
+      </article>
+
+      <article class="row">
+        <div class="row-text">
+          <h2>Make it look the way you like</h2>
+          <p>Pick a palette, or let the app take its colours from each cover. Choose light, dark or the system setting, and an accent colour for songs without art.</p>
+          <p>The player’s visualizer can be bars, a ring, a contour or nothing. Spinning artwork, the bass pulse, the cover glow and the blurred backdrop each switch on and off on their own.</p>
+        </div>
+        <div class="row-shots two">
+          <img src="assets/screens/appearance.webp" width="720" height="1433" loading="lazy" alt="Appearance settings: palettes named Dynamic, Lavender and Gruvbox, the theme switch, Artwork colours, accent colours and Expressive type.">
+          <img src="assets/screens/visuals.webp" width="720" height="1433" loading="lazy" alt="Player visuals settings: visualizer styles Bars, Ring, Off and Contour, and switches for Follow the music, Spinning artwork, Artwork pulse, Cover glow and Blurred backdrop.">
+        </div>
+      </article>
+
+      <article class="row flip">
+        <div class="row-text">
+          <h2>Tune the sound for your headphones</h2>
+          <p>Drag a 10-band curve, start from a preset like Rock or Vocals, or load an AutoEq correction made for your headphone model. Bass boost, loudness compensation, reverb and a limiter sit on the same page.</p>
+          <p>Turn the curve off for a moment to hear the difference.</p>
+        </div>
+        <div class="row-shots">
+          <img src="assets/screens/equalizer.webp" width="720" height="1433" loading="lazy" alt="Equalizer and sound: a tone curve set to the Rock preset across ten bands from 31 Hz to 16 kHz, with Faders, Save, Copy and Reset buttons.">
+        </div>
+      </article>
     </section>
 
     <section class="split" aria-labelledby="player-h">
@@ -59,7 +110,6 @@
         <div><dt>Lyrics under the art</dt><dd>The current line sits below the cover. Full, synced lyrics are one tap away.</dd></div>
         <div><dt>Seek on a wave</dt><dd>The progress line waves while the song plays and straightens while you drag.</dd></div>
         <div><dt>Quality you can see</dt><dd>Lossless songs show their bit depth and sample rate under the title.</dd></div>
-        <div><dt>An equalizer for your headphones</dt><dd>Draw a 10-band curve or load an AutoEq correction for your headphone model.</dd></div>
         <div><dt>Every effect is optional</dt><dd>Blur, floating motes, haptics and animations each have their own switch. Reduce motion stills them all.</dd></div>
       </dl>
     </section>
@@ -80,6 +130,35 @@
         <li><b>Tap Install Spatch.</b> The Manager patches Spotify, signs it with a key made on your phone and installs it. Nothing is uploaded.</li>
       </ol>
       <p class="after">Updates install in place with the same key. Export the key from the Manager and keep it: without it, updating means uninstalling first. The Manager can also add a second Spotify with its own name and login.</p>
+    </section>
+    <section class="split" aria-labelledby="faq-h">
+      <h2 id="faq-h">Questions</h2>
+      <div class="faq">
+        <details>
+          <summary>Do I need Spotify Premium?</summary>
+          <p>Premium is what Spatch is built and tested with. Free accounts currently have trouble loading and playing music in Spatch.</p>
+        </details>
+        <details>
+          <summary>Can I keep the regular Spotify app too?</summary>
+          <p>Yes. The Manager can install Spatch as a second Spotify with its own name, icon, login and downloads, next to the one you already have.</p>
+        </details>
+        <details>
+          <summary>Is anything uploaded?</summary>
+          <p>No. The Manager patches Spotify and signs it on your phone, with a key it makes there. It only downloads the patch from GitHub.</p>
+        </details>
+        <details>
+          <summary>How do updates work?</summary>
+          <p>Turn on Tell me about new patches and the Manager checks twice a day. Updates install over the top with the same key, so your login and downloads stay. On Android 12 and newer they install without a confirmation screen.</p>
+        </details>
+        <details>
+          <summary>What happens if I lose the signing key?</summary>
+          <p>Android only accepts an update signed with the same key. Without it, you’d have to uninstall Spatch to update, which removes its downloads. Use Export key in the Manager and keep the file somewhere safe.</p>
+        </details>
+        <details>
+          <summary>Which Spotify version does it work with?</summary>
+          <p>Spotify 9.2.0.2053. If that version is installed unmodified, the Manager uses it. If not, give the Manager the matching APKM file once and it keeps it for updates.</p>
+        </details>
+      </div>
     </section>
   </main>
 

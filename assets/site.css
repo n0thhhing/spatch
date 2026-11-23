@@ -173,3 +173,48 @@ h2 {
   .after { padding-left: 0; }
   .top a:last-child { font-size: .9375rem; }
 }
+
+/* Closer look: text beside the screens, alternating sides. */
+.tour { padding-bottom: clamp(32px, 5vw, 64px); }
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px clamp(32px, 7vw, 112px);
+  padding: clamp(48px, 7vw, 96px) 0;
+  border-top: 1px solid var(--line);
+}
+.row-text p { color: var(--dim); max-width: 30em; margin: 20px 0 0; }
+.row-text p:first-of-type { color: var(--fog); font-size: 1.1875rem; line-height: 1.55; }
+.row-shots { display: flex; gap: clamp(12px, 2vw, 24px); justify-content: center; }
+.row-shots img { width: min(100%, 300px); border-radius: 30px; outline: 1px solid var(--line); outline-offset: -1px; }
+.row-shots.two img { width: min(48%, 260px); }
+.row-shots.two img:last-child { margin-top: 48px; }
+.flip .row-text { order: 2; }
+
+.faq { display: grid; max-width: 40em; }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq details:first-child { border-top: 1px solid var(--line); }
+.faq summary {
+  cursor: pointer; list-style: none;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 18px 0; font-weight: 600; font-size: 1.125rem;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: ""; flex: none; width: 10px; height: 10px;
+  border-right: 2px solid var(--peri); border-bottom: 2px solid var(--peri);
+  transform: translateY(-3px) rotate(45deg);
+  transition: transform .2s ease;
+}
+.faq details[open] summary::after { transform: translateY(2px) rotate(-135deg); }
+.faq summary:hover { color: var(--peri); }
+.faq details p { margin: 0 0 20px; color: var(--dim); }
+@media (prefers-reduced-motion: reduce) { .faq summary::after { transition: none; } }
+
+@media (min-width: 861px) { .shots { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 860px) {
+  .row { grid-template-columns: 1fr; }
+  .flip .row-text { order: 0; }
+  .row-shots.two img:last-child { margin-top: 32px; }
+}
