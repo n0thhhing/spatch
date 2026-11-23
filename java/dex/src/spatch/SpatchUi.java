@@ -272,7 +272,8 @@ public final class SpatchUi extends FrameLayout {
         ART.execute(CoreBridge::pruneCache);
         nativeCacheDir(new java.io.File(activity.getCacheDir(), "answers").getPath());
         for (String key : new String[]{"back", "down", "previous", "next", "play", "pause", "shuffle", "repeat", "repeat-one", "volume",
-                "queue", "home", "library", "settings", "add", "note", "people", "mix", "blend", "prompt", "jam", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download", "more"}) {
+                "queue", "home", "library", "settings", "add", "note", "people", "mix", "blend", "prompt", "jam", "heart", "heart-outline", "search", "check", "close", "chevron", "timer", "devices", "album", "artist", "share", "sparkle", "download", "more",
+                "badge4", "badge6", "badge8", "button5"}) {
             GLYPHS.put(key, nativeGeometry(key));
         }
         applyPalette(null, null);
@@ -2712,13 +2713,12 @@ public final class SpatchUi extends FrameLayout {
         return page;
     }
 
-    /** The library as big covers, two to a row. */
+    /** The library as big covers: two columns in portrait, four in landscape. */
     private android.widget.GridView entryGrid(List<MediaEntry> items) {
         android.widget.GridView grid = new android.widget.GridView(activity);
-        grid.setNumColumns(android.widget.GridView.AUTO_FIT); // two on a phone, more when there's width (landscape)
-        grid.setColumnWidth(dp(160));
+        grid.setNumColumns(landscape() ? 4 : 2);
         grid.setStretchMode(android.widget.GridView.STRETCH_COLUMN_WIDTH);
-        grid.setHorizontalSpacing(dp(12));
+        grid.setHorizontalSpacing(dp(landscape() ? 14 : 12));
         grid.setVerticalSpacing(dp(16));
         grid.setVerticalScrollBarEnabled(false);
         grid.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
@@ -3281,6 +3281,9 @@ public final class SpatchUi extends FrameLayout {
             washBg.setColors(new int[]{top, mid, bg});
         });
         page.addView(wash, new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP));
+        StickerBackdrop stickers = new StickerBackdrop(playlist.uri + ":" + headTitle);
+        colored(stickers, stickers::invalidate);
+        page.addView(stickers, new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP));
 
         LinearLayout header = column();
         header.setPadding(dp(2), inset.top + dp(56), dp(2), dp(14));
@@ -5806,6 +5809,67 @@ public final class SpatchUi extends FrameLayout {
             canvas.drawPath(path, paint);
         }
         canvas.restore();
+    }
+
+    /** Scatters four deterministic low-contrast geometric shapes behind playlist/album header washes. */
+    private final class StickerBackdrop extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final float[][] shapePts = new float[4][];
+        private final float[] xFrac = new float[4], yFrac = new float[4], sizeDp = new float[4], rot = new float[4];
+        private final boolean[] useAccent2 = new boolean[4];
+
+        StickerBackdrop(String seedKey) {
+            super(activity);
+            setWillNotDraw(false);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            String[] pool = {"badge4", "badge6", "badge8", "button5"};
+            int h = 0x811c9dc5;
+            for (int i = 0; i < seedKey.length(); i++) { h ^= seedKey.charAt(i); h *= 0x01000193; }
+            for (int i = 0; i < 4; i++) {
+                h = h * 1664525 + 1013904223;
+                float u = ((h >>> 8) & 0xFFFF) / 65535f;
+                h = h * 1664525 + 1013904223;
+                float v = ((h >>> 8) & 0xFFFF) / 65535f;
+                h = h * 1664525 + 1013904223;
+                float s = ((h >>> 8) & 0xFFFF) / 65535f;
+                h = h * 1664525 + 1013904223;
+                float a = ((h >>> 8) & 0xFFFF) / 65535f;
+                // Keep stickers in outer corners around the centred cover art and above the bottom wash fade.
+                xFrac[i] = (i % 2 == 0) ? (.07f + u * .20f) : (.73f + u * .20f);
+                yFrac[i] = (i < 2) ? (.14f + v * .18f) : (.44f + v * .20f);
+                sizeDp[i] = 44f + s * 42f;
+                rot[i] = (a - .5f) * 70f;
+                shapePts[i] = GLYPHS.get(pool[Math.abs(h >>> 16) % pool.length]);
+                useAccent2[i] = (i % 2) == 1;
+            }
+            paint.setStyle(Paint.Style.FILL);
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            int alpha = dark ? 22 : 18;
+            for (int i = 0; i < 4; i++) {
+                float[] pts = shapePts[i];
+                if (pts == null || pts.length < 6) continue;
+                float r = Math.min(dp(sizeDp[i]), h * .28f);
+                float cx = w * xFrac[i], cy = Math.min(h * .85f - r, h * yFrac[i]);
+                path.rewind();
+                for (int j = 0; j < pts.length; j += 2) {
+                    float px = pts[j] * r, py = pts[j + 1] * r;
+                    if (j == 0) path.moveTo(px, py); else path.lineTo(px, py);
+                }
+                path.close();
+                paint.setColor(useAccent2[i] ? accent2 : accent);
+                paint.setAlpha(alpha);
+                c.save();
+                c.translate(cx, cy);
+                c.rotate(rot[i]);
+                c.drawPath(path, paint);
+                c.restore();
+            }
+        }
     }
 
     /** A loading indicator: a tonal shape that turns and morphs between four, six and eight lobes, over `label`. */
