@@ -239,6 +239,9 @@ public final class SpatchUi extends FrameLayout {
     /** In landscape the right panel switches between Lyrics (0) and Up next (1) beside the cover. */
     private FrameLayout sideHost;
     private int sideTab, sideQueueOffset;
+    private boolean sideTabManual;
+    private java.util.function.BiConsumer<Integer, Boolean> sideTabSelect;
+    private volatile String noLyricsUri = "";
     private ScrollView sideQueueScroll;
     private String lyricsUri = "", lyricKey = "";
     private boolean lyricShown;
@@ -906,7 +909,28 @@ public final class SpatchUi extends FrameLayout {
         uri = s[1]; title = s[2]; artist = s[3]; album = s[4]; image = s[5];
         if (changed && lyricsPanel != null) { closeLyrics(); post(this::openLyrics); } // a new song: show its lyrics, not the last one's
         if (changed) sideQueueOffset = 0;
-        if (changed && sideHost != null && sideTab == 0) post(() -> loadSidePanel(false));
+        if (changed && sideHost != null) {
+            sideTabManual = false;
+            if (uri.isEmpty()) {
+                if (sideTab != 1 && sideTabSelect != null) post(() -> { if (sideTabSelect != null) sideTabSelect.accept(1, true); });
+            } else if (sideTab == 0) {
+                post(() -> loadSidePanel(false, 0));
+            } else {
+                String trackId = uri.substring(uri.lastIndexOf(':') + 1);
+                String trackUri = uri;
+                submit(ART, () -> {
+                    CoreBridge.Lyrics got = null;
+                    try { got = CoreBridge.lyrics(trackId); } catch (Throwable ignored) {}
+                    boolean has = got != null && got.words.length > 0;
+                    if (!has) noLyricsUri = trackUri;
+                    post(() -> {
+                        if (has && !sideTabManual && sideHost != null && sideTab == 1 && sideTabSelect != null && trackUri.equals(uri)) {
+                            sideTabSelect.accept(0, true);
+                        }
+                    });
+                });
+            }
+        }
         playing = Boolean.parseBoolean(s[6]);
         if (backdrop != null) backdrop.drifting(playing);
         if (pending != null && (changed || pending == playing)) pending = null;
@@ -5111,6 +5135,8 @@ public final class SpatchUi extends FrameLayout {
         pPlay = null;
         pLyric = null;
         sideHost = null;
+        sideTabSelect = null;
+        sideTabManual = false;
         sideQueueScroll = null;
         sideQueueOffset = 0;
         nextKey = "";
@@ -5439,6 +5465,8 @@ public final class SpatchUi extends FrameLayout {
         idleViews = hide.toArray(new View[0]);
         idleTouched();
         if (land) {
+            sideTabManual = false;
+            sideTab = (uri.isEmpty() || uri.equals(noLyricsUri)) ? 1 : 0;
             View pillInd = new View(activity);
             GradientDrawable indBg = round(accent, 15);
             pillInd.setBackground(indBg);
@@ -5467,19 +5495,25 @@ public final class SpatchUi extends FrameLayout {
                 indBg.setColor(accent);
                 for (int i = 0; i < 2; i++) tabViews[i].setTextColor(sideTab == i ? onAccent : inkDim);
             };
+            sideTabSelect = (target, animate) -> {
+                if (sideTab == target && !animate) return;
+                int prev = sideTab;
+                sideTab = target;
+                syncTabs.run();
+                int halfW = pillInd.getWidth() > 0 ? pillInd.getWidth() : Math.max(0, (tabContainer.getWidth() - dp(6)) / 2);
+                float targetX = sideTab * (float) halfW;
+                if (animate && motion()) pillInd.animate().translationX(targetX).setDuration(280).setInterpolator(new android.view.animation.OvershootInterpolator(.9f)).start();
+                else pillInd.setTranslationX(targetX);
+                loadSidePanel(animate, prev != target ? (target > prev ? 1 : -1) : 0);
+            };
             for (int i = 0; i < 2; i++) {
                 final int pick = i;
                 tabViews[i] = text(tabNames[i], 13, () -> sideTab == pick ? onAccent : inkDim, true);
                 tabViews[i].setGravity(Gravity.CENTER);
                 tappable(tabViews[i], tabNames[i], .94f, () -> {
                     if (sideTab == pick) return;
-                    sideTab = pick;
-                    syncTabs.run();
-                    int halfW = pillInd.getWidth() > 0 ? pillInd.getWidth() : Math.max(0, (tabContainer.getWidth() - dp(6)) / 2);
-                    float targetX = sideTab * (float) halfW;
-                    if (motion()) pillInd.animate().translationX(targetX).setDuration(280).setInterpolator(new android.view.animation.OvershootInterpolator(.9f)).start();
-                    else pillInd.setTranslationX(targetX);
-                    loadSidePanel(true);
+                    sideTabManual = true;
+                    if (sideTabSelect != null) sideTabSelect.accept(pick, true);
                 });
                 tabRow.addView(tabViews[i], new LinearLayout.LayoutParams(0, -1, 1));
             }
@@ -5493,12 +5527,16 @@ public final class SpatchUi extends FrameLayout {
             FrameLayout host = new FrameLayout(activity);
             sideColumn.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
             sideHost = host;
-            loadSidePanel(false);
+            loadSidePanel(false, 0);
+        } else {
+            sideTabSelect = null;
         }
     }
 
     /** Landscape: fills the right panel with synced lyrics or the interactive Up next queue. */
-    private void loadSidePanel(boolean cascade) {
+    private void loadSidePanel(boolean cascade) { loadSidePanel(cascade, 0); }
+
+    private void loadSidePanel(boolean cascade, int slideDir) {
         FrameLayout host = sideHost;
         if (host == null) return;
         if (sideQueueScroll != null) sideQueueOffset = sideQueueScroll.getScrollY();
@@ -5516,10 +5554,19 @@ public final class SpatchUi extends FrameLayout {
             scroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
             host.addView(scroll, new LayoutParams(-1, -1));
             keepScroll(scroll, sideQueueOffset);
-            return;
+        } else if (!uri.isEmpty()) {
+            String trackUri = uri;
+            fillLyrics(host, () -> sideHost == host && sideTab == 0 && player != null, uri.substring(uri.lastIndexOf(':') + 1), () -> {
+                if (trackUri.equals(uri)) noLyricsUri = trackUri;
+                if (!sideTabManual && sideHost == host && sideTab == 0 && sideTabSelect != null) sideTabSelect.accept(1, true);
+            });
         }
-        if (uri.isEmpty()) return;
-        fillLyrics(host, () -> sideHost == host && sideTab == 0 && player != null, uri.substring(uri.lastIndexOf(':') + 1));
+        if (slideDir != 0 && motion() && host.getChildCount() > 0) {
+            View child = host.getChildAt(0);
+            child.setAlpha(0f);
+            child.setTranslationX(slideDir * dp(24));
+            child.animate().alpha(1f).translationX(0f).setDuration(240).setInterpolator(EMPHASIZED).start();
+        }
     }
 
     /** Tap skips; holding the button jumps ten seconds at a time until it is released. */
@@ -5734,6 +5781,10 @@ public final class SpatchUi extends FrameLayout {
 
     /** Fills `host` with the song's lyrics (loading, none, or the lines); `alive` says the host is still on screen. */
     private void fillLyrics(FrameLayout host, java.util.function.BooleanSupplier alive, String track) {
+        fillLyrics(host, alive, track, null);
+    }
+
+    private void fillLyrics(FrameLayout host, java.util.function.BooleanSupplier alive, String track, Runnable onEmpty) {
         ScrollView scroll = new ScrollView(activity);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -5761,6 +5812,10 @@ public final class SpatchUi extends FrameLayout {
             post(() -> {
                 if (!alive.getAsBoolean()) return;
                 if (found == null || found.words.length == 0) {
+                    if (onEmpty != null) {
+                        onEmpty.run();
+                        if (!alive.getAsBoolean()) return;
+                    }
                     lines.removeView(status);
                     lines.addView(emptyState("note", "badge6", empty, hint), fill(-2));
                     return;
