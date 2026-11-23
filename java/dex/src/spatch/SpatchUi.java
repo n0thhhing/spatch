@@ -155,6 +155,7 @@ public final class SpatchUi extends FrameLayout {
     private android.graphics.Rect pendingInsets;
     private final Set<String> loading = new HashSet<>();
     private final java.util.Map<String, Long> failed = new java.util.HashMap<>();
+    private final java.util.Map<String, Integer> segPrev = new java.util.HashMap<>();
 
     // palette, derived from the playing cover
     int bg, surf, surfHi, ink, inkDim, accent, onAccent, accent2;
@@ -4247,33 +4248,66 @@ public final class SpatchUi extends FrameLayout {
 
     interface Pick { void picked(int index); }
 
-    /** A title over a connected button group with `selected` highlighted (-1 for none). */
+    /** A title over a connected sliding pill group with `selected` highlighted (-1 for none). */
     private void segmented(LinearLayout box, String name, String[] names, int selected, Pick onPick) {
         TextView label = text(name, 16, () -> ink, true);
         label.setPadding(dp(18), dp(12), dp(18), dp(8));
         box.addView(label);
+        final int current = selected, n = names.length;
+        View pill = new View(activity);
+        bgRound(pill, 19, () -> accent);
+        pill.setVisibility(current >= 0 && current < n ? VISIBLE : GONE);
+        FrameLayout track = new FrameLayout(activity) {
+            private boolean placed;
+            private int lastW;
+            private float slotStep(int innerW, int slotW) { return n > 1 ? (innerW - slotW) / (float) (n - 1) : 0f; }
+            @Override protected void onMeasure(int wSpec, int hSpec) {
+                int innerW = Math.max(0, MeasureSpec.getSize(wSpec) - getPaddingLeft() - getPaddingRight());
+                int slotW = n > 0 ? innerW / n : 0;
+                if (pill.getLayoutParams().width != slotW) pill.getLayoutParams().width = slotW;
+                super.onMeasure(wSpec, hSpec);
+            }
+            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+                super.onLayout(changed, l, t, r, b);
+                int innerW = Math.max(0, (r - l) - getPaddingLeft() - getPaddingRight());
+                int slotW = n > 0 ? innerW / n : 0;
+                if (slotW <= 0 || current < 0 || current >= n) return;
+                int width = getWidth();
+                if (!placed || lastW != width) {
+                    placed = true;
+                    lastW = width;
+                    float step = slotStep(innerW, slotW), targetX = current * step;
+                    Integer prev = segPrev.remove(name);
+                    if (prev != null && prev != current && prev >= 0 && prev < n && motion()) {
+                        pill.setTranslationX(prev * step);
+                        pill.animate().cancel();
+                        pill.animate().translationX(targetX).setDuration(240)
+                            .setInterpolator(new android.view.animation.OvershootInterpolator(.85f)).start();
+                    } else {
+                        pill.setTranslationX(targetX);
+                    }
+                }
+            }
+        };
+        bgRound(track, 22, () -> surfHi);
+        track.setPadding(dp(3), dp(3), dp(3), dp(3));
+        track.addView(pill, new FrameLayout.LayoutParams(0, -1));
         LinearLayout group = row();
-        group.setPadding(dp(14), 0, dp(14), dp(12));
-        int current = selected, last = names.length - 1;
-        for (int i = 0; i < names.length; i++) {
+        for (int i = 0; i < n; i++) {
             final int pick = i;
             boolean on = i == current;
-            TextView option = text(names[i], names.length > 4 ? 12 : 13, on ? onAccent : ink, true);
+            TextView option = text(names[i], n > 4 ? 12 : 13, on ? onAccent : ink, true);
             option.setGravity(Gravity.CENTER);
             option.setSingleLine(true);
-            float outer = 20, inner = on ? 20 : 6;
-            GradientDrawable shape = new GradientDrawable();
-            shape.setColor(on ? accent : surfHi);
-            shape.setCornerRadii(new float[]{dp(i == 0 ? outer : inner), dp(i == 0 ? outer : inner), dp(i == last ? outer : inner), dp(i == last ? outer : inner),
-                dp(i == last ? outer : inner), dp(i == last ? outer : inner), dp(i == 0 ? outer : inner), dp(i == 0 ? outer : inner)});
-            option.setBackground(shape);
-            colored(option, () -> { option.setTextColor(on ? onAccent : ink); shape.setColor(on ? accent : surfHi); });
-            tappable(option, name + ": " + names[i], () -> onPick.picked(pick));
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(42), 1);
-            if (i > 0) p.leftMargin = dp(3);
-            group.addView(option, p);
+            option.setBackground(null);
+            colored(option, () -> option.setTextColor(on ? onAccent : ink));
+            tappable(option, name + ": " + names[i], () -> { segPrev.put(name, current); onPick.picked(pick); });
+            group.addView(option, new LinearLayout.LayoutParams(0, -1, 1));
         }
-        box.addView(group, fill(-2));
+        track.addView(group, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout.LayoutParams tp = fill(dp(46));
+        tp.setMargins(dp(14), 0, dp(14), dp(12));
+        box.addView(track, tp);
     }
 
     /** Multi-select filter chips in a wrapping row; each item is {label, prefKey, "1"|"0" default}. */
