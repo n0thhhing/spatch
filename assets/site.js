@@ -502,16 +502,13 @@ function applyPalette(i) {
 
 // Stickers on the screenshots, like the playlist header stickers; tap one to spin it.
 {
-  // var(--shape) is used in site.css, so these resolve next to it, in assets/.
-  const shapes = ['url(cookie.svg)', 'url(flower.svg)', 'url(cookie.svg)', 'url(flower.svg)'];
   const spots = [['-14px', null, '-16px', null], [null, '-16px', '22%', null], ['-12px', null, null, '30%'], [null, '-14px', null, '12%']];
   document.querySelectorAll('.shots figure').forEach((fig, n) => {
     const s = document.createElement('span');
-    s.className = 'sticker';
+    s.className = n % 2 ? 'sticker flower' : 'sticker';
     s.setAttribute('aria-hidden', 'true');
     const [l, r, t, b] = spots[n % 4];
     Object.assign(s.style, { left: l || '', right: r || '', top: t || '', bottom: b || '' });
-    s.style.setProperty('--shape', shapes[n % 4]);
     s.style.setProperty('--tilt', (n % 2 ? 14 : -12) + 'deg');
     let turns = 0;
     s.addEventListener('click', () => {

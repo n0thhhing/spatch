@@ -275,11 +275,13 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
 .sticker {
   position: absolute; z-index: 1; width: 52px; height: 52px; cursor: pointer;
   background: var(--acc);
-  -webkit-mask: var(--shape) center / contain no-repeat; mask: var(--shape) center / contain no-repeat;
+  -webkit-mask: url(cookie.svg) center / contain no-repeat; mask: url(cookie.svg) center / contain no-repeat;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35));
   rotate: var(--tilt);
   transition: scale .4s var(--spring);
 }
+/* Plain url() per shape: a url() inside a CSS variable resolves differently from browser to browser. */
+.sticker.flower { -webkit-mask-image: url(flower.svg); mask-image: url(flower.svg); }
 .sticker:hover { scale: 1.12; }
 .sticker::after { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: color-mix(in srgb, white 55%, transparent); }
 
