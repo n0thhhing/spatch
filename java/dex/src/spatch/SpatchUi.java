@@ -3741,6 +3741,8 @@ public final class SpatchUi extends FrameLayout {
 
         // Spotify-like action row: icon-only shuffle mode, share, Similar on the left; big scalloped play button on the right.
         LinearLayout actions = row();
+        // Landscape gives the header a narrower column, so the buttons tighten up to keep the play button whole.
+        int actionSize = dp(land ? 42 : 46), actionGap = dp(land ? 8 : 10);
         actions.setGravity(Gravity.CENTER_VERTICAL);
         String listUri = playUri();
         boolean smartAllowed = !detail && !liked(playlist.uri);
@@ -3785,7 +3787,7 @@ public final class SpatchUi extends FrameLayout {
                 });
             });
         });
-        actions.addView(shuffleBox, lp(dp(46), dp(46)));
+        actions.addView(shuffleBox, lp(actionSize, actionSize));
 
         listShuffle = OfficialPlayback.enabled() ? 0 : -1;
         if (OfficialPlayback.enabled()) shuffleBox.setVisibility(GONE);
@@ -3797,7 +3799,7 @@ public final class SpatchUi extends FrameLayout {
 
         String link = shareLink(playlist.uri);
         if (!link.isEmpty()) {
-            actions.addView(space(dp(10), 1));
+            actions.addView(space(actionGap, 1));
             View shareBtn = iconButton(icon("share", () -> ink), "Share", () -> shareLinkSheet(headTitle, link));
             GradientDrawable shareBg = round(surfHi, 23);
             shareBtn.setBackground(shareBg);
@@ -3805,10 +3807,10 @@ public final class SpatchUi extends FrameLayout {
                 shareBg.setColor(surfHi);
                 shareBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
             });
-            actions.addView(shareBtn, lp(dp(46), dp(46)));
+            actions.addView(shareBtn, lp(actionSize, actionSize));
         }
         if (!playlist.uri.startsWith("spotify:artist:")) {
-            actions.addView(space(dp(10), 1));
+            actions.addView(space(actionGap, 1));
             DownloadButton dlBtn = new DownloadButton(this::playUri, headTitle);
             GradientDrawable dlBg = round(surfHi, 23);
             dlBtn.setBackground(dlBg);
@@ -3816,11 +3818,11 @@ public final class SpatchUi extends FrameLayout {
                 dlBg.setColor(surfHi);
                 dlBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
             });
-            actions.addView(dlBtn, lp(dp(46), dp(46)));
+            actions.addView(dlBtn, lp(actionSize, actionSize));
             downloadButton = dlBtn;
         }
         if (!recommendedSongs.isEmpty()) {
-            actions.addView(space(dp(10), 1));
+            actions.addView(space(actionGap, 1));
             View simBtn = iconButton(icon("sparkle", () -> accent), "Similar songs", this::openRecommended);
             GradientDrawable simBg = round(surfHi, 23);
             simBtn.setBackground(simBg);
@@ -3828,7 +3830,7 @@ public final class SpatchUi extends FrameLayout {
                 simBg.setColor(surfHi);
                 simBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
             });
-            actions.addView(simBtn, lp(dp(46), dp(46)));
+            actions.addView(simBtn, lp(actionSize, actionSize));
         }
         PlayButton fab = new PlayButton();
         playButtons.remove(fab);
@@ -3972,9 +3974,9 @@ public final class SpatchUi extends FrameLayout {
             ScrollView leftScroll = new ScrollView(activity);
             leftScroll.setVerticalScrollBarEnabled(false);
             leftScroll.setOverScrollMode(OVER_SCROLL_NEVER);
-            header.setPadding(dp(18) + inset.left, inset.top + dp(16), dp(12), dockRoom());
+            header.setPadding(dp(18), inset.top + dp(16), dp(12), dockRoom()); // the page host already keeps clear of the side insets
             leftScroll.addView(header, new ScrollView.LayoutParams(-1, -2));
-            split.addView(leftScroll, new LinearLayout.LayoutParams(0, -1, 0.85f));
+            split.addView(leftScroll, new LinearLayout.LayoutParams(0, -1, 1f));
             ListView list = entryList(playlistTracks, null);
             list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             wirePlaylistTools(list, songSearch, sortPill);
@@ -3985,14 +3987,16 @@ public final class SpatchUi extends FrameLayout {
             }
             list.setPadding(0, dp(8), 0, dockRoom());
             list.setClipToPadding(false);
+            list.setVerticalFadingEdgeEnabled(true); // rows fade out under the search bar instead of being sliced off
+            list.setFadingEdgeLength(dp(28));
             list.setOnScrollListener(new DockScroll());
-            rightPane.setPadding(dp(10), inset.top + dp(12), dp(18) + inset.right, 0);
+            rightPane.setPadding(dp(10), inset.top + dp(12), dp(18), 0);
             rightPane.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
             split.addView(rightPane, new LinearLayout.LayoutParams(0, -1, 1.25f));
             page.addView(split, new LayoutParams(-1, -1));
             pageList = list;
             LayoutParams bp = new LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.START);
-            bp.setMargins(dp(14) + inset.left, inset.top + dp(6), 0, 0);
+            bp.setMargins(dp(14), inset.top + dp(6), 0, 0);
             page.addView(backBox, bp);
         } else {
             ListView list = entryList(playlistTracks, header);
