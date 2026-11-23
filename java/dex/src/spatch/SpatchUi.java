@@ -3700,6 +3700,8 @@ public final class SpatchUi extends FrameLayout {
             stickers.boostSpin();
             if (motion()) {
                 coverWrap.animate().cancel();
+                coverWrap.setPivotX(coverWrap.getWidth() / 2f); // bounce from the middle (the scroll shrink moves the pivot to the top)
+                coverWrap.setPivotY(coverWrap.getHeight() / 2f);
                 coverWrap.setScaleX(.94f);
                 coverWrap.setScaleY(.94f);
                 coverWrap.animate().scaleX(1f).scaleY(1f).setDuration(380)
@@ -4001,7 +4003,6 @@ public final class SpatchUi extends FrameLayout {
             list.setPadding(dp(18), 0, dp(18), dockRoom());
             // The cover shrinks up and fades, the atmospheric wash recedes, and the floating bar brings in the title.
             View coverView = headCover;
-            if (coverView != null) coverView.setPivotY(0);
             DockScroll dockScroll = new DockScroll();
             list.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
                 @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {}
@@ -4010,6 +4011,9 @@ public final class SpatchUi extends FrameLayout {
                     float scrolled = first == 0 && v.getChildCount() > 0 ? Math.max(0, -v.getChildAt(0).getTop()) : dp(400);
                     float f = Math.max(0f, Math.min(1f, scrolled / dp(240)));
                     if (coverView != null && motion()) {
+                        // Shrinks toward its top middle; both axes are set, since an explicit pivot no longer centres the other one.
+                        coverView.setPivotX(coverView.getWidth() / 2f);
+                        coverView.setPivotY(0);
                         coverView.setScaleX(1f - .3f * f);
                         coverView.setScaleY(1f - .3f * f);
                         coverView.setAlpha(1f - .9f * f);
@@ -5165,6 +5169,9 @@ public final class SpatchUi extends FrameLayout {
             animateProgress(from);
         }
         playerOpen = false;
+        // The play buttons' spin draws itself frame to frame only while the player is closed; restart it now.
+        for (PlayButton b : playButtons) b.invalidate();
+        if (listFab != null) listFab.invalidate();
         setDockHidden(false);
         activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         View p = player;
