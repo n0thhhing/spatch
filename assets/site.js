@@ -56,12 +56,12 @@ function placeIndicator() {
   ind.style.setProperty('--x', a.offsetLeft + 'px');
   ind.style.setProperty('--w', a.offsetWidth + 'px');
 }
-// On phones the open tab widens over about half a second, so keep the pill on it while it does.
-function trackIndicator() {
-  const until = performance.now() + 700;
-  const step = () => { placeIndicator(); if (performance.now() < until) requestAnimationFrame(step); };
-  step();
-}
+// Re-place the pill whenever any tab changes size or position: the open tab widening on phones,
+// the web font arriving, the window resizing. A drag owns the pill while it lasts.
+const tabBar = document.querySelector('.tabs');
+new ResizeObserver(() => { if (!tabBar.classList.contains('dragging')) placeIndicator(); })
+  .observe(tabBar);
+for (const t of tabs) new ResizeObserver(() => { if (!tabBar.classList.contains('dragging')) placeIndicator(); }).observe(t);
 
 function updateSeek() {
   const max = document.documentElement.scrollHeight - innerHeight;
@@ -75,7 +75,7 @@ function show(first) {
   for (const t of tabs) t.hash === '#' + name ? t.setAttribute('aria-current', 'page') : t.removeAttribute('aria-current');
   document.body.dataset.tab = name;
   document.title = names[name];
-  trackIndicator();
+  placeIndicator();
   if (!first) scrollTo({ top: 0, behavior: 'instant' });
   const panel = panels.find(p => p.dataset.panel === name);
   // The first sweep waits for the web font, so letters are measured in the right face.
@@ -253,14 +253,15 @@ more.addEventListener('click', loadLog);
     ind.style.setProperty('--x', x + 'px');
     for (const t of tabs) t.style.color = t === under ? 'var(--ink)' : 'var(--fog)';
   });
-  const end = () => {
+  const end = e => {
     if (start === null) return;
     start = null;
     if (!dragging) return;
     bar.classList.remove('dragging');
     for (const t of tabs) t.style.color = '';
-    if (under && location.hash !== under.hash) location.hash = under.hash;
-    else placeIndicator();
+    // A cancelled drag (the page took the gesture to scroll) puts the pill back instead of switching.
+    if (e.type === 'pointerup' && under && location.hash !== under.hash) location.hash = under.hash;
+    else { dragging = false; placeIndicator(); }
   };
   bar.addEventListener('pointerup', end);
   bar.addEventListener('pointercancel', end);
