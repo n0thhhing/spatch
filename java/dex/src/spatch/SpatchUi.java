@@ -2393,9 +2393,28 @@ public final class SpatchUi extends FrameLayout {
                 c.restore();
             }
         };
-        greetBadge.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         colored(greetBadge, greetBadge::invalidate);
         TextView h = pageHeading(page, hour < 5 ? "Up late?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening", false, greetBadge);
+        final float[] greetSpin = {0f};
+        Runnable spinGreet = () -> {
+            tick(greetBadge);
+            greetSpin[0] += 360f;
+            if (motion()) {
+                greetBadge.animate().cancel();
+                greetBadge.setScaleX(1.16f);
+                greetBadge.setScaleY(1.16f);
+                greetBadge.animate().rotation(greetSpin[0]).scaleX(1f).scaleY(1f).setDuration(560)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.15f)).start();
+            } else {
+                greetBadge.setRotation(greetSpin[0] % 360f);
+            }
+        };
+        greetBadge.setClickable(true);
+        greetBadge.setFocusable(true);
+        greetBadge.setContentDescription("Spin greeting icon");
+        greetBadge.setOnClickListener(v -> spinGreet.run());
+        h.setClickable(true);
+        h.setOnClickListener(v -> spinGreet.run());
         // Expressive type: the first time Home appears the greeting swells from light to bold (variable fonts only).
         if (!greeted && motion() && pref("expressive_type", true) && h.getFontVariationSettings() != null) {
             greeted = true;
@@ -3443,7 +3462,6 @@ public final class SpatchUi extends FrameLayout {
         });
         page.addView(wash, new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP));
         StickerBackdrop stickers = new StickerBackdrop(playlist.uri + ":" + headTitle);
-        colored(stickers, stickers::invalidate);
         page.addView(stickers, new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP));
 
         LinearLayout header = column();
@@ -6190,22 +6208,28 @@ public final class SpatchUi extends FrameLayout {
         canvas.restore();
     }
 
-    /** Scatters four deterministic low-contrast geometric shapes behind playlist/album header washes. */
+    /** Places three curated low-contrast geometric shapes framing playlist/album header washes with gentle rotation. */
     private final class StickerBackdrop extends View {
+        private static final int COUNT = 3;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
-        private final float[][] shapePts = new float[4][];
-        private final float[] xFrac = new float[4], yFrac = new float[4], sizeDp = new float[4], rot = new float[4];
-        private final boolean[] useAccent2 = new boolean[4];
+        private final float[][] shapePts = new float[COUNT][];
+        private final float[] xFrac = new float[COUNT], yFrac = new float[COUNT], sizeDp = new float[COUNT], rot = new float[COUNT];
+        private final float[] spinDir = {1f, -1f, 2f};
+        private final boolean[] useAccent2 = {true, false, false};
+        private float spinPhase;
+        private android.animation.ValueAnimator spinAnim;
 
         StickerBackdrop(String seedKey) {
             super(activity);
             setWillNotDraw(false);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             String[] pool = {"badge4", "badge6", "badge8", "button5"};
+            float[] baseX = {.87f, .11f, .84f}, baseY = {.20f, .48f, .68f}, baseSize = {52f, 46f, 36f};
             int h = 0x811c9dc5;
             for (int i = 0; i < seedKey.length(); i++) { h ^= seedKey.charAt(i); h *= 0x01000193; }
-            for (int i = 0; i < 4; i++) {
+            int startIdx = Math.abs(h >>> 16) % pool.length;
+            for (int i = 0; i < COUNT; i++) {
                 h = h * 1664525 + 1013904223;
                 float u = ((h >>> 8) & 0xFFFF) / 65535f;
                 h = h * 1664525 + 1013904223;
@@ -6214,22 +6238,59 @@ public final class SpatchUi extends FrameLayout {
                 float s = ((h >>> 8) & 0xFFFF) / 65535f;
                 h = h * 1664525 + 1013904223;
                 float a = ((h >>> 8) & 0xFFFF) / 65535f;
-                // Keep stickers in outer corners around the centred cover art and above the bottom wash fade.
-                xFrac[i] = (i % 2 == 0) ? (.07f + u * .20f) : (.73f + u * .20f);
-                yFrac[i] = (i < 2) ? (.14f + v * .18f) : (.44f + v * .20f);
-                sizeDp[i] = 44f + s * 42f;
+                xFrac[i] = baseX[i] + (u - .5f) * .04f;
+                yFrac[i] = baseY[i] + (v - .5f) * .04f;
+                sizeDp[i] = baseSize[i] + s * 10f;
                 rot[i] = (a - .5f) * 70f;
-                shapePts[i] = GLYPHS.get(pool[Math.abs(h >>> 16) % pool.length]);
-                useAccent2[i] = (i % 2) == 1;
+                shapePts[i] = GLYPHS.get(pool[(startIdx + i) % pool.length]);
             }
             paint.setStyle(Paint.Style.FILL);
+            colored(this, this::invalidate);
+        }
+
+        private void syncSpin() {
+            if (isAttachedToWindow() && getWindowVisibility() == VISIBLE && motion()) {
+                if (spinAnim == null) {
+                    spinAnim = android.animation.ValueAnimator.ofFloat(0f, 360f);
+                    spinAnim.setDuration(60_000L);
+                    spinAnim.setInterpolator(new android.view.animation.LinearInterpolator());
+                    spinAnim.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                    spinAnim.setRepeatMode(android.animation.ValueAnimator.RESTART);
+                    spinAnim.addUpdateListener(anim -> {
+                        spinPhase = (float) anim.getAnimatedValue();
+                        invalidate();
+                    });
+                    spinAnim.start();
+                }
+            } else if (spinAnim != null) {
+                spinAnim.cancel();
+                spinAnim = null;
+            }
+        }
+
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            syncSpin();
+        }
+
+        @Override protected void onDetachedFromWindow() {
+            if (spinAnim != null) {
+                spinAnim.cancel();
+                spinAnim = null;
+            }
+            super.onDetachedFromWindow();
+        }
+
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            syncSpin();
         }
 
         @Override protected void onDraw(Canvas c) {
             int w = getWidth(), h = getHeight();
             if (w <= 0 || h <= 0) return;
-            int alpha = dark ? 22 : 18;
-            for (int i = 0; i < 4; i++) {
+            int alpha = dark ? 20 : 16;
+            for (int i = 0; i < COUNT; i++) {
                 float[] pts = shapePts[i];
                 if (pts == null || pts.length < 6) continue;
                 float r = Math.min(dp(sizeDp[i]), h * .28f);
@@ -6244,7 +6305,7 @@ public final class SpatchUi extends FrameLayout {
                 paint.setAlpha(alpha);
                 c.save();
                 c.translate(cx, cy);
-                c.rotate(rot[i]);
+                c.rotate(rot[i] + spinPhase * spinDir[i]);
                 c.drawPath(path, paint);
                 c.restore();
             }
