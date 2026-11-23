@@ -50,7 +50,8 @@ public class SpatchWidget extends AppWidgetProvider {
     private static long seen = -1, checkedAt, flipAt = -FLIP_MS;
     private static boolean playing, placed;
     private static String title = "", artist = "", coverUrl = "", lastPushedKey = "";
-    private static Bitmap cover, backdrop;
+    private static Bitmap cover, squareCover, backdrop, cachedPlaceholder;
+    private static int placeholderAccent, placeholderAccent2;
     /** Two song slots for the flip: the shown one and the one that slid out. */
     private static int shown;
     private static final String[] slotKey = new String[2], slotTitle = new String[2], slotArtist = new String[2];
@@ -98,7 +99,9 @@ public class SpatchWidget extends AppWidgetProvider {
                     coverUrl = url;
                     cover = fetch(url);
                     colors(cover);
-                    backdrop = cover == null ? null : backdrop(cover);
+                    squareCover = cover == null ? null : square(cover);
+                    backdrop = squareCover == null ? null : backdrop(squareCover);
+                    cover = squareCover;
                 }
                 title = s[2]; artist = s[3]; playing = Boolean.parseBoolean(s[6]);
                 canNext = Boolean.parseBoolean(s[16]); canPrevious = Boolean.parseBoolean(s[17]);
@@ -119,7 +122,7 @@ public class SpatchWidget extends AppWidgetProvider {
             }
             slotTitle[shown] = title.isEmpty() ? "Spatch" : title;
             slotArtist[shown] = title.isEmpty() ? "Nothing playing" : artist;
-            slotArt[shown] = cover == null ? placeholder() : square(cover);
+            slotArt[shown] = squareCover != null ? squareCover : placeholder();
             // One RemoteViews per layout, pushed to every instance of it at once instead of redrawn per widget id.
             push(context, manager, big, "spatch_widget", flip, 14, 16, 152);
             push(context, manager, small, "spatch_widget_small", flip, 8, 12, 128);
@@ -188,22 +191,40 @@ public class SpatchWidget extends AppWidgetProvider {
         }
     }
 
-    /** A deep background and a bright accent in the cover's hue, so the widget follows what is playing. */
+    /** Deep background and vibrant primary + contrasting secondary accents derived from the cover. */
     private static void colors(Bitmap art) {
         if (art == null) { background = 0xFF1D1A2A; accent = 0xFFD0BCFF; accent2 = 0xFFE8DEFF; onAccent = 0xFF14121C; recenter(); return; }
-        Bitmap tiny = Bitmap.createScaledBitmap(art, 8, 8, true);
-        long r = 0, g = 0, b = 0;
-        for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) {
-            int c = tiny.getPixel(x, y);
-            r += Color.red(c); g += Color.green(c); b += Color.blue(c);
-        }
+        Bitmap tiny = Bitmap.createScaledBitmap(art, 12, 12, true);
+        int[] pixels = new int[144];
+        tiny.getPixels(pixels, 0, 12, 0, 0, 12, 12);
         tiny.recycle();
         float[] hsv = new float[3];
-        Color.RGBToHSV((int) (r / 64), (int) (g / 64), (int) (b / 64), hsv);
-        float hue = hsv[0], sat = hsv[1];
+        long r = 0, g = 0, b = 0;
+        float bestScore = -1, hue = 0, sat = 0;
+        for (int c : pixels) {
+            r += Color.red(c); g += Color.green(c); b += Color.blue(c);
+            Color.colorToHSV(c, hsv);
+            float sc = hsv[1] * (1f - Math.abs(hsv[2] - .65f));
+            if (sc > bestScore) { bestScore = sc; hue = hsv[0]; sat = hsv[1]; }
+        }
+        if (bestScore < .08f) {
+            Color.RGBToHSV((int) (r / pixels.length), (int) (g / pixels.length), (int) (b / pixels.length), hsv);
+            hue = hsv[0]; sat = hsv[1];
+        }
+        float secScore = -1, secHue = (hue + 340) % 360, secSat = 0;
+        for (int c : pixels) {
+            Color.colorToHSV(c, hsv);
+            float d = Math.abs(hsv[0] - hue);
+            if (Math.min(d, 360f - d) >= 35f && hsv[1] >= .25f && hsv[2] >= .20f) {
+                float sc = hsv[1] * (1f - Math.abs(hsv[2] - .65f));
+                if (sc > secScore) { secScore = sc; secHue = hsv[0]; secSat = hsv[1]; }
+            }
+        }
         background = Color.HSVToColor(new float[] { hue, Math.min(sat, .6f), .2f });
         accent = Color.HSVToColor(new float[] { hue, Math.max(.3f, Math.min(sat, .75f)), .96f });
-        accent2 = Color.HSVToColor(new float[] { (hue + 340) % 360, Math.max(.25f, Math.min(sat, .6f)), 1f });
+        accent2 = secScore > 0
+            ? Color.HSVToColor(new float[] { secHue, Math.max(.3f, Math.min(secSat, .7f)), 1f })
+            : Color.HSVToColor(new float[] { (hue + 340) % 360, Math.max(.25f, Math.min(sat, .6f)), 1f });
         onAccent = Color.HSVToColor(new float[] { hue, .5f, .12f });
         recenter();
     }
@@ -234,8 +255,9 @@ public class SpatchWidget extends AppWidgetProvider {
         return Math.max(art.getWidth(), art.getHeight()) > 256 ? Bitmap.createScaledBitmap(art, 256, 256, true) : art;
     }
 
-    /** With no cover: a tinted tile with a music note. */
+    /** With no cover: a tinted tile with a music note, cached per accent pair. */
     private static Bitmap placeholder() {
+        if (cachedPlaceholder != null && placeholderAccent == accent && placeholderAccent2 == accent2) return cachedPlaceholder;
         int px = 160;
         Bitmap out = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(out);
@@ -250,7 +272,9 @@ public class SpatchWidget extends AppWidgetProvider {
         Path flag = new Path();
         flag.moveTo(47 * u, 28 * u); flag.lineTo(72 * u, 36 * u); flag.lineTo(72 * u, 46 * u); flag.lineTo(47 * u, 40 * u); flag.close();
         canvas.drawPath(flag, paint);
-        return out;
+        placeholderAccent = accent;
+        placeholderAccent2 = accent2;
+        return cachedPlaceholder = out;
     }
 
 
