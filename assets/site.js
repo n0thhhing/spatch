@@ -3,14 +3,17 @@ const panels = [...document.querySelectorAll('[data-panel]')];
 const tabs = [...document.querySelectorAll('.tabs a')];
 const ind = document.querySelector('.tab-ind');
 const names = { overview: 'Spatch', features: 'Features · Spatch', install: 'Install · Spatch', questions: 'Questions · Spatch', changelog: 'Changelog · Spatch' };
+const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
 
+// Heading letters stay hidden until their first sweep, so they never flash in the fallback
+// font while Google Sans Flex is still loading.
 if (!reduce) document.documentElement.classList.add('wait');
-// Split expressive headings into letters so each can sweep and swell; screen readers get the plain text.
+
+// Split expressive headings into letters so each can swell under a pointer or finger;
+// screen readers get the plain text from the hidden copy instead.
 for (const h of document.querySelectorAll('.flex')) {
   const text = h.textContent.trim();
-  let i = 0;
-  const words = text.split(' ').map(w =>
-    `<span class="w">${[...w].map(c => `<span class="ch" style="--i:${i++}">${c}</span>`).join('')}</span>`);
+  const words = text.split(' ').map(w => `<span class="w">${[...w].map(c => `<span class="ch">${c}</span>`).join('')}</span>`);
   h.innerHTML = `<span class="sr">${text}</span><span aria-hidden="true">${words.join(' ')}</span>`;
 }
 
@@ -32,6 +35,8 @@ function lock(root) {
   for (const b of boxes) {
     b.lines = [];
     for (const w of b.words) {
+      // Words on one line can sit a pixel or two apart (rounding, taller letters),
+      // so only a bigger jump in offsetTop starts a new line.
       const top = w.offsetTop;
       if (!b.lines.length || Math.abs(b.lines.at(-1).top - top) > 2) b.lines.push({ top, words: [] });
       b.lines.at(-1).words.push(w);
@@ -51,6 +56,8 @@ function lock(root) {
 }
 
 // Each heading sweeps in when it comes into view, so only headings you can see animate.
+// The bottom margin waits until a heading is a little way up the screen, so the sweep is
+// seen rather than finishing just below the fold.
 const sweepWatch = new IntersectionObserver(entries => {
   for (const e of entries) if (e.isIntersecting) {
     sweepWatch.unobserve(e.target);
@@ -68,6 +75,35 @@ function sweep(root) {
   for (const h of root.querySelectorAll('.flex')) { h.classList.add('waiting'); sweepWatch.observe(h); }
 }
 
+// Touch: the letter under a finger swells and pushes its neighbours, as hover does with a mouse.
+{
+  let lit = null, fade;
+  const light = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const ch = el && el.closest('.flex .ch');
+    if (ch === lit) return;
+    lit?.classList.remove('on');
+    lit = ch;
+    ch?.classList.add('on');
+  };
+  // Only a touch that starts on a heading letter is followed, so ordinary scrolling does no hit-testing.
+  let tracking = false;
+  addEventListener('touchstart', e => {
+    tracking = !!e.target.closest?.('.flex .ch');
+    if (!tracking) return;
+    clearTimeout(fade);
+    const t = e.touches[0]; light(t.clientX, t.clientY);
+  }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (!tracking) return;
+    const t = e.touches[0]; if (t) light(t.clientX, t.clientY);
+  }, { passive: true });
+  // The letter stays swollen a moment after the finger lifts, so the swell is seen and eases back.
+  const release = () => { fade = setTimeout(() => { lit?.classList.remove('on'); lit = null; }, 300); };
+  addEventListener('touchend', release, { passive: true });
+  addEventListener('touchcancel', release, { passive: true });
+}
+
 function placeIndicator() {
   const a = tabs.find(t => t.hasAttribute('aria-current'));
   if (!a) return;
@@ -75,31 +111,79 @@ function placeIndicator() {
   ind.style.setProperty('--x', a.offsetLeft + 'px');
   ind.style.setProperty('--w', a.offsetWidth + 'px');
 }
+
 // Re-place the pill whenever any tab changes size or position: the open tab widening on phones,
 // the web font arriving, the window resizing. A drag owns the pill while it lasts.
 const tabBar = document.querySelector('.tabs');
-new ResizeObserver(() => { if (!tabBar.classList.contains('dragging')) placeIndicator(); })
-  .observe(tabBar);
-for (const t of tabs) new ResizeObserver(() => { if (!tabBar.classList.contains('dragging')) placeIndicator(); }).observe(t);
+for (const el of [tabBar, ...tabs]) new ResizeObserver(() => { if (!tabBar.classList.contains('dragging')) placeIndicator(); }).observe(el);
 
-const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
+// Drag across the tab bar and let go on a tab, like the app's navigator.
+{
+  let start = null, dragging = false, under = null;
+  const tabAt = x => tabs.find(t => { const r = t.getBoundingClientRect(); return x >= r.left && x <= r.right; })
+    || (x < tabs[0].getBoundingClientRect().left ? tabs[0] : tabs.at(-1));
+  // Works with a finger, pen or mouse; the tabs' own link dragging is switched off below so it can't steal the gesture.
+  tabBar.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    start = e.clientX; dragging = false; under = null;
+  });
+  for (const t of tabs) t.draggable = false;
+  tabBar.addEventListener('dragstart', e => e.preventDefault());
+  tabBar.addEventListener('pointermove', e => {
+    if (start === null) return;
+    // A tap with a slightly wobbly finger stays a tap; only a real slide becomes a drag.
+    if (!dragging && Math.abs(e.clientX - start) < 8) return;
+    if (!dragging) { dragging = true; tabBar.classList.add('dragging'); try { tabBar.setPointerCapture(e.pointerId); } catch {} }
+    const was = under;
+    under = tabAt(e.clientX);
+    if (under !== was && e.pointerType === 'touch') buzz(5);
+    const box = tabBar.getBoundingClientRect();
+    const w = under.offsetWidth;
+    // The pill follows the finger, centred on it, kept inside the bar.
+    const pad = parseFloat(getComputedStyle(tabBar).paddingLeft);
+    const x = Math.max(pad, Math.min(box.width - pad - w, e.clientX - box.left - w / 2));
+    ind.style.setProperty('--w', w + 'px');
+    ind.style.setProperty('--x', x + 'px');
+    for (const t of tabs) t.style.color = t === under ? 'var(--ink)' : 'var(--fog)';
+  });
+  const end = e => {
+    if (start === null) return;
+    start = null;
+    if (!dragging) return;
+    tabBar.classList.remove('dragging');
+    for (const t of tabs) t.style.color = '';
+    // A cancelled drag (the page took the gesture to scroll) puts the pill back instead of switching.
+    if (e.type === 'pointerup' && under && location.hash !== under.hash) location.hash = under.hash;
+    else placeIndicator();
+    // Swallow only the click that may directly follow this drag, not the next real tap.
+    setTimeout(() => { dragging = false; }, 60);
+  };
+  tabBar.addEventListener('pointerup', end);
+  tabBar.addEventListener('pointercancel', end);
+  // If the pointer is lost some other way, put the pill back rather than leave it mid-drag.
+  tabBar.addEventListener('lostpointercapture', () => { if (start !== null) end({ type: 'cancel' }); });
+  addEventListener('blur', () => { if (start !== null) end({ type: 'cancel' }); });
+  // A drag that ends on a tab shouldn't also count as a tap.
+  tabBar.addEventListener('click', e => { if (dragging) { e.preventDefault(); dragging = false; } }, true);
+}
 
 // Reading progress as the player's seek wave. Browsers with scroll timelines move it themselves;
 // others get three transforms per frame. Scrolling only toggles a class twice: straight, then wavy.
 const seek = document.querySelector('.seek');
 const seekByCss = CSS.supports('animation-timeline: scroll()');
 const seekClip = seek.querySelector('.seek-clip'), seekInner = seek.querySelectorAll('.seek-wave, .seek-flat'), seekDot = seek.querySelector('.seek-dot');
-let maxScroll = 1;
+let maxScroll = 1, seekIdle;
 const measureScroll = () => { maxScroll = document.documentElement.scrollHeight - innerHeight; };
 new ResizeObserver(() => { measureScroll(); updateSeek(); }).observe(document.querySelector('main'));
 function updateSeek() {
   if (seekByCss) return;
   const p = maxScroll > 0 ? Math.min(1, scrollY / maxScroll) : 0;
+  // The clip slides in from the left while the wave inside slides the same distance back,
+  // so the wave itself stays put and only the visible part of it grows.
   seekClip.style.transform = `translateX(${(p - 1) * 100}%)`;
   for (const el of seekInner) el.style.transform = `translateX(${(1 - p) * 100}%)`;
   seekDot.style.transform = `translateX(${p * innerWidth}px)`;
 }
-let seekIdle;
 
 function show(first) {
   const id = location.hash.slice(1);
@@ -141,13 +225,8 @@ function gh(url) {
 const REPO = 'n0thhhing/spatch', BRANCH = 'fresh', PER_PAGE = 40;
 const log = document.querySelector('.log');
 const more = document.querySelector('.more');
-let logPage = 0, logBusy = false, lastDay = '', dayList = null, dayCount = null;
-
-function dayLabel(d) {
-  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
-  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
-  return d.toLocaleDateString(undefined, opts);
-}
+const areaBox = document.querySelector('.areas');
+let logPage = 0, logBusy = false, lastDay = '', dayList = null, dayCount = null, areaPick = 'All';
 
 // Rough area for each change, from its wording; first match wins.
 const AREAS = [
@@ -161,35 +240,15 @@ const AREAS = [
   ['Settings', /setting|appearance|palette|theme|toggle|option/i],
 ];
 const areaOf = msg => (AREAS.find(([, re]) => re.test(msg)) || ['Other'])[0];
-const areaBox = document.querySelector('.areas');
-let areaPick = 'All';
 
-function filterLog() {
-  for (const day of log.querySelectorAll('.day')) {
-    let n = 0;
-    for (const li of day.querySelectorAll('li')) {
-      const show = areaPick === 'All' || li.dataset.area === areaPick;
-      li.hidden = !show; n += show;
-    }
-    day.hidden = n === 0;
-    day.querySelector('.day-head p').textContent = n === 1 ? '1 change' : `${n} changes`;
-  }
-  for (const b of areaBox.children) b.setAttribute('aria-pressed', String(b.textContent === areaPick));
-  updateSeek();
+function dayLabel(d) {
+  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString(undefined, opts);
 }
 
-function buildAreas() {
-  const present = new Set([...log.querySelectorAll('li')].map(li => li.dataset.area));
-  const names = ['All', ...AREAS.map(a => a[0]), 'Other'].filter(n => n === 'All' || present.has(n));
-  areaBox.replaceChildren(...names.map(n => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'area'; b.textContent = n;
-    b.addEventListener('click', () => { areaPick = n; filterLog(); });
-    return b;
-  }));
-  areaBox.hidden = false;
-}
-
+// GitHub lists commits newest first, so a change from a new day always starts a new group,
+// and a page that ends mid-day carries on in the same group when older changes load.
 function addCommit(c) {
   const d = new Date(c.commit.committer.date);
   if (d.toDateString() !== lastDay) {
@@ -223,6 +282,32 @@ function addCommit(c) {
   a.setAttribute('aria-label', `See change ${c.sha.slice(0, 7)} on GitHub`);
   li.append(tag, text, ' ', a);
   dayList.append(li);
+}
+
+function filterLog() {
+  for (const day of log.querySelectorAll('.day')) {
+    let n = 0;
+    for (const li of day.querySelectorAll('li')) {
+      const show = areaPick === 'All' || li.dataset.area === areaPick;
+      li.hidden = !show; n += show;
+    }
+    day.hidden = n === 0;
+    day.querySelector('.day-head p').textContent = n === 1 ? '1 change' : `${n} changes`;
+  }
+  for (const b of areaBox.children) b.setAttribute('aria-pressed', String(b.textContent === areaPick));
+  updateSeek();
+}
+
+function buildAreas() {
+  const present = new Set([...log.querySelectorAll('li')].map(li => li.dataset.area));
+  const names = ['All', ...AREAS.map(a => a[0]), 'Other'].filter(n => n === 'All' || present.has(n));
+  areaBox.replaceChildren(...names.map(n => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'area'; b.textContent = n;
+    b.addEventListener('click', () => { areaPick = n; filterLog(); });
+    return b;
+  }));
+  areaBox.hidden = false;
 }
 
 function logError(status) {
@@ -260,104 +345,26 @@ async function loadLog() {
 }
 more.addEventListener('click', loadLog);
 
-// Touch: the letter under a finger swells and pushes its neighbours, as hover does with a mouse.
-{
-  let lit = null, fade;
-  const light = (x, y) => {
-    const el = document.elementFromPoint(x, y);
-    const ch = el && el.closest('.flex .ch');
-    if (ch === lit) return;
-    lit?.classList.remove('on');
-    lit = ch;
-    ch?.classList.add('on');
-  };
-  // Only a touch that starts on a heading letter is followed, so ordinary scrolling does no hit-testing.
-  let tracking = false;
-  addEventListener('touchstart', e => {
-    tracking = !!e.target.closest?.('.flex .ch');
-    if (!tracking) return;
-    clearTimeout(fade);
-    const t = e.touches[0]; light(t.clientX, t.clientY);
-  }, { passive: true });
-  addEventListener('touchmove', e => {
-    if (!tracking) return;
-    const t = e.touches[0]; if (t) light(t.clientX, t.clientY);
-  }, { passive: true });
-  const release = () => { fade = setTimeout(() => { lit?.classList.remove('on'); lit = null; }, 300); };
-  addEventListener('touchend', release, { passive: true });
-  addEventListener('touchcancel', release, { passive: true });
-}
-
-// Drag across the tab bar and let go on a tab, like the app's navigator.
-{
-  const bar = document.querySelector('.tabs');
-  let start = null, dragging = false, under = null;
-  const tabAt = x => tabs.find(t => { const r = t.getBoundingClientRect(); return x >= r.left && x <= r.right; })
-    || (x < tabs[0].getBoundingClientRect().left ? tabs[0] : tabs.at(-1));
-  // Works with a finger, pen or mouse; the tabs' own link dragging is switched off below so it can't steal the gesture.
-  bar.addEventListener('pointerdown', e => {
-    if (e.button !== 0) return;
-    start = e.clientX; dragging = false; under = null;
-  });
-  for (const t of tabs) t.draggable = false;
-  bar.addEventListener('dragstart', e => e.preventDefault());
-  bar.addEventListener('pointermove', e => {
-    if (start === null) return;
-    if (!dragging && Math.abs(e.clientX - start) < 8) return;
-    if (!dragging) { dragging = true; bar.classList.add('dragging'); try { bar.setPointerCapture(e.pointerId); } catch {} }
-    const was = under;
-    under = tabAt(e.clientX);
-    if (under !== was && e.pointerType === 'touch') buzz(5);
-    const box = bar.getBoundingClientRect();
-    const w = under.offsetWidth;
-    // The pill follows the finger, centred on it, kept inside the bar.
-    const pad = parseFloat(getComputedStyle(bar).paddingLeft);
-    const x = Math.max(pad, Math.min(box.width - pad - w, e.clientX - box.left - w / 2));
-    ind.style.setProperty('--w', w + 'px');
-    ind.style.setProperty('--x', x + 'px');
-    for (const t of tabs) t.style.color = t === under ? 'var(--ink)' : 'var(--fog)';
-  });
-  const end = e => {
-    if (start === null) return;
-    start = null;
-    if (!dragging) return;
-    bar.classList.remove('dragging');
-    for (const t of tabs) t.style.color = '';
-    // A cancelled drag (the page took the gesture to scroll) puts the pill back instead of switching.
-    if (e.type === 'pointerup' && under && location.hash !== under.hash) location.hash = under.hash;
-    else placeIndicator();
-    // Swallow only the click that may directly follow this drag, not the next real tap.
-    setTimeout(() => { dragging = false; }, 60);
-  };
-  bar.addEventListener('pointerup', end);
-  bar.addEventListener('pointercancel', end);
-  // If the pointer is lost some other way, put the pill back rather than leave it mid-drag.
-  bar.addEventListener('lostpointercapture', e => { if (start !== null) end({ type: 'cancel' }); });
-  addEventListener('blur', () => { if (start !== null) end({ type: 'cancel' }); });
-  // A drag that ends on a tab shouldn't also count as a tap.
-  bar.addEventListener('click', e => { if (dragging) { e.preventDefault(); dragging = false; } }, true);
-}
-
-// Panel ids are p-*, so hash links never make the browser jump.
-addEventListener('hashchange', () => show(false));
-document.documentElement.classList.add('no-anim');
-show(true);
-requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('no-anim')));
-document.fonts.ready.then(placeIndicator);
-let resizeTimer;
-addEventListener('resize', () => {
-  placeIndicator(); measureScroll(); updateSeek();
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => lock(panels.find(p => !p.hidden)), 150);
-});
-let scrollQueued = false;
-addEventListener('scroll', () => {
-  if (!seekByCss && !scrollQueued) { scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; updateSeek(); }); }
-  if (reduce) return;
-  if (!seek.classList.contains('seeking')) seek.classList.add('seeking');
-  clearTimeout(seekIdle);
-  seekIdle = setTimeout(() => seek.classList.remove('seeking'), 180);
-}, { passive: true });
+// Latest build: when the nightly branch last changed, and the newest Manager release.
+(async () => {
+  try {
+    // Same first page the changelog uses, so this costs no extra request.
+    const [list, r] = await Promise.all([
+      gh(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=${PER_PAGE}&page=1`),
+      gh(`https://api.github.com/repos/${REPO}/releases/latest`).catch(() => null),
+    ]);
+    const mins = (new Date(list[0].commit.committer.date) - Date.now()) / 60000;
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+    const ago = Math.abs(mins) < 60 ? rtf.format(Math.round(mins), 'minute')
+      : Math.abs(mins) < 1440 ? rtf.format(Math.round(mins / 60), 'hour') : rtf.format(Math.round(mins / 1440), 'day');
+    const t = document.querySelector('.build-text');
+    const a = document.createElement('a');
+    a.href = '#changelog'; a.textContent = `Last updated ${ago}`;
+    t.append(a, '.');
+    if (r && r.name) t.append(` ${r.name} is the latest release.`);
+    document.querySelector('.build').hidden = false;
+  } catch {}
+})();
 
 // Palettes from the app: name, bg, surfHi, ink, accent2, inkDim, accent.
 const PALETTES = [
@@ -380,9 +387,9 @@ const PALETTES = [
   ['Spotify', 0x121212, 0x2a2a2a, 0xffffff, 0xb3b3b3, 0x7d7d7d, 0x1ed760],
   ['Graphite', 0x19191b, 0x2e2e31, 0xececee, 0xa9a9ae, 0x818187, 0xececed],
 ];
+const PALETTE_VARS = ['--bg', '--fog', '--dim', '--acc', '--ink', '--t1', '--t2', '--t3'];
 const hex = n => '#' + n.toString(16).padStart(6, '0');
 const lum = n => (.2126 * (n >> 16 & 255) + .7152 * (n >> 8 & 255) + .0722 * (n & 255)) / 255;
-const PALETTE_VARS = ['--bg', '--fog', '--dim', '--acc', '--ink', '--t1', '--t2', '--t3'];
 
 function applyPalette(i) {
   const s = document.body.style;
@@ -391,7 +398,10 @@ function applyPalette(i) {
   else {
     const [, bg, hi, ink, acc2, dim, acc] = p;
     s.setProperty('--bg', hex(bg)); s.setProperty('--fog', hex(ink)); s.setProperty('--dim', hex(dim));
+    // Text on the accent is near-black on light accents and white on dark ones, the same rule the app uses.
     s.setProperty('--acc', hex(acc)); s.setProperty('--ink', lum(acc) > .55 ? '#101014' : '#ffffff');
+    // The tints that colour the background are pulled toward the palette's background,
+    // so a bright accent like Spotify green still gives a dark page.
     s.setProperty('--t1', `color-mix(in srgb, ${hex(acc)} 50%, ${hex(bg)})`);
     s.setProperty('--t2', `color-mix(in srgb, ${hex(acc2)} 40%, ${hex(bg)})`);
     s.setProperty('--t3', hex(hi));
@@ -419,31 +429,11 @@ function applyPalette(i) {
   applyPalette(saved);
 }
 
-// Latest build: when the nightly branch last changed, and the newest Manager release.
-(async () => {
-  try {
-    // Same first page the changelog uses, so this costs no extra request.
-    const [list, r] = await Promise.all([
-      gh(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=${PER_PAGE}&page=1`),
-      gh(`https://api.github.com/repos/${REPO}/releases/latest`).catch(() => null),
-    ]);
-    const c = list[0];
-    const mins = (new Date(c.commit.committer.date) - Date.now()) / 60000;
-    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-    const ago = Math.abs(mins) < 60 ? rtf.format(Math.round(mins), 'minute')
-      : Math.abs(mins) < 1440 ? rtf.format(Math.round(mins / 60), 'hour') : rtf.format(Math.round(mins / 1440), 'day');
-    const t = document.querySelector('.build-text');
-    const a = document.createElement('a');
-    a.href = '#changelog'; a.textContent = `Last updated ${ago}`;
-    t.append(a, '.');
-    if (r && r.name) t.append(` ${r.name} is the latest release.`);
-    document.querySelector('.build').hidden = false;
-  } catch {}
-})();
-
 // The hero halo morphs between shapes, like the app's loader: cookie, flower, soft square, circle.
 {
   const path = document.querySelector('.halo path');
+  // Each shape is [lobes, lobe depth, turn]: the radius swings by the depth around the edge
+  // that many times. Blending two radii point by point morphs one shape into the next.
   const SHAPES = [[9, .08, 0], [6, .15, 0], [4, .06, Math.PI / 4], [0, 0, 0]];
   const radius = (s, t) => 1 - s[1] + s[1] * Math.cos(s[0] * (t - s[2]));
   const draw = (a, b, k) => {
@@ -475,6 +465,8 @@ function applyPalette(i) {
   const viewer = document.querySelector('.viewer'), big = viewer.querySelector('.big'), close = viewer.querySelector('.viewer-close');
   let source = null;
   const ease = 'cubic-bezier(.2, 1.15, .35, 1)';
+  // From one box to another as a single transform; .big has transform-origin 0 0 so the
+  // translate lines up the top-left corners and the scale fits the sizes.
   const flight = (from, to) => [
     { transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
     { transform: 'none' },
@@ -486,6 +478,7 @@ function applyPalette(i) {
     document.documentElement.style.overflow = 'hidden';
     const go = () => {
       const from = img.getBoundingClientRect(), to = big.getBoundingClientRect();
+      // The original hides while its copy is out, so it reads as one picture leaving its spot.
       img.style.visibility = 'hidden';
       if (!reduce) {
         big.animate(flight(from, to), { duration: 520, easing: ease });
@@ -501,6 +494,8 @@ function applyPalette(i) {
     const done = () => { viewer.hidden = true; img.style.visibility = ''; document.documentElement.style.overflow = ''; img.focus({ preventScroll: true }); };
     if (reduce) return done();
     const to = img.getBoundingClientRect(), from = big.getBoundingClientRect();
+    // fill: 'forwards' holds the last frame until the viewer is hidden; without it the big
+    // picture would snap back to full size for one frame before disappearing.
     big.animate(flight(to, from).reverse(), { duration: 420, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }).onfinish = () => { big.getAnimations().forEach(a => a.cancel()); done(); };
     viewer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-in', fill: 'forwards' }).onfinish = e => e.target.cancel();
   }
@@ -525,13 +520,14 @@ function applyPalette(i) {
     heart.setAttribute('aria-label', on ? 'Unlike' : 'Like');
     buzz(on ? [10, 40, 14] : 8);
     if (reduce || !on) return;
-    heart.classList.remove('pop'); void heart.offsetWidth; heart.classList.add('pop');
+    heart.classList.remove('pop'); void heart.offsetWidth; heart.classList.add('pop'); // restart the bounce
     const r = heart.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     for (let n = 0; n < 18; n++) {
       const bit = document.createElement('i');
       bit.className = 'bit ' + ['h', 'c', 'd'][n % 3];
       bit.style.left = cx - 7 + 'px'; bit.style.top = cy - 7 + 'px';
       document.body.append(bit);
+      // Pieces fly out evenly around the heart, then drop a little as they fade, like falling confetti.
       const ang = n / 18 * Math.PI * 2 + Math.random() * .3, dist = 60 + Math.random() * 70;
       bit.animate([
         { transform: 'translate(0, 0) scale(.4) rotate(0deg)', opacity: 1 },
@@ -544,6 +540,7 @@ function applyPalette(i) {
 
 // Stickers on the screenshots, like the playlist header stickers; tap one to spin it.
 {
+  // Where each sticker sits on its screenshot: [left, right, top, bottom], alternating corners.
   const spots = [['-14px', null, '-16px', null], [null, '-16px', '22%', null], ['-12px', null, null, '30%'], [null, '-14px', null, '12%']];
   document.querySelectorAll('.shots figure').forEach((fig, n) => {
     const s = document.createElement('span');
@@ -552,6 +549,7 @@ function applyPalette(i) {
     const [l, r, t, b] = spots[n % 4];
     Object.assign(s.style, { left: l || '', right: r || '', top: t || '', bottom: b || '' });
     s.style.setProperty('--tilt', (n % 2 ? 14 : -12) + 'deg');
+    // Each tap adds one more full turn, so quick taps keep spinning it further instead of restarting.
     let turns = 0;
     s.addEventListener('click', () => {
       buzz(6);
@@ -564,7 +562,8 @@ function applyPalette(i) {
   });
 }
 
-// Motes drifting up, like the player's.
+// Motes drifting up, like the player's. They start low on the screen and drift up through it,
+// and the negative delays put each one somewhere mid-flight on load instead of all starting together.
 if (!reduce) {
   const aura = document.querySelector('.aura');
   const count = innerWidth < 720 ? 5 : 10;
@@ -577,3 +576,29 @@ if (!reduce) {
     aura.append(m);
   }
 }
+
+// Panel ids are p-*, so hash links never make the browser jump.
+addEventListener('hashchange', () => show(false));
+// The pill appears in place on load instead of sliding in from the left; two frames lets it
+// settle at its first position before its transition is switched on.
+document.documentElement.classList.add('no-anim');
+show(true);
+requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('no-anim')));
+
+let resizeTimer;
+addEventListener('resize', () => {
+  placeIndicator(); measureScroll(); updateSeek();
+  // Re-freeze heading lines once resizing settles; doing it on every resize event would force
+  // a layout per event while a window is being dragged.
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => lock(panels.find(p => !p.hidden)), 150);
+});
+
+let scrollQueued = false;
+addEventListener('scroll', () => {
+  if (!seekByCss && !scrollQueued) { scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; updateSeek(); }); }
+  if (reduce) return;
+  if (!seek.classList.contains('seeking')) seek.classList.add('seeking');
+  clearTimeout(seekIdle);
+  seekIdle = setTimeout(() => seek.classList.remove('seeking'), 180);
+}, { passive: true });
