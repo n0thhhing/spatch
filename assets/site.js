@@ -2,7 +2,6 @@ const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const panels = [...document.querySelectorAll('[data-panel]')];
 const tabs = [...document.querySelectorAll('.tabs a')];
 const ind = document.querySelector('.tab-ind');
-const fill = document.querySelector('.seek-fill');
 const names = { overview: 'Spatch', features: 'Features · Spatch', install: 'Install · Spatch', questions: 'Questions · Spatch', changelog: 'Changelog · Spatch' };
 
 if (!reduce) document.documentElement.classList.add('wait');
@@ -63,9 +62,34 @@ new ResizeObserver(() => { if (!tabBar.classList.contains('dragging')) placeIndi
   .observe(tabBar);
 for (const t of tabs) new ResizeObserver(() => { if (!tabBar.classList.contains('dragging')) placeIndicator(); }).observe(t);
 
+const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
+
+// Reading progress as the player's seek wave: flat while you scroll, rippling back when you stop.
+const seekLine = document.querySelector('.seek-line'), seekDot = document.querySelector('.seek-dot');
+let seekP = 0, amp = 1, ampVel = 0, lastScroll = -1e9, seekLoop = 0;
+function drawSeek() {
+  const len = innerWidth * seekP;
+  const y = x => 6 + amp * 3 * Math.sin(x * Math.PI / 12);
+  let d = 'M0 6';
+  for (let x = 2; x < len; x += 2) d += `L${x} ${y(x).toFixed(2)}`;
+  if (len > 0) d += `L${len.toFixed(1)} ${y(len).toFixed(2)}`;
+  seekLine.setAttribute('d', d);
+  seekDot.setAttribute('cx', len.toFixed(1));
+  seekDot.setAttribute('cy', y(len).toFixed(2));
+  seekDot.style.opacity = len > 1 ? 1 : 0;
+}
+function seekStep() {
+  const target = performance.now() - lastScroll < 160 ? 0 : 1;
+  ampVel = (ampVel + (target - amp) * .14) * .78; // a soft spring, so it overshoots a little coming back
+  amp += ampVel;
+  drawSeek();
+  if (Math.abs(ampVel) > .001 || Math.abs(target - amp) > .001 || target === 0) seekLoop = requestAnimationFrame(seekStep);
+  else { amp = target; drawSeek(); seekLoop = 0; }
+}
 function updateSeek() {
   const max = document.documentElement.scrollHeight - innerHeight;
-  fill.style.setProperty('--p', max > 0 ? Math.min(1, scrollY / max) : 0);
+  seekP = max > 0 ? Math.min(1, scrollY / max) : 0;
+  if (!seekLoop) drawSeek();
 }
 
 function show(first) {
@@ -243,7 +267,9 @@ more.addEventListener('click', loadLog);
     if (start === null) return;
     if (!dragging && Math.abs(e.clientX - start) < 8) return;
     if (!dragging) { dragging = true; bar.classList.add('dragging'); try { bar.setPointerCapture(e.pointerId); } catch {} }
+    const was = under;
     under = tabAt(e.clientX);
+    if (under !== was && e.pointerType === 'touch') buzz(5);
     const box = bar.getBoundingClientRect();
     const w = under.offsetWidth;
     // The pill follows the finger, centred on it, kept inside the bar.
@@ -281,8 +307,12 @@ addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => lock(panels.find(p => !p.hidden)), 150);
 });
-// shortcut: unthrottled scroll handler; it is one style write per frame.
-addEventListener('scroll', () => requestAnimationFrame(updateSeek), { passive: true });
+addEventListener('scroll', () => {
+  updateSeek();
+  if (reduce) return;
+  lastScroll = performance.now();
+  if (!seekLoop) seekLoop = requestAnimationFrame(seekStep);
+}, { passive: true });
 
 // Palettes from the app: name, bg, surfHi, ink, accent2, inkDim, accent.
 const PALETTES = [
@@ -363,6 +393,129 @@ function applyPalette(i) {
     document.querySelector('.build').hidden = false;
   } catch {}
 })();
+
+// The hero halo morphs between shapes, like the app's loader: cookie, flower, soft square, circle.
+{
+  const path = document.querySelector('.halo path');
+  const SHAPES = [[9, .08, 0], [6, .15, 0], [4, .06, Math.PI / 4], [0, 0, 0]];
+  const radius = (s, t) => 1 - s[1] + s[1] * Math.cos(s[0] * (t - s[2]));
+  const draw = (a, b, k) => {
+    let d = '';
+    for (let i = 0; i < 144; i++) {
+      const t = i / 144 * Math.PI * 2, r = 48 * (radius(a, t) * (1 - k) + radius(b, t) * k);
+      d += (i ? 'L' : 'M') + (50 + r * Math.cos(t)).toFixed(2) + ' ' + (50 + r * Math.sin(t)).toFixed(2);
+    }
+    path.setAttribute('d', d + 'Z');
+  };
+  draw(SHAPES[0], SHAPES[0], 0);
+  if (!reduce) {
+    let i = 0;
+    const back = k => 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2; // ease out with a small overshoot
+    setInterval(() => {
+      const a = SHAPES[i], b = SHAPES[(i + 1) % SHAPES.length], t0 = performance.now();
+      i = (i + 1) % SHAPES.length;
+      const step = now => { const k = Math.min(1, (now - t0) / 1400); draw(a, b, back(k)); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    }, 4200);
+  }
+}
+
+// Screenshot viewer: the picture flies from its place to full size and back.
+{
+  const viewer = document.querySelector('.viewer'), big = viewer.querySelector('.big'), close = viewer.querySelector('.viewer-close');
+  let source = null;
+  const ease = 'cubic-bezier(.2, 1.15, .35, 1)';
+  const flight = (from, to) => [
+    { transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
+    { transform: 'none' },
+  ];
+  function open(img) {
+    source = img;
+    big.src = img.currentSrc || img.src; big.alt = img.alt;
+    viewer.hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+    const go = () => {
+      const from = img.getBoundingClientRect(), to = big.getBoundingClientRect();
+      img.style.visibility = 'hidden';
+      if (!reduce) {
+        big.animate(flight(from, to), { duration: 520, easing: ease });
+        viewer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: 'ease-out' });
+      }
+      close.focus();
+    };
+    big.complete ? go() : big.addEventListener('load', go, { once: true });
+  }
+  function shut() {
+    if (!source || viewer.hidden) return;
+    const img = source; source = null;
+    const done = () => { viewer.hidden = true; img.style.visibility = ''; document.documentElement.style.overflow = ''; img.focus({ preventScroll: true }); };
+    if (reduce) return done();
+    const to = img.getBoundingClientRect(), from = big.getBoundingClientRect();
+    big.animate(flight(to, from).reverse(), { duration: 420, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }).onfinish = () => { big.getAnimations().forEach(a => a.cancel()); done(); };
+    viewer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-in', fill: 'forwards' }).onfinish = e => e.target.cancel();
+  }
+  for (const img of document.querySelectorAll('.hero-shot img, .shots img, .row-shots img, .land-hero, .land-row img')) {
+    img.classList.add('zoomable');
+    img.tabIndex = 0;
+    img.setAttribute('role', 'button');
+    img.setAttribute('aria-label', 'Enlarge: ' + img.alt);
+    img.addEventListener('click', () => open(img));
+    img.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(img); } });
+  }
+  viewer.addEventListener('click', shut);
+  addEventListener('keydown', e => { if (e.key === 'Escape') shut(); });
+}
+
+// Heart: bounce and burst into little hearts and cookies, like liking a song.
+{
+  const heart = document.querySelector('.heart');
+  heart.addEventListener('click', () => {
+    const on = heart.getAttribute('aria-pressed') !== 'true';
+    heart.setAttribute('aria-pressed', String(on));
+    heart.setAttribute('aria-label', on ? 'Unlike' : 'Like');
+    buzz(on ? [10, 40, 14] : 8);
+    if (reduce || !on) return;
+    heart.classList.remove('pop'); void heart.offsetWidth; heart.classList.add('pop');
+    const r = heart.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    for (let n = 0; n < 18; n++) {
+      const bit = document.createElement('i');
+      bit.className = 'bit ' + ['h', 'c', 'd'][n % 3];
+      bit.style.left = cx - 7 + 'px'; bit.style.top = cy - 7 + 'px';
+      document.body.append(bit);
+      const ang = n / 18 * Math.PI * 2 + Math.random() * .3, dist = 60 + Math.random() * 70;
+      bit.animate([
+        { transform: 'translate(0, 0) scale(.4) rotate(0deg)', opacity: 1 },
+        { transform: `translate(${Math.cos(ang) * dist}px, ${Math.sin(ang) * dist - 20}px) scale(${.8 + Math.random() * .7}) rotate(${(Math.random() - .5) * 300}deg)`, opacity: 1, offset: .7 },
+        { transform: `translate(${Math.cos(ang) * dist * 1.1}px, ${Math.sin(ang) * dist + 30}px) scale(.6)`, opacity: 0 },
+      ], { duration: 900 + Math.random() * 300, easing: 'cubic-bezier(.15, .9, .3, 1)' }).onfinish = () => bit.remove();
+    }
+  });
+}
+
+// Stickers on the screenshots, like the playlist header stickers; tap one to spin it.
+{
+  // var(--shape) is used in site.css, so these resolve next to it, in assets/.
+  const shapes = ['url(cookie.svg)', 'url(flower.svg)', 'url(cookie.svg)', 'url(flower.svg)'];
+  const spots = [['-14px', null, '-16px', null], [null, '-16px', '22%', null], ['-12px', null, null, '30%'], [null, '-14px', null, '12%']];
+  document.querySelectorAll('.shots figure').forEach((fig, n) => {
+    const s = document.createElement('span');
+    s.className = 'sticker';
+    s.setAttribute('aria-hidden', 'true');
+    const [l, r, t, b] = spots[n % 4];
+    Object.assign(s.style, { left: l || '', right: r || '', top: t || '', bottom: b || '' });
+    s.style.setProperty('--shape', shapes[n % 4]);
+    s.style.setProperty('--tilt', (n % 2 ? 14 : -12) + 'deg');
+    let turns = 0;
+    s.addEventListener('click', () => {
+      buzz(6);
+      if (reduce) return;
+      turns++;
+      s.animate([{ transform: `rotate(${(turns - 1) * 360}deg)` }, { transform: `rotate(${turns * 360}deg)` }],
+        { duration: 900, easing: 'cubic-bezier(.2, 1.3, .4, 1)', fill: 'forwards' });
+    });
+    fig.prepend(s);
+  });
+}
 
 // Motes drifting up, like the player's.
 if (!reduce) {

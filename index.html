@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,100..1000,0..100&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/site.css?v=20261123a">
+  <link rel="stylesheet" href="assets/site.css?v=20261123b">
 </head>
 <body data-tab="overview">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -29,7 +29,7 @@
   </svg>
 
   <div class="aura" aria-hidden="true"><i class="blob a"></i><i class="blob b"></i><i class="blob c"></i></div>
-  <div class="seek" aria-hidden="true"><div class="seek-fill"></div></div>
+  <svg class="seek" aria-hidden="true"><path class="seek-line"/><circle class="seek-dot" r="5" cy="6"/></svg>
 
   <header class="top">
     <a class="brand" href="#overview"><img src="assets/icon.svg" width="34" height="34" alt="">Spatch</a>
@@ -59,7 +59,8 @@
           <p class="build" hidden><span class="live" aria-hidden="true"></span><span class="build-text"></span></p>
         </div>
         <figure class="hero-shot">
-          <svg class="halo" aria-hidden="true"><use href="#cookie"/></svg>
+          <svg class="halo" viewBox="0 0 100 100" aria-hidden="true"><path/></svg>
+          <button class="heart" type="button" aria-pressed="false" aria-label="Like"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-7.8-4.7-7.8-10.3A4.4 4.4 0 0 1 12 7.4a4.4 4.4 0 0 1 7.8 2.6c0 5.6-7.8 10.3-7.8 10.3z"/></svg></button>
           <img src="assets/screens/player.webp" width="720" height="1433" alt="The Spatch player: round cover art inside a ring of bars, the current lyric line, the song title with its audio quality, a wavy progress line and a large play button, on a backdrop tinted from the cover.">
         </figure>
       </section>
@@ -305,11 +306,16 @@
     </div>
   </main>
 
+  <div class="viewer" hidden role="dialog" aria-modal="true" aria-label="Screenshot">
+    <img class="big" alt="">
+    <button class="viewer-close" type="button" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+
   <footer class="foot">
     <p>Spatch is open source under the MIT License. It isn’t made or endorsed by Spotify.</p>
     <a href="https://github.com/n0thhhing/spatch">Source on GitHub</a>
   </footer>
 
-  <script src="assets/site.js?v=20261123a"></script>
+  <script src="assets/site.js?v=20261123b"></script>
 </body>
 </html>
