@@ -52,8 +52,15 @@ function sweep(root) {
 function placeIndicator() {
   const a = tabs.find(t => t.hasAttribute('aria-current'));
   if (!a) return;
-  ind.style.setProperty('--x', a.offsetLeft - 5 + 'px');
+  // offsetLeft and the pill's left: 0 both measure from the bar's padding edge.
+  ind.style.setProperty('--x', a.offsetLeft + 'px');
   ind.style.setProperty('--w', a.offsetWidth + 'px');
+}
+// On phones the open tab widens over about half a second, so keep the pill on it while it does.
+function trackIndicator() {
+  const until = performance.now() + 700;
+  const step = () => { placeIndicator(); if (performance.now() < until) requestAnimationFrame(step); };
+  step();
 }
 
 function updateSeek() {
@@ -68,7 +75,7 @@ function show(first) {
   for (const t of tabs) t.hash === '#' + name ? t.setAttribute('aria-current', 'page') : t.removeAttribute('aria-current');
   document.body.dataset.tab = name;
   document.title = names[name];
-  placeIndicator();
+  trackIndicator();
   if (!first) scrollTo({ top: 0, behavior: 'instant' });
   const panel = panels.find(p => p.dataset.panel === name);
   // The first sweep waits for the web font, so letters are measured in the right face.
@@ -240,7 +247,8 @@ more.addEventListener('click', loadLog);
     const box = bar.getBoundingClientRect();
     const w = under.offsetWidth;
     // The pill follows the finger, centred on it, kept inside the bar.
-    const x = Math.max(0, Math.min(box.width - 10 - w, e.clientX - box.left - 5 - w / 2));
+    const pad = parseFloat(getComputedStyle(bar).paddingLeft);
+    const x = Math.max(pad, Math.min(box.width - pad - w, e.clientX - box.left - w / 2));
     ind.style.setProperty('--w', w + 'px');
     ind.style.setProperty('--x', x + 'px');
     for (const t of tabs) t.style.color = t === under ? 'var(--ink)' : 'var(--fog)';

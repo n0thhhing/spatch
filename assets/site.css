@@ -111,6 +111,7 @@ code { font: inherit; color: var(--fog); background: var(--raise); padding: .05e
   transition: color .3s ease;
 }
 .tabs a[aria-current="page"] { color: var(--ink); }
+.ti { display: none; width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .tab-ind {
   position: absolute; z-index: 0; top: 5px; bottom: 5px; left: 0;
   width: var(--w, 0); transform: translateX(var(--x, 0));
@@ -425,9 +426,24 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
     -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
     box-shadow: 0 16px 40px -12px rgba(0, 0, 0, .6);
   }
-  .tabs a { flex: 1; text-align: center; padding: 12px 2px; font-size: .8125rem; }
+  .tabs { padding: 6px; gap: 0; }
+  .tab-ind { top: 6px; bottom: 6px; }
+  /* Icons on phones; only the open tab shows its name, and it widens to fit. */
+  .tabs a {
+    flex: 1 1 0; min-width: 0;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 4px; font-size: .9375rem;
+    transition: color .3s ease, flex-grow .55s var(--spring);
+  }
+  .tabs a[aria-current="page"] { flex-grow: 2.6; }
+  /* Hidden visually, not removed, so screen readers still hear each tab's name. */
+  .tabs a span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tabs a[aria-current="page"] span { position: static; width: auto; height: auto; overflow: visible; clip: auto; animation: label-in .45s ease both; }
+  .ti { display: block; }
   body { padding-bottom: 96px; }
 }
+
+@keyframes label-in { from { opacity: 0; transform: translateX(-6px); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
