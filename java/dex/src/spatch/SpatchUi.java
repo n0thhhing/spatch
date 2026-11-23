@@ -2856,7 +2856,7 @@ public final class SpatchUi extends FrameLayout {
                 noMatch.setPadding(dp(22), dp(18), dp(22), 0);
                 noMatch.setVisibility(shown.isEmpty() && !query.trim().isEmpty() ? VISIBLE : GONE);
                 listBox.addView(noMatch);
-                android.widget.AbsListView list = gridState[0] ? entryGrid(shown) : entryList(shown, null);
+                android.widget.AbsListView list = gridState[0] ? entryGrid(shown) : (land ? entryListGrid(shown) : entryList(shown, null));
                 list.setOnScrollListener(new DockScroll());
                 list.setPadding(dp(gridState[0] ? 14 : 18), dp(4), dp(gridState[0] ? 14 : 18), dockRoom());
                 list.setClipToPadding(false);
@@ -2945,11 +2945,20 @@ public final class SpatchUi extends FrameLayout {
 
     /** The library as big covers: two columns in portrait, four in landscape. */
     private android.widget.GridView entryGrid(List<MediaEntry> items) {
+        return mediaGrid(items, landscape() ? 4 : 2, landscape() ? 14 : 12, 16, true);
+    }
+
+    /** Landscape library list: two columns of compact rows so the wider viewport stays dense and scannable. */
+    private android.widget.GridView entryListGrid(List<MediaEntry> items) {
+        return mediaGrid(items, 2, 16, 2, false);
+    }
+
+    private android.widget.GridView mediaGrid(List<MediaEntry> items, int cols, int hGapDp, int vGapDp, boolean tiles) {
         android.widget.GridView grid = new android.widget.GridView(activity);
-        grid.setNumColumns(landscape() ? 4 : 2);
+        grid.setNumColumns(cols);
         grid.setStretchMode(android.widget.GridView.STRETCH_COLUMN_WIDTH);
-        grid.setHorizontalSpacing(dp(landscape() ? 14 : 12));
-        grid.setVerticalSpacing(dp(16));
+        grid.setHorizontalSpacing(dp(hGapDp));
+        grid.setVerticalSpacing(dp(vGapDp));
         grid.setVerticalScrollBarEnabled(false);
         grid.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         grid.setOverScrollMode(OVER_SCROLL_NEVER);
@@ -2958,24 +2967,36 @@ public final class SpatchUi extends FrameLayout {
             @Override public MediaEntry getItem(int i) { return items.get(i); }
             @Override public long getItemId(int i) { return i; }
             @Override public View getView(int i, View old, ViewGroup parent) {
-                Tile tile = old instanceof Tile ? (Tile) old : new Tile();
-                tile.bind(getItem(i));
-                return tile;
+                if (tiles) {
+                    Tile tile = old instanceof Tile ? (Tile) old : new Tile();
+                    tile.bind(getItem(i));
+                    return tile;
+                }
+                Row row = old instanceof Row ? (Row) old : new Row();
+                row.number = 0;
+                row.bind(getItem(i));
+                return row;
             }
         });
         grid.setOnItemClickListener((p, v, i, id) -> {
             MediaEntry item = items.get(i);
             if (v instanceof Tile) captureFlight(((Tile) v).art, item.image, item.category == 2);
+            else if (v instanceof Row) {
+                captureFlight(((Row) v).art, item.image, item.category == 2);
+                tick(v);
+            }
             open(item);
         });
         grid.setOnItemLongClickListener((p, v, i, id) -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); actions(items.get(i)); return true; });
         if (motion()) {
             android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
             rise.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
-            rise.addAnimation(new android.view.animation.ScaleAnimation(.92f, 1f, .92f, 1f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f));
-            rise.setDuration(300);
+            rise.addAnimation(tiles
+                ? new android.view.animation.ScaleAnimation(.92f, 1f, .92f, 1f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f)
+                : new android.view.animation.TranslateAnimation(0, 0, dp(18), 0));
+            rise.setDuration(tiles ? 300 : 320);
             rise.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
-            grid.setLayoutAnimation(new android.view.animation.GridLayoutAnimationController(rise, .12f, .1f));
+            grid.setLayoutAnimation(new android.view.animation.GridLayoutAnimationController(rise, tiles ? .12f : .07f, tiles ? .1f : .08f));
         }
         return grid;
     }
