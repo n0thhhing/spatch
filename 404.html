@@ -3,48 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Not found · Spatch</title>
-  <meta name="description" content="Page not found.">
-  <meta name="theme-color" content="#1a110e">
+  <title>Spatch</title>
+  <meta name="description" content="Spatch patches the official Spotify app on Android so it shows its own interface. A new site is on the way.">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/style.css">
-  <link rel="stylesheet" href="assets/pages-support.css">
+  <style>
+    :root { --bg: #f6f6f8; --ink: #141418; --dim: #5d5d68; --line: #d9d9e0; color-scheme: light dark; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #121216; --ink: #ececf1; --dim: #9b9ba8; --line: #2c2c34; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--ink); font: 400 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px; }
+    main { max-width: 34rem; }
+    img { width: 48px; height: 48px; display: block; margin-bottom: 20px; }
+    h1 { font-size: clamp(2.2rem, 7vw, 3rem); letter-spacing: -.04em; line-height: 1; margin: 0 0 14px; }
+    p { margin: 0 0 22px; color: var(--dim); }
+    a { color: var(--ink); font-weight: 650; text-underline-offset: .2em; }
+    a:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+  </style>
 </head>
 <body>
-  <a class="skip" href="#main">Skip to content</a>
-  <header class="site-head">
-    <div class="wrap">
-      <a class="brand" href="index.html" data-brand>Spatch</a>
-      <nav class="site-nav" aria-label="Main"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
-      <button class="nav-btn" type="button" aria-label="Menu" aria-expanded="false">☰</button>
-    </div>
-    <nav class="drawer" aria-label="Mobile"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
-  </header>
-
-  <main id="main">
-    <section class="band not-found">
-      <div class="wrap stack">
-        <h1>Nothing here.</h1>
-        <p class="lede">That page does not exist, or the link moved.</p>
-        <div class="btn-row">
-          <a class="btn btn--fill" href="index.html">Back home</a>
-          <a class="btn btn--quiet" href="install.html">Install guide</a>
-          <a class="btn btn--quiet" href="faq.html">FAQ</a>
-        </div>
-      </div>
-    </section>
+  <main>
+    <img src="assets/icon.svg" width="48" height="48" alt="">
+    <h1>Spatch</h1>
+    <p>Spatch patches the official Spotify app on Android so it shows its own interface. A new site is on the way.</p>
+    <a href="https://github.com/n0thhhing/spatch/releases">Get Spatch Manager on GitHub Releases</a>
   </main>
-
-  <footer class="site-foot">
-    <div class="wrap">
-      <div><a class="brand" href="index.html" data-brand>Spatch</a><p class="cap">Spotify, redrawn from the inside.</p></div>
-      <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
-      <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
-      <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
-      <p class="fine">Spatch is an unofficial community project, not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
-    </div>
-  </footer>
-
-  <script src="assets/site.js"></script>
 </body>
 </html>
