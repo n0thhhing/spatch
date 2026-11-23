@@ -2689,6 +2689,16 @@ public final class SpatchUi extends FrameLayout {
 
     // ---------- Library ----------
 
+    /** Scrolls a horizontal filter strip only if `chip` is clipped near an edge, avoiding jarring recentering jumps. */
+    private void ensureChipVisible(HorizontalScrollView scroll, View chip, View container) {
+        if (scroll == null || chip == null || scroll.getWidth() <= 0 || chip.getWidth() <= 0) return;
+        int origin = container != null ? container.getLeft() : 0;
+        int left = origin + chip.getLeft(), right = left + chip.getWidth();
+        int cur = scroll.getScrollX(), viewW = scroll.getWidth(), pad = dp(16);
+        if (left < cur + pad) scroll.smoothScrollTo(Math.max(0, left - pad), 0);
+        else if (right > cur + viewW - pad) scroll.smoothScrollTo(Math.max(0, right - viewW + pad), 0);
+    }
+
     private View libraryPage() {
         LinearLayout page = column();
         page.setPadding(0, inset.top, 0, 0);
@@ -2697,6 +2707,7 @@ public final class SpatchUi extends FrameLayout {
         }
         pageHeading(page, "Library", true);
 
+        boolean land = landscape();
         LinearLayout search = row();
         search.setPadding(dp(16), 0, dp(8), 0);
         bgRound(search, 26, () -> surf);
@@ -2709,90 +2720,202 @@ public final class SpatchUi extends FrameLayout {
         field.setSingleLine(true);
         field.setPadding(dp(12), 0, dp(4), 0);
         field.setText(query);
-        search.addView(field, new LinearLayout.LayoutParams(0, dp(50), 1));
+        search.addView(field, new LinearLayout.LayoutParams(0, dp(land ? 44 : 50), 1));
         clearButton(search, field);
-        LinearLayout.LayoutParams sp = fill(dp(50));
-        sp.setMargins(dp(18), 0, dp(18), dp(10));
-        page.addView(search, sp);
 
         HorizontalScrollView chipScroll = new HorizontalScrollView(activity);
         chipScroll.setHorizontalScrollBarEnabled(false);
-        chipScroll.setPadding(dp(18), 0, dp(10), dp(6));
+        chipScroll.setHorizontalFadingEdgeEnabled(true);
+        chipScroll.setFadingEdgeLength(dp(24));
+        chipScroll.setPadding(dp(land ? 12 : 18), 0, dp(land ? 4 : 18), dp(land ? 0 : 6));
         LinearLayout chips = row();
-        boolean az = pref("library_az", false);
-        TextView sort = text(az ? "A–Z" : "Recent", 14, ink, true);
+        boolean[] azState = { pref("library_az", false) };
+        TextView sort = text(azState[0] ? "A–Z" : "Recent", 14, ink, true);
         sort.setGravity(Gravity.CENTER);
         sort.setPadding(dp(16), 0, dp(16), 0);
         GradientDrawable sortBg = round(surfHi, 19);
         sort.setBackground(sortBg);
         colored(sort, () -> { sort.setTextColor(ink); sortBg.setColor(surfHi); });
-        tappable(sort, az ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z", () -> { prefs.edit().putBoolean("library_az", !az).apply(); showPage(); });
         chips.addView(sort, lp(-2, dp(38)));
         chips.addView(space(dp(8), 1));
-        boolean grid = pref("library_grid", false);
-        TextView layout = text(grid ? "Grid" : "List", 14, ink, true);
+        boolean[] gridState = { pref("library_grid", false) };
+        TextView layout = text(gridState[0] ? "Grid" : "List", 14, ink, true);
         layout.setGravity(Gravity.CENTER);
         layout.setPadding(dp(16), 0, dp(16), 0);
         GradientDrawable layoutBg = round(surfHi, 19);
         layout.setBackground(layoutBg);
         colored(layout, () -> { layout.setTextColor(ink); layoutBg.setColor(surfHi); });
-        tappable(layout, grid ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid", () -> { prefs.edit().putBoolean("library_grid", !grid).apply(); showPage(); });
         chips.addView(layout, lp(-2, dp(38)));
         chips.addView(space(dp(8), 1));
-        TextView selectedChip = null;
+
+        int count = SECTIONS.length + 2;
+        TextView[] filterChips = new TextView[count];
+        View filterPill = new View(activity);
+        bgRound(filterPill, 19, () -> accent);
+        LinearLayout filterRow = row();
+        FrameLayout filterTrack = new FrameLayout(activity) {
+            private boolean placed;
+            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+                super.onLayout(changed, l, t, r, b);
+                int sel = Math.max(0, Math.min(count - 1, filter + 1));
+                TextView target = filterChips[sel];
+                if (!placed && target != null && target.getWidth() > 0) {
+                    placed = true;
+                    int tw = target.getWidth(), th = Math.max(1, getHeight());
+                    LayoutParams lp = (LayoutParams) filterPill.getLayoutParams();
+                    lp.width = tw;
+                    filterPill.measure(MeasureSpec.makeMeasureSpec(tw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(th, MeasureSpec.EXACTLY));
+                    filterPill.layout(0, 0, tw, th);
+                    filterPill.setTranslationX(target.getLeft());
+                }
+            }
+        };
+        bgRound(filterTrack, 19, () -> surf);
+        filterTrack.addView(filterPill, new LayoutParams(0, dp(38)));
+        filterTrack.addView(filterRow, new LayoutParams(-2, dp(38)));
+
         for (int i = -1; i <= SECTIONS.length; i++) {
-            final int index = i;
-            boolean on = i == filter;
-            TextView chip = text(i == -1 ? "All" : i == DOWNLOADED ? "Downloaded" : SECTIONS[i], 14, on ? onAccent : ink, true);
+            final int index = i, slot = i + 1;
+            String labelText = i == -1 ? "All" : i == DOWNLOADED ? "Downloaded" : SECTIONS[i];
+            TextView chip = text(labelText, 14, () -> filter == index ? onAccent : ink, true);
             chip.setGravity(Gravity.CENTER);
             chip.setPadding(dp(16), 0, dp(16), 0);
-            GradientDrawable chipBg = round(on ? accent : surf, 19);
-            chip.setBackground(chipBg);
-            colored(chip, () -> { chip.setTextColor(on ? onAccent : ink); chipBg.setColor(on ? accent : surf); });
-            tappable(chip, chip.getText().toString(), () -> { filter = index; showPage(); });
-            chips.addView(chip, lp(-2, dp(38)));
-            chips.addView(space(dp(8), 1));
-            if (on) selectedChip = chip;
+            chip.setBackground(null);
+            filterChips[slot] = chip;
+            filterRow.addView(chip, lp(-2, dp(38)));
         }
+        chips.addView(filterTrack, lp(-2, dp(38)));
         chipScroll.addView(chips);
-        // The page is rebuilt on each pick, so bring the chosen chip back into view instead of leaving the row at its start.
-        if (selectedChip != null && filter >= 0) {
-            final View picked = selectedChip;
-            chipScroll.post(() -> chipScroll.scrollTo(Math.max(0, picked.getLeft() - dp(40)), 0));
+        if (filter >= 0) {
+            final View picked = filterChips[Math.min(count - 1, filter + 1)];
+            chipScroll.post(() -> ensureChipVisible(chipScroll, picked, filterTrack));
         }
-        page.addView(chipScroll, fill(-2));
 
-        List<MediaEntry> shown = entries(filter, query, az, 400);
-        if (shown.isEmpty() && query.isEmpty()) {
-            TextView note = text(filter == DOWNLOADED && libraryReady ? "Nothing downloaded yet. Open a playlist, album or podcast and tap its download button." : libraryStatus, 14, () -> inkDim, false);
-            note.setPadding(dp(22), dp(20), dp(22), 0);
-            page.addView(note);
-            libraryRecoveryActions(page, true);
+        if (land) {
+            LinearLayout bar = row();
+            bar.addView(search, new LinearLayout.LayoutParams(0, dp(44), .40f));
+            bar.addView(chipScroll, new LinearLayout.LayoutParams(0, -2, .60f));
+            LinearLayout.LayoutParams bp = fill(-2);
+            bp.setMargins(dp(18), 0, dp(18), dp(8));
+            page.addView(bar, bp);
         } else {
-            TextView noMatch = text("", 15, () -> inkDim, false);
-            noMatch.setPadding(dp(22), dp(18), dp(22), 0);
-            noMatch.setVisibility(GONE);
-            page.addView(noMatch);
-            android.widget.AbsListView list = grid ? entryGrid(shown) : entryList(shown, null);
-            list.setOnScrollListener(new DockScroll());
-            list.setPadding(dp(grid ? 14 : 18), dp(4), dp(grid ? 14 : 18), dockRoom());
-            list.setClipToPadding(false);
-            page.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-            if (list instanceof ListView) pageList = (ListView) list;
-            libraryList = list;
-            field.addTextChangedListener(new android.text.TextWatcher() {
-                @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-                @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-                @Override public void afterTextChanged(android.text.Editable e) {
-                    query = e.toString();
+            LinearLayout.LayoutParams sp = fill(dp(50));
+            sp.setMargins(dp(18), 0, dp(18), dp(10));
+            page.addView(search, sp);
+            LinearLayout.LayoutParams cp = fill(-2);
+            cp.bottomMargin = dp(4);
+            page.addView(chipScroll, cp);
+        }
+
+        FrameLayout contentHost = new FrameLayout(activity);
+        page.addView(contentHost, new LinearLayout.LayoutParams(-1, 0, 1));
+        Runnable[] onQuery = new Runnable[1];
+        android.animation.ValueAnimator[] pillAnim = new android.animation.ValueAnimator[1];
+
+        java.util.function.IntConsumer renderContent = dir -> {
+            contentHost.removeAllViews();
+            pageList = null;
+            libraryList = null;
+            onQuery[0] = null;
+            List<MediaEntry> shown = entries(filter, query, azState[0], 400);
+            View shownView;
+            if (shown.isEmpty() && query.isEmpty()) {
+                LinearLayout emptyBox = column();
+                TextView note = text(filter == DOWNLOADED && libraryReady ? "Nothing downloaded yet. Open a playlist, album or podcast and tap its download button." : libraryStatus, 14, () -> inkDim, false);
+                note.setPadding(dp(22), dp(20), dp(22), 0);
+                emptyBox.addView(note);
+                libraryRecoveryActions(emptyBox, true);
+                shownView = emptyBox;
+            } else {
+                LinearLayout listBox = column();
+                TextView noMatch = text("Nothing in your library matches “" + query.trim() + "”", 15, () -> inkDim, false);
+                noMatch.setPadding(dp(22), dp(18), dp(22), 0);
+                noMatch.setVisibility(shown.isEmpty() && !query.trim().isEmpty() ? VISIBLE : GONE);
+                listBox.addView(noMatch);
+                android.widget.AbsListView list = gridState[0] ? entryGrid(shown) : entryList(shown, null);
+                list.setOnScrollListener(new DockScroll());
+                list.setPadding(dp(gridState[0] ? 14 : 18), dp(4), dp(gridState[0] ? 14 : 18), dockRoom());
+                list.setClipToPadding(false);
+                listBox.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+                if (list instanceof ListView) pageList = (ListView) list;
+                libraryList = list;
+                onQuery[0] = () -> {
                     shown.clear();
-                    shown.addAll(entries(filter, query, az, 400));
+                    shown.addAll(entries(filter, query, azState[0], 400));
                     ((BaseAdapter) list.getAdapter()).notifyDataSetChanged();
                     noMatch.setText("Nothing in your library matches “" + query.trim() + "”");
                     noMatch.setVisibility(shown.isEmpty() && !query.trim().isEmpty() ? VISIBLE : GONE);
+                };
+                shownView = listBox;
+            }
+            contentHost.addView(shownView, new LayoutParams(-1, -1));
+            if (dir != 0 && motion()) {
+                shownView.setAlpha(0f);
+                shownView.setTranslationX(dir * dp(28));
+                shownView.animate().alpha(1f).translationX(0f).setDuration(220).setInterpolator(EMPHASIZED).start();
+            }
+        };
+
+        tappable(sort, azState[0] ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z", () -> {
+            azState[0] = !azState[0];
+            prefs.edit().putBoolean("library_az", azState[0]).apply();
+            sort.setText(azState[0] ? "A–Z" : "Recent");
+            sort.setContentDescription(azState[0] ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z");
+            renderContent.accept(0);
+        });
+        tappable(layout, gridState[0] ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid", () -> {
+            gridState[0] = !gridState[0];
+            prefs.edit().putBoolean("library_grid", gridState[0]).apply();
+            layout.setText(gridState[0] ? "Grid" : "List");
+            layout.setContentDescription(gridState[0] ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid");
+            renderContent.accept(0);
+        });
+
+        for (int i = -1; i <= SECTIONS.length; i++) {
+            final int index = i, slot = i + 1;
+            TextView chip = filterChips[slot];
+            tappable(chip, chip.getText().toString(), () -> {
+                if (filter == index) return;
+                int prev = filter;
+                filter = index;
+                for (TextView c : filterChips) recolorView(c);
+                int targetW = chip.getWidth();
+                float targetX = chip.getLeft();
+                LayoutParams plp = (LayoutParams) filterPill.getLayoutParams();
+                if (pillAnim[0] != null) pillAnim[0].cancel();
+                if (targetW > 0 && plp.width > 0 && motion()) {
+                    int startW = filterPill.getWidth() > 0 ? filterPill.getWidth() : plp.width;
+                    float startX = filterPill.getTranslationX();
+                    android.animation.ValueAnimator slide = android.animation.ValueAnimator.ofFloat(0f, 1f);
+                    slide.setDuration(240);
+                    slide.setInterpolator(new android.view.animation.OvershootInterpolator(.8f));
+                    slide.addUpdateListener(a -> {
+                        float t = (float) a.getAnimatedValue();
+                        plp.width = Math.max(1, Math.round(startW + (targetW - startW) * t));
+                        filterPill.setLayoutParams(plp);
+                        filterPill.setTranslationX(startX + (targetX - startX) * t);
+                    });
+                    pillAnim[0] = slide;
+                    slide.start();
+                } else if (targetW > 0) {
+                    plp.width = targetW;
+                    filterPill.setLayoutParams(plp);
+                    filterPill.setTranslationX(targetX);
                 }
+                ensureChipVisible(chipScroll, chip, filterTrack);
+                renderContent.accept(filter > prev ? 1 : -1);
             });
         }
+
+        renderContent.accept(0);
+        field.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable e) {
+                query = e.toString();
+                if (onQuery[0] != null) onQuery[0].run();
+            }
+        });
         return page;
     }
 
