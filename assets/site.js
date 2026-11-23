@@ -28,9 +28,10 @@ function lock(root) {
       if (!lines.length || Math.abs(lines.at(-1).top - top) > 2) lines.push({ top, words: [] });
       lines.at(-1).words.push(w);
     }
-    box.replaceChildren(...lines.map(l => {
+    box.replaceChildren(...lines.map((l, n) => {
       const line = document.createElement('span');
       line.className = 'line';
+      line.style.setProperty('--l', n);
       line.append(...l.words.flatMap((w, i) => i ? [' ', w] : [w]));
       return line;
     }));
