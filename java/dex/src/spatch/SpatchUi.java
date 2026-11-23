@@ -1092,6 +1092,9 @@ public final class SpatchUi extends FrameLayout {
 
     static final android.view.animation.Interpolator EMPHASIZED = new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f);
 
+    /** Marks a page's full-bleed backdrop (see {@link #enter}). */
+    static final Object BACKDROP = new Object();
+
     /** The page just shown slides in from (dx, dy) while it fades up. */
     void enter(float dx, float dy) {
         if (!motion() || pageHost.getChildCount() == 0) return;
@@ -1100,6 +1103,15 @@ public final class SpatchUi extends FrameLayout {
         page.setTranslationX(dx);
         page.setTranslationY(dy);
         page.animate().alpha(1f).translationX(0).translationY(0).setDuration(300).setInterpolator(EMPHASIZED).start();
+        // A backdrop that reaches past the page (under the rail and the camera strip) holds still and only fades,
+        // so those edges colour in with the page instead of sliding in late behind it.
+        if (page instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) page).getChildCount(); i++) {
+            View child = ((ViewGroup) page).getChildAt(i);
+            if (child.getTag() != BACKDROP) continue;
+            if (dx == 0) continue; // vertical entrances leave it be: the backdrop's own scroll parallax owns translationY
+            child.setTranslationX(-dx);
+            child.animate().translationX(0).setDuration(300).setInterpolator(EMPHASIZED).start();
+        }
     }
 
     /** Closes the on-screen keyboard and drops text focus; true if it was open. */
@@ -3695,8 +3707,10 @@ public final class SpatchUi extends FrameLayout {
         page.setClipChildren(false);
         LayoutParams washAt = new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP);
         washAt.setMargins(-sideLeft(), 0, -inset.right, 0);
+        wash.setTag(BACKDROP);
         page.addView(wash, washAt);
         StickerBackdrop stickers = new StickerBackdrop(playlist.uri + ":" + headTitle);
+        stickers.setTag(BACKDROP);
         page.addView(stickers, new LayoutParams(washAt));
 
         LinearLayout header = column();
