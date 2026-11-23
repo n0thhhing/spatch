@@ -5771,6 +5771,7 @@ public final class SpatchUi extends FrameLayout {
             pLike.setScaleY(.5f);
             pLike.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(3.2f)).start();
             if (pLike.getParent() instanceof View) burst((View) pLike.getParent());
+            Confetti.hearts(pLike, prefs, accent, accent2, true);
         }
         submit(COMMANDS, () -> {
             boolean ok = nativeSave(track, want);

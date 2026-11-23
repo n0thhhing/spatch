@@ -30,12 +30,12 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private float t;
 
-    private Confetti(View root, float x, float y, SharedPreferences prefs, int base, int second) {
+    private Confetti(View root, float x, float y, SharedPreferences prefs, int base, int second, int[] forcedShapes, int forcedCount) {
         this.root = root;
         this.x = x;
         this.y = y;
         dp = root.getResources().getDisplayMetrics().density;
-        int count = count(new String[]{"few", "normal", "lots"}[choice(prefs, "confetti_amount", 1, 3)]);
+        int count = forcedCount > 0 ? forcedCount : count(new String[]{"few", "normal", "lots"}[choice(prefs, "confetti_amount", 1, 3)]);
         float scale = scale(new String[]{"small", "normal", "big"}[choice(prefs, "confetti_size", 1, 3)]);
         Random random = new Random();
         angle = new float[count];
@@ -45,7 +45,7 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
         shape = new int[count];
         color = new int[count];
         int[] tones = tones(prefs, base, second);
-        int[] shapes = shapes(new String[]{"mixed", "cookies", "hearts", "stars", "dots"}[choice(prefs, "confetti_shape", 0, 5)]);
+        int[] shapes = forcedShapes != null ? forcedShapes : shapes(new String[]{"mixed", "cookies", "hearts", "stars", "dots"}[choice(prefs, "confetti_shape", 0, 5)]);
         for (int i = 0; i < count; i++) {
             angle[i] = (float) (2 * Math.PI * (i + random.nextFloat() * 0.7f) / count);
             reach[i] = (REACH + SPREAD * random.nextFloat()) * dp;
@@ -107,12 +107,23 @@ final class Confetti extends Drawable implements ValueAnimator.AnimatorUpdateLis
     static void clicked(View button, SharedPreferences prefs, int base, int second, boolean wasPlaying, boolean animations) {
         if (!animations || !prefs.getBoolean("confetti", true) || live >= MAX_LIVE
             || wasPlaying && prefs.getInt("confetti_when", 0) == 1) return;
+        launch(button, prefs, base, second, null, 0);
+    }
+
+    /** A smaller burst of flying hearts when saving a track. */
+    static void hearts(View source, SharedPreferences prefs, int base, int second, boolean animations) {
+        if (!animations || !prefs.getBoolean("confetti", true) || live >= MAX_LIVE || source == null) return;
+        launch(source, prefs, base, second, new int[] {HEART}, Math.max(4, BASE_COUNT / 2));
+    }
+
+    private static void launch(View button, SharedPreferences prefs, int base, int second, int[] forcedShapes, int forcedCount) {
         final View root = button.getRootView();
+        if (root == null) return;
         int[] at = new int[2], origin = new int[2];
         button.getLocationOnScreen(at);
         root.getLocationOnScreen(origin);
         Confetti burst = new Confetti(root, at[0] - origin[0] + button.getWidth() / 2f,
-            at[1] - origin[1] + button.getHeight() / 2f, prefs, base, second);
+            at[1] - origin[1] + button.getHeight() / 2f, prefs, base, second, forcedShapes, forcedCount);
         burst.setBounds(0, 0, root.getWidth(), root.getHeight());
         root.getOverlay().add(burst);
         live++;
