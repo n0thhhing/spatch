@@ -38,14 +38,21 @@ function lock(root) {
   }
 }
 
+// Each heading sweeps in when it comes into view, so only headings you can see animate.
+const sweepWatch = new IntersectionObserver(entries => {
+  for (const e of entries) if (e.isIntersecting) {
+    sweepWatch.unobserve(e.target);
+    e.target.classList.remove('waiting');
+    void e.target.offsetWidth; // restart the animation
+    e.target.classList.add('play');
+  }
+}, { rootMargin: '0px 0px -8% 0px' });
+
 function sweep(root) {
   lock(root);
   if (reduce) return;
   document.documentElement.classList.remove('wait');
-  for (const h of root.querySelectorAll('.flex')) {
-    void h.offsetWidth; // restart the animation
-    h.classList.add('play');
-  }
+  for (const h of root.querySelectorAll('.flex')) { h.classList.add('waiting'); sweepWatch.observe(h); }
 }
 
 function placeIndicator() {
@@ -71,7 +78,7 @@ function drawSeek() {
   const len = innerWidth * seekP;
   const y = x => 6 + amp * 3 * Math.sin(x * Math.PI / 12);
   let d = 'M0 6';
-  for (let x = 2; x < len; x += 2) d += `L${x} ${y(x).toFixed(2)}`;
+  for (let x = 3; x < len; x += 3) d += `L${x} ${y(x).toFixed(1)}`;
   if (len > 0) d += `L${len.toFixed(1)} ${y(len).toFixed(2)}`;
   seekLine.setAttribute('d', d);
   seekDot.setAttribute('cx', len.toFixed(1));
@@ -86,9 +93,12 @@ function seekStep() {
   if (Math.abs(ampVel) > .001 || Math.abs(target - amp) > .001 || target === 0) seekLoop = requestAnimationFrame(seekStep);
   else { amp = target; drawSeek(); seekLoop = 0; }
 }
+// The page height is measured only when it changes, not on every scroll event.
+let maxScroll = 1;
+const measureScroll = () => { maxScroll = document.documentElement.scrollHeight - innerHeight; };
+new ResizeObserver(() => { measureScroll(); updateSeek(); }).observe(document.querySelector('main'));
 function updateSeek() {
-  const max = document.documentElement.scrollHeight - innerHeight;
-  seekP = max > 0 ? Math.min(1, scrollY / max) : 0;
+  seekP = maxScroll > 0 ? Math.min(1, scrollY / maxScroll) : 0;
   if (!seekLoop) drawSeek();
 }
 
@@ -311,12 +321,13 @@ requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement
 document.fonts.ready.then(placeIndicator);
 let resizeTimer;
 addEventListener('resize', () => {
-  placeIndicator(); updateSeek();
+  placeIndicator(); measureScroll(); updateSeek();
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => lock(panels.find(p => !p.hidden)), 150);
 });
+let scrollQueued = false;
 addEventListener('scroll', () => {
-  updateSeek();
+  if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; updateSeek(); }); }
   if (reduce) return;
   lastScroll = performance.now();
   if (!seekLoop) seekLoop = requestAnimationFrame(seekStep);
@@ -525,7 +536,7 @@ function applyPalette(i) {
 // Motes drifting up, like the player's.
 if (!reduce) {
   const aura = document.querySelector('.aura');
-  const count = innerWidth < 720 ? 14 : 26;
+  const count = innerWidth < 720 ? 8 : 16;
   for (let n = 0; n < count; n++) {
     const m = document.createElement('i');
     const s = 2 + Math.random() * 5;
