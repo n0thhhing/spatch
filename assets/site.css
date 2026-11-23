@@ -181,14 +181,6 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
 .live { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 0 0 var(--acc); animation: live 2.4s ease-out infinite; }
 @keyframes live { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acc) 60%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
 
-/* A ring of bars behind the hero phone, like the player's visualizer. */
-.bars { position: absolute; left: 50%; top: 50%; width: 165%; aspect-ratio: 1; height: auto; translate: -50% -50%; overflow: visible; }
-.bars rect {
-  fill: color-mix(in srgb, var(--acc) 75%, transparent);
-  transform-box: fill-box; transform-origin: 50% 100%;
-  animation: eq var(--d) ease-in-out var(--dl) infinite alternate;
-}
-@keyframes eq { from { scale: 1 .4; } to { scale: 1 1; } }
 
 .hero-shot { margin: 0; justify-self: center; width: min(100%, 370px); position: relative; animation: bob 7s ease-in-out infinite; }
 .hero-shot img { position: relative; border-radius: 36px; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: 0 50px 90px -30px rgba(8, 10, 20, .75); }

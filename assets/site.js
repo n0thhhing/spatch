@@ -278,25 +278,6 @@ function applyPalette(i) {
   applyPalette(saved);
 }
 
-// Ring of bars behind the hero phone.
-{
-  const n = 72, ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('class', 'bars'); svg.setAttribute('viewBox', '0 0 100 100'); svg.setAttribute('aria-hidden', 'true');
-  for (let k = 0; k < n; k++) {
-    const r = document.createElementNS(ns, 'rect');
-    r.setAttribute('x', 49.3); r.setAttribute('y', 1); r.setAttribute('width', 1.4); r.setAttribute('height', 10); r.setAttribute('rx', .7);
-    r.style.cssText = `--d:${.9 + (k * 7 % 5) * .18}s;--dl:${-k * .07}s`;
-    // Rotate a wrapper, not the bar: CSS scale on the bar would otherwise apply after the rotation.
-    const g = document.createElementNS(ns, 'g');
-    g.setAttribute('transform', `rotate(${k * 360 / n} 50 50)`);
-    g.append(r);
-    svg.append(g);
-  }
-  const shot = document.querySelector('.hero-shot');
-  shot.insertBefore(svg, shot.querySelector('img'));
-}
-
 // Latest build: when the nightly branch last changed, and the newest Manager release.
 (async () => {
   try {
