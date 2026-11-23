@@ -17,17 +17,27 @@ for (const h of document.querySelectorAll('.flex')) {
 // Freeze which words sit on each line, so letters can grow and push their neighbours
 // along the line without words jumping to the next line or the page moving.
 function lock(root) {
-  for (const h of root.querySelectorAll('.flex')) {
-    h.classList.add('measure'); h.classList.remove('play');
+  // Only headings measured at another width need it, so revisiting a tab costs no layout.
+  // Writes, then one round of reads, then writes: a single forced layout for all of them.
+  const width = String(innerWidth);
+  const heads = [...root.querySelectorAll('.flex')].filter(h => h.dataset.w !== width);
+  if (!heads.length) return;
+  const boxes = heads.map(h => {
+    h.classList.add('measure');
     const box = h.querySelector('[aria-hidden]');
     const words = [...box.querySelectorAll('.w')];
     box.replaceChildren(...words.flatMap((w, i) => i ? [' ', w] : [w]));
-    const lines = [];
-    for (const w of words) {
+    return { h, box, words };
+  });
+  for (const b of boxes) {
+    b.lines = [];
+    for (const w of b.words) {
       const top = w.offsetTop;
-      if (!lines.length || Math.abs(lines.at(-1).top - top) > 2) lines.push({ top, words: [] });
-      lines.at(-1).words.push(w);
+      if (!b.lines.length || Math.abs(b.lines.at(-1).top - top) > 2) b.lines.push({ top, words: [] });
+      b.lines.at(-1).words.push(w);
     }
+  }
+  for (const { h, box, lines } of boxes) {
     box.replaceChildren(...lines.map((l, n) => {
       const line = document.createElement('span');
       line.className = 'line';
@@ -36,6 +46,7 @@ function lock(root) {
       return line;
     }));
     h.classList.remove('measure');
+    h.dataset.w = width;
   }
 }
 
@@ -50,6 +61,7 @@ const sweepWatch = new IntersectionObserver(entries => {
 }, { rootMargin: '0px 0px -8% 0px' });
 
 function sweep(root) {
+  for (const h of root.querySelectorAll('.flex')) h.classList.remove('play');
   lock(root);
   if (reduce) return;
   document.documentElement.classList.remove('wait');
