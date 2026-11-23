@@ -72,36 +72,22 @@ for (const t of tabs) new ResizeObserver(() => { if (!tabBar.classList.contains(
 
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
 
-// Reading progress as the player's seek wave: flat while you scroll, rippling back when you stop.
-const seekLine = document.querySelector('.seek-line'), seekDot = document.querySelector('.seek-dot');
-let seekP = 0, amp = 1, ampVel = 0, lastScroll = -1e9, seekLoop = 0;
-function drawSeek() {
-  const len = innerWidth * seekP;
-  const y = x => 6 + amp * 3 * Math.sin(x * Math.PI / 12);
-  let d = 'M0 6';
-  for (let x = 3; x < len; x += 3) d += `L${x} ${y(x).toFixed(1)}`;
-  if (len > 0) d += `L${len.toFixed(1)} ${y(len).toFixed(2)}`;
-  seekLine.setAttribute('d', d);
-  seekDot.setAttribute('cx', len.toFixed(1));
-  seekDot.setAttribute('cy', y(len).toFixed(2));
-  seekDot.style.opacity = len > 1 ? 1 : 0;
-}
-function seekStep() {
-  const target = performance.now() - lastScroll < 160 ? 0 : 1;
-  ampVel = (ampVel + (target - amp) * .14) * .78; // a soft spring, so it overshoots a little coming back
-  amp += ampVel;
-  drawSeek();
-  if (Math.abs(ampVel) > .001 || Math.abs(target - amp) > .001 || target === 0) seekLoop = requestAnimationFrame(seekStep);
-  else { amp = target; drawSeek(); seekLoop = 0; }
-}
-// The page height is measured only when it changes, not on every scroll event.
+// Reading progress as the player's seek wave. Browsers with scroll timelines move it themselves;
+// others get three transforms per frame. Scrolling only toggles a class twice: straight, then wavy.
+const seek = document.querySelector('.seek');
+const seekByCss = CSS.supports('animation-timeline: scroll()');
+const seekClip = seek.querySelector('.seek-clip'), seekInner = seek.querySelectorAll('.seek-wave, .seek-flat'), seekDot = seek.querySelector('.seek-dot');
 let maxScroll = 1;
 const measureScroll = () => { maxScroll = document.documentElement.scrollHeight - innerHeight; };
 new ResizeObserver(() => { measureScroll(); updateSeek(); }).observe(document.querySelector('main'));
 function updateSeek() {
-  seekP = maxScroll > 0 ? Math.min(1, scrollY / maxScroll) : 0;
-  if (!seekLoop) drawSeek();
+  if (seekByCss) return;
+  const p = maxScroll > 0 ? Math.min(1, scrollY / maxScroll) : 0;
+  seekClip.style.transform = `translateX(${(p - 1) * 100}%)`;
+  for (const el of seekInner) el.style.transform = `translateX(${(1 - p) * 100}%)`;
+  seekDot.style.transform = `translateX(${p * innerWidth}px)`;
 }
+let seekIdle;
 
 function show(first) {
   const id = location.hash.slice(1);
@@ -352,10 +338,11 @@ addEventListener('resize', () => {
 });
 let scrollQueued = false;
 addEventListener('scroll', () => {
-  if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; updateSeek(); }); }
+  if (!seekByCss && !scrollQueued) { scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; updateSeek(); }); }
   if (reduce) return;
-  lastScroll = performance.now();
-  if (!seekLoop) seekLoop = requestAnimationFrame(seekStep);
+  if (!seek.classList.contains('seeking')) seek.classList.add('seeking');
+  clearTimeout(seekIdle);
+  seekIdle = setTimeout(() => seek.classList.remove('seeking'), 180);
 }, { passive: true });
 
 // Palettes from the app: name, bg, surfHi, ink, accent2, inkDim, accent.
@@ -572,7 +559,7 @@ if (!reduce) {
     const s = 2 + Math.random() * 5;
     m.className = 'mote';
     m.style.cssText = `left:${Math.random() * 100}%;top:${30 + Math.random() * 75}%;width:${s}px;height:${s}px;` +
-      `--d:${14 + Math.random() * 18}s;--dl:${-Math.random() * 30}s;--o:${.25 + Math.random() * .5};--x:${(Math.random() - .5) * 80}px`;
+      `animation-name:float-${'abc'[n % 3]};animation-duration:${14 + Math.random() * 18}s;animation-delay:${-Math.random() * 30}s`;
     aura.append(m);
   }
 }

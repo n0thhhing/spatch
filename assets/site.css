@@ -55,20 +55,36 @@ code { font: inherit; color: var(--fog); background: var(--raise); padding: .05e
 .mote {
   position: absolute; border-radius: 50%;
   background: color-mix(in srgb, var(--acc) 70%, white);
-  animation: float var(--d) linear var(--dl) infinite;
+  animation: float-a 20s linear infinite;
   opacity: 0;
 }
-@keyframes float {
-  0% { transform: translateY(0); opacity: 0; }
-  15%, 70% { opacity: var(--o); }
-  100% { transform: translateY(-34vh) translateX(var(--x)); opacity: 0; }
-}
+/* Literal values only: keyframes that read CSS variables can't be handed to the compositor. */
+@keyframes float-a { 0% { transform: translate(0, 0); opacity: 0; } 15%, 70% { opacity: .55; } 100% { transform: translate(30px, -34vh); opacity: 0; } }
+@keyframes float-b { 0% { transform: translate(0, 0); opacity: 0; } 15%, 70% { opacity: .4; } 100% { transform: translate(-26px, -30vh); opacity: 0; } }
+@keyframes float-c { 0% { transform: translate(0, 0); opacity: 0; } 15%, 70% { opacity: .65; } 100% { transform: translate(8px, -38vh); opacity: 0; } }
 
-/* Reading progress drawn as the player's seek wave. */
-/* It straightens while you scroll and ripples back when you stop, like dragging the seek line. */
-.seek { position: fixed; left: 0; top: 0; width: 100%; height: 12px; z-index: 30; pointer-events: none; overflow: visible; }
-.seek-line { fill: none; stroke: var(--acc); stroke-width: 2.4; stroke-linecap: round; }
-.seek-dot { fill: var(--acc); }
+/* Reading progress drawn as the player's seek wave, straight while you scroll.
+   Progress runs on a scroll timeline (no script per frame); transforms and opacity only. */
+.seek { position: fixed; left: 0; top: 0; width: 100%; height: 12px; z-index: 30; pointer-events: none; overflow: hidden; }
+.seek-clip { position: absolute; inset: 0; overflow: hidden; transform: translateX(-100%); }
+.seek-wave, .seek-flat { position: absolute; inset: 0; transform: translateX(100%); transition: opacity .3s ease; }
+.seek-wave {
+  background: var(--acc);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12'%3E%3Cpath d='M0 6 Q6 1 12 6 T24 6' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x left center;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12'%3E%3Cpath d='M0 6 Q6 1 12 6 T24 6' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x left center;
+}
+.seek-flat { top: 4.8px; bottom: auto; height: 2.4px; border-radius: 2px; background: var(--acc); opacity: 0; }
+.seek.seeking .seek-wave { opacity: 0; }
+.seek.seeking .seek-flat { opacity: 1; }
+.seek-dot { position: absolute; left: -5px; top: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--acc); }
+@supports (animation-timeline: scroll()) {
+  .seek-clip { animation: seek-clip linear both; animation-timeline: scroll(root); }
+  .seek-wave, .seek-flat { animation: seek-in linear both; animation-timeline: scroll(root); }
+  .seek-dot { animation: seek-dot linear both; animation-timeline: scroll(root); }
+}
+@keyframes seek-clip { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes seek-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes seek-dot { from { transform: translateX(0); } to { transform: translateX(100vw); } }
 
 /* Header and tabs */
 .top {
@@ -194,7 +210,7 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
 
 
 .hero-shot { margin: 0; justify-self: center; width: min(100%, 370px); position: relative; animation: bob 7s ease-in-out infinite; }
-.hero-shot img { position: relative; border-radius: 36px; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: 0 50px 90px -30px rgba(8, 10, 20, .75); }
+.hero-shot img { position: relative; border-radius: 36px; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: 0 28px 44px -24px rgba(8, 10, 20, .75); }
 .halo {
   position: absolute; left: 50%; top: 50%;
   width: 150%; aspect-ratio: 1; height: auto;
@@ -213,7 +229,7 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
 .shots figure:nth-child(1) { margin-top: 56px; }
 .shots figure:nth-child(3) { margin-top: 36px; }
 .shots figure:nth-child(4) { margin-top: 84px; }
-.shots img, .row-shots img { border-radius: 30px; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: 0 30px 60px -30px rgba(8, 10, 20, .6); }
+.shots img, .row-shots img { border-radius: 30px; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: 0 16px 28px -18px rgba(8, 10, 20, .6); }
 .shots figure:hover { transform: translateY(-10px) rotate(-1.2deg); }
 .shots figcaption { color: var(--dim); margin-top: 18px; font-size: 1rem; }
 
@@ -315,7 +331,7 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
 .wide-text h2 { grid-row: span 2; }
 .wide-text p { margin: 0; color: var(--dim); max-width: 32em; }
 .wide-text p:first-of-type { color: var(--fog); font-size: 1.1875rem; line-height: 1.55; }
-.land-hero, .land-row img { border-radius: 26px; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: 0 30px 60px -30px rgba(8, 10, 20, .6); }
+.land-hero, .land-row img { border-radius: 26px; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: 0 16px 28px -18px rgba(8, 10, 20, .6); }
 .land-hero { width: 100%; }
 .land-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2vw, 28px); margin-top: clamp(14px, 2vw, 28px); }
 .land-row figure { margin: 0; }
@@ -480,7 +496,7 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
   .tabs {
     position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom));
     background: color-mix(in srgb, color-mix(in srgb, var(--bg) 82%, var(--fog)) 94%, transparent);
-    box-shadow: 0 16px 40px -12px rgba(0, 0, 0, .6);
+    box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6);
   }
   .tabs { padding: 6px; gap: 0; }
   .tab-ind { top: 6px; bottom: 6px; }
