@@ -89,6 +89,47 @@ function dayLabel(d) {
   return d.toLocaleDateString(undefined, opts);
 }
 
+// Rough area for each change, from its wording; first match wins.
+const AREAS = [
+  ['Landscape', /landscape/i],
+  ['Widget', /widget/i],
+  ['Lyrics', /lyric/i],
+  ['Sound', /\beq\b|equali[sz]er|sound|bass boost|loudness|reverb|limiter|autoeq/i],
+  ['Manager', /manager|clone|nightly|install|signing|patch/i],
+  ['Player', /player|cover|artwork|seek|visuali[sz]er|transport|wave|backdrop|blur|glow|disc|pulse|audio|heart|like|sleep|timer|previous|shuffle|repeat|track/i],
+  ['Library', /library|playlist|album|liked|search|queue|home|download/i],
+  ['Settings', /setting|appearance|palette|theme|toggle|option/i],
+];
+const areaOf = msg => (AREAS.find(([, re]) => re.test(msg)) || ['Other'])[0];
+const areaBox = document.querySelector('.areas');
+let areaPick = 'All';
+
+function filterLog() {
+  for (const day of log.querySelectorAll('.day')) {
+    let n = 0;
+    for (const li of day.querySelectorAll('li')) {
+      const show = areaPick === 'All' || li.dataset.area === areaPick;
+      li.hidden = !show; n += show;
+    }
+    day.hidden = n === 0;
+    day.querySelector('.day-head p').textContent = n === 1 ? '1 change' : `${n} changes`;
+  }
+  for (const b of areaBox.children) b.setAttribute('aria-pressed', String(b.textContent === areaPick));
+  updateSeek();
+}
+
+function buildAreas() {
+  const present = new Set([...log.querySelectorAll('li')].map(li => li.dataset.area));
+  const names = ['All', ...AREAS.map(a => a[0]), 'Other'].filter(n => n === 'All' || present.has(n));
+  areaBox.replaceChildren(...names.map(n => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'area'; b.textContent = n;
+    b.addEventListener('click', () => { areaPick = n; filterLog(); });
+    return b;
+  }));
+  areaBox.hidden = false;
+}
+
 function addCommit(c) {
   const d = new Date(c.commit.committer.date);
   if (d.toDateString() !== lastDay) {
@@ -109,13 +150,18 @@ function addCommit(c) {
   const n = ++dayCount.dataset.n;
   dayCount.textContent = n === 1 ? '1 change' : `${n} changes`;
   const li = document.createElement('li');
+  const msg = c.commit.message.split('\n')[0].replace(/\.$/, '');
+  li.dataset.area = areaOf(msg);
+  const tag = document.createElement('span');
+  tag.className = 'tag';
+  tag.textContent = li.dataset.area;
   const text = document.createElement('span');
-  text.textContent = c.commit.message.split('\n')[0].replace(/\.$/, '');
+  text.textContent = msg;
   const a = document.createElement('a');
   a.href = c.html_url;
   a.textContent = c.sha.slice(0, 7);
   a.setAttribute('aria-label', `See change ${c.sha.slice(0, 7)} on GitHub`);
-  li.append(text, ' ', a);
+  li.append(tag, text, ' ', a);
   dayList.append(li);
 }
 
@@ -145,6 +191,8 @@ async function loadLog() {
     logPage++;
     commits.forEach(addCommit);
     more.hidden = commits.length < PER_PAGE;
+    buildAreas();
+    filterLog();
   } catch (status) {
     logError(status);
   } finally {
@@ -169,6 +217,105 @@ addEventListener('resize', () => {
 });
 // shortcut: unthrottled scroll handler; it is one style write per frame.
 addEventListener('scroll', () => requestAnimationFrame(updateSeek), { passive: true });
+
+// Palettes from the app: name, bg, surfHi, ink, accent2, inkDim, accent.
+const PALETTES = [
+  ['Lavender', 0x14121c, 0x2b2640, 0xf3eeff, 0xc6b8ff, 0xbcb3dc, 0xd0bcff],
+  ['Gruvbox', 0x282828, 0x504945, 0xfbf1c7, 0xd5c4a1, 0xa89984, 0xfe8019],
+  ['Catppuccin Mocha', 0x1e1e2e, 0x45475a, 0xcdd6f4, 0xf5c2e7, 0xa6adc8, 0xcba6f7],
+  ['Catppuccin Macchiato', 0x24273a, 0x494d64, 0xcad3f5, 0xa5adcb, 0x888ea8, 0xc6a0f6],
+  ['Catppuccin Frappé', 0x303446, 0x51576d, 0xc6d0f5, 0xa5adce, 0x969cb4, 0xca9ee6],
+  ['Rosé Pine', 0x191724, 0x26233a, 0xe0def4, 0xebbcba, 0x908caa, 0xc4a7e7],
+  ['Rosé Pine Moon', 0x2a273f, 0x44415a, 0xe0def4, 0x918dab, 0x918ea3, 0xc4a7e7],
+  ['Nord', 0x2e3440, 0x434c5e, 0xeceff4, 0x8fbcbb, 0xd8dee9, 0x88c0d0],
+  ['Tokyo Night', 0x1a1b26, 0x292e42, 0xc0caf5, 0xbb9af7, 0x9aa5ce, 0x7aa2f7],
+  ['Tokyo Night Storm', 0x24283b, 0x3b4261, 0xc0caf5, 0xa9b1d6, 0x898fac, 0x7aa2f7],
+  ['Dracula', 0x282a36, 0x44475a, 0xf8f8f2, 0xff79c6, 0xadb5cb, 0xbd93f9],
+  ['Gruvbox Material', 0x282828, 0x45403d, 0xddc7a1, 0xd4be98, 0xa89984, 0xa9b665],
+  ['Everforest', 0x2d353b, 0x475258, 0xd3c6aa, 0x9da9a0, 0x949f97, 0xa7c080],
+  ['Kanagawa', 0x1f1f28, 0x363646, 0xdcd7ba, 0xc8c093, 0x898881, 0x7e9cd8],
+  ['Solarized', 0x002b36, 0x0d4452, 0x9fabab, 0x839496, 0x809196, 0x3794d6],
+  ['One', 0x282c34, 0x3e4451, 0xabb2bf, 0x9da5b4, 0x8f939c, 0x61afef],
+  ['Spotify', 0x121212, 0x2a2a2a, 0xffffff, 0xb3b3b3, 0x7d7d7d, 0x1ed760],
+  ['Graphite', 0x19191b, 0x2e2e31, 0xececee, 0xa9a9ae, 0x818187, 0xececed],
+];
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+const lum = n => (.2126 * (n >> 16 & 255) + .7152 * (n >> 8 & 255) + .0722 * (n & 255)) / 255;
+const PALETTE_VARS = ['--bg', '--fog', '--dim', '--acc', '--ink', '--t1', '--t2', '--t3'];
+
+function applyPalette(i) {
+  const s = document.body.style;
+  const p = PALETTES[i];
+  if (!p) PALETTE_VARS.forEach(v => s.removeProperty(v));
+  else {
+    const [, bg, hi, ink, acc2, dim, acc] = p;
+    s.setProperty('--bg', hex(bg)); s.setProperty('--fog', hex(ink)); s.setProperty('--dim', hex(dim));
+    s.setProperty('--acc', hex(acc)); s.setProperty('--ink', lum(acc) > .55 ? '#101014' : '#ffffff');
+    s.setProperty('--t1', `color-mix(in srgb, ${hex(acc)} 50%, ${hex(bg)})`);
+    s.setProperty('--t2', `color-mix(in srgb, ${hex(acc2)} 40%, ${hex(bg)})`);
+    s.setProperty('--t3', hex(hi));
+  }
+  for (const b of document.querySelectorAll('.swatch')) b.setAttribute('aria-pressed', String(+b.dataset.i === i));
+  document.querySelector('.pal-name').textContent = p ? `Showing ${p[0]}.` : '';
+  try { p ? localStorage.setItem('spatch-palette', p[0]) : localStorage.removeItem('spatch-palette'); } catch {}
+}
+
+{
+  const box = document.querySelector('.swatches');
+  const make = (i, name, cls, bg, acc) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'swatch' + cls; b.dataset.i = i; b.title = name;
+    b.setAttribute('aria-label', name); b.setAttribute('aria-pressed', 'false');
+    if (bg) { b.style.setProperty('--sw-bg', bg); b.style.setProperty('--sw-acc', acc); }
+    b.addEventListener('click', () => applyPalette(i));
+    box.append(b);
+  };
+  make(-1, 'Dynamic: colours from each tab', ' dynamic');
+  PALETTES.forEach((p, i) => make(i, p[0], '', hex(p[1]), hex(p[6])));
+  document.querySelector('.palettes').hidden = false;
+  let saved = -1;
+  try { saved = PALETTES.findIndex(p => p[0] === localStorage.getItem('spatch-palette')); } catch {}
+  applyPalette(saved);
+}
+
+// Ring of bars behind the hero phone.
+{
+  const n = 72, ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'bars'); svg.setAttribute('viewBox', '0 0 100 100'); svg.setAttribute('aria-hidden', 'true');
+  for (let k = 0; k < n; k++) {
+    const r = document.createElementNS(ns, 'rect');
+    r.setAttribute('x', 49.3); r.setAttribute('y', 1); r.setAttribute('width', 1.4); r.setAttribute('height', 10); r.setAttribute('rx', .7);
+    r.style.cssText = `--d:${.9 + (k * 7 % 5) * .18}s;--dl:${-k * .07}s`;
+    // Rotate a wrapper, not the bar: CSS scale on the bar would otherwise apply after the rotation.
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('transform', `rotate(${k * 360 / n} 50 50)`);
+    g.append(r);
+    svg.append(g);
+  }
+  const shot = document.querySelector('.hero-shot');
+  shot.insertBefore(svg, shot.querySelector('img'));
+}
+
+// Latest build: when the nightly branch last changed, and the newest Manager release.
+(async () => {
+  try {
+    const [c, r] = await Promise.all([
+      fetch(`https://api.github.com/repos/${REPO}/commits/${BRANCH}`).then(x => x.ok ? x.json() : Promise.reject()),
+      fetch(`https://api.github.com/repos/${REPO}/releases/latest`).then(x => x.ok ? x.json() : null).catch(() => null),
+    ]);
+    const mins = (new Date(c.commit.committer.date) - Date.now()) / 60000;
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+    const ago = Math.abs(mins) < 60 ? rtf.format(Math.round(mins), 'minute')
+      : Math.abs(mins) < 1440 ? rtf.format(Math.round(mins / 60), 'hour') : rtf.format(Math.round(mins / 1440), 'day');
+    const t = document.querySelector('.build-text');
+    const a = document.createElement('a');
+    a.href = '#changelog'; a.textContent = `Last updated ${ago}`;
+    t.append(a, '.');
+    if (r && r.name) t.append(` ${r.name} is the latest release.`);
+    document.querySelector('.build').hidden = false;
+  } catch {}
+})();
 
 // Motes drifting up, like the player's.
 if (!reduce) {

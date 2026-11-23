@@ -45,6 +45,7 @@
             <a class="quiet" href="#install">How to install</a>
           </div>
           <p class="fine">For Spotify 9.2.0.2053 on 64-bit Android 10 or newer.</p>
+          <p class="build" hidden><span class="live" aria-hidden="true"></span><span class="build-text"></span></p>
         </div>
         <figure class="hero-shot">
           <svg class="halo" aria-hidden="true"><use href="#cookie"/></svg>
@@ -129,6 +130,10 @@
           <h2 class="flex">Make it look the way you like</h2>
           <p>Pick a palette, or let the app take its colours from each cover. Choose light, dark or the system setting, and an accent colour for songs without art.</p>
           <p>The player’s visualizer can be bars, a ring, a contour or nothing. Spinning artwork, the bass pulse, the cover glow and the blurred backdrop each switch on and off on their own.</p>
+          <div class="palettes" hidden>
+            <p class="pal-head">Try the app’s palettes on this page. <span class="pal-name" aria-live="polite"></span></p>
+            <div class="swatches" role="group" aria-label="Palettes"></div>
+          </div>
         </div>
         <div class="row-shots two">
           <img src="assets/screens/appearance.webp" width="720" height="1433" loading="lazy" alt="Appearance settings: palettes named Dynamic, Lavender and Gruvbox, the theme switch, Artwork colours, accent colours and Expressive type.">
@@ -173,11 +178,22 @@
         </li>
       </ol>
 
+      <article class="row">
+        <div class="row-text">
+          <h2 class="flex">The Manager keeps it up to date</h2>
+          <p>Its Changes page lists what’s new in each nightly. Turn on Tell me about new patches and it checks twice a day, then updates Spatch in place with the same key, so your login and downloads stay.</p>
+          <p>Clones installs a second Spotify with its own name, icon, login and downloads, so you can keep the regular app as well.</p>
+        </div>
+        <div class="row-shots two">
+          <img src="assets/screens/manager-changes.webp" width="720" height="1433" loading="lazy" alt="Spatch Manager’s Changes page: Refresh and GitHub releases buttons above a timeline of nightly changes, newest first.">
+          <img src="assets/screens/manager-clones.webp" width="720" height="1433" loading="lazy" alt="Spatch Manager’s Clones page: an installed clone called Spotify Two with Open, Update and Uninstall, and a form to create a new clone.">
+        </div>
+      </article>
+
       <section class="split" aria-labelledby="after-h">
-        <h2 id="after-h">After you install</h2>
+        <h2 id="after-h">Keep your key</h2>
         <div class="prose">
-          <p>Updates install in place with the same key, so your login and downloads stay. Turn on Tell me about new patches and the Manager checks twice a day.</p>
-          <p>Export the key from the Manager and keep it: without it, updating means uninstalling first. The Manager can also add a second Spotify with its own name and login.</p>
+          <p>Android only installs an update signed with the same key. Use Export key in the Manager and keep the file somewhere safe: without it, updating means uninstalling first, which removes your downloads.</p>
           <p><a class="button" href="https://github.com/n0thhhing/spatch/releases"><svg class="spin" width="22" height="22" aria-hidden="true"><use href="#cookie"/></svg>Get Spatch Manager</a></p>
         </div>
       </section>
@@ -227,6 +243,7 @@
         <h1 class="flex">Changelog</h1>
         <p class="lede">Every change to Spatch, newest first. Each one builds a new nightly, which the Manager installs when Nightly patches is on.</p>
       </header>
+      <div class="areas" role="group" aria-label="Show changes to" hidden></div>
       <div class="log" aria-live="polite">
         <p class="log-status"><svg class="loader" aria-hidden="true"><use href="#cookie"/></svg>Loading changes from GitHub…</p>
       </div>
