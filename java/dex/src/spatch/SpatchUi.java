@@ -3683,7 +3683,16 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
             toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
-            toggle(player, "Hide controls when idle", "While music plays, the top bar and controls fade after five seconds; touch to bring them back", "idle_hide", false, false);
+            toggle(player, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false);
+            if (pref("idle_hide", false)) {
+                multiChips(player, "Fade when idle", new String[][]{
+                    {"Top bar", "idle_hide_top", "1"},
+                    {"Title & artist", "idle_hide_title", "0"},
+                    {"Seek bar", "idle_hide_wave", "0"},
+                    {"Controls", "idle_hide_controls", "1"},
+                    {"Up next", "idle_hide_next", "1"}
+                });
+            }
             toggle(player, "Allow rotation", "Experimental: a landscape player with the lyrics beside the cover", "rotate", false, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
@@ -4007,6 +4016,63 @@ public final class SpatchUi extends FrameLayout {
         box.addView(group, fill(-2));
     }
 
+    /** Multi-select filter chips in a wrapping row; each item is {label, prefKey, "1"|"0" default}. */
+    private void multiChips(LinearLayout box, String name, String[][] items) {
+        TextView label = text(name, 14, () -> inkDim, true);
+        label.setPadding(dp(18), dp(2), dp(18), dp(8));
+        box.addView(label);
+        final int gap = dp(8);
+        android.view.ViewGroup wrap = new android.view.ViewGroup(activity) {
+            @Override protected void onMeasure(int wSpec, int hSpec) {
+                int max = MeasureSpec.getSize(wSpec), padL = getPaddingLeft(), padR = getPaddingRight();
+                int avail = Math.max(1, max - padL - padR), x = 0, y = getPaddingTop(), rowH = 0;
+                for (int i = 0; i < getChildCount(); i++) {
+                    View child = getChildAt(i);
+                    child.measure(MeasureSpec.makeMeasureSpec(avail, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                    int cw = child.getMeasuredWidth(), ch = child.getMeasuredHeight();
+                    if (x > 0 && x + cw > avail) { y += rowH + gap; x = 0; rowH = 0; }
+                    x += cw + gap;
+                    rowH = Math.max(rowH, ch);
+                }
+                setMeasuredDimension(max, y + rowH + getPaddingBottom());
+            }
+            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+                int avail = Math.max(1, r - l - getPaddingLeft() - getPaddingRight());
+                int x = getPaddingLeft(), y = getPaddingTop(), rowH = 0;
+                for (int i = 0; i < getChildCount(); i++) {
+                    View child = getChildAt(i);
+                    int cw = child.getMeasuredWidth(), ch = child.getMeasuredHeight();
+                    if (x > getPaddingLeft() && (x - getPaddingLeft()) + cw > avail) { y += rowH + gap; x = getPaddingLeft(); rowH = 0; }
+                    child.layout(x, y, x + cw, y + ch);
+                    x += cw + gap;
+                    rowH = Math.max(rowH, ch);
+                }
+            }
+        };
+        wrap.setPadding(dp(16), 0, dp(16), dp(12));
+        for (String[] item : items) {
+            String title = item[0], key = item[1];
+            boolean on = pref(key, "1".equals(item[2]));
+            LinearLayout chip = row();
+            chip.setPadding(dp(12), dp(8), dp(14), dp(8));
+            bgRound(chip, 18, () -> on ? accent : surfHi);
+            if (on) {
+                View check = icon("check", () -> onAccent);
+                LinearLayout.LayoutParams cp = lp(dp(14), dp(14));
+                cp.rightMargin = dp(6);
+                chip.addView(check, cp);
+            }
+            TextView tv = text(title, 13, () -> on ? onAccent : ink, true);
+            chip.addView(tv);
+            tappable(chip, name + ": " + title + (on ? ", on" : ", off"), () -> {
+                prefs.edit().putBoolean(key, !on).apply();
+                settingsChanged(false);
+            });
+            wrap.addView(chip);
+        }
+        box.addView(wrap, fill(-2));
+    }
+
     /** A strip of palette cards: Dynamic follows the cover and accent, the rest are fixed palettes. */
     private void paletteRow(LinearLayout box) {
         TextView label = text("Palette", 16, () -> ink, true);
@@ -4183,6 +4249,10 @@ public final class SpatchUi extends FrameLayout {
             if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
             else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
+            else if (key.equals("idle_hide")) {
+                if (!sw.on) { idleHidden = false; for (View v : idleViews) v.setAlpha(1f); }
+                settingsChanged(false);
+            }
             else if (key.equals("rotate")) applyRotation();
             else if (rebuild) { int y = pageScroll != null ? pageScroll.getScrollY() : 0; build(); keepScroll(pageScroll, y); }
         });
@@ -4583,8 +4653,8 @@ public final class SpatchUi extends FrameLayout {
     private boolean idleHidden, idleSwallow;
     private final Runnable idleHide = new Runnable() {
         @Override public void run() {
-            if (player == null || !pref("idle_hide", false)) return;
-            if (!playing || queuePanel != null) { player.postDelayed(this, 5000); return; }
+            if (player == null || !pref("idle_hide", false) || idleViews.length == 0) return;
+            if (!playing || queuePanel != null || lyricsPanel != null) { player.postDelayed(this, 5000); return; }
             idleHidden = true;
             for (View v : idleViews) v.animate().alpha(0f).setDuration(motion() ? 400 : 0).start();
         }
@@ -4593,7 +4663,7 @@ public final class SpatchUi extends FrameLayout {
     private void idleTouched() {
         if (player == null) return;
         player.removeCallbacks(idleHide);
-        if (!pref("idle_hide", false)) return;
+        if (!pref("idle_hide", false) || idleViews.length == 0) return;
         if (idleHidden) {
             idleHidden = false;
             for (View v : idleViews) v.animate().alpha(1f).setDuration(motion() ? 200 : 0).start();
@@ -4799,7 +4869,13 @@ public final class SpatchUi extends FrameLayout {
         np.topMargin = dp(12);
         if (!land && pref("player_next", true)) col.addView(nextPill, np);
         tappable(nextPill, "Up next", this::openQueue);
-        idleViews = new View[]{top, controls, nextPill};
+        List<View> hide = new ArrayList<>();
+        if (pref("idle_hide_top", true)) hide.add(top);
+        if (pref("idle_hide_title", false)) hide.add(titleRow);
+        if (pref("idle_hide_wave", false)) hide.add(wave);
+        if (pref("idle_hide_controls", true)) hide.add(controls);
+        if (pref("idle_hide_next", true)) hide.add(nextPill);
+        idleViews = hide.toArray(new View[0]);
         idleTouched();
         if (land) {
             FrameLayout host = new FrameLayout(activity);
