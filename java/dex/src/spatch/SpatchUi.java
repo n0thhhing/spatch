@@ -5189,8 +5189,8 @@ public final class SpatchUi extends FrameLayout {
         int from = params.height < 0 ? full : params.height, to = open ? full : 0;
         if (!motion()) {
             params.height = open ? -2 : 0;
-            params.topMargin = open ? dp(6) : 0;
-            params.bottomMargin = open ? dp(8) : 0;
+            params.topMargin = open ? dp(10) : 0;
+            params.bottomMargin = open ? dp(12) : 0;
             box.setLayoutParams(params);
             box.setAlpha(open ? 1f : 0f);
             return;
@@ -5201,14 +5201,14 @@ public final class SpatchUi extends FrameLayout {
         grow.addUpdateListener(a -> {
             params.height = (int) a.getAnimatedValue();
             float shown = full == 0 ? 0 : Math.min(1f, params.height / (float) full);
-            params.topMargin = Math.round(dp(6) * shown);
-            params.bottomMargin = Math.round(dp(8) * shown);
+            params.topMargin = Math.round(dp(10) * shown);
+            params.bottomMargin = Math.round(dp(12) * shown);
             box.setLayoutParams(params);
         });
         grow.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(android.animation.Animator done) {
-                params.topMargin = open ? dp(6) : 0;
-                params.bottomMargin = open ? dp(8) : 0;
+                params.topMargin = open ? dp(10) : 0;
+                params.bottomMargin = open ? dp(12) : 0;
                 if (open) params.height = -2;
                 box.setLayoutParams(params);
             }
@@ -5255,7 +5255,7 @@ public final class SpatchUi extends FrameLayout {
         if (visible && !key.equals(lyricKey)) {
             lyricKey = key;
             for (int i = 0; i < 3; i++) rows[i].setText(want[i]);
-            float[] from = { 1f, .35f, 0f }, to = { .35f, 1f, .35f };
+            float[] from = { 1f, .38f, 0f }, to = { .38f, 1f, .38f };
             if (motion() && !want[1].isEmpty()) {
                 // The lines step up: each fades to the look of the one above it while the block slides up into place.
                 // Moved row by row inside the box (which clips its children), so nothing slides over the title below.
@@ -5392,12 +5392,14 @@ public final class SpatchUi extends FrameLayout {
             TextView[] rows = new TextView[3];
             for (int k = 0; k < 3; k++) {
                 final boolean sung = k == 1;
-                rows[k] = text("", sung ? 19 : 15, () -> sung ? blend(ink, accent, .22f) : ink, true); // a soft cover-tinted white
-                if (sung) rows[k].setShadowLayer(dp(10), 0, 0, (accent & 0x00ffffff) | 0x66000000);
-                rows[k].setGravity(Gravity.CENTER);
+                // Left-aligned with the title below it, so the lyrics read as part of the same column; the sung line is bright and glows.
+                rows[k] = text("", sung ? 24 : 16, () -> ink, true);
+                rows[k].setLineSpacing(0, 1.05f);
+                if (sung) rows[k].setShadowLayer(dp(12), 0, 0, (accent & 0x00ffffff) | 0x80000000);
+                rows[k].setGravity(Gravity.START);
                 rows[k].setSingleLine(true);
                 rows[k].setEllipsize(android.text.TextUtils.TruncateAt.END);
-                rows[k].setAlpha(sung ? 1f : .35f);
+                rows[k].setAlpha(sung ? 1f : .38f);
                 box.addView(rows[k], fill(-2));
             }
             box.setTag(rows);
