@@ -5189,8 +5189,8 @@ public final class SpatchUi extends FrameLayout {
         int from = params.height < 0 ? full : params.height, to = open ? full : 0;
         if (!motion()) {
             params.height = open ? -2 : 0;
-            params.topMargin = open ? dp(10) : 0;
-            params.bottomMargin = open ? dp(12) : 0;
+            params.topMargin = open ? dp(12) : 0;
+            params.bottomMargin = open ? dp(14) : 0;
             box.setLayoutParams(params);
             box.setAlpha(open ? 1f : 0f);
             return;
@@ -5201,14 +5201,14 @@ public final class SpatchUi extends FrameLayout {
         grow.addUpdateListener(a -> {
             params.height = (int) a.getAnimatedValue();
             float shown = full == 0 ? 0 : Math.min(1f, params.height / (float) full);
-            params.topMargin = Math.round(dp(10) * shown);
-            params.bottomMargin = Math.round(dp(12) * shown);
+            params.topMargin = Math.round(dp(12) * shown);
+            params.bottomMargin = Math.round(dp(14) * shown);
             box.setLayoutParams(params);
         });
         grow.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(android.animation.Animator done) {
-                params.topMargin = open ? dp(10) : 0;
-                params.bottomMargin = open ? dp(12) : 0;
+                params.topMargin = open ? dp(12) : 0;
+                params.bottomMargin = open ? dp(14) : 0;
                 if (open) params.height = -2;
                 box.setLayoutParams(params);
             }
@@ -5393,7 +5393,7 @@ public final class SpatchUi extends FrameLayout {
             for (int k = 0; k < 3; k++) {
                 final boolean sung = k == 1;
                 // Left-aligned with the title below it, so the lyrics read as part of the same column; the sung line is bright and glows.
-                rows[k] = text("", sung ? 24 : 16, () -> ink, true);
+                rows[k] = text("", sung ? 22 : 15, () -> ink, true);
                 rows[k].setLineSpacing(0, 1.05f);
                 if (sung) rows[k].setShadowLayer(dp(12), 0, 0, (accent & 0x00ffffff) | 0x80000000);
                 rows[k].setGravity(Gravity.START);
@@ -5404,6 +5404,9 @@ public final class SpatchUi extends FrameLayout {
             }
             box.setTag(rows);
             box.setClipChildren(true);
+            // The lines sit on a quiet glass card (rounded, a touch lighter than the backdrop) so they read as a part of the player.
+            box.setPadding(dp(20), dp(14), dp(20), dp(14));
+            bgRound(box, 26, () -> (ink & 0x00ffffff) | 0x16000000);
             tappable(box, "Open lyrics", this::openLyrics);
             LinearLayout.LayoutParams lineParams = lp(-1, 0); // collapsed until the song's lyrics are about to start
             // No margins while collapsed: a song without lyrics must not move anything (lyricBlock grows them with the height).
