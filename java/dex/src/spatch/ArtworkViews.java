@@ -332,9 +332,10 @@ final class ArtworkViews {
         private float angle;
         private SweepGradient sweep;
         private int sweepA, sweepB;
+        private float sweepCx, sweepCy;
         private RadialGradient glowA, glowB;
         private int glowAccent, glowAccent2;
-        private float glowHalf;
+        private float glowHalf, glowCx, glowCy;
         private Bitmap shown = ui.lastCover, previous;
         private String shownUrl = ui.lastCoverUrl;
         private long fadeAt, lastFrame;
@@ -352,13 +353,15 @@ final class ArtworkViews {
             paint.setAlpha(255);
         }
 
-        /** Two soft offset pools of the palette's colours behind the cover; both fade out before the view's edge. */
-        private void glow(Canvas c, float cx, float cy, float half, float artR) {
-            if (glowA == null || glowAccent != ui.accent || glowAccent2 != ui.accent2 || glowHalf != half) {
-                glowAccent = ui.accent; glowAccent2 = ui.accent2; glowHalf = half;
-                float r = half - artR * .24f;
-                glowA = new RadialGradient(cx - artR * .22f, cy + artR * .12f, r, new int[]{withAlpha(ui.accent, 150), withAlpha(ui.accent, 60), 0}, new float[]{.6f, .82f, 1f}, Shader.TileMode.CLAMP);
-                glowB = new RadialGradient(cx + artR * .24f, cy - artR * .08f, r, new int[]{withAlpha(ui.accent2, 110), withAlpha(ui.accent2, 40), 0}, new float[]{.6f, .82f, 1f}, Shader.TileMode.CLAMP);
+        /** Two soft offset pools of the palette's colours behind the cover; both fade out smoothly before the view's edge. */
+        private void glow(Canvas c, float cx, float cy, float half) {
+            if (glowA == null || glowAccent != ui.accent || glowAccent2 != ui.accent2 || glowHalf != half || glowCx != cx || glowCy != cy) {
+                glowAccent = ui.accent; glowAccent2 = ui.accent2; glowHalf = half; glowCx = cx; glowCy = cy;
+                float offX = half * .10f, offY = half * .06f;
+                float r = Math.max(1f, half - (float) Math.hypot(offX, offY));
+                float[] stops = new float[]{0f, .32f, .58f, .80f, 1f};
+                glowA = new RadialGradient(cx - offX, cy + offY, r, new int[]{withAlpha(ui.accent, 68), withAlpha(ui.accent, 40), withAlpha(ui.accent, 16), withAlpha(ui.accent, 4), 0}, stops, Shader.TileMode.CLAMP);
+                glowB = new RadialGradient(cx + offX, cy - offY, r, new int[]{withAlpha(ui.accent2, 52), withAlpha(ui.accent2, 28), withAlpha(ui.accent2, 11), withAlpha(ui.accent2, 3), 0}, stops, Shader.TileMode.CLAMP);
             }
             paint.setStyle(Paint.Style.FILL);
             paint.setShader(glowA);
@@ -372,8 +375,12 @@ final class ArtworkViews {
 
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight(), cx = w / 2f, cy = h / 2f;
-            float s = Math.min(w, h), bar = ui.dp(34);
-            float ring = Math.max(ui.dp(60), s / 2f - bar - ui.dp(8)), artR = ring - ui.dp(7);
+            float s = Math.min(w, h);
+            int bars = 72;
+            float bar = Math.min(ui.dp(34), Math.max(ui.dp(14), s * 0.16f));
+            float stroke = Math.min(ui.dp(7), (float) (Math.PI * 2 * Math.max(ui.dp(24), s / 2f - bar - ui.dp(14)) / bars) * .55f);
+            float ring = Math.max(ui.dp(24), s / 2f - bar - ui.dp(10) - stroke * .5f - ui.dp(2));
+            float artR = Math.max(ui.dp(18), ring - ui.dp(7));
             boolean animate = ui.motion();
             boolean run = ui.playing && animate;
             boolean audio = ui.pref("audio", true) && Audio.permitted(ui.activity);
@@ -398,7 +405,7 @@ final class ArtworkViews {
             }
             float fade = previous == null ? 1f : Math.min(1f, (now - fadeAt) / 450f);
             if (fade >= 1f) previous = null;
-            if (ui.pref("cover_glow", true)) glow(c, cx, cy, s / 2f, artR);
+            if (ui.pref("cover_glow", true)) glow(c, cx, cy, s / 2f);
             c.save();
             clip.rewind();
             clip.addCircle(cx, cy, artR, Path.Direction.CW);
@@ -414,9 +421,11 @@ final class ArtworkViews {
             }
             c.restore();
             if (fade < 1f) postInvalidateOnAnimation();
-            if (sweep == null || sweepA != ui.accent || sweepB != ui.accent2) {
+            if (sweep == null || sweepA != ui.accent || sweepB != ui.accent2 || sweepCx != cx || sweepCy != cy) {
                 sweepA = ui.accent;
                 sweepB = ui.accent2;
+                sweepCx = cx;
+                sweepCy = cy;
                 sweep = new SweepGradient(cx, cy, new int[]{ui.accent, ui.accent2, ui.accent, ui.accent2, ui.accent}, null);
             }
             // Visualizer style: 0 ring and bars, 1 ring only, 2 neither.
@@ -425,9 +434,8 @@ final class ArtworkViews {
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(ui.dp(5));
             if (style != 2) c.drawCircle(cx, cy, ring, paint);
-            int bars = 72;
             paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setStrokeWidth(Math.min(ui.dp(7), (float) (Math.PI * 2 * ring / bars) * .55f));
+            paint.setStrokeWidth(stroke);
             float t = now / 1000f;
             boolean live = run && audio && Audio.BANDS[0] + Audio.BANDS[8] > 0;
             int half = bars / 2;
