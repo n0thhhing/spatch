@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/pages-support.css">
 </head>
-<body data-tone="ember">
+<body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-head">
     <div class="wrap">
@@ -22,7 +22,7 @@
   </header>
 
   <main id="main">
-    <section class="band" data-track="Install" data-by="Spatch" data-tone="ember">
+    <section class="band">
       <div class="wrap stack">
         <h1>Get Spatch on your phone.</h1>
         <p class="lede">Spatch Manager patches Spotify on your phone, signs it with a key made there, and installs it. You need Android 10 or newer and the exact Spotify version Spatch is built for.</p>
@@ -75,7 +75,7 @@
       </div>
     </section>
 
-    <section class="band" data-track="After install" data-by="Spatch" data-tone="moss">
+    <section class="band">
       <div class="wrap row">
         <div class="stack">
           <h2>Updates, keys, and settings.</h2>
@@ -93,7 +93,7 @@
       </div>
     </section>
 
-    <section class="band" data-track="Computer and fixes" data-by="Install" data-tone="tide" id="cli">
+    <section class="band" id="cli">
       <div class="wrap">
         <div class="stack">
           <h2>Patching on a computer.</h2>
@@ -149,16 +149,6 @@ adb install-multiple -r base.apk split_config.*.apk</code></pre>
     </div>
   </footer>
 
-  <div class="player" role="region" aria-label="Page player">
-    <span class="disc" aria-hidden="true"></span>
-    <div class="meta"><b>Spatch</b><small>Spotify, redrawn</small></div>
-    <div class="ctl">
-      <button class="prev" type="button" aria-label="Previous section"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM9 12l11-7v14z"/></svg></button>
-      <button class="play" type="button"></button>
-      <button class="next" type="button" aria-label="Next section"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></button>
-    </div>
-    <div class="wave" aria-hidden="true"><div class="lane"><svg></svg></div><div class="done"><svg></svg></div></div>
-  </div>
   <script src="assets/site.js"></script>
 </body>
 </html>

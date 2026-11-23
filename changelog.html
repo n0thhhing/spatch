@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/pages-support.css">
 </head>
-<body data-tone="ember">
+<body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-head">
     <div class="wrap">
@@ -22,7 +22,7 @@
   </header>
 
   <main id="main">
-    <section class="band" data-track="Recent changes" data-by="Changelog" data-tone="ember">
+    <section class="band">
       <div class="wrap stack">
         <h1>What's new.</h1>
         <p class="lede">Recent changes for Spatch patches and Spatch Manager, latest first. Full release notes and APK downloads live on GitHub.</p>
@@ -121,7 +121,7 @@
       </div>
     </section>
 
-    <section class="band" data-track="GitHub Releases" data-by="Changelog" data-tone="tide">
+    <section class="band">
       <div class="wrap stack">
         <h2>Full release history on GitHub.</h2>
         <p class="lede">Browse every tagged patch bundle and Spatch Manager release, or download the latest <code>spatch-manager.apk</code>.</p>
@@ -143,16 +143,6 @@
     </div>
   </footer>
 
-  <div class="player" role="region" aria-label="Page player">
-    <span class="disc" aria-hidden="true"></span>
-    <div class="meta"><b>Spatch</b><small>Spotify, redrawn</small></div>
-    <div class="ctl">
-      <button class="prev" type="button" aria-label="Previous section"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM9 12l11-7v14z"/></svg></button>
-      <button class="play" type="button"></button>
-      <button class="next" type="button" aria-label="Next section"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></button>
-    </div>
-    <div class="wave" aria-hidden="true"><div class="lane"><svg></svg></div><div class="done"><svg></svg></div></div>
-  </div>
   <script>
     (function () {
       var buttons = document.querySelectorAll("[data-filter]");
