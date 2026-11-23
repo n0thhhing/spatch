@@ -4720,6 +4720,83 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
+    /** Circular live countdown ring with remaining time shown inside the active sleep timer sheet. */
+    private final class SleepRingView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF arc = new android.graphics.RectF();
+        private final Runnable tick = new Runnable() {
+            @Override public void run() {
+                invalidate();
+                if (isAttachedToWindow() && sleepAt > SystemClock.uptimeMillis()) postDelayed(this, 1000);
+            }
+        };
+
+        SleepRingView() {
+            super(activity);
+            colored(this, this::invalidate);
+        }
+
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            removeCallbacks(tick);
+            if (sleepAt > SystemClock.uptimeMillis()) postDelayed(tick, 1000);
+        }
+
+        @Override protected void onDetachedFromWindow() {
+            removeCallbacks(tick);
+            super.onDetachedFromWindow();
+        }
+
+        @Override protected void onMeasure(int wSpec, int hSpec) {
+            setMeasuredDimension(MeasureSpec.getSize(wSpec), landscape() ? dp(116) : dp(148));
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            long left = Math.max(0L, sleepAt - SystemClock.uptimeMillis());
+            float frac = sleepTotalMs > 0 ? Math.max(0f, Math.min(1f, left / (float) sleepTotalMs)) : 0f;
+            boolean compact = landscape();
+            float cx = getWidth() / 2f, cy = getHeight() / 2f - dp(4), r = dp(compact ? 44 : 56);
+            arc.set(cx - r, cy - r, cx + r, cy + r);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.BUTT);
+            paint.setStrokeWidth(dp(compact ? 11 : 13));
+            paint.setColor((accent2 & 0x00ffffff) | 0x22000000);
+            c.drawCircle(cx, cy, r, paint);
+            paint.setStrokeWidth(dp(compact ? 6 : 7));
+            paint.setColor(surfHi);
+            c.drawCircle(cx, cy, r, paint);
+            if (frac > 0.002f) {
+                float sweep = 360f * frac;
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor(accent);
+                c.drawArc(arc, -90f, sweep, false, paint);
+                double rad = Math.toRadians(-90f + sweep);
+                float dotX = (float) (cx + r * Math.cos(rad)), dotY = (float) (cy + r * Math.sin(rad));
+                paint.setStyle(Paint.Style.FILL);
+                c.drawCircle(dotX, dotY, dp(5), paint);
+                paint.setColor(onAccent);
+                c.drawCircle(dotX, dotY, dp(2), paint);
+            }
+            long secs = (left + 999L) / 1000L;
+            String clock = secs >= 3600
+                ? String.format(java.util.Locale.US, "%d:%02d:%02d", secs / 3600, (secs % 3600) / 60, secs % 60)
+                : String.format(java.util.Locale.US, "%02d:%02d", secs / 60, secs % 60);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            paint.setFontFeatureSettings("tnum");
+            paint.setTextSize(dp(compact ? 19 : 22));
+            paint.setColor(ink);
+            c.drawText(clock, cx, cy + dp(5), paint);
+            paint.setFontFeatureSettings(null);
+            paint.setTypeface(Typeface.DEFAULT);
+            paint.setTextSize(dp(11));
+            paint.setColor(inkDim);
+            c.drawText("remaining", cx, cy + dp(compact ? 19 : 21), paint);
+            paint.setStrokeCap(Paint.Cap.BUTT);
+        }
+    }
+
     void sheet(String heading, String note, String[] options, Choice choice) {
         Option[] plain = new Option[options.length];
         for (int i = 0; i < options.length; i++) plain[i] = new Option(options[i], "", "", "", false);
@@ -5719,10 +5796,11 @@ public final class SpatchUi extends FrameLayout {
 
     // Sleep timer: pauses playback later. Kept on the main looper, not in a view, so it survives page changes.
     private static final android.os.Handler MAIN = new android.os.Handler(android.os.Looper.getMainLooper());
-    private static long sleepAt;
+    private static long sleepAt, sleepTotalMs;
     private static volatile long accountGeneration;
     private static final Runnable SLEEP = () -> {
         sleepAt = 0;
+        sleepTotalMs = 0;
         long generation = accountGeneration;
         COMMANDS.execute(() -> { if (generation == accountGeneration) playerCommand(PAUSE, 0, ""); });
     };
@@ -5734,6 +5812,7 @@ public final class SpatchUi extends FrameLayout {
         forgetProfile = true;
         accountGeneration++;
         sleepAt = 0;
+        sleepTotalMs = 0;
         MAIN.removeCallbacks(SLEEP);
     }
 
@@ -5765,6 +5844,7 @@ public final class SpatchUi extends FrameLayout {
 
     private void scheduleSleep(long delayMs, int choice, String toast) {
         sleepChoice = choice;
+        sleepTotalMs = delayMs <= 0 ? 0 : (choice >= 0 ? delayMs : Math.max(sleepTotalMs, delayMs));
         MAIN.removeCallbacks(SLEEP);
         sleepAt = delayMs <= 0 ? 0 : SystemClock.uptimeMillis() + delayMs;
         if (delayMs > 0) MAIN.postDelayed(SLEEP, delayMs);
@@ -5801,6 +5881,7 @@ public final class SpatchUi extends FrameLayout {
                 });
             }
         }
+        if (left > 0) sheetExtra = new SleepRingView();
         sheet("Sleep timer", note, options.toArray(new Option[0]), choice -> actions.get(choice).run());
     }
 
