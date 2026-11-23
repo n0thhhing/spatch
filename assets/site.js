@@ -203,6 +203,63 @@ async function loadLog() {
 }
 more.addEventListener('click', loadLog);
 
+// Touch: the letter under a finger swells and pushes its neighbours, as hover does with a mouse.
+{
+  let lit = null, fade;
+  const light = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const ch = el && el.closest('.flex .ch');
+    if (ch === lit) return;
+    lit?.classList.remove('on');
+    lit = ch;
+    ch?.classList.add('on');
+  };
+  const follow = e => { clearTimeout(fade); const t = e.touches[0]; if (t) light(t.clientX, t.clientY); };
+  addEventListener('touchstart', follow, { passive: true });
+  addEventListener('touchmove', follow, { passive: true });
+  const release = () => { fade = setTimeout(() => { lit?.classList.remove('on'); lit = null; }, 300); };
+  addEventListener('touchend', release, { passive: true });
+  addEventListener('touchcancel', release, { passive: true });
+}
+
+// Drag across the tab bar and let go on a tab, like the app's navigator.
+{
+  const bar = document.querySelector('.tabs');
+  let start = null, dragging = false, under = null;
+  const tabAt = x => tabs.find(t => { const r = t.getBoundingClientRect(); return x >= r.left && x <= r.right; })
+    || (x < tabs[0].getBoundingClientRect().left ? tabs[0] : tabs.at(-1));
+  bar.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    start = e.clientX; dragging = false;
+  });
+  bar.addEventListener('pointermove', e => {
+    if (start === null) return;
+    if (!dragging && Math.abs(e.clientX - start) < 8) return;
+    if (!dragging) { dragging = true; bar.classList.add('dragging'); try { bar.setPointerCapture(e.pointerId); } catch {} }
+    under = tabAt(e.clientX);
+    const box = bar.getBoundingClientRect();
+    const w = under.offsetWidth;
+    // The pill follows the finger, centred on it, kept inside the bar.
+    const x = Math.max(0, Math.min(box.width - 10 - w, e.clientX - box.left - 5 - w / 2));
+    ind.style.setProperty('--w', w + 'px');
+    ind.style.setProperty('--x', x + 'px');
+    for (const t of tabs) t.style.color = t === under ? 'var(--ink)' : 'var(--fog)';
+  });
+  const end = () => {
+    if (start === null) return;
+    start = null;
+    if (!dragging) return;
+    bar.classList.remove('dragging');
+    for (const t of tabs) t.style.color = '';
+    if (under && location.hash !== under.hash) location.hash = under.hash;
+    else placeIndicator();
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
+  // A drag that ends on a tab shouldn't also count as a tap.
+  bar.addEventListener('click', e => { if (dragging) { e.preventDefault(); dragging = false; } }, true);
+}
+
 // Panel ids are p-*, so hash links never make the browser jump.
 addEventListener('hashchange', () => show(false));
 document.documentElement.classList.add('no-anim');

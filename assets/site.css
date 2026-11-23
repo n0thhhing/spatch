@@ -98,6 +98,7 @@ code { font: inherit; color: var(--fog); background: var(--raise); padding: .05e
 
 .tabs {
   position: relative; display: flex; gap: 2px;
+  touch-action: pan-y; /* horizontal drags switch tabs */
   padding: 5px; border-radius: 999px;
   background: rgba(255, 255, 255, .07);
   outline: 1px solid var(--line); outline-offset: -1px;
@@ -116,7 +117,9 @@ code { font: inherit; color: var(--fog); background: var(--raise); padding: .05e
   border-radius: 999px; background: var(--acc);
   transition: transform .55s var(--spring), width .55s var(--spring), background-color .8s ease;
 }
-.no-anim .tab-ind { transition: none; }
+.no-anim .tab-ind, .tabs.dragging .tab-ind { transition: none; }
+.tabs.dragging .tab-ind { scale: 1.06 1.12; }
+.tab-ind { scale: 1; transition: transform .55s var(--spring), width .55s var(--spring), background-color .8s ease, scale .35s var(--spring); }
 
 main { padding: 0 var(--gutter); overflow-x: clip; }
 .panel { max-width: 74rem; margin: 0 auto; animation: rise .7s cubic-bezier(.2, 1, .3, 1); }
@@ -136,9 +139,13 @@ main { padding: 0 var(--gutter); overflow-x: clip; }
   display: inline-block;
   transition: font-variation-settings .7s cubic-bezier(.22, 1.2, .36, 1), color .5s ease;
 }
+/* .on is the letter under a finger (site.js); hover does the same with a mouse. */
+.flex .ch.on { font-variation-settings: "wght" 1000, "wdth" 151, "ROND" 100; color: var(--acc); transition-duration: .5s, .3s; }
+/* The letters either side swell a little too, so the push ripples outward. */
+.flex .ch.on + .ch,
+.flex .ch:has(+ .ch.on) { font-variation-settings: "wght" 920, "wdth" 132, "ROND" 100; transition-duration: .55s, .3s; }
 @media (hover: hover) {
   .flex .ch:hover { font-variation-settings: "wght" 1000, "wdth" 151, "ROND" 100; color: var(--acc); transition-duration: .5s, .3s; }
-  /* The letters either side swell a little too, so the push ripples outward. */
   .flex .ch:hover + .ch,
   .flex .ch:has(+ .ch:hover) { font-variation-settings: "wght" 920, "wdth" 132, "ROND" 100; transition-duration: .55s, .3s; }
 }
@@ -334,6 +341,21 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
 .faq details p { margin: 0 0 24px; color: var(--dim); max-width: 38em; animation: rise .45s cubic-bezier(.2, 1, .3, 1); }
 
 /* Changelog */
+.next-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.next-list li {
+  padding: 26px 26px 28px; border-radius: 30px;
+  background: color-mix(in srgb, var(--acc) 9%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--acc) 25%, transparent); outline-offset: -1px;
+}
+.next-list h3 { margin: 0 0 8px; font-size: 1.375rem; font-weight: 750; font-variation-settings: "wdth" 112, "ROND" 100; display: flex; align-items: center; gap: 10px; }
+.next-list h3::before {
+  content: ""; flex: none; width: 22px; height: 22px; background: var(--acc);
+  -webkit-mask: url(cookie.svg) center / contain no-repeat; mask: url(cookie.svg) center / contain no-repeat;
+  animation: turn 12s linear infinite;
+}
+.next-list p { margin: 0; color: var(--dim); }
+.history { padding-bottom: 24px; }
+.history-note { margin: 0; color: var(--dim); align-self: center; }
 .log { padding-bottom: 16px; }
 .day {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
@@ -382,6 +404,7 @@ h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.05; letter-spacin
   .steps { grid-template-columns: 1fr; }
   .steps li:nth-child(n) { margin-top: 0; }
   .day { grid-template-columns: 1fr; }
+  .next-list { grid-template-columns: 1fr; }
   .wide-text { grid-template-columns: 1fr; }
   .wide-text h2 { grid-row: auto; }
   .land-row { grid-template-columns: 1fr; }

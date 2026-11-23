@@ -6,6 +6,17 @@
   <title>Spatch</title>
   <meta name="description" content="Spatch patches the official Spotify app on Android so it opens to its own player, library and settings.">
   <meta name="theme-color" content="#2b2c31">
+  <link rel="canonical" href="https://n0thhhing.github.io/spatch/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Spatch">
+  <meta property="og:title" content="Spatch: the Spotify app, with a new face">
+  <meta property="og:description" content="Spatch patches the official Spotify app on Android so it opens to its own player, library and settings.">
+  <meta property="og:url" content="https://n0thhhing.github.io/spatch/">
+  <meta property="og:image" content="https://n0thhhing.github.io/spatch/assets/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Spatch player beside the words: The Spotify app, with a new face.">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -264,8 +275,27 @@
     <div class="panel" id="p-changelog" data-panel="changelog">
       <header class="page-head">
         <h1 class="flex">Changelog</h1>
-        <p class="lede">Every change to Spatch, newest first. Each one builds a new nightly, which the Manager installs when Nightly patches is on.</p>
+        <p class="lede">What’s being worked on, then every change to Spatch, newest first.</p>
       </header>
+
+      <section class="split next" aria-labelledby="next-h">
+        <h2 id="next-h">What’s next</h2>
+        <ul class="next-list">
+          <li>
+            <h3>A new Spatch Manager</h3>
+            <p>The Manager is being rebuilt from scratch as a separate app. It will install beside the current one, so you can try it without giving anything up.</p>
+          </li>
+          <li>
+            <h3>Free accounts</h3>
+            <p>Free Spotify accounts can’t load or play music in Spatch yet. Finding out why, and fixing it, is a priority.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="split history" aria-labelledby="history-h">
+        <h2 id="history-h">Every change</h2>
+        <p class="history-note">Each change builds a new nightly, which the Manager installs when Nightly patches is on.</p>
+      </section>
       <div class="areas" role="group" aria-label="Show changes to" hidden></div>
       <div class="log" aria-live="polite">
         <p class="log-status"><svg class="loader" aria-hidden="true"><use href="#cookie"/></svg>Loading changes from GitHub…</p>
