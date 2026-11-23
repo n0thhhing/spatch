@@ -3346,11 +3346,50 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
+    private void wirePlaylistTools(ListView list, android.widget.EditText songSearch, TextView sortPill) {
+        if (songSearch != null) {
+            songSearch.addTextChangedListener(new android.text.TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
+                @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
+                @Override public void afterTextChanged(android.text.Editable e) {
+                    songQuery = e.toString();
+                    arrangeSongs();
+                    notifyList(list);
+                    if (songCount != null) {
+                        String q = songQuery.trim();
+                        songCount.setText(q.isEmpty() ? songCountText : playlistTracks.size() + " of " + allSongs.size() + " songs");
+                    }
+                    if (songsNoMatch != null) {
+                        songsNoMatch.setText("No songs match “" + songQuery.trim() + "”");
+                        songsNoMatch.setVisibility(playlistTracks.isEmpty() && !songQuery.trim().isEmpty() ? VISIBLE : GONE);
+                    }
+                }
+            });
+        }
+        if (nowPlayingChip != null) {
+            TextView chip = nowPlayingChip;
+            int at = (Integer) chip.getTag(R_JUMP);
+            tappable(chip, "Jump to the song that's playing", () -> list.smoothScrollToPositionFromTop(at + list.getHeaderViewsCount(), dp(120), 520));
+        }
+        if (sortPill != null) {
+            TextView pillView = sortPill;
+            tappable(sortPill, "Sort songs", () -> sheet("Sort songs", "Only changes how Spatch shows this playlist", SONG_SORTS, choice -> {
+                prefs.edit().putInt("song_sort", choice).apply();
+                pillView.setText(SONG_SORTS[choice]);
+                if (pillView.getTag(R_COLOR) instanceof Runnable) ((Runnable) pillView.getTag(R_COLOR)).run();
+                arrangeSongs();
+                notifyList(list);
+            }));
+        }
+    }
+
     private View playlistPage() {
         FrameLayout page = new FrameLayout(activity);
         boolean detail = isDetail(playlist);
+        boolean land = landscape() && !(playlistTracks.isEmpty() && releases.isEmpty());
         String headImage = detail && !detailImage.isEmpty() ? detailImage : playlist.image;
         String headTitle = detail && !detailTitle.isEmpty() ? detailTitle : playlist.title;
+        LinearLayout rightPane = land ? column() : null;
 
         // Atmospheric gradient wash behind the header, tinted from the page cover once known (else the active accent).
         View wash = new View(activity);
@@ -3438,17 +3477,18 @@ public final class SpatchUi extends FrameLayout {
             art.bind(headImage);
             coverWrap.addView(art, new LayoutParams(-1, -1));
         }
-        glowBox.addView(coverWrap, new LayoutParams(dp(208), dp(208), Gravity.CENTER));
-        LinearLayout.LayoutParams covP = lp(dp(260), dp(256));
+        int covDp = land ? 136 : 208;
+        glowBox.addView(coverWrap, new LayoutParams(dp(covDp), dp(covDp), Gravity.CENTER));
+        LinearLayout.LayoutParams covP = lp(dp(land ? 176 : 260), dp(land ? 172 : 256));
         covP.gravity = Gravity.CENTER_HORIZONTAL;
-        covP.topMargin = -dp(24);
-        covP.bottomMargin = -dp(24);
+        covP.topMargin = -dp(land ? 18 : 24);
+        covP.bottomMargin = -dp(land ? 16 : 24);
         header.addView(glowBox, covP);
         headCover = coverWrap;
 
         // Left-aligned Spotify-style editorial title and stats block.
-        TextView name = text(headTitle, 26, () -> ink, true);
-        name.setPadding(0, dp(18), 0, dp(4));
+        TextView name = text(headTitle, land ? 22 : 26, () -> ink, true);
+        name.setPadding(0, dp(land ? 10 : 18), 0, dp(4));
         name.setMaxLines(2);
         name.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(name, fill(-2));
@@ -3558,15 +3598,22 @@ public final class SpatchUi extends FrameLayout {
             });
             actions.addView(simBtn, lp(dp(46), dp(46)));
         }
+        PlayButton fab = new PlayButton();
+        playButtons.remove(fab);
+        fab.set(listIsPlaying() && playing);
+        tappable(fab, "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, listShuffle > 0 ? 1 : 2, playUri()); });
+        listFab = fab;
         actions.addView(space(0, 1), weight());
-        // Placeholder inside the header row; the real PlayButton floats in `page` so it sticks at the top on scroll.
-        View fabSlot = space(dp(62), dp(62));
-        actions.addView(fabSlot);
+        // In portrait, a placeholder keeps room for the floating pinned PlayButton; in landscape it lives right in actions.
+        View fabSlot = land ? null : space(dp(62), dp(62));
+        if (land) actions.addView(fab, lp(dp(58), dp(58)));
+        else actions.addView(fabSlot);
         LinearLayout.LayoutParams ap = fill(-2);
         ap.topMargin = dp(12);
         header.addView(actions, ap);
 
         if (playlistFailed) header.addView(pill("Retry", () -> { playlistLoading = true; playlistFailed = false; showPage(); loadPlaylist(playlist, 0); }));
+        LinearLayout listTop = land ? rightPane : header;
         android.widget.EditText songSearch = null;
         TextView sortPill = null;
         if (!detail && allSongs.size() > 1) {
@@ -3610,13 +3657,13 @@ public final class SpatchUi extends FrameLayout {
             });
             tools.addView(sortPill, lp(-2, dp(44)));
             LinearLayout.LayoutParams tp = fill(-2);
-            tp.topMargin = dp(14);
-            header.addView(tools, tp);
+            if (!land) tp.topMargin = dp(14);
+            listTop.addView(tools, tp);
             songsNoMatch = text("", 15, () -> inkDim, false);
             songsNoMatch.setGravity(Gravity.CENTER);
             songsNoMatch.setPadding(0, dp(24), 0, 0);
             songsNoMatch.setVisibility(GONE);
-            header.addView(songsNoMatch, fill(-2));
+            listTop.addView(songsNoMatch, fill(-2));
             // The song that's playing is in this list: a chip that glides the list down to it.
             int playingAt = -1;
             for (int i = 0; i < playlistTracks.size(); i++) {
@@ -3633,7 +3680,7 @@ public final class SpatchUi extends FrameLayout {
                 nowPlayingChip.setTag(R_JUMP, playingAt);
                 LinearLayout.LayoutParams cp = lp(-2, dp(34));
                 cp.topMargin = dp(10);
-                header.addView(nowPlayingChip, cp);
+                listTop.addView(nowPlayingChip, cp);
             } else nowPlayingChip = null;
         }
 
@@ -3660,30 +3707,26 @@ public final class SpatchUi extends FrameLayout {
         });
         backBox.addView(icon("back", () -> ink), new LayoutParams(dp(22), dp(22), Gravity.CENTER));
         tappable(backBox, "Back", this::back);
-        topBar.addView(backBox, lp(dp(42), dp(42)));
+        if (!land) topBar.addView(backBox, lp(dp(42), dp(42)));
         TextView collapsed = text(headTitle, 18, () -> ink, true);
         oneLine(collapsed);
         collapsed.setPadding(dp(12), 0, dp(74), 0);
         collapsed.setAlpha(0f);
         topBar.addView(collapsed, weight());
 
-        // Floating scalloped PlayButton that tracks the header's action row down to the top bar, then stays pinned.
-        PlayButton fab = new PlayButton();
-        playButtons.remove(fab);
-        fab.set(listIsPlaying() && playing);
-        tappable(fab, "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, listShuffle > 0 ? 1 : 2, playUri()); });
-        listFab = fab;
-        fab.setVisibility(INVISIBLE);
         final float pinY = inset.top + dp(25);
         Runnable syncFab = () -> {
-            if (fabSlot.getHeight() == 0) return;
+            if (fabSlot == null || fabSlot.getHeight() == 0) return;
             boolean headerVisible = header.getParent() != null;
             float scrollY = header.getParent() instanceof ScrollView ? ((ScrollView) header.getParent()).getScrollY() : 0f;
             float naturalY = headerVisible ? header.getTop() + actions.getTop() + fabSlot.getTop() - scrollY : -dp(200);
             fab.setTranslationY(Math.max(pinY, naturalY));
             if (fab.getVisibility() != VISIBLE) fab.setVisibility(VISIBLE);
         };
-        header.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> syncFab.run());
+        if (!land) {
+            fab.setVisibility(INVISIBLE);
+            header.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> syncFab.run());
+        }
 
         if (playlistTracks.isEmpty() && releases.isEmpty()) {
             ScrollView s = new ScrollView(activity);
@@ -3692,43 +3735,37 @@ public final class SpatchUi extends FrameLayout {
             s.addView(header);
             s.setOnScrollChangeListener((v, sx, sy, osx, osy) -> { syncFab.run(); scrollDock(sy - osy, sy <= 0); });
             page.addView(s, new LayoutParams(-1, -1));
+        } else if (land) {
+            LinearLayout split = row();
+            ScrollView leftScroll = new ScrollView(activity);
+            leftScroll.setVerticalScrollBarEnabled(false);
+            leftScroll.setOverScrollMode(OVER_SCROLL_NEVER);
+            header.setPadding(dp(18) + inset.left, inset.top + dp(16), dp(12), dockRoom());
+            leftScroll.addView(header, new ScrollView.LayoutParams(-1, -2));
+            split.addView(leftScroll, new LinearLayout.LayoutParams(0, -1, 0.85f));
+            ListView list = entryList(playlistTracks, null);
+            list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            wirePlaylistTools(list, songSearch, sortPill);
+            if (!releases.isEmpty()) {
+                LinearLayout footer = column();
+                shelf(footer, "Releases", releases, null);
+                list.addFooterView(footer, null, false);
+            }
+            list.setPadding(0, dp(8), 0, dockRoom());
+            list.setClipToPadding(false);
+            list.setOnScrollListener(new DockScroll());
+            rightPane.setPadding(dp(10), inset.top + dp(12), dp(18) + inset.right, 0);
+            rightPane.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+            split.addView(rightPane, new LinearLayout.LayoutParams(0, -1, 1.25f));
+            page.addView(split, new LayoutParams(-1, -1));
+            pageList = list;
+            LayoutParams bp = new LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.START);
+            bp.setMargins(dp(14) + inset.left, inset.top + dp(6), 0, 0);
+            page.addView(backBox, bp);
         } else {
             ListView list = entryList(playlistTracks, header);
             list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-            if (songSearch != null) {
-                songSearch.addTextChangedListener(new android.text.TextWatcher() {
-                    @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-                    @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-                    @Override public void afterTextChanged(android.text.Editable e) {
-                        songQuery = e.toString();
-                        arrangeSongs();
-                        notifyList(list);
-                        if (songCount != null) {
-                            String q = songQuery.trim();
-                            songCount.setText(q.isEmpty() ? songCountText : playlistTracks.size() + " of " + allSongs.size() + " songs");
-                        }
-                        if (songsNoMatch != null) {
-                            songsNoMatch.setText("No songs match “" + songQuery.trim() + "”");
-                            songsNoMatch.setVisibility(playlistTracks.isEmpty() && !songQuery.trim().isEmpty() ? VISIBLE : GONE);
-                        }
-                    }
-                });
-            }
-            if (nowPlayingChip != null) {
-                TextView chip = nowPlayingChip;
-                int at = (Integer) chip.getTag(R_JUMP);
-                tappable(chip, "Jump to the song that's playing", () -> list.smoothScrollToPositionFromTop(at + list.getHeaderViewsCount(), dp(120), 520));
-            }
-            if (sortPill != null) {
-                TextView pillView = sortPill;
-                tappable(sortPill, "Sort songs", () -> sheet("Sort songs", "Only changes how Spatch shows this playlist", SONG_SORTS, choice -> {
-                    prefs.edit().putInt("song_sort", choice).apply();
-                    pillView.setText(SONG_SORTS[choice]);
-                    if (pillView.getTag(R_COLOR) instanceof Runnable) ((Runnable) pillView.getTag(R_COLOR)).run();
-                    arrangeSongs();
-                    notifyList(list);
-                }));
-            }
+            wirePlaylistTools(list, songSearch, sortPill);
             if (!releases.isEmpty()) {
                 LinearLayout footer = column();
                 shelf(footer, "Releases", releases, null);
@@ -3750,8 +3787,11 @@ public final class SpatchUi extends FrameLayout {
                         coverView.setScaleY(1f - .3f * f);
                         coverView.setAlpha(1f - .9f * f);
                     }
+                    glowBox.setAlpha(1f - .9f * f);
                     wash.setTranslationY(-scrolled * .35f);
                     wash.setAlpha(1f - .9f * f);
+                    stickers.setTranslationY(-scrolled * .22f);
+                    stickers.setAlpha(1f - f);
                     float barT = Math.max(0f, Math.min(1f, (scrolled - dp(190)) / dp(60)));
                     barBg.setAlpha(Math.round(255 * barT));
                     barFade.setAlpha(barT);
@@ -3763,13 +3803,15 @@ public final class SpatchUi extends FrameLayout {
             page.addView(list, new LayoutParams(-1, -1));
             pageList = list;
         }
-        page.addView(topBar, new LayoutParams(-1, dp(56) + inset.top, Gravity.TOP));
-        LayoutParams bf = new LayoutParams(-1, dp(16), Gravity.TOP);
-        bf.topMargin = dp(56) + inset.top;
-        page.addView(barFade, bf);
-        LayoutParams fp = new LayoutParams(dp(62), dp(62), Gravity.TOP | Gravity.END);
-        fp.rightMargin = dp(20);
-        page.addView(fab, fp);
+        if (!land) {
+            page.addView(topBar, new LayoutParams(-1, dp(56) + inset.top, Gravity.TOP));
+            LayoutParams bf = new LayoutParams(-1, dp(16), Gravity.TOP);
+            bf.topMargin = dp(56) + inset.top;
+            page.addView(barFade, bf);
+            LayoutParams fp = new LayoutParams(dp(62), dp(62), Gravity.TOP | Gravity.END);
+            fp.rightMargin = dp(20);
+            page.addView(fab, fp);
+        }
         if (flightFrom != null && motion()) {
             RectF from = flightFrom; String img = flightImage; boolean circ = flightCircle;
             flightFrom = null;
