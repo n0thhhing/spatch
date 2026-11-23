@@ -428,14 +428,17 @@ function applyPalette(i) {
   };
   draw(SHAPES[0], SHAPES[0], 0);
   if (!reduce) {
-    let i = 0;
+    let i = 0, seen = false;
+    // Morph only while the hero is on screen and the page is visible; nothing redraws in between.
+    new IntersectionObserver(([e]) => { seen = e.isIntersecting; }).observe(path.closest('.hero-shot'));
     const back = k => 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2; // ease out with a small overshoot
     setInterval(() => {
+      if (!seen || document.hidden) return;
       const a = SHAPES[i], b = SHAPES[(i + 1) % SHAPES.length], t0 = performance.now();
       i = (i + 1) % SHAPES.length;
       const step = now => { const k = Math.min(1, (now - t0) / 1400); draw(a, b, back(k)); if (k < 1) requestAnimationFrame(step); };
       requestAnimationFrame(step);
-    }, 4200);
+    }, 6000);
   }
 }
 
@@ -536,7 +539,7 @@ function applyPalette(i) {
 // Motes drifting up, like the player's.
 if (!reduce) {
   const aura = document.querySelector('.aura');
-  const count = innerWidth < 720 ? 8 : 16;
+  const count = innerWidth < 720 ? 5 : 10;
   for (let n = 0; n < count; n++) {
     const m = document.createElement('i');
     const s = 2 + Math.random() * 5;
