@@ -259,9 +259,9 @@ more.addEventListener('click', loadLog);
   let start = null, dragging = false, under = null;
   const tabAt = x => tabs.find(t => { const r = t.getBoundingClientRect(); return x >= r.left && x <= r.right; })
     || (x < tabs[0].getBoundingClientRect().left ? tabs[0] : tabs.at(-1));
-  // Finger and pen only: a mouse just clicks, and mouse drags would start the browser's link dragging.
+  // Works with a finger, pen or mouse; the tabs' own link dragging is switched off below so it can't steal the gesture.
   bar.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || e.pointerType === 'mouse') return;
+    if (e.button !== 0) return;
     start = e.clientX; dragging = false; under = null;
   });
   for (const t of tabs) t.draggable = false;

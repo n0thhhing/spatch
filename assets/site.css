@@ -95,6 +95,7 @@ code { font: inherit; color: var(--fog); background: var(--raise); padding: .05e
 .tabs {
   position: relative; display: flex; gap: 2px;
   touch-action: pan-y; /* horizontal drags switch tabs */
+  user-select: none; -webkit-user-select: none; -webkit-user-drag: none;
   padding: 5px; border-radius: 999px;
   background: rgba(255, 255, 255, .07);
   outline: 1px solid var(--line); outline-offset: -1px;
