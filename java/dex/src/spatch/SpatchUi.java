@@ -3767,7 +3767,7 @@ public final class SpatchUi extends FrameLayout {
             art.bind(headImage);
             coverWrap.addView(art, new LayoutParams(-1, -1));
         }
-        int covDp = land ? 136 : 208;
+        int covDp = land ? 172 : 208; // sideways the header column has the height to spare for a larger cover
         glowBox.addView(coverWrap, new LayoutParams(dp(covDp), dp(covDp), Gravity.CENTER));
         coverWrap.setClickable(true);
         coverWrap.setOnClickListener(v -> {
@@ -3783,8 +3783,9 @@ public final class SpatchUi extends FrameLayout {
                     .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
             }
         });
-        LinearLayout.LayoutParams covP = lp(dp(land ? 176 : 260), dp(land ? 172 : 256));
-        covP.gravity = Gravity.CENTER_HORIZONTAL;
+        LinearLayout.LayoutParams covP = lp(dp(land ? 212 : 260), dp(land ? 208 : 256));
+        covP.gravity = land ? Gravity.START : Gravity.CENTER_HORIZONTAL;
+        if (land) covP.leftMargin = -dp(20); // the glow reaches past the cover; this lines the cover itself up with the title
         covP.topMargin = -dp(land ? 18 : 24);
         covP.bottomMargin = -dp(land ? 16 : 24);
         header.addView(glowBox, covP);
@@ -3909,7 +3910,8 @@ public final class SpatchUi extends FrameLayout {
         fab.set(listIsPlaying() && playing);
         tappable(fab, "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, listShuffle > 0 ? 1 : 2, playUri()); });
         listFab = fab;
-        actions.addView(space(0, 1), weight());
+        // Portrait pushes the play button to the far end; sideways it follows the other buttons, so the row reads as one.
+        actions.addView(land ? space(actionGap, 1) : space(0, 1), land ? lp(actionGap, 1) : weight());
         // In portrait, a placeholder keeps room for the floating pinned PlayButton; in landscape it lives right in actions.
         View fabSlot = land ? null : space(dp(62), dp(62));
         if (land) actions.addView(fab, lp(dp(58), dp(58)));
@@ -4068,7 +4070,7 @@ public final class SpatchUi extends FrameLayout {
             page.addView(split, new LayoutParams(-1, -1));
             pageList = list;
             LayoutParams bp = new LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.START);
-            bp.setMargins(dp(14), inset.top + dp(6), 0, 0);
+            bp.setMargins(dp(26), inset.top + dp(24), 0, 0); // over the cover's top-left corner, inside its rounding
             page.addView(backBox, bp);
         } else {
             ListView list = entryList(playlistTracks, header);
