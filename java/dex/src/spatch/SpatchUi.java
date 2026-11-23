@@ -5059,39 +5059,56 @@ public final class SpatchUi extends FrameLayout {
         idleViews = hide.toArray(new View[0]);
         idleTouched();
         if (land) {
-            LinearLayout tabRow = row();
-            tabRow.setPadding(dp(3), dp(3), dp(3), dp(3));
+            View pillInd = new View(activity);
+            GradientDrawable indBg = round(accent, 15);
+            pillInd.setBackground(indBg);
+            FrameLayout tabContainer = new FrameLayout(activity) {
+                private int lastHalf = -1;
+                @Override protected void onMeasure(int wSpec, int hSpec) {
+                    int innerW = MeasureSpec.getSize(wSpec) - getPaddingLeft() - getPaddingRight();
+                    int halfW = Math.max(0, innerW / 2);
+                    if (halfW > 0 && halfW != lastHalf) {
+                        lastHalf = halfW;
+                        pillInd.getLayoutParams().width = halfW;
+                        pillInd.setTranslationX(sideTab * (float) halfW);
+                    }
+                    super.onMeasure(wSpec, hSpec);
+                }
+            };
+            tabContainer.setPadding(dp(3), dp(3), dp(3), dp(3));
             GradientDrawable tabTrack = round((ink & 0x00ffffff) | 0x16000000, 18);
-            tabRow.setBackground(tabTrack);
+            tabContainer.setBackground(tabTrack);
+            tabContainer.addView(pillInd, new LayoutParams(0, -1));
+            LinearLayout tabRow = row();
             TextView[] tabViews = new TextView[2];
-            GradientDrawable[] tabBgs = { round(accent, 15), round(0, 15) };
             String[] tabNames = { "Lyrics", "Up next" };
             Runnable syncTabs = () -> {
                 tabTrack.setColor((ink & 0x00ffffff) | 0x16000000);
-                for (int i = 0; i < 2; i++) {
-                    boolean on = sideTab == i;
-                    tabViews[i].setTextColor(on ? onAccent : inkDim);
-                    tabBgs[i].setColor(on ? accent : 0);
-                }
+                indBg.setColor(accent);
+                for (int i = 0; i < 2; i++) tabViews[i].setTextColor(sideTab == i ? onAccent : inkDim);
             };
             for (int i = 0; i < 2; i++) {
                 final int pick = i;
                 tabViews[i] = text(tabNames[i], 13, () -> sideTab == pick ? onAccent : inkDim, true);
                 tabViews[i].setGravity(Gravity.CENTER);
-                tabViews[i].setBackground(tabBgs[i]);
                 tappable(tabViews[i], tabNames[i], .94f, () -> {
                     if (sideTab == pick) return;
                     sideTab = pick;
                     syncTabs.run();
+                    int halfW = pillInd.getWidth() > 0 ? pillInd.getWidth() : Math.max(0, (tabContainer.getWidth() - dp(6)) / 2);
+                    float targetX = sideTab * (float) halfW;
+                    if (motion()) pillInd.animate().translationX(targetX).setDuration(280).setInterpolator(new android.view.animation.OvershootInterpolator(.9f)).start();
+                    else pillInd.setTranslationX(targetX);
                     loadSidePanel(true);
                 });
                 tabRow.addView(tabViews[i], new LinearLayout.LayoutParams(0, -1, 1));
             }
-            colored(tabRow, syncTabs);
+            tabContainer.addView(tabRow, new LayoutParams(-1, -1));
+            colored(tabContainer, syncTabs);
             LinearLayout.LayoutParams tp = lp(-1, dp(36));
             tp.topMargin = dp(2);
             tp.bottomMargin = dp(6);
-            sideColumn.addView(tabRow, tp);
+            sideColumn.addView(tabContainer, tp);
 
             FrameLayout host = new FrameLayout(activity);
             sideColumn.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
