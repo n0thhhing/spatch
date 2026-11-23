@@ -413,21 +413,23 @@ final class ArtworkViews {
             float w = getWidth(), h = getHeight(), cx = w / 2f, cy = h / 2f;
             float s = Math.min(w, h);
             int bars = 72;
-            float bar = Math.min(ui.dp(34), Math.max(ui.dp(14), s * 0.16f));
-            float stroke = Math.min(ui.dp(7), (float) (Math.PI * 2 * Math.max(ui.dp(24), s / 2f - bar - ui.dp(14)) / bars) * .55f);
-            float ring = Math.max(ui.dp(24), s / 2f - bar - ui.dp(10) - stroke * .5f - ui.dp(2));
-            float artR = Math.max(ui.dp(18), ring - ui.dp(7));
+            float ringStroke = Math.max(ui.dp(2f), Math.min(ui.dp(3.5f), s * 0.014f));
+            float bar = Math.min(ui.dp(30), Math.max(ui.dp(12), s * 0.12f));
+            float stroke = Math.min(ui.dp(6), (float) (Math.PI * 2 * Math.max(ui.dp(28), s / 2f - bar - ui.dp(6)) / bars) * .52f);
+            float ring = Math.max(ui.dp(28), s / 2f - bar - ui.dp(4) - stroke * .5f);
+            float artR = Math.max(ui.dp(24), ring - ringStroke * .5f - ui.dp(3));
             boolean animate = ui.motion();
             boolean run = ui.playing && animate;
+            boolean pulse = animate && ui.pref("cover_pulse", true);
             boolean audio = ui.pref("audio", true) && Audio.ready(ui.activity);
             boolean live = run && audio && Audio.BANDS[0] + Audio.BANDS[8] > 0;
-            float targetBass = live ? (level[0] + level[1] + level[2] + level[3]) * .25f : 0f;
-            if (!animate) bassBreath = 0f;
+            float targetBass = live && pulse ? (level[0] + level[1] + level[2] + level[3]) * .25f : 0f;
+            if (!pulse) bassBreath = 0f;
             else {
                 bassBreath += (targetBass - bassBreath) * .18f;
                 if (!live && bassBreath < .002f) bassBreath = 0f;
             }
-            float pulseR = Math.min(ring - ui.dp(3.5f), artR * (1f + bassBreath * .045f));
+            float pulseR = Math.min(ring - ringStroke * .5f - ui.dp(1.5f), artR * (1f + bassBreath * .045f));
             long now = SystemClock.uptimeMillis();
             if (url.isEmpty()) { shown = previous = null; shownUrl = ""; }
             Bitmap b = ui.art(url, 440);
@@ -476,7 +478,7 @@ final class ArtworkViews {
             int style = ui.prefs.getInt("viz", 0);
             paint.setShader(sweep);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(ui.dp(5));
+            paint.setStrokeWidth(ringStroke);
             if (style != 2) c.drawCircle(cx, cy, ring, paint);
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeWidth(stroke);

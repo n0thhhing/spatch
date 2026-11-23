@@ -3227,7 +3227,9 @@ public final class SpatchUi extends FrameLayout {
         detailTitle = detailSubtitle = detailImage = "";
         playlistLoading = true;
         playlistFailed = false;
-        showPage();
+        String[] saved = unpackStrings(nativeCached((isDetail(e) ? "page3:" : "playlist4:") + e.uri));
+        if (saved != null && saved.length > 0) applyReply(e, saved, true);
+        else showPage();
         updateDock();
         enter((forward ? 1 : -1) * dp(44), 0);
         loadPlaylist(e, 0);
@@ -3247,7 +3249,7 @@ public final class SpatchUi extends FrameLayout {
         submit(PLAYLISTS, () -> {
             String key = (isDetail(e) ? "page3:" : "playlist4:") + e.uri;
             // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
-            if (attempt == 0) {
+            if (attempt == 0 && !shownCached) {
                 String[] saved = unpackStrings(nativeCached(key));
                 if (saved != null) post(() -> { if (request == playlistRequest && playlist == e && playlistLoading) applyReply(e, saved, true); });
             }
@@ -3667,6 +3669,18 @@ public final class SpatchUi extends FrameLayout {
         }
         int covDp = land ? 136 : 208;
         glowBox.addView(coverWrap, new LayoutParams(dp(covDp), dp(covDp), Gravity.CENTER));
+        coverWrap.setClickable(true);
+        coverWrap.setOnClickListener(v -> {
+            tick(coverWrap);
+            stickers.boostSpin();
+            if (motion()) {
+                coverWrap.animate().cancel();
+                coverWrap.setScaleX(.94f);
+                coverWrap.setScaleY(.94f);
+                coverWrap.animate().scaleX(1f).scaleY(1f).setDuration(380)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
+            }
+        });
         LinearLayout.LayoutParams covP = lp(dp(land ? 176 : 260), dp(land ? 172 : 256));
         covP.gravity = Gravity.CENTER_HORIZONTAL;
         covP.topMargin = -dp(land ? 18 : 24);
@@ -4106,6 +4120,7 @@ public final class SpatchUi extends FrameLayout {
             audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
             player.addView(audioStatus);
             toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
+            toggle(player, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
             toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
             toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
@@ -5278,7 +5293,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout sideColumn = null;
         if (land) {
             // Cover, title and controls on the left; the lyrics, with the top buttons above them, take the right.
-            col.setPadding(dp(18) + inset.left, dp(6) + inset.top, dp(10), dp(8) + inset.bottom);
+            col.setPadding(dp(18) + inset.left, dp(2) + inset.top, dp(10), dp(4) + inset.bottom);
             LinearLayout split = row();
             split.addView(col, new LinearLayout.LayoutParams(0, -1, 1f));
             sideColumn = column();
@@ -5424,7 +5439,7 @@ public final class SpatchUi extends FrameLayout {
 
         wave = new Wave();
         LinearLayout.LayoutParams wp = fill(dp(land ? 60 : 62));
-        wp.topMargin = dp(6);
+        wp.topMargin = dp(land ? 2 : 6);
         col.addView(wave, wp);
         LinearLayout controls = row();
         controls.setGravity(Gravity.CENTER);
@@ -6395,8 +6410,8 @@ public final class SpatchUi extends FrameLayout {
         private final float[] xFrac = new float[COUNT], yFrac = new float[COUNT], sizeDp = new float[COUNT], rot = new float[COUNT];
         private final float[] spinDir = {1f, -1f, 2f};
         private final boolean[] useAccent2 = {true, false, false};
-        private float spinPhase;
-        private android.animation.ValueAnimator spinAnim;
+        private float spinPhase, spinBoost;
+        private android.animation.ValueAnimator spinAnim, boostAnim;
 
         StickerBackdrop(String seedKey) {
             super(activity);
@@ -6430,7 +6445,7 @@ public final class SpatchUi extends FrameLayout {
             if (isAttachedToWindow() && getWindowVisibility() == VISIBLE && motion()) {
                 if (spinAnim == null) {
                     spinAnim = android.animation.ValueAnimator.ofFloat(0f, 360f);
-                    spinAnim.setDuration(60_000L);
+                    spinAnim.setDuration(22_000L);
                     spinAnim.setInterpolator(new android.view.animation.LinearInterpolator());
                     spinAnim.setRepeatCount(android.animation.ValueAnimator.INFINITE);
                     spinAnim.setRepeatMode(android.animation.ValueAnimator.RESTART);
@@ -6446,6 +6461,19 @@ public final class SpatchUi extends FrameLayout {
             }
         }
 
+        void boostSpin() {
+            if (!motion()) return;
+            if (boostAnim != null) boostAnim.cancel();
+            boostAnim = android.animation.ValueAnimator.ofFloat(spinBoost, spinBoost + 180f);
+            boostAnim.setDuration(650L);
+            boostAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2.2f));
+            boostAnim.addUpdateListener(anim -> {
+                spinBoost = (float) anim.getAnimatedValue();
+                invalidate();
+            });
+            boostAnim.start();
+        }
+
         @Override protected void onAttachedToWindow() {
             super.onAttachedToWindow();
             syncSpin();
@@ -6455,6 +6483,10 @@ public final class SpatchUi extends FrameLayout {
             if (spinAnim != null) {
                 spinAnim.cancel();
                 spinAnim = null;
+            }
+            if (boostAnim != null) {
+                boostAnim.cancel();
+                boostAnim = null;
             }
             super.onDetachedFromWindow();
         }
@@ -6483,7 +6515,7 @@ public final class SpatchUi extends FrameLayout {
                 paint.setAlpha(alpha);
                 c.save();
                 c.translate(cx, cy);
-                c.rotate(rot[i] + spinPhase * spinDir[i]);
+                c.rotate(rot[i] + (spinPhase + spinBoost) * spinDir[i]);
                 c.drawPath(path, paint);
                 c.restore();
             }
