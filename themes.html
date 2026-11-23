@@ -4,120 +4,95 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Themes · Spatch</title>
-  <meta name="description" content="Spatch's 18 built-in palettes, the Material You wallpaper theme, custom colours, and bundled or custom font choices.">
-  <meta name="theme-color" content="#14121c">
+  <meta name="description" content="Spatch's 18 built-in palettes, Android 12+ Material You wallpaper theme, custom colours, and bundled or custom fonts.">
+  <meta name="theme-color" content="#0d1320">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/pages-showcase.css">
 </head>
-<body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="wrap nav-wrap">
-      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
-      <nav class="site-nav" aria-label="Main">
-        <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html" aria-current="page">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
-      </nav>
-      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+<body data-tone="tide">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="index.html" data-brand>Spatch</a>
+      <nav class="site-nav" aria-label="Main"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html" aria-current="page">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
+      <button class="nav-btn" type="button" aria-label="Menu" aria-expanded="false">☰</button>
     </div>
-    <nav class="mobile-drawer" aria-label="Mobile">
-      <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html" aria-current="page">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
-    </nav>
+    <nav class="drawer" aria-label="Mobile"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html" aria-current="page">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
   </header>
 
   <main id="main">
-    <section class="page-hero">
-      <div class="wrap">
-        <p class="eyebrow">Themes</p>
+    <section class="band" data-track="18 palettes" data-by="Themes" data-tone="tide">
+      <div class="wrap stack">
         <h1>18 palettes, one tap</h1>
-        <p class="lead">Every theme recolours the player, lists, cards, and Spotify's own surfaces. Switching applies straight away or after a quick restart, and your choice survives updates.</p>
+        <p class="lede">Every theme recolours the player, lists, cards and Spotify's own surfaces. Pick any chip below and this whole page switches to that palette, using the same 18 colour sets Spatch ships.</p>
+        <div class="palettes" data-palettes role="group" aria-label="Palettes"></div>
+        <p class="now">Wearing: <strong data-pal-name>the colours of this section</strong></p>
+        <p class="cap">Switching applies straight away in Spatch settings or after a quick restart, and your choice stays intact when Spatch Manager updates your build.</p>
       </div>
     </section>
 
-    <section class="section section--tight">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="eyebrow">Live preview · <span data-theme-name>Lavender</span></p>
-          <h2>This page recolours as you pick</h2>
-          <p class="lead">Tap any palette below and the whole page switches on the spot, using the same 18 colour sets Spatch ships.</p>
-        </div>
-        <div class="palette-grid reveal" data-palette-grid></div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="wrap feature-row">
-        <div class="reveal">
-          <p class="eyebrow">Dynamic &amp; custom</p>
+    <section class="band" data-track="Wallpaper and custom colours" data-by="Themes" data-tone="ember">
+      <div class="wrap row">
+        <div class="stack">
           <h2>Wallpaper colours, or your own</h2>
-          <p class="lead">Not limited to presets—Spatch can follow your phone's Material You palette or take any custom colours you set.</p>
-          <div class="callout" style="margin-top:24px">
-            <h3>Wallpaper palette (Android 12+)</h3>
-            <p class="muted">Your phone's Material You palette, read at launch on Android 12 and newer. Changes with your wallpaper, and works with "Widget follows wallpaper" in light or dark.</p>
-          </div>
-          <ul class="checks">
-            <li><strong>Instant recolouring:</strong> Switch palettes in Spatch settings and the app updates on the spot, no restart.</li>
-            <li><strong>Custom colours:</strong> Pick your own background, surface and accent colours when none of the 18 presets match.</li>
-            <li><strong>Survives updates:</strong> Your theme and font choices stay intact when Spatch Manager updates your build.</li>
+          <p class="lede">Spatch is not limited to presets. Follow your phone's wallpaper palette or set your own colours directly.</p>
+          <p class="note"><strong>Wallpaper palette (Android 12+):</strong> Reads your phone's Material You palette at launch on Android 12 and newer. It changes with your wallpaper and works with “Widget follows wallpaper” in light or dark.</p>
+          <ul class="tracks">
+            <li><strong>Instant recolouring</strong><span>Switch palettes in Spatch settings and the app updates on the spot, without a restart.</span></li>
+            <li><strong>Custom colours</strong><span>Pick your own background, surface and accent colours when none of the 18 presets match.</span></li>
+            <li><strong>Cover-driven accents</strong><span>In the player, multi-colour covers can drive primary and secondary accents across the glow, bars and highlights.</span></li>
+            <li><strong>Survives updates</strong><span>Your theme and font choices stay intact when Spatch Manager updates your build.</span></li>
           </ul>
         </div>
-        <div class="feature-media reveal">
-          <div class="phone"><img src="assets/app/appearance.jpg" width="720" height="1478" loading="lazy" alt="Spatch appearance settings showing the palette picker" data-zoom></div>
-        </div>
+        <div class="phone theme-phone"><img src="assets/app2/home.jpg" width="720" height="1474" loading="lazy" alt="Spatch home screen showing themed surfaces, spotlight card, Liked Songs bar, mini player and floating navigation"></div>
       </div>
     </section>
 
-    <section class="section section--glow">
-      <div class="wrap feature-row feature-row--flip">
-        <div class="reveal">
-          <p class="eyebrow">Typography</p>
+    <section class="band" data-track="Typography" data-by="Themes" data-tone="moss">
+      <div class="wrap row row--flip">
+        <div class="stack">
           <h2>Your font, everywhere</h2>
-          <p class="lead">Pick one of the bundled families or import your own font files. Spotify's titles, lists, and Spatch's own screens all follow it.</p>
-          <div class="font-list">
-            <div class="font-row">
-              <span class="font-sample">Spotify's own</span>
-              <span class="font-meta">Default typography</span>
-            </div>
-            <div class="font-row">
-              <span class="font-sample">System</span>
-              <span class="font-meta">Your Android font</span>
-            </div>
-            <div class="font-row">
-              <span class="font-sample">Roboto</span>
-              <span class="font-meta">Sans serif</span>
-            </div>
-            <div class="font-row">
-              <span class="font-sample">Noto Sans</span>
-              <span class="font-meta">Sans serif</span>
-            </div>
-            <div class="font-row">
-              <span class="font-sample">Atkinson Hyperlegible</span>
-              <span class="font-meta">Sans serif, made for readability</span>
-            </div>
-            <div class="font-row">
-              <span class="font-sample" style="font-family:var(--mono)">Monaspace Neon, Argon, Xenon, Radon, Krypton</span>
-              <span class="font-meta">Monospace families</span>
-            </div>
+          <p class="lede">Pick one of the bundled families or import your own font files. Spotify's titles, lists and Spatch's own screens all follow it.</p>
+          <ul class="tracks">
+            <li><strong>Spotify's own</strong><span>Default typography.</span></li>
+            <li><strong>System</strong><span>Your Android font.</span></li>
+            <li><strong>Roboto</strong><span>Sans serif.</span></li>
+            <li><strong>Noto Sans</strong><span>Sans serif.</span></li>
+            <li><strong>Atkinson Hyperlegible</strong><span>Sans serif, made for readability.</span></li>
+            <li><strong class="mono">Monaspace</strong><span>Monospace families: Neon, Argon, Xenon, Radon and Krypton.</span></li>
+            <li><strong>Custom font files</strong><span>Import your own font files from storage to use across the app.</span></li>
+          </ul>
+          <div class="btn-row">
+            <a class="btn btn--fill" href="install.html">Install Spatch</a>
+            <a class="btn btn--quiet" href="features.html">See all features</a>
           </div>
         </div>
-        <div class="feature-media reveal">
-          <div class="phone"><img src="assets/shots/appearance2.jpg" width="720" height="1487" loading="lazy" alt="Typography picker in Spatch settings showing bundled and custom fonts" data-zoom></div>
-        </div>
+        <div class="phone theme-phone"><img src="assets/app2/queue.jpg" width="720" height="1474" loading="lazy" alt="Spatch queue screen showing headings, track titles and artist names in Spatch's typography"></div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-foot">
     <div class="wrap">
-      <div class="footer-grid">
-        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
-        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
-        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
-        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
-      </div>
-      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify AB. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
+      <div><a class="brand" href="index.html" data-brand>Spatch</a><p class="cap">Spotify, redrawn from the inside.</p></div>
+      <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+      <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+      <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
+      <p class="fine">Spatch is an unofficial community project, not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
     </div>
   </footer>
+
+  <div class="player" role="region" aria-label="Page player">
+    <span class="disc" aria-hidden="true"></span>
+    <div class="meta"><b>Spatch</b><small>Spotify, redrawn</small></div>
+    <div class="ctl">
+      <button class="prev" type="button" aria-label="Previous section"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM9 12l11-7v14z"/></svg></button>
+      <button class="play" type="button"></button>
+      <button class="next" type="button" aria-label="Next section"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></button>
+    </div>
+    <div class="wave" aria-hidden="true"><div class="lane"><svg></svg></div><div class="done"><svg></svg></div></div>
+  </div>
   <script src="assets/site.js"></script>
 </body>
 </html>

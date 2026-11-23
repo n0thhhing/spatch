@@ -4,165 +4,153 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Spatch · Spotify, redrawn from the inside</title>
-  <meta name="description" content="Spatch patches the official Spotify app on Android so it draws its own interface: a round-cover player, time-synced lyrics, widgets, 18 palettes and a Manager that patches and signs on your phone.">
-  <meta name="theme-color" content="#14121c">
+  <meta name="description" content="Spatch patches the official Spotify app on Android so it shows its own interface: a round-cover player, lyrics that follow along, widgets that fit, 18 palettes, and a Manager that patches and signs on your phone.">
+  <meta name="theme-color" content="#1a110e">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="wrap nav-wrap">
-      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
-      <nav class="site-nav" aria-label="Main">
-        <a href="index.html" aria-current="page">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
-      </nav>
-      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+<body data-tone="ember">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="index.html" data-brand>Spatch</a>
+      <nav class="site-nav" aria-label="Main"><a href="index.html" aria-current="page">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
+      <button class="nav-btn" type="button" aria-label="Menu" aria-expanded="false">☰</button>
     </div>
-    <nav class="mobile-drawer" aria-label="Mobile">
-      <a href="index.html" aria-current="page">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
-    </nav>
+    <nav class="drawer" aria-label="Mobile"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
   </header>
 
   <main id="main">
-    <section class="hero">
-      <div class="wrap hero-grid">
-        <div class="hero-copy">
-          <p class="eyebrow">Unofficial · Cosmetic · Open source</p>
-          <h1>Spotify, <em>redrawn</em> from the inside.</h1>
-          <p class="lead">Spatch patches the official Spotify app on your phone so it draws its own interface, while Spotify's own engine keeps playing the music. A round-cover player, lyrics that glide, widgets that follow the cover, and every part of it optional.</p>
+    <section class="band" data-track="Spatch" data-by="Spotify, redrawn" data-tone="ember" style="padding-bottom:0">
+      <div class="wrap row">
+        <div class="stack">
+          <h1>Spotify, redrawn from the inside.</h1>
+          <p class="lede">Spatch patches the official Spotify app on your Android phone so it shows a different interface. Spotify's own engine still plays the music.</p>
           <div class="btn-row">
-            <a class="btn btn--primary" href="install.html">Get Spatch</a>
-            <a class="btn btn--ghost" href="features.html">See what changes</a>
+            <a class="scallop" href="install.html" data-scallop><span>Get<br>Spatch</span></a>
+            <a class="btn btn--quiet" href="features.html">See what changes</a>
           </div>
-          <div class="pill-row"><span class="pill">Android 10+</span><span class="pill">Patched on your phone</span><span class="pill">Your own signing key</span><span class="pill">Spotify 9.2.0.2053</span></div>
-          <div class="palette-bar">
-            <span>Try a palette: <strong data-theme-name style="color:var(--ink)">Lavender</strong></span>
-            <div class="swatches" data-swatches role="group" aria-label="Palettes"></div>
+          <p class="cap">Unofficial and cosmetic. Needs Android 10 or newer and Spotify 9.2.0.2053.</p>
+        </div>
+        <div class="bleed" aria-label="Spatch's player and queue">
+          <div class="phone"><img src="assets/app2/player.jpg" width="720" height="1474" alt="Spatch's player: a round cover in a ring of bars, the song title, progress and a scalloped pause button"></div>
+          <div class="phone"><img src="assets/app2/queue.jpg" width="720" height="1474" alt="Spatch's queue: the song now playing and a list of what is next"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" data-track="The player" data-by="Spatch" data-tone="moss">
+      <div class="wrap row">
+        <div class="phone" style="justify-self:center"><img src="assets/app2/more.jpg" width="720" height="1474" loading="lazy" alt="The player with its more menu open: sleep timer, play on another device, share and player settings"></div>
+        <div class="stack">
+          <h2>The cover is the interface.</h2>
+          <p class="lede">A round cover circled by bars that move with the music, over a soft blur of its own colours. Everything else steps back.</p>
+          <ul class="tracks">
+            <li><strong>Colour from the cover</strong><span>The glow, the bars and the buttons take their colour from what is playing, and the backdrop rests when you pause.</span></li>
+            <li><strong>A calmer top bar</strong><span>Sleep timer, devices and share live in one menu. Pin any of them back to the bar in settings.</span></li>
+            <li><strong>Lyrics under the cover</strong><span>Two lines appear while a song is being sung and tuck away when it isn't.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" data-track="Lyrics" data-by="Spatch" data-tone="tide">
+      <div class="wrap stack">
+        <h2>Lyrics that follow along.</h2>
+        <p class="lede">The line being sung is bright and the rest fade away. The column glides to keep it centred, and tapping a line jumps the song there. Try it:</p>
+        <ul class="lyrics" data-lyrics aria-label="Live demo of the lyrics screen">
+          <li>Every line lights as it is sung.</li>
+          <li>The column glides to keep it centred.</li>
+          <li>Tap a line and the song jumps there.</li>
+          <li>Leave it off if you like the quiet.</li>
+        </ul>
+        <figure style="margin:56px 0 0">
+          <img class="shot" src="assets/app2/landscape.jpg" width="1280" height="576" loading="lazy" alt="Spatch in landscape: the cover and controls on the left and the lyrics full height on the right">
+          <figcaption class="cap">In landscape the lyrics sit beside the cover. Turn on “Allow rotation” in settings to try it.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="band" data-track="Widgets" data-by="Spatch" data-tone="ember">
+      <div class="wrap row row--flip">
+        <div class="stack">
+          <h2>Widgets that fit the space you give them.</h2>
+          <p class="lede">The cover is always a square, sized to the widget. Stretch the widget tall and it stacks: cover, title, controls. Colours follow the cover, and the play button changes shape when you press it.</p>
+          <p>A Quick Settings tile does play and pause without opening anything.</p>
+        </div>
+        <img class="shot" src="assets/app2/widget.png" width="972" height="240" loading="lazy" alt="The Spatch widget on a home screen: square cover, title, artist and scalloped play button">
+      </div>
+    </section>
+
+    <section class="band" data-track="Make it yours" data-by="Spatch" data-tone="moss">
+      <div class="wrap stack">
+        <h2>18 palettes. You're wearing one now.</h2>
+        <p class="lede">Pick any and this whole page changes, the way the app does. Add one from your wallpaper, or set your own colours.</p>
+        <div class="palettes" data-palettes role="group" aria-label="Palettes"></div>
+        <p class="now">Wearing: <strong data-pal-name>the colours of this section</strong></p>
+      </div>
+      <div class="wrap" style="margin-top:96px">
+        <div class="board">
+          <div class="stack">
+            <h2>Every piece is a switch.</h2>
+            <p class="lede">These are real settings. Flip them and watch the player lose what you don't want.</p>
+            <ul class="switches">
+              <li><label for="s1">Lyrics in the player<small>Lines under the cover</small></label><input class="sw" id="s1" type="checkbox" role="switch" data-switch="lyrics" checked></li>
+              <li><label for="s2">Queue button<small>In the top bar</small></label><input class="sw" id="s2" type="checkbox" role="switch" data-switch="queue" checked></li>
+              <li><label for="s3">Sleep timer button<small>Otherwise it lives in the more menu</small></label><input class="sw" id="s3" type="checkbox" role="switch" data-switch="timer"></li>
+              <li><label for="s4">Heart button<small>Save to Liked Songs</small></label><input class="sw" id="s4" type="checkbox" role="switch" data-switch="heart" checked></li>
+              <li><label for="s5">Shuffle and repeat<small>Either side of play</small></label><input class="sw" id="s5" type="checkbox" role="switch" data-switch="modes" checked></li>
+              <li><label for="s6">Next-up pill<small>What plays next</small></label><input class="sw" id="s6" type="checkbox" role="switch" data-switch="next" checked></li>
+            </ul>
+          </div>
+          <div class="mock" role="img" aria-label="A small model of the player that reacts to the switches">
+            <div class="bar"><span>Playing from</span><i><span class="q">≡</span><span class="t">◷</span><span>⋮</span></i></div>
+            <div class="ring"><b></b></div>
+            <div class="glass">Every line lights as it is sung<em>The column glides to keep it centred</em></div>
+            <div class="title">Glasshouse <span class="heart">♥</span></div>
+            <div class="controls"><span class="m">⇄</span><span>⏮</span><b>▶</b><span>⏭</span><span class="m">↻</span></div>
+            <div class="pill">Next  Daybreak Radio</div>
           </div>
         </div>
-        <div class="hero-stage" aria-hidden="false">
-          <div class="stage-layer back" data-depth=".6"><div class="phone phone--sm"><img src="assets/app/home.jpg" width="720" height="1478" alt="Spatch's home screen with a large now-playing card and recently played playlists"></div></div>
-          <div class="stage-layer front" data-depth="1"><div class="phone"><img src="assets/app/player.jpg" width="720" height="1478" alt="Spatch's player: a round cover in a ring of bars, three lines of lyrics and a scalloped pause button"></div></div>
-          <div class="stage-layer widget-float" data-depth="1.5"><img class="widget-shot" src="assets/app/widget.png" width="972" height="240" alt="Spatch's home-screen widget with the cover, title and controls"></div>
-        </div>
       </div>
     </section>
 
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee-track">
-        <span class="chip">Round-cover player</span><span class="chip">Time-synced lyrics</span><span class="chip">4×2 and 4×1 widgets</span><span class="chip">18 palettes</span><span class="chip">Quick Settings tile</span><span class="chip">Library grid</span><span class="chip">Queue &amp; search</span><span class="chip">Equalizer &amp; sound</span><span class="chip">Spatch Manager</span><span class="chip">Everything optional</span>
-        <span class="chip">Round-cover player</span><span class="chip">Time-synced lyrics</span><span class="chip">4×2 and 4×1 widgets</span><span class="chip">18 palettes</span><span class="chip">Quick Settings tile</span><span class="chip">Library grid</span><span class="chip">Queue &amp; search</span><span class="chip">Equalizer &amp; sound</span><span class="chip">Spatch Manager</span><span class="chip">Everything optional</span>
-      </div>
-    </div>
-
-    <section class="section" id="player">
-      <div class="wrap feature-row">
-        <div class="feature-media reveal"><div class="phone"><img src="assets/app/player.jpg" width="720" height="1478" loading="lazy" alt="The player with a spinning round cover, bars around it and a blurred backdrop" data-zoom></div></div>
-        <div class="reveal">
-          <p class="eyebrow">The player</p>
-          <h2>A player that moves with the music.</h2>
-          <p class="lead">The cover sits in a ring of bars, over a soft blurred glow in its own colours. Press play and the button melts into a scalloped shape; scrub along a wavy progress bar.</p>
-          <ul class="checks">
-            <li><strong>Colour from the cover.</strong> The glow, bars and highlights follow whatever is playing.</li>
-            <li><strong>Real blur, no streaks.</strong> A smooth backdrop that drifts slowly while music plays and rests when paused.</li>
-            <li><strong>Lyrics in place.</strong> Three quiet lines under the cover step up as they are sung, then tuck away when the song's lyrics end.</li>
-          </ul>
-          <a class="btn btn--ghost" href="features.html#player">Player details</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section--glow" id="lyrics">
-      <div class="wrap feature-row feature-row--flip">
-        <div class="feature-media reveal"><div class="lyric-card" data-lyrics aria-label="Live demo of the lyrics screen"><p class="lyric-hint">Live demo · tap a line</p></div></div>
-        <div class="reveal">
-          <p class="eyebrow">Lyrics</p>
-          <h2>Lyrics you can read from across the room.</h2>
-          <p class="lead">Open the lyrics screen and the line being sung glows on a soft pill while the rest of the song dims into the edges. The column glides to keep that line in the middle.</p>
-          <ul class="checks">
-            <li><strong>Time-synced.</strong> It follows the playhead; songs without lyrics simply show none.</li>
-            <li><strong>Tap a line to jump.</strong> Seeking is one touch.</li>
-            <li><strong>Yours to place.</strong> Full screen, or an optional three-line strip in the player.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="widgets">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="eyebrow">Home screen</p>
-          <h2>Widgets that fit, and follow the cover.</h2>
-          <p class="lead">A 4×2 and a 4×1 widget with a square cover sized to the space you give them, a flip when the song changes, and a play button that morphs between its shapes. Tall widgets switch to a stacked layout. A Quick Settings tile keeps play and pause one swipe away.</p>
-        </div>
-        <div class="reveal"><img class="widget-shot" src="assets/app/widget.png" width="972" height="240" loading="lazy" alt="The Spatch widget on a home screen" style="max-width:860px;margin-inline:auto"></div>
-      </div>
-    </section>
-
-    <section class="section section--tight" id="themes">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="eyebrow">Make it yours</p>
-          <h2>18 palettes. This page is wearing one right now.</h2>
-          <p class="lead">Pick any palette below and the whole page changes, exactly as it does in the app. Add one from your wallpaper, or set your own colours.</p>
-        </div>
-        <div class="palette-grid reveal" data-palette-grid></div>
-      </div>
-    </section>
-
-    <section class="section" id="optional">
-      <div class="wrap feature-row feature-row--flip">
-        <div class="feature-media reveal"><div class="device-pair"><div class="phone phone--sm"><img src="assets/app/settings.jpg" width="720" height="1478" loading="lazy" alt="Spatch's settings overview" data-zoom></div><div class="phone phone--sm"><img src="assets/app/appearance.jpg" width="720" height="1478" loading="lazy" alt="Spatch's player settings with a switch for each option" data-zoom></div></div></div>
-        <div class="reveal">
-          <p class="eyebrow">Your player, your rules</p>
-          <h2>Every piece is a switch.</h2>
-          <p class="lead">Each change has its own setting with finer options behind it. Presets turn the playful extras on or off together, and copy and paste move a whole setup between phones.</p>
-          <ul class="checks">
-            <li><strong>Calm or playful.</strong> From a clean player to rings, glow, motes and motion.</li>
-            <li><strong>Less clutter.</strong> Hide podcasts, audiobooks and rows you never use.</li>
-            <li><strong>Sound settings.</strong> Headphone correction, tone and dynamics.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="manager">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="eyebrow">Spatch Manager</p>
+    <section class="band" data-track="Install" data-by="Spatch" data-tone="tide">
+      <div class="wrap row">
+        <div class="stack">
           <h2>Patched on your phone, signed with your key.</h2>
-          <p class="lead">Spatch Manager takes the supported Spotify APKM (9.2.0.2053), applies the latest patches, and signs the build with a key generated on your device. Spatch's changes ship as small diffs, never as Spotify's files.</p>
+          <p class="lede">Spatch Manager does the patching, signing and installing on the phone. Spatch's changes ship as small diffs, never as Spotify's own files.</p>
+          <div class="btn-row"><a class="btn btn--fill" href="install.html">Full install guide</a><a class="btn btn--quiet" href="manager.html">About the Manager</a></div>
         </div>
-        <ol class="steps reveal">
-          <li class="step"><h3>Install Spatch Manager</h3><p>One small app that does the patching, signing and installing on the phone.</p></li>
-          <li class="step"><h3>Choose the Spotify file</h3><p>Pick the exact supported Spotify APKM. The manager checks it byte for byte and refuses anything else.</p></li>
-          <li class="step"><h3>Patch and install</h3><p>Tap once. Spatch is built, signed with your key and installed over Spotify, ready to open.</p></li>
+        <ol class="steps">
+          <li><strong>Install Spatch Manager</strong>One small app that does all the work.</li>
+          <li><strong>Choose the Spotify file</strong>The exact supported build, Spotify 9.2.0.2053. The Manager checks it byte for byte and refuses anything else.</li>
+          <li><strong>Patch and install</strong>One tap. The build is signed with a key made on your phone.</li>
         </ol>
-        <div class="btn-row reveal" style="margin-top:28px"><a class="btn btn--primary" href="install.html">Full install guide</a><a class="btn btn--ghost" href="manager.html">About the Manager</a></div>
-      </div>
-    </section>
-
-    <section class="section section--tight">
-      <div class="wrap center reveal">
-        <h2>Make Spotify yours.</h2>
-        <p class="lead center" style="margin-block:16px 28px">Unofficial and cosmetic: Spatch changes how Spotify looks, not what it plays or what your account can do.</p>
-        <div class="btn-row" style="justify-content:center"><a class="btn btn--primary" href="install.html">Get Spatch</a><a class="btn btn--ghost" href="gallery.html">Browse screenshots</a></div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-foot">
     <div class="wrap">
-      <div class="footer-grid">
-        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
-        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
-        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
-        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
-      </div>
-      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
+      <div><a class="brand" href="index.html" data-brand>Spatch</a><p class="cap">Spotify, redrawn from the inside.</p></div>
+      <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+      <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+      <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
+      <p class="fine">Spatch is an unofficial community project, not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
     </div>
   </footer>
+
+  <div class="player" role="region" aria-label="Page player">
+    <span class="disc" aria-hidden="true"></span>
+    <div class="meta"><b>Spatch</b><small>Spotify, redrawn</small></div>
+    <div class="ctl">
+      <button class="prev" type="button" aria-label="Previous section"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM9 12l11-7v14z"/></svg></button>
+      <button class="play" type="button"></button>
+      <button class="next" type="button" aria-label="Next section"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></button>
+    </div>
+    <div class="wave" aria-hidden="true"><div class="lane"><svg></svg></div><div class="done"><svg></svg></div></div>
+  </div>
   <script src="assets/site.js"></script>
 </body>
 </html>

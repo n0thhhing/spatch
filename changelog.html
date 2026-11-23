@@ -4,203 +4,172 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Changelog · Spatch</title>
-  <meta name="description" content="Spatch and Spatch Manager releases and recent highlights.">
-  <meta name="theme-color" content="#14121c">
+  <meta name="description" content="Spatch patches and Spatch Manager release highlights, latest first.">
+  <meta name="theme-color" content="#1a110e">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/pages-support.css">
 </head>
-<body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="wrap nav-wrap">
-      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
-      <nav class="site-nav" aria-label="Main">
-        <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html" aria-current="page">Changelog</a>
-      </nav>
-      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+<body data-tone="ember">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="index.html" data-brand>Spatch</a>
+      <nav class="site-nav" aria-label="Main"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html" aria-current="page">Changelog</a></nav>
+      <button class="nav-btn" type="button" aria-label="Menu" aria-expanded="false">☰</button>
     </div>
-    <nav class="mobile-drawer" aria-label="Mobile">
-      <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html" aria-current="page">Changelog</a>
-    </nav>
+    <nav class="drawer" aria-label="Mobile"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html" aria-current="page">Changelog</a></nav>
   </header>
 
   <main id="main">
-    <section class="page-hero">
-      <div class="wrap">
-        <p class="eyebrow">Changelog</p>
+    <section class="band" data-track="Recent changes" data-by="Changelog" data-tone="ember">
+      <div class="wrap stack">
         <h1>What's new.</h1>
-        <p class="lead">Recent highlights for Spatch patches and Spatch Manager. Full release notes and APK downloads live on GitHub.</p>
-        <div class="filter-bar" role="group" aria-label="Filter updates">
-          <button class="filter-btn" type="button" data-filter="all" aria-pressed="true">All</button>
-          <button class="filter-btn" type="button" data-filter="patches" aria-pressed="false">Patches</button>
-          <button class="filter-btn" type="button" data-filter="manager" aria-pressed="false">Manager</button>
+        <p class="lede">Recent changes for Spatch patches and Spatch Manager, latest first. Full release notes and APK downloads live on GitHub.</p>
+
+        <div class="filters" role="group" aria-label="Filter updates">
+          <button class="filter" type="button" data-filter="all" aria-pressed="true">All</button>
+          <button class="filter" type="button" data-filter="patches" aria-pressed="false">Patches</button>
+          <button class="filter" type="button" data-filter="manager" aria-pressed="false">Manager</button>
         </div>
-      </div>
-    </section>
 
-    <section class="section section--tight">
-      <div class="wrap">
         <div class="timeline">
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Artwork pulse option, larger landscape art &amp; single-pass playlists</h2>
-            <p>Added an Artwork pulse toggle in Player settings, enlarged landscape player artwork with proportional visualizer ring stroke thickness, sped up playlist header shapes with an interactive cover-tap bounce and spin boost, and eliminated double rebuilds when opening cached playlists and albums.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Artwork pulse option, larger landscape art, and single-pass playlists</h2>
+            <p>Added an Artwork pulse toggle in Player settings, enlarged landscape player artwork with proportional visualizer ring stroke thickness, sped up playlist header shapes with a cover-tap bounce and spin boost, and removed double rebuilds when opening cached playlists and albums.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Smart landscape Lyrics switcher, smooth Library tabs &amp; Sleep countdown ring</h2>
-            <p>Added automatic transitions between Lyrics and Up next in the landscape player based on lyric availability, rebuilt Library filter chips into a smooth sliding capsule without scroll jumps alongside a compact single-row landscape toolbar, arranged the landscape Create popup into a clean two-column sheet, enforced portrait lock when Allow rotation is off, curated and animated three slowly spinning header shapes behind playlist covers, added click-to-spin on Home's greeting icon, and added a live circular countdown ring to the active Sleep timer sheet.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Landscape lyrics switcher, smoother Library tabs, and Sleep countdown ring</h2>
+            <p>Added automatic switching between Lyrics and Up next in the opt-in landscape player based on lyric availability, rebuilt Library filter chips into a sliding capsule without scroll jumps alongside a single-row landscape toolbar, arranged the landscape Create popup into a two-column sheet, enforced portrait lock when Allow rotation is off, animated three slowly spinning header shapes behind playlist covers, added tap-to-spin on Home's greeting icon, and added a circular countdown ring to the active Sleep timer sheet.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Sliding segmented pills &amp; two-pane landscape Search</h2>
-            <p>Upgraded segmented option groups across Search and Settings with an animated overshoot indicator pill, added a side-by-side two-pane landscape Search layout with spring press feedback on recent queries, and extended shared cover flight transitions to Search albums, playlists, and artists.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Sliding segmented pills and two-pane landscape Search</h2>
+            <p>Updated segmented option groups across Search and Settings with an animated overshoot indicator pill, added a side-by-side two-pane landscape Search layout with spring press feedback on recent queries, and extended shared cover flight transitions to Search albums, playlists, and artists.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>10-band EQ faders mode &amp; two-pane landscape playlists</h2>
-            <p>Added a switchable 10-band vertical graphic faders view with relative delta-drag control and live dB pills in Equalizer &amp; sound, plus a responsive two-pane landscape layout and subtle header scroll parallax on playlist and album pages.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>10-band EQ faders and two-pane landscape playlists</h2>
+            <p>Added a switchable 10-band vertical graphic faders view with relative delta-drag control and live dB pills in Equalizer and sound, plus a two-pane landscape layout and header scroll parallax on playlist and album pages.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Shared cover flight, miniature theme previews &amp; heart bursts</h2>
-            <p>Added shared-element cover flight transitions into playlist and album pages, miniature app-window palette cards in Appearance, an animated overshoot pill indicator on landscape Lyrics | Up next tabs, and a confetti burst of hearts when saving the current song.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Shared cover flight, miniature theme previews, and heart bursts</h2>
+            <p>Added shared-element cover flight transitions into playlist and album pages, miniature app-window palette previews in Appearance, an animated overshoot pill indicator on landscape Lyrics and Up next tabs, and a burst of hearts when saving the current song.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Contour visualizer mode, delta-drag EQ &amp; greeting badge</h2>
-            <p>Added a fluid radial Contour visualizer option alongside Bars and Ring, smooth relative delta-drag gestures on the equalizer curve, and an expressive time-of-day shape badge beside the Home greeting.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Contour visualizer mode, delta-drag EQ, and greeting badge</h2>
+            <p>Added a radial Contour visualizer option alongside Bars and Ring, relative delta-drag gestures on the equalizer curve, and a time-of-day shape badge beside the Home greeting.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Bass cover pulse, header stickers &amp; landscape Home/Library</h2>
-            <p>Added subtle bass-reactive cover breathing inside the visualizer ring, dual-colour ambient cover glows, deterministic background stickers behind playlist/album headers, a floating seek-time pill with track-change scrub guard, four-column landscape Library grids, and side-by-side landscape Home quick cards.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Bass cover pulse, header stickers, and landscape Home and Library</h2>
+            <p>Added bass-reactive cover breathing inside the visualizer ring, dual-colour cover glows, deterministic background stickers behind playlist and album headers, a floating seek-time pill with track-change scrub guard, four-column landscape Library grids, and side-by-side landscape Home quick cards.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Direct visualizer, two-tone cover palettes &amp; Gaussian EQ</h2>
-            <p>Read audio directly from Spotify's output stream without microphone permissions, extract distinct primary and secondary accents from multi-colour album covers, and shape sound on a continuous Gaussian-summed equalizer curve with a live dB badge.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Opt-in direct audio read, two-tone cover palettes, and Gaussian EQ</h2>
+            <p>Added an opt-in direct audio read from Spotify's output stream without microphone permission, extracted distinct primary and secondary accents from multi-colour album covers, and shaped sound on a continuous Gaussian-summed equalizer curve with a live dB badge.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Landscape Up next tabs, idle-fade picker &amp; rich Sleep timer</h2>
-            <p>Switch between synced lyrics and the interactive Up next queue beside the cover in landscape, pick individually which player elements fade when idle, restart cleanly on Previous at 0:00, and adjust an active sleep timer by ±5 minutes with live countdown.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Landscape Up next tabs, idle-fade picker, and Sleep timer adjustments</h2>
+            <p>Switch between synced lyrics and the Up next queue beside the cover in landscape, pick which player elements fade when idle, restart cleanly on Previous at 0:00, and adjust an active sleep timer by ±5 minutes with a live countdown.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Widget clipping, softer cover glow &amp; zero idle frames</h2>
-            <p>Polished widget corner clipping and text readability shadows, smoothed circular visualizer proportions across landscape screens and removed abrupt glow rings, and eliminated idle render wakeups when playback is paused.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Widget clipping, softer cover glow, and zero idle frames</h2>
+            <p>Fixed widget corner clipping and text readability shadows, smoothed circular visualizer proportions across landscape screens and removed abrupt glow rings, and stopped idle render wakeups when playback is paused.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Time-synced lyrics screen &amp; player lyric strip</h2>
-            <p>Added a dedicated time-synced lyrics screen where the sung line glows and the column glides smoothly to keep it centred—tap any line to jump straight there. You can also turn on an optional three-line lyric strip in the player, over a smooth cover blur backdrop, with every piece of the player optional in settings.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Time-synced lyrics screen, player lyric strip, and calmer top bar</h2>
+            <p>Added a time-synced lyrics screen where the sung line is bright, the column glides to keep it centred, and tapping a line jumps the song there. Added an optional two-line lyric strip in the player (one to three lines, a setting) over a soft cover blur, a calmer player top bar with a more menu, and settings for every piece of the player.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Adaptive home-screen widgets</h2>
-            <p>Widgets now feature a square cover that adapts to the size you give them, plus a stacked layout for tall widgets.</p>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Adaptive home-screen widgets and Quick Settings tile</h2>
+            <p>Widgets keep their cover square and sized to the space you give them, with a stacked layout for tall widgets. Added a Quick Settings play/pause tile.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="patches">
-            <div class="release-meta">
-              <span class="release-tag">Patches</span>
-            </div>
-            <h2>Spotify 9.2.0.2053 target &amp; SHA-256 verification</h2>
+          <article class="entry" data-kind="patches">
+            <span class="tag tag--accent">Patches</span>
+            <h2>Spotify 9.2.0.2053 target and SHA-256 verification</h2>
             <p>Built for Spotify for Android <strong>9.2.0.2053</strong> (version code <code>148387875</code>) as an APKM bundle. Every input APKM, split APK, and patched entry is checked against its exact SHA-256.</p>
           </article>
 
-          <article class="card release-card reveal" data-kind="manager">
-            <div class="release-meta">
-              <span class="release-tag release-tag--manager">Manager</span>
-            </div>
-            <h2>Clones, nightly patches &amp; live build progress</h2>
-            <p>Install a second Spotify clone beside the first with its own package name, app name, and adaptive launcher icon. Opt into nightly patches with live build progress, self-updates, and one-tap <code>base.apk</code> updates (silent on Android 12+).</p>
+          <article class="entry entry--manager" data-kind="manager">
+            <span class="tag">Manager</span>
+            <h2>Clones, nightly patches, and live build progress</h2>
+            <p>Install a second Spotify clone beside the first with its own package name, app name, and adaptive launcher icon. Opt into nightly patches with live build progress, self-updates, and one-tap <code>base.apk</code> updates (silent on Android 12 or newer).</p>
           </article>
         </div>
       </div>
     </section>
 
-    <section class="section section--tight">
-      <div class="wrap">
-        <div class="callout callout-split reveal">
-          <div>
-            <h2>Full release history on GitHub</h2>
-            <p class="muted">Browse every tagged patch bundle and Spatch Manager release, or grab the latest <code>spatch-manager.apk</code>.</p>
-          </div>
-          <div class="btn-row">
-            <a class="btn btn--primary" href="https://github.com/n0thhhing/spatch/releases/latest">Latest release</a>
-            <a class="btn btn--ghost" href="https://github.com/n0thhhing/spatch/releases">All releases</a>
-          </div>
+    <section class="band" data-track="GitHub Releases" data-by="Changelog" data-tone="tide">
+      <div class="wrap stack">
+        <h2>Full release history on GitHub.</h2>
+        <p class="lede">Browse every tagged patch bundle and Spatch Manager release, or download the latest <code>spatch-manager.apk</code>.</p>
+        <div class="btn-row">
+          <a class="btn btn--fill" href="https://github.com/n0thhhing/spatch/releases/latest">Latest release</a>
+          <a class="btn btn--quiet" href="https://github.com/n0thhhing/spatch/releases">All releases</a>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-foot">
     <div class="wrap">
-      <div class="footer-grid">
-        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
-        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
-        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
-        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
-      </div>
-      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
+      <div><a class="brand" href="index.html" data-brand>Spatch</a><p class="cap">Spotify, redrawn from the inside.</p></div>
+      <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+      <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+      <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
+      <p class="fine">Spatch is an unofficial community project, not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
     </div>
   </footer>
-  <script src="assets/site.js"></script>
+
+  <div class="player" role="region" aria-label="Page player">
+    <span class="disc" aria-hidden="true"></span>
+    <div class="meta"><b>Spatch</b><small>Spotify, redrawn</small></div>
+    <div class="ctl">
+      <button class="prev" type="button" aria-label="Previous section"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM9 12l11-7v14z"/></svg></button>
+      <button class="play" type="button"></button>
+      <button class="next" type="button" aria-label="Next section"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></button>
+    </div>
+    <div class="wave" aria-hidden="true"><div class="lane"><svg></svg></div><div class="done"><svg></svg></div></div>
+  </div>
   <script>
     (function () {
       var buttons = document.querySelectorAll("[data-filter]");
-      var cards = document.querySelectorAll(".release-card[data-kind]");
+      var entries = document.querySelectorAll(".entry[data-kind]");
       buttons.forEach(function (btn) {
         btn.addEventListener("click", function () {
           var kind = btn.getAttribute("data-filter");
           buttons.forEach(function (b) {
             b.setAttribute("aria-pressed", b === btn ? "true" : "false");
           });
-          cards.forEach(function (card) {
-            card.hidden = kind !== "all" && card.getAttribute("data-kind") !== kind;
+          entries.forEach(function (entry) {
+            entry.hidden = kind !== "all" && entry.getAttribute("data-kind") !== kind;
           });
         });
       });
     })();
   </script>
+  <script src="assets/site.js"></script>
 </body>
 </html>

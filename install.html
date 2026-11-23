@@ -4,184 +4,161 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Install · Spatch</title>
-  <meta name="description" content="How to install Spatch with Spatch Manager, update it, back up your key, and patch on a computer.">
-  <meta name="theme-color" content="#14121c">
+  <meta name="description" content="How to install Spatch with Spatch Manager, update it, back up your signing key, and patch on a computer.">
+  <meta name="theme-color" content="#1a110e">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/pages-support.css">
 </head>
-<body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="wrap nav-wrap">
-      <a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a>
-      <nav class="site-nav" aria-label="Main">
-        <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html" aria-current="page">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
-      </nav>
-      <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+<body data-tone="ember">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="index.html" data-brand>Spatch</a>
+      <nav class="site-nav" aria-label="Main"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html" aria-current="page">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
+      <button class="nav-btn" type="button" aria-label="Menu" aria-expanded="false">☰</button>
     </div>
-    <nav class="mobile-drawer" aria-label="Mobile">
-      <a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html" aria-current="page">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a>
-    </nav>
+    <nav class="drawer" aria-label="Mobile"><a href="index.html">Home</a><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="install.html" aria-current="page">Install</a><a href="manager.html">Manager</a><a href="gallery.html">Gallery</a><a href="faq.html">FAQ</a><a href="changelog.html">Changelog</a></nav>
   </header>
 
   <main id="main">
-    <section class="page-hero">
-      <div class="wrap">
-        <p class="eyebrow">Install</p>
+    <section class="band" data-track="Install" data-by="Spatch" data-tone="ember">
+      <div class="wrap stack">
         <h1>Get Spatch on your phone.</h1>
-        <p class="lead">Spatch Manager patches Spotify on your phone, signs it with a key made there, and installs it. You need the exact Spotify version Spatch is built for.</p>
-        <div class="pill-row">
-          <span class="pill">Android 10+</span>
-          <span class="pill">Spotify 9.2.0.2053</span>
-          <span class="pill">Version code 148387875</span>
-          <span class="pill">APKM bundle</span>
+        <p class="lede">Spatch Manager patches Spotify on your phone, signs it with a key made there, and installs it. You need Android 10 or newer and the exact Spotify version Spatch is built for.</p>
+        <div class="tags" aria-label="Requirements">
+          <span class="tag">Android 10 or newer</span>
+          <span class="tag">Spotify 9.2.0.2053</span>
+          <span class="tag">Version code 148387875</span>
+          <span class="tag">APKM bundle</span>
         </div>
-      </div>
-    </section>
-
-    <section class="section section--tight">
-      <div class="wrap">
-        <div class="callout callout-split reveal">
-          <div>
-            <h3>Supported build</h3>
-            <p class="muted">Spotify for Android <strong>9.2.0.2053</strong> (version code <strong>148387875</strong>), as an APKM bundle. Spatch checks the file's SHA-256 and refuses anything else.</p>
-          </div>
-          <a class="btn btn--primary" href="https://github.com/n0thhhing/spatch/releases/latest">Download Manager</a>
+        <div class="btn-row">
+          <a class="btn btn--fill" href="https://github.com/n0thhhing/spatch/releases/latest">Download Manager</a>
+          <a class="btn btn--quiet" href="manager.html">About the Manager</a>
+          <a class="btn btn--quiet" href="#cli">Patch on a computer</a>
         </div>
 
-        <ol class="steps steps--grid reveal">
-          <li class="step">
-            <h3>Install Spatch Manager</h3>
+        <div class="note">
+          <p><strong>Supported build.</strong> Spotify for Android <strong>9.2.0.2053</strong> (version code <code>148387875</code>) as an APKM bundle. Spatch Manager checks the file's SHA-256 and refuses anything else.</p>
+        </div>
+
+        <ol class="steps">
+          <li>
+            <strong>Install Spatch Manager</strong>
             <p>Download <code>spatch-manager.apk</code> from the <a href="https://github.com/n0thhhing/spatch/releases/latest">latest release</a> and open it. Android asks once to allow installs from your browser. Requires Android 10 or newer.</p>
           </li>
-          <li class="step">
-            <h3>Get the Spotify APKM</h3>
-            <p>Get exactly Spotify <strong>9.2.0.2053</strong> as an <strong>APKM</strong>, an unmodified build signed with Spotify's real key; the manager checks it and refuses anything else. With an invite to a Spatch source, skip this: the manager downloads the right file for you. Skip it too if that exact Spotify version is already installed unmodified.</p>
+          <li>
+            <strong>Get the Spotify APKM</strong>
+            <p>Get Spotify <strong>9.2.0.2053</strong> (version code <code>148387875</code>) as an <strong>APKM</strong>, an unmodified build signed with Spotify's real key; the Manager checks it and refuses anything else. With an invite to a Spatch source, skip this: the Manager downloads the right file for you. Skip it too if that exact Spotify version is already installed unmodified.</p>
           </li>
-          <li class="step">
-            <h3>Choose the APKM</h3>
-            <p>In the manager tap <strong>Choose Spotify APKM</strong> and pick the file from Downloads. The manager keeps a copy, so you never pick it again.</p>
+          <li>
+            <strong>Choose the APKM</strong>
+            <p>In the Manager tap <strong>Choose Spotify APKM</strong> and pick the file from Downloads. The Manager keeps a copy, so you never pick it again.</p>
           </li>
-          <li class="step">
-            <h3>Make room</h3>
-            <p>A Spotify signed by Spotify can't be updated by a differently signed app, so the manager asks to uninstall it first; this removes downloaded songs. Turn off Play Store auto-update for Spotify so Play doesn't offer an update that would fail.</p>
+          <li>
+            <strong>Make room</strong>
+            <p>A Spotify signed by Spotify cannot be updated by a differently signed app, so the Manager asks to uninstall it first. This removes downloaded songs. Turn off Play Store auto-update for Spotify so Play does not offer an update that would fail.</p>
           </li>
-          <li class="step">
-            <h3>Install Spatch</h3>
-            <p>Tap <strong>Install Spatch</strong>. The manager downloads the newest patches, checks every file, signs and installs. Open Spotify and sign in.</p>
+          <li>
+            <strong>Install Spatch</strong>
+            <p>Tap <strong>Install Spatch</strong>. The Manager downloads the newest patches, checks every file, signs the build, and installs it. Open Spotify and sign in.</p>
           </li>
-          <li class="step">
-            <h3>Back up your key</h3>
+          <li>
+            <strong>Back up your key</strong>
             <p>On the Signing key card tap <strong>Export</strong> and keep the <code>.p12</code> file and its password somewhere safe. With it, a new phone can keep updating the same install.</p>
           </li>
         </ol>
 
-        <div class="callout callout--warn reveal" style="margin-top:24px">
-          <h3>Use at your own risk</h3>
-          <p>Spatch is unofficial and changes Spotify's app, which is against Spotify's terms of use. It only changes how the app looks, but use it at your own risk.</p>
+        <div class="note">
+          <p><strong>Use at your own risk.</strong> Spatch is unofficial and changes Spotify's app, which is against Spotify's terms of use. It only changes how the app looks, but use it at your own risk.</p>
         </div>
       </div>
     </section>
 
-    <section class="section section--glow">
-      <div class="wrap feature-row">
-        <div class="reveal">
-          <div class="section-head" style="margin-bottom:28px">
-            <p class="eyebrow">After install</p>
-            <h2>Updates, existing keys &amp; builds.</h2>
-            <p class="lead">Every piece of the player is optional in settings once you're in.</p>
-          </div>
-          <div class="grid grid--2">
-            <div class="card">
-              <h3>Updating</h3>
-              <p><em>Tell me about new patches</em> notifies you twice a day at most. Tap the notification and the manager updates straight away; on Android 12+ it skips the confirmation screen once it installed Spotify.</p>
-            </div>
-            <div class="card">
-              <h3>Patched on a computer?</h3>
-              <p>Import the keystore you signed with (<strong>Signing key &rarr; Import</strong>) and the manager installs over it as an update, keeping your data. Choose the APKM once, since a patched install has no original left in it.</p>
-            </div>
-            <div class="card">
-              <h3>Developer build</h3>
-              <p>Flip <strong>Developer build</strong> in the manager and tap <strong>Switch build</strong> to get Developer options: self tests, a frame monitor, a touch inspector, and logs. Settings stay.</p>
-            </div>
-            <a class="card" href="#cli" style="text-decoration:none;color:inherit">
-              <h3>Prefer a computer?</h3>
-              <p class="muted">The patcher is a Rust command-line tool. Jump to the computer instructions below.</p>
-            </a>
-          </div>
+    <section class="band" data-track="After install" data-by="Spatch" data-tone="moss">
+      <div class="wrap row">
+        <div class="stack">
+          <h2>Updates, keys, and settings.</h2>
+          <p class="lede">Every piece of the player is a setting once you are in. Open Spotify's side panel and choose Spatch, or use the calmer player top bar's more menu.</p>
+          <ul class="tracks">
+            <li><strong>Updating</strong><span>Turn on <em>Tell me about new patches</em> and the Manager notifies you twice a day at most. Tap the notification to update straight away; on Android 12 or newer it skips the confirmation screen once it installed Spotify.</span></li>
+            <li><strong>Patched on a computer</strong><span>Open <strong>Signing key</strong> in the Manager and tap <strong>Import</strong> to load the keystore you signed with. The Manager installs over your existing build as an update and keeps your data. Choose the APKM once, since a patched install has no original left in it.</span></li>
+            <li><strong>Developer build</strong><span>Flip <strong>Developer build</strong> in the Manager and tap <strong>Switch build</strong> to unlock Developer options: self tests, a frame monitor, a touch inspector, and logs. Your settings stay.</span></li>
+            <li><strong>Options to try</strong><span>Turn on the optional two-line lyric strip in the player (configurable from one to three lines), opt into the landscape player, enable direct audio read (no microphone permission), or add home-screen widgets and the Quick Settings play/pause tile.</span></li>
+          </ul>
         </div>
-        <div class="feature-media reveal">
-          <div class="phone">
-            <img src="assets/app/settings.jpg" width="720" height="1478" loading="lazy" alt="Spatch settings inside Spotify where every piece of the player is optional" data-zoom>
-          </div>
+        <div class="phone phone--center">
+          <img src="assets/app2/more.jpg" width="720" height="1474" loading="lazy" alt="Spatch's player with the calmer top bar's more menu open, showing sleep timer, devices, share, and player settings">
         </div>
       </div>
     </section>
 
-    <section class="section section--tight" id="cli">
+    <section class="band" data-track="Computer and fixes" data-by="Install" data-tone="tide" id="cli">
       <div class="wrap">
-        <div class="section-head reveal" style="margin-bottom:28px">
-          <p class="eyebrow">Command line</p>
+        <div class="stack">
           <h2>Patching on a computer.</h2>
-          <p class="lead">Requires Rust, Java, and Android build-tools (<code>aapt2</code>, <code>zipalign</code>, <code>apksigner</code>), plus your own signing key.</p>
-        </div>
-        <pre class="code reveal"><code>cargo build --release
+          <p class="lede">The patcher is a Rust command-line tool. It needs Rust, Java, Android build-tools (<code>aapt2</code>, <code>zipalign</code>, <code>apksigner</code>), and your own signing key.</p>
+          <pre class="code"><code>cargo build --release
 ./target/release/spatch inspect &lt;input.apkm&gt;
 ./target/release/spatch patch &lt;input.apkm&gt; --out &lt;dir&gt; --theme gruvbox \
     --keystore &lt;file&gt; --alias &lt;name&gt; --ks-pass-env SPATCH_KS_PASS
 adb install-multiple -r base.apk split_config.*.apk</code></pre>
-        <p class="muted reveal" style="margin-top:14px">Add <code>--debug</code> for Developer options. <code>spatch bundle</code> writes a patch bundle for the manager instead of a signed set.</p>
-      </div>
-    </section>
-
-    <section class="section section--tight">
-      <div class="wrap">
-        <div class="section-head reveal" style="margin-bottom:28px">
-          <p class="eyebrow">Troubleshooting</p>
-          <h2>Common errors.</h2>
+          <p class="cap">Add <code>--debug</code> for Developer options. <code>spatch bundle</code> writes a patch bundle for the Manager instead of a signed set.</p>
         </div>
-        <div class="reveal" style="max-width:820px">
-          <details class="accordion">
-            <summary>"Spotify is signed with a different key"</summary>
-            <div>
-              <p>The installed Spotify wasn't signed by your manager's key. Import the key it was signed with, or uninstall it (this removes downloads) and install again.</p>
-            </div>
-          </details>
-          <details class="accordion">
-            <summary>"That file isn't the Spotify APKM Spatch is made for"</summary>
-            <div>
-              <p>The file is a different version or was modified. Get 9.2.0.2053 again and pick the APKM, not an APK or XAPK.</p>
-            </div>
-          </details>
-          <details class="accordion">
-            <summary>The quick update didn't take</summary>
-            <div>
-              <p>Tap Install again: the manager falls back to reinstalling every APK.</p>
-            </div>
-          </details>
-          <details class="accordion">
-            <summary>Couldn't reach GitHub</summary>
-            <div>
-              <p>The manager needs a connection to find and download patches. Check your network and tap Check for updates.</p>
-            </div>
-          </details>
+
+        <div class="sub-band stack">
+          <h2>Common errors.</h2>
+          <div class="folds">
+            <details class="fold">
+              <summary>"Spotify is signed with a different key"</summary>
+              <div>
+                <p>The installed Spotify was not signed by your Manager's key. Import the key it was signed with, or uninstall it (this removes downloads) and install again.</p>
+              </div>
+            </details>
+            <details class="fold">
+              <summary>"That file isn't the Spotify APKM Spatch is made for"</summary>
+              <div>
+                <p>The file is a different version or was modified. Get Spotify 9.2.0.2053 (version code <code>148387875</code>) again and pick the APKM, not an APK or XAPK.</p>
+              </div>
+            </details>
+            <details class="fold">
+              <summary>The quick update did not take</summary>
+              <div>
+                <p>Tap Install again: the Manager falls back to reinstalling every APK.</p>
+              </div>
+            </details>
+            <details class="fold">
+              <summary>Could not reach GitHub</summary>
+              <div>
+                <p>The Manager needs a connection to find and download patches. Check your network and tap Check for updates.</p>
+              </div>
+            </details>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-foot">
     <div class="wrap">
-      <div class="footer-grid">
-        <div><a class="brand" href="index.html"><img src="assets/icon.svg" width="30" height="30" alt="">Spatch</a><p class="muted" style="margin-top:10px">Spotify, redrawn from the inside.</p></div>
-        <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
-        <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
-        <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
-      </div>
-      <p class="fine">Spatch is an unofficial, community project and is not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
+      <div><a class="brand" href="index.html" data-brand>Spatch</a><p class="cap">Spotify, redrawn from the inside.</p></div>
+      <div><h4>Explore</h4><a href="features.html">Features</a><a href="themes.html">Themes</a><a href="gallery.html">Gallery</a></div>
+      <div><h4>Get it</h4><a href="install.html">Install</a><a href="manager.html">Manager</a><a href="changelog.html">Changelog</a></div>
+      <div><h4>Help</h4><a href="faq.html">FAQ</a><a href="https://github.com/n0thhhing/spatch/releases">Releases</a></div>
+      <p class="fine">Spatch is an unofficial community project, not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB. Spatch ships no Spotify files.</p>
     </div>
   </footer>
+
+  <div class="player" role="region" aria-label="Page player">
+    <span class="disc" aria-hidden="true"></span>
+    <div class="meta"><b>Spatch</b><small>Spotify, redrawn</small></div>
+    <div class="ctl">
+      <button class="prev" type="button" aria-label="Previous section"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM9 12l11-7v14z"/></svg></button>
+      <button class="play" type="button"></button>
+      <button class="next" type="button" aria-label="Next section"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></button>
+    </div>
+    <div class="wave" aria-hidden="true"><div class="lane"><svg></svg></div><div class="done"><svg></svg></div></div>
+  </div>
   <script src="assets/site.js"></script>
 </body>
 </html>
