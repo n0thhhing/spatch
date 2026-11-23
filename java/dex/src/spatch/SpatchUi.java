@@ -1060,6 +1060,9 @@ public final class SpatchUi extends FrameLayout {
         tf.topMargin = inset.top;
         addView(topFade, tf);
         dock = column();
+        // A swipe nudges the mini player sideways past the dock's padding (and the rail's narrow edge); let it show.
+        dock.setClipToPadding(false);
+        dock.setClipChildren(false);
         dockHidden = false;
         scrollTravel = 0;
         if (landscape()) {
