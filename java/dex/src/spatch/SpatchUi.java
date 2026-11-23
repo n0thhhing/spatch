@@ -1035,8 +1035,9 @@ public final class SpatchUi extends FrameLayout {
         setBackgroundColor(bg);
         pageHost = new FrameLayout(activity);
         LayoutParams hostAt = new LayoutParams(-1, -1);
-        hostAt.leftMargin = inset.left; hostAt.rightMargin = inset.right; // landscape: clear of the side system bar and cutout
-        pageHost.setClipChildren(false); // page backdrops may reach out under those insets
+        hostAt.leftMargin = sideLeft(); hostAt.rightMargin = inset.right; // landscape: clear of the side system bar, cutout and rail
+        pageHost.setClipChildren(false); // page backdrops may reach out under those insets (and the rail)
+        setClipChildren(false);
         addView(pageHost, hostAt);
         // Lists dim as they pass under the mini player and bar instead of showing through them.
         View fade = new View(activity);
@@ -1045,6 +1046,7 @@ public final class SpatchUi extends FrameLayout {
         fade.setBackground(fadeBg);
         colored(fade, () -> fadeBg.setColors(new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg}));
         addView(fade, new LayoutParams(-1, dockRoom() + dp(20), Gravity.BOTTOM));
+        if (landscape()) fade.setVisibility(GONE); // the rail sits beside the content, nothing passes under it
         // And under the status bar, so scrolled content doesn't collide with the clock and icons: solid behind
         // the bar itself, then a short fade below it.
         View topSolid = new View(activity);
@@ -1060,17 +1062,29 @@ public final class SpatchUi extends FrameLayout {
         dock = column();
         dockHidden = false;
         scrollTravel = 0;
-        dock.setPadding(dp(12) + inset.left, 0, dp(12) + inset.right, dp(10) + inset.bottom);
-        if (landscape()) dock.setOrientation(LinearLayout.HORIZONTAL); // nav and mini player share one row, so pages keep the height
-        addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
+        if (landscape()) {
+            // Sideways the dock is a rail down the left: tabs at the top, the playing song at the foot, and the
+            // content keeps the whole height beside it instead of sliding under a bar.
+            dock.setPadding(dp(RAIL_GAP) + inset.left, inset.top + dp(4), 0, dp(8) + inset.bottom);
+            addView(dock, new LayoutParams(dp(RAIL_GAP + RAIL) + inset.left, -1, Gravity.START));
+        } else {
+            dock.setPadding(dp(12) + inset.left, 0, dp(12) + inset.right, dp(10) + inset.bottom);
+            addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
+        }
         buildDock();
         player = null;
         showPage();
         if (playerOpen) { playerOpen = false; openPlayer(false); }
     }
 
-    /** Room a page leaves at its foot for the dock: two rows in portrait, one in landscape. */
-    int dockRoom() { return dp(landscape() ? 96 : 170) + inset.bottom; }
+    /** Room a page leaves at its foot for the dock: two rows in portrait; in landscape the dock is a side rail. */
+    int dockRoom() { return dp(landscape() ? 16 : 170) + inset.bottom; }
+
+    /** Side rail width and its gap from the screen edge (dp); the gap keeps the rail clear of the camera hole. */
+    private static final int RAIL = 64, RAIL_GAP = 14;
+
+    /** Where pages start from the left: past the side inset, plus the rail in landscape (less the page's own margin). */
+    int sideLeft() { return inset.left + (landscape() ? dp(RAIL_GAP + RAIL - 8) : 0); }
 
     boolean landscape() {
         return activity.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
@@ -2145,17 +2159,27 @@ public final class SpatchUi extends FrameLayout {
         tappable(mini, "Open player", () -> openPlayer(true));
         miniGestures(mini);
         mini.setOnLongClickListener(v -> { currentSongActions(); return true; });
-        boolean wide = landscape();
-        LinearLayout.LayoutParams mp = wide ? new LinearLayout.LayoutParams(0, dp(58), 1) : fill(-2);
-        if (wide) mp.leftMargin = dp(10); else mp.bottomMargin = dp(8);
+        boolean rail = landscape();
+        LinearLayout.LayoutParams mp = fill(-2);
+        mp.bottomMargin = dp(8);
 
-        dockBar = new Navigator();
+        dockBar = new Navigator(rail);
         dockBar.setGravity(Gravity.CENTER);
-        bgRound(dockBar, 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
-        dockBar.setPadding(dp(6), dp(5), dp(6), dp(5));
-        if (wide) {
-            dock.addView(dockBar, new LinearLayout.LayoutParams(dp(300), dp(58)));
-            dock.addView(mini, mp);
+        bgRound(dockBar, rail ? 32 : 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+        dockBar.setPadding(dp(5), dp(6), dp(5), dp(6));
+        if (rail) {
+            // The mini player folds into the rail's foot: the spinning cover (tap for the player, swipe to skip) over play.
+            mini.removeAllViews();
+            mini.setOrientation(LinearLayout.VERTICAL);
+            mini.setGravity(Gravity.CENTER_HORIZONTAL);
+            mini.setPadding(0, dp(8), 0, dp(6));
+            mini.addView(mArt, lp(dp(42), dp(42)));
+            LinearLayout.LayoutParams playAt = lp(dp(46), dp(46));
+            playAt.topMargin = dp(4);
+            mini.addView(mPlay, playAt);
+            dock.addView(dockBar, new LinearLayout.LayoutParams(dp(RAIL), -2));
+            dock.addView(space(1, 0), new LinearLayout.LayoutParams(1, 0, 1));
+            dock.addView(mini, new LinearLayout.LayoutParams(dp(RAIL), -2));
         } else {
             dock.addView(mini, mp);
             dock.addView(dockBar, fill(dp(56)));
@@ -2181,7 +2205,7 @@ public final class SpatchUi extends FrameLayout {
                 item.setGravity(Gravity.CENTER);
                 item.addView(icon(glyphs[i], () -> ink), lp(dp(25), dp(25)));
                 tappable(item, names[i], () -> navigate(index));
-                dockBar.addView(item, new LinearLayout.LayoutParams(0, dp(46), 1));
+                dockBar.addView(item, dockBar.vertical ? new LinearLayout.LayoutParams(-1, dp(46)) : new LinearLayout.LayoutParams(0, dp(46), 1));
             }
         }
         for (int i = 0; i < NAV_TABS.length; i++) if (NAV_TABS[i] == CREATE) {
@@ -2218,14 +2242,20 @@ public final class SpatchUi extends FrameLayout {
         private boolean draggingSlide;
         private long lastTickMs;
         private int destination = HOME;
-        Navigator() { super(activity); setOrientation(HORIZONTAL); }
+        /** Down a side rail (landscape) instead of across the bottom: the indicator, drags and taps follow the long axis. */
+        final boolean vertical;
+        Navigator(boolean vertical) { super(activity); this.vertical = vertical; setOrientation(vertical ? VERTICAL : HORIZONTAL); }
+        private float along(MotionEvent e) { return vertical ? e.getY() : e.getX(); }
+        private float across(MotionEvent e) { return vertical ? e.getX() : e.getY(); }
+        private float length() { return vertical ? getHeight() : getWidth(); }
+        private float middle(View child) { return vertical ? (child.getTop() + child.getBottom()) / 2f : (child.getLeft() + child.getRight()) / 2f; }
 
         void setDestination(int target) {
             destination = target;
-            if (navDragging || getWidth() == 0) return;
+            if (navDragging || length() == 0) return;
             float x = -1;
             for (int i = 0; i < getChildCount(); i++) if (NAV_TABS[i] == target) {
-                View child = getChildAt(i); x = (child.getLeft() + child.getRight()) / 2f;
+                x = middle(getChildAt(i));
             }
             settleIndicator(x);
         }
@@ -2280,20 +2310,22 @@ public final class SpatchUi extends FrameLayout {
             setDestination(destination);
         }
         private float indicatorHalf() {
-            return Math.min(dp(34), (getWidth() - getPaddingLeft() - getPaddingRight()) / (2f * Math.max(1, getChildCount())) - dp(3));
+            float room = vertical ? getHeight() - getPaddingTop() - getPaddingBottom() : getWidth() - getPaddingLeft() - getPaddingRight();
+            return Math.min(vertical ? dp(26) : dp(34), room / (2f * Math.max(1, getChildCount())) - dp(3));
         }
         @Override protected void dispatchDraw(Canvas canvas) {
             if (indicatorX >= 0) {
                 paint.setColor(blend(surf, accent, navDragging ? .38f : .25f));
                 float half = indicatorHalf();
-                canvas.drawRoundRect(indicatorX - half, dp(8), indicatorX + half, getHeight() - dp(8), dp(22), dp(22), paint);
+                if (vertical) canvas.drawRoundRect(dp(6), indicatorX - half, getWidth() - dp(6), indicatorX + half, dp(22), dp(22), paint);
+                else canvas.drawRoundRect(indicatorX - half, dp(8), indicatorX + half, getHeight() - dp(8), dp(22), dp(22), paint);
             }
             super.dispatchDraw(canvas);
         }
         @Override protected void onDetachedFromWindow() { if (slide != null) slide.cancel(); draggingSlide = false; super.onDetachedFromWindow(); }
         private void follow(MotionEvent event) {
-            float edge = Math.max(dp(24), getPaddingLeft() + indicatorHalf() + dp(3));
-            chaseIndicator(Math.max(edge, Math.min(getWidth() - edge, event.getX())));
+            float edge = Math.max(dp(24), (vertical ? getPaddingTop() : getPaddingLeft()) + indicatorHalf() + dp(3));
+            chaseIndicator(Math.max(edge, Math.min(length() - edge, along(event))));
             int target = targetAt(event);
             if (target >= 0 && target != navHover) {
                 navHover = target;
@@ -2304,10 +2336,10 @@ public final class SpatchUi extends FrameLayout {
             if (!pref("nav_drag", true)) return false;
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
-                startX = event.getX(); startY = event.getY(); navDragging = false;
+                startX = along(event); startY = across(event); navDragging = false;
             } else if (action == MotionEvent.ACTION_MOVE
-                && Math.abs(event.getX() - startX) > dp(6)
-                && Math.abs(event.getX() - startX) >= Math.abs(event.getY() - startY)) {
+                && Math.abs(along(event) - startX) > dp(6)
+                && Math.abs(along(event) - startX) >= Math.abs(across(event) - startY)) {
                 navDragging = true;
                 follow(event);
                 if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
@@ -2320,13 +2352,13 @@ public final class SpatchUi extends FrameLayout {
         @Override public boolean onTouchEvent(MotionEvent event) {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN && pref("nav_drag", true)) {
-                startX = event.getX(); startY = event.getY(); navDragging = false;
+                startX = along(event); startY = across(event); navDragging = false;
                 return true;
             }
             if (!navDragging) {
                 if (pref("nav_drag", true) && action == MotionEvent.ACTION_MOVE
-                    && Math.abs(event.getX() - startX) > dp(6)
-                    && Math.abs(event.getX() - startX) >= Math.abs(event.getY() - startY)) {
+                    && Math.abs(along(event) - startX) > dp(6)
+                    && Math.abs(along(event) - startX) >= Math.abs(across(event) - startY)) {
                     navDragging = true;
                     follow(event);
                     if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
@@ -2351,13 +2383,14 @@ public final class SpatchUi extends FrameLayout {
         private int targetAt(MotionEvent event) {
             int count = getChildCount();
             if (count == 0) return -1;
-            float slopY = dp(16);
-            if (event.getY() < -slopY || event.getY() > getHeight() + slopY) return -1;
-            if (event.getX() < 0 || event.getX() > getWidth()) return -1;
-            float clampedX = Math.max(getChildAt(0).getLeft(), Math.min(getChildAt(count - 1).getRight(), event.getX()));
+            float slop = dp(16), cross = vertical ? getWidth() : getHeight();
+            if (across(event) < -slop || across(event) > cross + slop) return -1;
+            if (along(event) < 0 || along(event) > length()) return -1;
+            View first = getChildAt(0), last = getChildAt(count - 1);
+            float at = Math.max(vertical ? first.getTop() : first.getLeft(), Math.min(vertical ? last.getBottom() : last.getRight(), along(event)));
             for (int i = 0; i < count; i++) {
                 View child = getChildAt(i);
-                if (clampedX >= child.getLeft() && clampedX <= child.getRight()) return NAV_TABS[i];
+                if (at >= (vertical ? child.getTop() : child.getLeft()) && at <= (vertical ? child.getBottom() : child.getRight())) return NAV_TABS[i];
             }
             return -1;
         }
@@ -2365,7 +2398,7 @@ public final class SpatchUi extends FrameLayout {
 
     void setDockHidden(boolean hidden) {
         if (dock == null) return;
-        hidden = hidden && pref("auto_hide_dock", false) && !playerOpen;
+        hidden = hidden && pref("auto_hide_dock", false) && !playerOpen && !landscape(); // the rail covers nothing
         if (dockHidden == hidden) return;
         dockHidden = hidden;
         float target = hidden ? dock.getHeight() + dp(24) : 0;
@@ -3661,7 +3694,7 @@ public final class SpatchUi extends FrameLayout {
         // The wash runs under the side insets too (past the page's edges), so no plain strip shows beside it in landscape.
         page.setClipChildren(false);
         LayoutParams washAt = new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP);
-        washAt.setMargins(-inset.left, 0, -inset.right, 0);
+        washAt.setMargins(-sideLeft(), 0, -inset.right, 0);
         page.addView(wash, washAt);
         StickerBackdrop stickers = new StickerBackdrop(playlist.uri + ":" + headTitle);
         page.addView(stickers, new LayoutParams(washAt));

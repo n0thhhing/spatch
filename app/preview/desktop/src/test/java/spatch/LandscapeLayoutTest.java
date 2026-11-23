@@ -19,7 +19,7 @@ import static org.junit.Assert.*;
 
 /** A phone held sideways, with a camera cutout down the left edge, the way the Pixel reports it. */
 @RunWith(RobolectricTestRunner.class)
-@Config(manifest = Config.NONE, sdk = 35, qualifiers = "w780dp-h360dp-land-mdpi")
+@Config(manifest = Config.NONE, sdk = 35, qualifiers = "w850dp-h384dp-land-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class LandscapeLayoutTest {
     @Test public void playlistFitsBesideItsTracks() throws Exception {
@@ -46,6 +46,9 @@ public class LandscapeLayoutTest {
         Rect seen = new Rect();
         assertTrue("The play button is on screen", play.getGlobalVisibleRect(seen));
         assertEquals("The play button is not cut off", play.getWidth(), seen.width());
+        View miniPlay = (View) field(ui, "mPlay");
+        assertTrue("The rail's play button is on screen", miniPlay.getGlobalVisibleRect(seen));
+        assertEquals("The rail's play button is whole", miniPlay.getHeight(), seen.height());
         activity.finish();
     }
 
