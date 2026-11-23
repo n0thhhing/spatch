@@ -52,17 +52,18 @@ final class CreationSheet {
         ui.setDockHidden(false);
         FrameLayout overlay = new FrameLayout(ui.activity);
         overlay.setBackgroundColor(0x99000000);
-        overlay.setClipChildren(false);
+        overlay.setClipChildren(true);
         createOverlay = overlay;
         int[] navAt = new int[2], rootAt = new int[2];
         ui.dockBar.getLocationInWindow(navAt); ui.getLocationInWindow(rootAt);
         int available = navAt[1] - rootAt[1];
-        if (available <= 0) available = ui.getHeight() - ui.dp(70) - ui.inset.bottom;
+        if (available <= 0) available = ui.getHeight() - ui.dockRoom();
         LinearLayout card = ui.column();
         ui.bgRound(card, 24, () -> SpatchUi.blend(ui.surf, ui.accent2, .07f));
         card.setClickable(true);
         createCard = card;
-        final int menuMaxHeight = Math.max(ui.dp(120), available - ui.inset.top - ui.dp(24));
+        boolean land = ui.landscape();
+        final int menuMaxHeight = Math.max(ui.dp(120), available - ui.inset.top - ui.dp(land ? 18 : 24));
         ScrollView scroll = new ScrollView(ui.activity) {
             @Override protected void onMeasure(int w, int h) {
                 super.onMeasure(w, MeasureSpec.makeMeasureSpec(menuMaxHeight, MeasureSpec.AT_MOST));
@@ -71,8 +72,10 @@ final class CreationSheet {
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(card);
         createScroll = scroll;
-        LayoutParams menuParams = new LayoutParams(-1, -2, Gravity.BOTTOM);
-        menuParams.setMargins(ui.dp(8), ui.dp(8), ui.dp(8), ui.dp(10));
+        int menuWidth = land ? Math.min(ui.dp(660), Math.max(ui.dp(320), ui.getWidth() - ui.inset.left - ui.inset.right - ui.dp(32))) : -1;
+        LayoutParams menuParams = new LayoutParams(menuWidth, -2, land ? (Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) : Gravity.BOTTOM);
+        if (land) menuParams.setMargins(ui.inset.left + ui.dp(12), ui.inset.top + ui.dp(8), ui.inset.right + ui.dp(12), ui.dp(10));
+        else menuParams.setMargins(ui.dp(8), ui.dp(8), ui.dp(8), ui.dp(10));
         overlay.addView(scroll, menuParams);
         overlay.setOnClickListener(v -> closeCreateMenu());
         ui.addView(overlay, new LayoutParams(-1, available));
@@ -150,44 +153,63 @@ final class CreationSheet {
             "Combine your friends’ tastes into a playlist", "Create a playlist with a prompt", "Listen together from anywhere"};
         String[] glyphs = {"note", "people", "mix", "blend", "prompt", "jam"};
         String[] kinds = {"playlist", "collaborative", "mixed", "blend", "prompted", "jam"};
+        boolean land = ui.landscape();
         for (int i = 0; i < titles.length; i++) {
-            final int index = i;
-            LinearLayout option = ui.row();
-            option.setPadding(ui.dp(8), ui.dp(8), ui.dp(8), ui.dp(8));
-            FrameLayout bubble = new FrameLayout(ui.activity);
-            ui.bgRound(bubble, 25, () -> SpatchUi.blend(ui.surfHi, ui.accent2, .12f));
-            bubble.addView(ui.icon(glyphs[i], () -> ui.ink), new LayoutParams(ui.dp(24), ui.dp(24), Gravity.CENTER));
-            option.addView(bubble, ui.lp(ui.dp(48), ui.dp(48)));
-            LinearLayout words = ui.column();
-            words.setPadding(ui.dp(14), ui.dp(2), 0, ui.dp(2));
-            LinearLayout title = ui.row();
-            title.addView(ui.text(titles[i], 16, () -> ui.ink, true));
-            if (i == 2 || i == 4) {
-                TextView beta = ui.text("Beta", 10, () -> ui.inkDim, true);
-                beta.setPadding(ui.dp(6), ui.dp(2), ui.dp(6), ui.dp(2));
-                ui.bgRound(beta, 6, () -> ui.surfHi);
-                LinearLayout.LayoutParams bp = ui.lp(-2, -2); bp.leftMargin = ui.dp(8);
-                title.addView(beta, bp);
-            }
-            words.addView(title);
-            TextView detail = ui.text(details[i], 12, () -> ui.inkDim, false);
-            detail.setPadding(0, ui.dp(4), 0, 0);
-            words.addView(detail);
-            option.addView(words, ui.weight());
-            option.setMinimumHeight(ui.dp(68));
-            ui.tappable(option, titles[i], () -> {
-                if (index == 0) {
-                    pendingPlaylistSong = null;
-                    openCreatePlaylist(true);
-                } else {
-                    closeCreateMenu();
-                    String error = CoreBridge.openCreation(ui.activity, kinds[index]);
-                    if (error != null && !error.isEmpty()) Toast.makeText(ui.activity, error, Toast.LENGTH_LONG).show();
+            if (land) {
+                LinearLayout row = ui.row();
+                row.addView(createMenuOption(titles[i], details[i], glyphs[i], kinds[i], i == 2 || i == 4, i == 0, true), new LinearLayout.LayoutParams(0, -2, 1));
+                if (i + 1 < titles.length) {
+                    LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1);
+                    rp.leftMargin = ui.dp(8);
+                    row.addView(createMenuOption(titles[i + 1], details[i + 1], glyphs[i + 1], kinds[i + 1], i + 1 == 2 || i + 1 == 4, false, true), rp);
                 }
-            });
-            createCard.addView(option, ui.fill(-2));
+                createCard.addView(row, ui.fill(-2));
+                i++;
+            } else {
+                createCard.addView(createMenuOption(titles[i], details[i], glyphs[i], kinds[i], i == 2 || i == 4, i == 0, false), ui.fill(-2));
+            }
         }
         if (animateSwap) morphCreateCard(oldHeight, false);
+    }
+
+    private LinearLayout createMenuOption(String label, String subtitle, String glyph, String kind, boolean betaTag, boolean openComposer, boolean compact) {
+        LinearLayout option = ui.row();
+        option.setPadding(ui.dp(8), ui.dp(compact ? 6 : 8), ui.dp(8), ui.dp(compact ? 6 : 8));
+        FrameLayout bubble = new FrameLayout(ui.activity);
+        ui.bgRound(bubble, compact ? 20 : 25, () -> SpatchUi.blend(ui.surfHi, ui.accent2, .12f));
+        bubble.addView(ui.icon(glyph, () -> ui.ink), new LayoutParams(ui.dp(compact ? 20 : 24), ui.dp(compact ? 20 : 24), Gravity.CENTER));
+        option.addView(bubble, ui.lp(ui.dp(compact ? 40 : 48), ui.dp(compact ? 40 : 48)));
+        LinearLayout words = ui.column();
+        words.setPadding(ui.dp(compact ? 12 : 14), ui.dp(2), 0, ui.dp(2));
+        LinearLayout title = ui.row();
+        TextView nameView = ui.text(label, compact ? 15 : 16, () -> ui.ink, true);
+        if (compact) ui.oneLine(nameView);
+        title.addView(nameView);
+        if (betaTag) {
+            TextView beta = ui.text("Beta", 10, () -> ui.inkDim, true);
+            beta.setPadding(ui.dp(6), ui.dp(2), ui.dp(6), ui.dp(2));
+            ui.bgRound(beta, 6, () -> ui.surfHi);
+            LinearLayout.LayoutParams bp = ui.lp(-2, -2); bp.leftMargin = ui.dp(8);
+            title.addView(beta, bp);
+        }
+        words.addView(title);
+        TextView detail = ui.text(subtitle, compact ? 11 : 12, () -> ui.inkDim, false);
+        if (compact) ui.oneLine(detail);
+        detail.setPadding(0, ui.dp(compact ? 2 : 4), 0, 0);
+        words.addView(detail);
+        option.addView(words, ui.weight());
+        option.setMinimumHeight(ui.dp(compact ? 54 : 68));
+        ui.tappable(option, label, () -> {
+            if (openComposer) {
+                pendingPlaylistSong = null;
+                openCreatePlaylist(true);
+            } else {
+                closeCreateMenu();
+                String error = CoreBridge.openCreation(ui.activity, kind);
+                if (error != null && !error.isEmpty()) Toast.makeText(ui.activity, error, Toast.LENGTH_LONG).show();
+            }
+        });
+        return option;
     }
 
     private void showCreateComposerContent(boolean animateSwap) {

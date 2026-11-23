@@ -3972,7 +3972,7 @@ public final class SpatchUi extends FrameLayout {
                     {"Up next", "idle_hide_next", "1"}
                 });
             }
-            toggle(player, "Allow rotation", "Experimental: a landscape player with the lyrics beside the cover", "rotate", false, false);
+            toggle(player, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
             toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
@@ -5727,10 +5727,10 @@ public final class SpatchUi extends FrameLayout {
         postDelayed(() -> syncLyrics(alive, scroll, views, starts, shown, touched), 250);
     }
 
-    /** Rotation is opt-in (the landscape player is new): off keeps whatever orientation the app had. */
+    /** Rotation is opt-in: off locks portrait while on unlocks full landscape rotation. */
     private void applyRotation() {
         if (originalOrientation == -2) return;
-        activity.setRequestedOrientation(pref("rotate", false) ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER : originalOrientation);
+        activity.setRequestedOrientation(pref("rotate", false) ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
     private void openQueue() {
