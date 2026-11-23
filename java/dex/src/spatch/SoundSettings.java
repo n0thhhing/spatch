@@ -194,7 +194,7 @@ final class SoundSettings {
         private float gradTop = -1, gradBottom = -1;
         private int gradAccent;
         Runnable selection, edit;
-        private float downY;
+        private float downY, downGain;
         private boolean moved, drawnOnce;
         private final float[] shown = new float[10];
         EqualizerCurve() { super(ui.activity); setContentDescription("Equalizer curve. Drag a point to adjust a frequency, or use Fine adjustment below."); }
@@ -290,13 +290,14 @@ final class SoundSettings {
             if (action == MotionEvent.ACTION_DOWN) {
                 downY = event.getY(); moved = false;
                 select(Math.round((event.getX() - left()) / Math.max(1, right() - left()) * 9));
+                downGain = Audio.gain(ui.prefs, eqSelectedBand);
                 getParent().requestDisallowInterceptTouchEvent(true);
                 return true;
             }
             if (action == MotionEvent.ACTION_MOVE) {
                 if (Math.abs(event.getY() - downY) > ui.dp(3)) moved = true;
                 if (moved) {
-                    float gain = Math.max(-12, Math.min(12, 12 - (event.getY() - top()) / Math.max(1, bottom() - top()) * 24));
+                    float gain = Math.max(-12, Math.min(12, downGain - (event.getY() - downY) / Math.max(1, bottom() - top()) * 24f));
                     ui.prefs.edit().putFloat("eq_band_" + eqSelectedBand, Math.round(gain * 10) / 10f).apply();
                     shown[eqSelectedBand] = Math.round(gain * 10) / 10f; // the finger's point follows at once
                     Audio.refreshEqualizer();

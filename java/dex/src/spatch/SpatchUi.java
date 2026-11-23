@@ -1418,8 +1418,17 @@ public final class SpatchUi extends FrameLayout {
     // ================= account and creation =================
 
     private TextView pageHeading(LinearLayout page, String title, boolean edgeToEdge) {
+        return pageHeading(page, title, edgeToEdge, null);
+    }
+
+    private TextView pageHeading(LinearLayout page, String title, boolean edgeToEdge, View leading) {
         LinearLayout head = row();
         head.setPadding(edgeToEdge ? dp(18) : 0, dp(16), edgeToEdge ? dp(18) : 0, dp(12));
+        if (leading != null) {
+            LinearLayout.LayoutParams gp = lp(dp(34), dp(34));
+            gp.rightMargin = dp(10);
+            head.addView(leading, gp);
+        }
         TextView label = text(title, 34, () -> ink, true);
         oneLine(label);
         head.addView(label, weight());
@@ -2333,7 +2342,36 @@ public final class SpatchUi extends FrameLayout {
     private View homePage() {
         LinearLayout page = column();
         int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        TextView h = pageHeading(page, hour < 5 ? "Up late?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening", false);
+        final String shapeKey = hour < 5 ? "badge4" : hour < 12 ? "badge8" : hour < 18 ? "badge6" : "button5";
+        View greetBadge = new View(activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Path path = new Path();
+            @Override protected void onDraw(Canvas c) {
+                float w = getWidth(), h = getHeight(), s = Math.min(w, h), cx = w / 2f, cy = h / 2f;
+                if (s <= 0) return;
+                float[] pts = GLYPHS.get(shapeKey);
+                if (pts != null && pts.length >= 6) {
+                    float r = s * .46f;
+                    path.rewind();
+                    for (int i = 0; i < pts.length; i += 2) {
+                        float x = cx + pts[i] * r, y = cy + pts[i + 1] * r;
+                        if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+                    }
+                    path.close();
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(blend(surfHi, accent, dark ? .34f : .24f));
+                    c.drawPath(path, paint);
+                }
+                c.save();
+                float gs = s * .48f;
+                c.translate(cx - gs / 2f, cy - gs / 2f);
+                drawGlyph(c, paint, path, "sparkle", accent, gs);
+                c.restore();
+            }
+        };
+        greetBadge.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        colored(greetBadge, greetBadge::invalidate);
+        TextView h = pageHeading(page, hour < 5 ? "Up late?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening", false, greetBadge);
         // Expressive type: the first time Home appears the greeting swells from light to bold (variable fonts only).
         if (!greeted && motion() && pref("expressive_type", true) && h.getFontVariationSettings() != null) {
             greeted = true;
