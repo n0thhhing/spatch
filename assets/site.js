@@ -104,12 +104,14 @@ let seekIdle;
 function show(first) {
   const id = location.hash.slice(1);
   const name = panels.some(p => p.dataset.panel === id) ? id : 'overview';
+  // Scroll before swapping tabs, while the current layout is still valid.
+  if (!first) scrollTo({ top: 0, behavior: 'instant' });
   for (const p of panels) p.hidden = p.dataset.panel !== name;
   for (const t of tabs) t.hash === '#' + name ? t.setAttribute('aria-current', 'page') : t.removeAttribute('aria-current');
   document.body.dataset.tab = name;
   document.title = names[name];
-  placeIndicator();
-  if (!first) scrollTo({ top: 0, behavior: 'instant' });
+  // Next frame, so reading the tab's position shares that frame's layout instead of forcing an extra one.
+  requestAnimationFrame(placeIndicator);
   const panel = panels.find(p => p.dataset.panel === name);
   // The first sweep waits for the web font, so letters are measured in the right face.
   first ? document.fonts.ready.then(() => sweep(panel)) : sweep(panel);
