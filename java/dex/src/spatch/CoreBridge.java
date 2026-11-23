@@ -273,7 +273,11 @@ public final class CoreBridge implements Transport {
     public static final class Lyrics {
         public final String[] words;
         public final long[] starts, ends;
-        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; }
+        /** Per line, when the source times each word: where each word starts in the line's text, and when it is sung (ms). Null for a line without word timing. */
+        public final int[][] wordAt;
+        public final long[][] wordStart;
+        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; wordAt = new int[n][]; wordStart = new long[n][]; }
+        boolean wordSynced() { for (int[] w : wordAt) if (w != null) return true; return false; }
     }
 
     /**
@@ -289,7 +293,20 @@ public final class CoreBridge implements Transport {
         Exception spotify;
         try {
             Lyrics got = spotifyLyrics(id);
-            if (got.words.length > 0) { saveLyrics(id, got); return got; }
+            if (got.words.length > 0) {
+                // Spotify mostly times whole lines; LRCLIB often has the same song timed word by word, which is preferred.
+                android.content.SharedPreferences p = prefs;
+                if (!got.wordSynced() && got.starts[got.starts.length - 1] > 0 && (p == null || p.getBoolean("lrclib_lyrics", true))) {
+                    try {
+                        Lyrics words = Lrclib.find(title, artist, durationMs);
+                        if (words != null && words.wordSynced()) got = words;
+                    } catch (Exception failed) {
+                        android.util.Log.w("CoreBridge", "lrclib word timing failed", failed);
+                    }
+                }
+                saveLyrics(id, got);
+                return got;
+            }
             spotify = new IllegalStateException("HTTP 404 empty lyrics");
         } catch (Exception failed) {
             spotify = failed;
@@ -321,6 +338,23 @@ public final class CoreBridge implements Transport {
             out.words[i] = (String) field(lines.get(i), "words_");
             out.starts[i] = (Long) field(lines.get(i), "startTimeMs_");
             out.ends[i] = (Long) field(lines.get(i), "endTimeMs_");
+            try {
+                // Syllable-synced songs list each syllable's start and length in characters; most songs leave this empty.
+                java.util.List<?> syllables = (java.util.List<?>) field(lines.get(i), "syllables_");
+                if (syllables != null && !syllables.isEmpty()) {
+                    int[] at = new int[syllables.size()];
+                    long[] when = new long[syllables.size()];
+                    int offset = 0;
+                    for (int k = 0; k < at.length; k++) {
+                        at[k] = offset;
+                        when[k] = ((Number) field(syllables.get(k), "startTimeMs_")).longValue();
+                        offset += ((Number) field(syllables.get(k), "numChars_")).intValue();
+                    }
+                    if (offset <= out.words[i].length()) { out.wordAt[i] = at; out.wordStart[i] = when; }
+                }
+            } catch (ReflectiveOperationException | ClassCastException noSyllables) {
+                // this app version's proto has no syllables: line timing only
+            }
         }
         return out;
     }
@@ -345,6 +379,12 @@ public final class CoreBridge implements Transport {
                 try (java.io.DataOutputStream out = new java.io.DataOutputStream(new java.io.BufferedOutputStream(new java.io.FileOutputStream(part)))) {
                     out.writeInt(l.words.length);
                     for (int i = 0; i < l.words.length; i++) { out.writeUTF(l.words[i] == null ? "" : l.words[i]); out.writeLong(l.starts[i]); out.writeLong(l.ends[i]); }
+                    // Word timing follows the lines, so copies saved before it existed still read.
+                    for (int i = 0; i < l.words.length; i++) {
+                        int k = l.wordAt[i] == null ? 0 : l.wordAt[i].length;
+                        out.writeInt(k);
+                        for (int w = 0; w < k; w++) { out.writeInt(l.wordAt[i][w]); out.writeLong(l.wordStart[i][w]); }
+                    }
                 }
                 part.renameTo(file);
             } finally {
@@ -363,6 +403,14 @@ public final class CoreBridge implements Transport {
             if (n <= 0 || n > 10000) return null;
             Lyrics out = new Lyrics(n);
             for (int i = 0; i < n; i++) { out.words[i] = in.readUTF(); out.starts[i] = in.readLong(); out.ends[i] = in.readLong(); }
+            if (in.available() > 0) for (int i = 0; i < n; i++) {
+                int k = in.readInt();
+                if (k < 0 || k > 1000) return out;
+                if (k == 0) continue;
+                out.wordAt[i] = new int[k];
+                out.wordStart[i] = new long[k];
+                for (int w = 0; w < k; w++) { out.wordAt[i][w] = in.readInt(); out.wordStart[i][w] = in.readLong(); }
+            }
             return out;
         } catch (java.io.IOException damaged) {
             return null;

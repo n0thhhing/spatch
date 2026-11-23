@@ -21,10 +21,18 @@ final class CoreBridge {
         private static final String[] SAMPLE = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "Dim lines melt into the edges", "The glow follows the cover", "Take it for a spin" };
         public final String[] words;
         public final long[] starts, ends;
-        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; }
+        public final int[][] wordAt;
+        public final long[][] wordStart;
+        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; wordAt = new int[n][]; wordStart = new long[n][]; }
+        boolean wordSynced() { for (int[] w : wordAt) if (w != null) return true; return false; }
         Lyrics() {
             this(40);
-            for (int i = 0; i < words.length; i++) { words[i] = SAMPLE[i % SAMPLE.length]; starts[i] = 3000L + i * 6000L; ends[i] = starts[i] + 5500L; }
+            for (int i = 0; i < words.length; i++) {
+                words[i] = SAMPLE[i % SAMPLE.length]; starts[i] = 3000L + i * 6000L; ends[i] = starts[i] + 5500L;
+                String[] split = words[i].split(" "); // every word timed, spread over the first four seconds, to try the word highlight
+                wordAt[i] = new int[split.length]; wordStart[i] = new long[split.length];
+                for (int w = 0, at = 0; w < split.length; at += split[w].length() + 1, w++) { wordAt[i][w] = at; wordStart[i][w] = starts[i] + w * 4000L / split.length; }
+            }
         }
     }
 

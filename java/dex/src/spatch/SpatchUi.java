@@ -4162,7 +4162,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
             if (pref("player_lyrics", false)) choice(player, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
             toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
-            toggle(player, "More lyrics from LRCLIB", "When Spotify has none, look the song up on lrclib.net, a free lyrics site", "lrclib_lyrics", true, false);
+            toggle(player, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
             toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
             toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
             toggle(player, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
@@ -5244,11 +5244,12 @@ public final class SpatchUi extends FrameLayout {
         String[] want = { "", "", "" };
         CoreBridge.Lyrics l = lyricsData;
         boolean visible = false;
+        int current = -1;
+        long now = playhead();
         if (l != null && l.words.length > 0 && l.starts[l.starts.length - 1] > 0) {
-            long now = playhead(), last = l.starts.length - 1;
+            long last = l.starts.length - 1;
             long over = (l.ends[(int) last] > l.starts[(int) last] ? l.ends[(int) last] : l.starts[(int) last] + 6000) + 1500;
             visible = now >= l.starts[0] - 1500 && now <= over; // the block lives only while there is something to sing
-            int current = -1;
             for (int i = 0; i < l.starts.length; i++) if (l.starts[i] > 0 && l.starts[i] <= now) current = i;
             if (current > 0) want[0] = l.words[current - 1];
             if (current >= 0) want[1] = l.words[current];
@@ -5259,8 +5260,10 @@ public final class SpatchUi extends FrameLayout {
             lyricBlock(box, visible);
         }
         String key = want[0] + '\n' + want[1] + '\n' + want[2];
+        boolean walking = visible && current >= 0 && l.wordAt[current] != null;
         if (visible && !key.equals(lyricKey)) {
             lyricKey = key;
+            lyricSung = -1;
             for (int i = 0; i < 3; i++) rows[i].setText(want[i]);
             float[] from = { 1f, .38f, 0f }, to = { .38f, 1f, .38f };
             if (motion() && !want[1].isEmpty()) {
@@ -5275,7 +5278,31 @@ public final class SpatchUi extends FrameLayout {
                 for (int i = 0; i < 3; i++) { rows[i].setAlpha(to[i]); rows[i].setTranslationY(0); }
             }
         }
-        box.postDelayed(() -> playerLyrics(box), 250);
+        if (walking) {
+            int upTo = sungUpTo(l, current, now);
+            if (upTo != lyricSung) { lyricSung = upTo; rows[1].setText(sungWords(want[1], upTo, rows[1].getCurrentTextColor())); }
+        }
+        box.postDelayed(() -> playerLyrics(box), walking ? 40 : 250); // word timing needs a quicker look, only while a timed line is sung
+    }
+
+    private int lyricSung = -1;
+
+    /** How much of a word-timed line has been sung: the text offset where the first word not yet reached begins. */
+    static int sungUpTo(CoreBridge.Lyrics l, int line, long now) {
+        int[] at = l.wordAt[line];
+        long[] when = l.wordStart[line];
+        String text = l.words[line] == null ? "" : l.words[line];
+        int upTo = 0;
+        for (int w = 0; w < at.length && w < when.length && when[w] <= now; w++) upTo = w + 1 < at.length ? at[w + 1] : text.length();
+        return Math.max(0, Math.min(upTo, text.length()));
+    }
+
+    /** A line with the words still to come dimmed, so the highlight walks along it word by word as they are sung. */
+    static CharSequence sungWords(String text, int upTo, int color) {
+        if (text == null || upTo >= text.length()) return text;
+        android.text.SpannableString s = new android.text.SpannableString(text);
+        s.setSpan(new android.text.style.ForegroundColorSpan((color & 0x00ffffff) | 0x5c000000), Math.max(0, upTo), text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return s;
     }
 
     // Optional idle chrome: the top bar, controls and Next-up pill fade out after a quiet spell while music plays.
@@ -5906,7 +5933,7 @@ public final class SpatchUi extends FrameLayout {
                         });
                     }
                 }
-                if (synced) syncLyrics(alive, scroll, views, found.starts, new int[] { -2 }, touched);
+                if (synced) syncLyrics(alive, scroll, views, found, new int[] { -2, -1 }, touched);
             });
         });
     }
@@ -5914,10 +5941,11 @@ public final class SpatchUi extends FrameLayout {
     /**
      * Keeps the sung line large, bright and centred while the lyrics screen is open (the others dim and shrink); `shown` holds the current line, -2 before the first pass, which snaps instead of animating.
      */
-    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, long[] starts, int[] shown, long[] touched) {
+    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, CoreBridge.Lyrics lyrics, int[] shown, long[] touched) {
         if (!alive.getAsBoolean()) return;
+        long[] starts = lyrics.starts;
         if (shown[0] == -2 && (scroll.getHeight() == 0 || views[0].getHeight() == 0)) { // not laid out yet: the centring needs real sizes
-            postDelayed(() -> syncLyrics(alive, scroll, views, starts, shown, touched), 30);
+            postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), 30);
             return;
         }
         long now = playhead();
@@ -5925,7 +5953,9 @@ public final class SpatchUi extends FrameLayout {
         for (int i = 0; i < starts.length; i++) if (starts[i] > 0 && starts[i] <= now) current = i;
         if (current != shown[0]) {
             boolean first = shown[0] == -2, glide = motion() && !first;
+            if (shown[0] >= 0 && lyrics.wordAt[shown[0]] != null) views[shown[0]].setText(lyrics.words[shown[0]]); // the line just left is whole again
             shown[0] = current;
+            shown[1] = -1;
             for (int i = 0; i < views.length; i++) {
                 boolean on = i == current;
                 float alpha = on ? 1f : .3f, size = on ? 1f : .95f;
@@ -5954,7 +5984,12 @@ public final class SpatchUi extends FrameLayout {
                 }
             }
         }
-        postDelayed(() -> syncLyrics(alive, scroll, views, starts, shown, touched), 250);
+        boolean walking = current >= 0 && lyrics.wordAt[current] != null;
+        if (walking) {
+            int upTo = sungUpTo(lyrics, current, now);
+            if (upTo != shown[1]) { shown[1] = upTo; views[current].setText(sungWords(lyrics.words[current], upTo, ink)); }
+        }
+        postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), walking ? 40 : 250);
     }
 
     /** Rotation is opt-in: off locks portrait while on unlocks full landscape rotation. */

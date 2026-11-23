@@ -51,7 +51,7 @@ final class Lrclib {
         return pick(new JSONArray(body), durationMs);
     }
 
-    /** The best match: synced lyrics before plain ones, then the closest length; none if no length is close enough. */
+    /** The best match: word-timed, then line-timed, then plain lyrics, then the closest length; none if no length is close enough. */
     static CoreBridge.Lyrics pick(JSONArray results, long durationMs) {
         JSONObject best = null;
         long bestScore = Long.MAX_VALUE;
@@ -63,13 +63,97 @@ final class Lrclib {
             if (!synced && !plain) continue;
             long off = durationMs > 0 ? Math.abs((long) (r.optDouble("duration", 0) * 1000) - durationMs) : 0;
             if (durationMs > 0 && off > SAME_SONG_MS) continue;
-            long score = (synced ? 0 : 1_000_000L) + off;
+            boolean words = synced && r.optBoolean("hasWordSync") && !r.isNull("lyricsfile");
+            long score = (words ? 0 : synced ? 1_000_000L : 2_000_000L) + off;
             if (score < bestScore) { bestScore = score; best = r; }
         }
         if (best == null) return null;
+        CoreBridge.Lyrics timed = best.optBoolean("hasWordSync") && !best.isNull("lyricsfile") ? wordSynced(best.optString("lyricsfile", "")) : null;
+        if (timed != null && timed.words.length > 0) return timed;
         String synced = best.isNull("syncedLyrics") ? "" : best.optString("syncedLyrics", "");
         CoreBridge.Lyrics out = synced.trim().isEmpty() ? plain(best.optString("plainLyrics", "")) : synced(synced, durationMs);
         return out == null || out.words.length == 0 ? null : out;
+    }
+
+    /**
+     * LRCLIB's word-timed "lyricsfile": a small YAML document whose `lines:` list holds each line's text, start_ms and
+     * end_ms and a `words:` list of {text, start_ms}. Read line by line, since the layout is fixed; anything unexpected
+     * returns null and the caller falls back to the line-timed lyrics.
+     */
+    static CoreBridge.Lyrics wordSynced(String file) {
+        ArrayList<String[]> lines = new ArrayList<>(); // text, start, end
+        ArrayList<ArrayList<String[]>> words = new ArrayList<>(); // text, start
+        String[] word = null;
+        boolean inLines = false;
+        for (String raw : file.split("\r?\n")) {
+            if (!inLines) { inLines = raw.equals("lines:"); continue; }
+            if (raw.trim().isEmpty()) continue;
+            int indent = 0;
+            while (indent < raw.length() && raw.charAt(indent) == ' ') indent++;
+            if (indent == 0 && !raw.startsWith("- ")) break; // the next top-level key
+            String t = raw.substring(indent);
+            boolean item = t.startsWith("- ");
+            if (item) t = t.substring(2);
+            int colon = t.indexOf(':');
+            if (colon <= 0 || (colon + 1 < t.length() && t.charAt(colon + 1) != ' ')) return null;
+            String key = t.substring(0, colon), value = unquote(t.substring(colon + 1).trim());
+            if (value == null) return null;
+            if (item && indent == 0) { lines.add(new String[3]); words.add(new ArrayList<>()); word = null; }
+            else if (item) { if (lines.isEmpty()) return null; word = new String[2]; words.get(words.size() - 1).add(word); }
+            if (lines.isEmpty()) return null;
+            boolean ofWord = word != null && (item ? indent > 0 : indent > 2);
+            String[] into = ofWord ? word : lines.get(lines.size() - 1);
+            int slot = key.equals("text") ? 0 : key.equals("start_ms") ? 1 : key.equals("end_ms") && !ofWord ? 2 : -1;
+            if (slot >= 0) into[slot] = value;
+        }
+        CoreBridge.Lyrics out = new CoreBridge.Lyrics(lines.size());
+        try {
+            for (int i = 0; i < lines.size(); i++) {
+                String[] l = lines.get(i);
+                out.starts[i] = Long.parseLong(l[1]);
+                ArrayList<String[]> ws = words.get(i);
+                StringBuilder text = new StringBuilder();
+                if (!ws.isEmpty()) {
+                    out.wordAt[i] = new int[ws.size()];
+                    out.wordStart[i] = new long[ws.size()];
+                    for (int w = 0; w < ws.size(); w++) {
+                        out.wordAt[i][w] = text.length();
+                        out.wordStart[i][w] = Long.parseLong(ws.get(w)[1]);
+                        text.append(ws.get(w)[0] == null ? "" : ws.get(w)[0]);
+                    }
+                }
+                // The words, joined, are the line; their offsets index into exactly that text.
+                String joined = text.toString().replaceAll("\\s+$", "");
+                out.words[i] = ws.isEmpty() ? (l[0] == null ? "" : l[0]) : joined;
+                if (out.words[i].isEmpty()) { out.words[i] = "♪"; out.wordAt[i] = null; out.wordStart[i] = null; }
+            }
+            for (int i = 0; i < lines.size(); i++) {
+                String end = lines.get(i)[2];
+                out.ends[i] = end != null ? Long.parseLong(end) : i + 1 < lines.size() ? out.starts[i + 1] : out.starts[i] + 5000;
+            }
+        } catch (NumberFormatException | NullPointerException broken) {
+            return null;
+        }
+        return out;
+    }
+
+    /** A YAML scalar: 'single' (with '' for a quote), "double" (common escapes), or plain. Null for a form not handled. */
+    private static String unquote(String v) {
+        if (v.startsWith("'")) return v.length() >= 2 && v.endsWith("'") ? v.substring(1, v.length() - 1).replace("''", "'") : null;
+        if (!v.startsWith("\"")) return v;
+        if (v.length() < 2 || !v.endsWith("\"")) return null;
+        StringBuilder out = new StringBuilder();
+        for (int i = 1; i < v.length() - 1; i++) {
+            char c = v.charAt(i);
+            if (c != '\\' || i + 1 >= v.length() - 1) { out.append(c); continue; }
+            char e = v.charAt(++i);
+            if (e == 'u' && i + 4 < v.length() - 1) {
+                try { out.append((char) Integer.parseInt(v.substring(i + 1, i + 5), 16)); } catch (NumberFormatException bad) { return null; }
+                i += 4;
+            }
+            else out.append(e == 'n' ? '\n' : e == 't' ? '\t' : e);
+        }
+        return out.toString();
     }
 
     /** "[mm:ss.xx] words" lines; one line may carry several stamps when a chorus repeats. Ends are the next line's start. */
