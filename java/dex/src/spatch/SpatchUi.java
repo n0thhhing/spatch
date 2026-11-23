@@ -5414,22 +5414,53 @@ public final class SpatchUi extends FrameLayout {
     private int sleepChoice;
     private Runnable sleepBadge;
 
+    private static String formatSleepLeft(long ms) {
+        if (ms < 600_000L) {
+            long s = Math.max(1, (ms + 999) / 1000);
+            return (s / 60) + ":" + String.format(java.util.Locale.ROOT, "%02d", s % 60);
+        }
+        return Math.max(1, (ms + 59_999) / 60_000) + " min";
+    }
+
+    private void scheduleSleep(long delayMs, int choice, String toast) {
+        sleepChoice = choice;
+        MAIN.removeCallbacks(SLEEP);
+        sleepAt = delayMs <= 0 ? 0 : SystemClock.uptimeMillis() + delayMs;
+        if (delayMs > 0) MAIN.postDelayed(SLEEP, delayMs);
+        if (sleepBadge != null) sleepBadge.run();
+        Toast.makeText(activity, toast, Toast.LENGTH_SHORT).show();
+    }
+
     private void openSleepTimer() {
         String[] names = {"Off", "15 minutes", "30 minutes", "45 minutes", "1 hour", "End of this track"};
         long left = sleepAt - SystemClock.uptimeMillis();
-        String note = left > 0 ? "Pausing in " + Math.max(1, (left + 59_999) / 60_000) + " min" : "Pause playback later";
+        String note = left > 0 ? "Pausing in " + formatSleepLeft(left) : "Pause playback later";
         int current = left > 0 ? sleepChoice : 0;
-        Option[] options = new Option[names.length];
-        for (int i = 0; i < names.length; i++) options[i] = new Option(names[i], "", "", i == 0 ? "close" : "timer", i == current);
-        sheet("Sleep timer", note, options, choice -> {
-            sleepChoice = choice;
-            MAIN.removeCallbacks(SLEEP);
-            long delay = choice == 0 ? 0 : choice == 5 ? Math.max(1000, duration - playhead() - 500) : new long[]{0, 15, 30, 45, 60}[choice] * 60_000L;
-            sleepAt = choice == 0 ? 0 : SystemClock.uptimeMillis() + delay;
-            if (choice != 0) MAIN.postDelayed(SLEEP, delay);
-            if (sleepBadge != null) sleepBadge.run();
-            Toast.makeText(activity, choice == 0 ? "Sleep timer off" : "Pausing " + (choice == 5 ? "after this track" : "in " + names[choice]), Toast.LENGTH_SHORT).show();
-        });
+        List<Option> options = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        for (int i = 0; i < names.length; i++) {
+            final int idx = i;
+            options.add(new Option(names[i], "", "", i == 0 ? "close" : "timer", i == current));
+            actions.add(() -> {
+                long delay = idx == 0 ? 0 : idx == 5 ? Math.max(1000, duration - playhead() - 500) : new long[]{0, 15, 30, 45, 60}[idx] * 60_000L;
+                scheduleSleep(delay, idx, idx == 0 ? "Sleep timer off" : "Pausing " + (idx == 5 ? "after this track" : "in " + names[idx]));
+            });
+        }
+        if (left > 0) {
+            options.add(new Option("+5 minutes", "Add 5 minutes", "", "timer", false));
+            actions.add(() -> {
+                long nextDelay = Math.max(60_000L, sleepAt - SystemClock.uptimeMillis() + 5 * 60_000L);
+                scheduleSleep(nextDelay, -1, "Pausing in " + formatSleepLeft(nextDelay));
+            });
+            if (left > 5 * 60_000L) {
+                options.add(new Option("-5 minutes", "Subtract 5 minutes", "", "timer", false));
+                actions.add(() -> {
+                    long nextDelay = Math.max(60_000L, sleepAt - SystemClock.uptimeMillis() - 5 * 60_000L);
+                    scheduleSleep(nextDelay, -1, "Pausing in " + formatSleepLeft(nextDelay));
+                });
+            }
+        }
+        sheet("Sleep timer", note, options.toArray(new Option[0]), choice -> actions.get(choice).run());
     }
 
     /** Lists the devices Spotify can play on and moves playback to the one you pick. */

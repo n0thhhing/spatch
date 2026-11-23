@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -186,7 +187,9 @@ final class SoundSettings {
     private final class EqualizerCurve extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path line = new Path(), area = new Path();
+        private final RectF pill = new RectF();
         private final Typeface labelFace = Typeface.create("sans-serif", Typeface.NORMAL);
+        private final Typeface badgeFace = Typeface.create("sans-serif", Typeface.BOLD);
         private LinearGradient fillGradient;
         private float gradTop = -1, gradBottom = -1;
         private int gradAccent;
@@ -223,15 +226,30 @@ final class SoundSettings {
                 settling |= gains[i] != want[i];
             }
             drawnOnce = true;
-            line.rewind();
             for (int i = 0; i < 10; i++) {
-                float x = left() + width * i / 9f, px = left() + width * (i - 1) / 9f;
-                // Flat tangents at each band: a smooth S between neighbours that never overshoots past either gain.
-                if (i == 0) line.moveTo(x, y(gains[i])); else line.cubicTo((px + x) / 2, y(gains[i - 1]), (px + x) / 2, y(gains[i]), x, y(gains[i]));
-                paint.setColor(ui.inkDim); paint.setAlpha(18); c.drawLine(x, top(), x, bottom(), paint);
-                paint.setAlpha(220); paint.setTextAlign(Paint.Align.CENTER);
+                float x = left() + width * i / 9f;
+                paint.setColor(i == eqSelectedBand ? ui.accent : ui.inkDim);
+                paint.setAlpha(i == eqSelectedBand ? 70 : 18);
+                paint.setStrokeWidth(ui.dp(i == eqSelectedBand ? 1.5f : 1));
+                c.drawLine(x, top(), x, bottom(), paint);
+                paint.setColor(ui.inkDim);
+                paint.setAlpha(i == eqSelectedBand ? 255 : 220); paint.setTextAlign(Paint.Align.CENTER);
                 String hz = Audio.EQ_HZ[i] < 1000 ? Integer.toString(Audio.EQ_HZ[i]) : (Audio.EQ_HZ[i] / 1000) + "k";
                 c.drawText(hz, x, bottom() + ui.dp(20), paint);
+            }
+            // Sum neighbouring bands with Gaussian bells so the curve reads like a continuous frequency response.
+            line.rewind();
+            final int steps = 90;
+            for (int s = 0; s <= steps; s++) {
+                float u = 9f * s / steps;
+                float resp = 0;
+                for (int i = 0; i < 10; i++) {
+                    float d = (u - i) / 0.58f;
+                    resp += gains[i] * (float) Math.exp(-0.5 * d * d);
+                }
+                resp = Math.max(-14f, Math.min(14f, resp));
+                float x = left() + width * s / steps, yy = y(resp);
+                if (s == 0) line.moveTo(x, yy); else line.lineTo(x, yy);
             }
             area.set(line); area.lineTo(right(), bottom()); area.lineTo(left(), bottom()); area.close();
             float t = top(), b = bottom();
@@ -251,6 +269,20 @@ final class SoundSettings {
                 paint.setColor(ui.accent); c.drawCircle(x, yy, ui.dp(i == eqSelectedBand ? 5 : 3.5f), paint);
                 paint.setColor(ui.surf); c.drawCircle(x, yy, ui.dp(1.5f), paint);
             }
+            // Floating dB pill near the selected handle, kept strictly within view bounds.
+            float selX = left() + width * eqSelectedBand / 9f, selY = y(gains[eqSelectedBand]);
+            float g = Math.round(gains[eqSelectedBand] * 10) / 10f;
+            String badge = (Math.abs(g) < 0.05f ? "0" : (g > 0 ? "+" : "") + (Math.abs(g - Math.round(g)) < 0.05f ? Integer.toString(Math.round(g)) : String.format(java.util.Locale.ROOT, "%.1f", g))) + " dB";
+            paint.setTypeface(badgeFace);
+            paint.setTextSize(ui.dp(10));
+            float bw = paint.measureText(badge) + ui.dp(14), bh = ui.dp(18);
+            float bx = Math.max(left(), Math.min(right() - bw, selX - bw / 2f));
+            float by = selY - ui.dp(28) >= ui.dp(4) ? selY - ui.dp(28) : selY + ui.dp(10);
+            pill.set(bx, by, bx + bw, by + bh);
+            paint.setColor(ui.accent); paint.setAlpha(255);
+            c.drawRoundRect(pill, ui.dp(9), ui.dp(9), paint);
+            paint.setColor(ui.onAccent); paint.setTextAlign(Paint.Align.CENTER);
+            c.drawText(badge, pill.centerX(), pill.centerY() - (paint.descent() + paint.ascent()) / 2f, paint);
             if (settling) postInvalidateOnAnimation();
         }
         @Override public boolean onTouchEvent(MotionEvent event) {
