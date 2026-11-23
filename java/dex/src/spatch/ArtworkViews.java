@@ -42,7 +42,10 @@ final class ArtworkViews {
         private final boolean ring;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final Matrix crop = new Matrix();
-        private final RectF box = new RectF();
+        private final RectF box = new RectF(), ringBox = new RectF();
+        private LinearGradient phShader;
+        private float phW, phH;
+        private int phC1, phC2;
         /** Mini player and hero: a new cover fades in over the old one instead of replacing it. */
         boolean crossfade;
         private boolean waiting;
@@ -86,6 +89,19 @@ final class ArtworkViews {
             paint.setShader(null);
         }
 
+        private LinearGradient placeholderShader(float w, float h, int c1, int c2) {
+            if (phShader == null || phW != w || phH != h || phC1 != c1 || phC2 != c2) {
+                phW = w; phH = h; phC1 = c1; phC2 = c2;
+                phShader = new LinearGradient(0, 0, w, h, c1, c2, Shader.TileMode.CLAMP);
+            }
+            return phShader;
+        }
+
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility == VISIBLE) invalidate();
+        }
+
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
             if (w == 0) return;
@@ -119,12 +135,12 @@ final class ArtworkViews {
                 drawCover(c, previousBitmap, 255, r);
             } else previousBitmap = null;
             if (b == null || (previousBitmap == null && shownAt != 0 && now - shownAt < 320)) {
-                paint.setShader(new LinearGradient(0, 0, w, h, ui.surfHi, ui.surf, Shader.TileMode.CLAMP));
+                paint.setShader(placeholderShader(w, h, ui.surfHi, ui.surf));
                 c.drawRoundRect(box, r, r, paint);
                 paint.setShader(null);
             }
             if (b == null && heart) {
-                paint.setShader(new LinearGradient(0, 0, w, h, SpatchUi.blend(ui.surfHi, ui.accent2, .55f), SpatchUi.blend(ui.surfHi, ui.accent, .45f), Shader.TileMode.CLAMP));
+                paint.setShader(placeholderShader(w, h, SpatchUi.blend(ui.surfHi, ui.accent2, .55f), SpatchUi.blend(ui.surfHi, ui.accent, .45f)));
                 c.drawRoundRect(box, r, r, paint);
                 paint.setShader(null);
                 float size = Math.min(w, h) * .42f;
@@ -135,7 +151,7 @@ final class ArtworkViews {
             } else if (b == null) {
                 waiting = true;
                 // Still loading: a soft band of light sweeps across the placeholder until the cover arrives.
-                if (!url.isEmpty() && !ui.artFailed(url + ":180") && ui.motion() && isShown()) {
+                if (!url.isEmpty() && !ui.artFailed(url + ":180") && ui.motion() && isShown() && getWindowVisibility() == VISIBLE) {
                     float t = (SystemClock.uptimeMillis() % 1400) / 1400f, x = -w + t * w * 3;
                     int glow = (ui.ink & 0x00ffffff) | 0x14000000, clear = ui.ink & 0x00ffffff;
                     paint.setShader(new LinearGradient(x, 0, x + w, h, new int[]{clear, glow, clear}, null, Shader.TileMode.CLAMP));
@@ -156,20 +172,20 @@ final class ArtworkViews {
                 long span = previousBitmap != null ? 420 : 320;
                 float f = shownAt == 0 ? 1f : Math.min(1f, (now - shownAt) / (float) span);
                 drawCover(c, b, Math.round(255 * f * (2f - f)), r);
-                if (f < 1f) postInvalidateOnAnimation(); else { shownAt = 0; previousBitmap = null; }
+                if (f < 1f && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation(); else if (f >= 1f) { shownAt = 0; previousBitmap = null; }
             }
             if (ring) {
                 float f = ui.shownProgress();
-                RectF rr = new RectF(ui.dp(1.5f), ui.dp(1.5f), w - ui.dp(1.5f), h - ui.dp(1.5f));
+                ringBox.set(ui.dp(1.5f), ui.dp(1.5f), w - ui.dp(1.5f), h - ui.dp(1.5f));
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(ui.dp(2.5f));
                 paint.setStrokeCap(Paint.Cap.ROUND);
                 paint.setColor((ui.ink & 0x00ffffff) | 0x30000000);
-                c.drawOval(rr, paint);
+                c.drawOval(ringBox, paint);
                 paint.setColor(ui.accent);
-                c.drawArc(rr, -90, 360 * f, false, paint);
+                c.drawArc(ringBox, -90, 360 * f, false, paint);
                 paint.setStyle(Paint.Style.FILL);
-                if (ui.playing && isShown()) postInvalidateDelayed(1000);
+                if (ui.playing && isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateDelayed(1000);
             }
         }
     }
@@ -181,6 +197,9 @@ final class ArtworkViews {
         private android.animation.ObjectAnimator drift;
         private Bitmap shown = ui.lastBlur, previous;
         private long fadeAt;
+        private LinearGradient scrim;
+        private float scrimH;
+        private int scrimBg;
 
         Backdrop() {
             super(ui.activity);
@@ -237,6 +256,12 @@ final class ArtworkViews {
 
         @Override protected void onDetachedFromWindow() { if (drift != null) drift.cancel(); super.onDetachedFromWindow(); }
 
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            drifting(visibility == VISIBLE && ui.playing);
+            if (visibility == VISIBLE) invalidate();
+        }
+
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
             if (!ui.pref("backdrop", true)) { c.drawColor(ui.bg); return; }
@@ -258,8 +283,12 @@ final class ArtworkViews {
             if (previous != null) wash(c, previous, w, h, 255);
             if (shown != null) wash(c, shown, w, h, Math.round(255 * f));
             paint.setColorFilter(null);
-            if (f < 1f) postInvalidateOnAnimation();
-            paint.setShader(new LinearGradient(0, 0, 0, h, new int[]{(ui.bg & 0x00ffffff) | 0x66000000, (ui.bg & 0x00ffffff) | 0x99000000, ui.bg}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
+            if (f < 1f && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
+            if (scrim == null || scrimH != h || scrimBg != ui.bg) {
+                scrimH = h; scrimBg = ui.bg;
+                scrim = new LinearGradient(0, 0, 0, h, new int[]{(ui.bg & 0x00ffffff) | 0x66000000, (ui.bg & 0x00ffffff) | 0x99000000, ui.bg}, new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP);
+            }
+            paint.setShader(scrim);
             c.drawRect(0, 0, w, h, paint);
             paint.setShader(null);
         }
@@ -319,7 +348,7 @@ final class ArtworkViews {
                     c.restore();
                 }
             }
-            if ((run || speed > 0) && isShown()) postInvalidateOnAnimation();
+            if ((run || speed > 0) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
         }
     }
 
@@ -373,6 +402,11 @@ final class ArtworkViews {
 
         private int withAlpha(int colour, int alpha) { return (colour & 0xffffff) | alpha << 24; }
 
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility == VISIBLE) { lastFrame = 0; invalidate(); }
+        }
+
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight(), cx = w / 2f, cy = h / 2f;
             float s = Math.min(w, h);
@@ -420,7 +454,7 @@ final class ArtworkViews {
                 c.drawCircle(cx, cy, artR, paint);
             }
             c.restore();
-            if (fade < 1f) postInvalidateOnAnimation();
+            if (fade < 1f && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
             if (sweep == null || sweepA != ui.accent || sweepB != ui.accent2 || sweepCx != cx || sweepCy != cy) {
                 sweepA = ui.accent;
                 sweepB = ui.accent2;
@@ -472,7 +506,7 @@ final class ArtworkViews {
             paint.setShader(null);
             paint.setStyle(Paint.Style.FILL);
             if (run && audio && style == 0) Audio.want();
-            if ((run || (settling && style == 0)) && isShown()) postInvalidateOnAnimation();
+            if ((run || (settling && style == 0)) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
         }
     }
 

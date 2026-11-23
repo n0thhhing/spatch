@@ -172,7 +172,8 @@ public final class SpatchUi extends FrameLayout {
     private final Set<Art> avatars = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private MediaEntry playlist;
     private List<MediaEntry> playlistTracks = new ArrayList<>();
-    private boolean playlistLoading, playlistFailed, playerOpen;
+    private boolean playlistLoading, playlistFailed;
+    boolean playerOpen;
     private String playlistError = "";
     /** The link actually used for the open page: Liked Songs' real link is learned from Spotify when it opens. */
     private String liveUri = "";
@@ -1094,6 +1095,7 @@ public final class SpatchUi extends FrameLayout {
         private final RectF oval = new RectF();
         private final UriOf target;
         private final String name;
+        private int descState = -1;
 
         DownloadButton(UriOf target, String name) {
             super(activity);
@@ -1107,7 +1109,11 @@ public final class SpatchUi extends FrameLayout {
             int[] d = downloads.get(target.get());
             float w = getWidth(), h = getHeight(), cx = w / 2, cy = h / 2, size = Math.min(w, h);
             boolean busy = state == DL_BUSY || state == DL_REQUESTED || state == DL_WAITING;
-            setContentDescription(state == DL_DONE ? "Downloaded. Tap to remove" : busy ? "Downloading. Tap to cancel" : "Download");
+            int descKind = state == DL_DONE ? 2 : busy ? 1 : 0;
+            if (descKind != descState) {
+                descState = descKind;
+                setContentDescription(descKind == 2 ? "Downloaded. Tap to remove" : descKind == 1 ? "Downloading. Tap to cancel" : "Download");
+            }
             paint.setStyle(Paint.Style.FILL);
             if (state == DL_DONE) {
                 paint.setColor(accent);
@@ -1132,7 +1138,7 @@ public final class SpatchUi extends FrameLayout {
                 paint.setStyle(Paint.Style.FILL);
                 float half = size * .075f;
                 c.drawRoundRect(cx - half, cy - half, cx + half, cy + half, dp(1.5f), dp(1.5f), paint);
-                if (!known && motion() && isShown()) postInvalidateOnAnimation();
+                if (!known && motion() && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
             } else {
                 c.save();
                 c.translate(cx - size * .21f, cy - size * .21f);
@@ -4556,6 +4562,9 @@ public final class SpatchUi extends FrameLayout {
         pLyric = null;
         sideHost = null;
         nextKey = "";
+        for (PlayButton b : playButtons) b.invalidate();
+        for (Bars b : attachedBars) b.invalidate();
+        if (mArt != null) mArt.invalidate();
     }
 
     /** Opens or closes the player's lyric block: the cover area gives up its height smoothly and takes it back after. */
@@ -5754,6 +5763,17 @@ public final class SpatchUi extends FrameLayout {
 
         PlayButton() { super(activity); playButtons.add(this); tappable(this, "Play or pause", SpatchUi.this::togglePlay); }
 
+        @Override protected void onDetachedFromWindow() {
+            if (morph != null) morph.cancel();
+            if (popping != null) popping.cancel();
+            super.onDetachedFromWindow();
+        }
+
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility == VISIBLE && (on || buffering) && motion()) invalidate();
+        }
+
         @Override public boolean performClick() {
             Confetti.clicked(this, prefs, accent, accent2, on, motion());
             return super.performClick();
@@ -5809,7 +5829,7 @@ public final class SpatchUi extends FrameLayout {
             c.translate(getWidth() / 2f - r * .5f, getHeight() / 2f - r * .5f);
             drawGlyph(c, paint, glyph, on ? "pause" : "play", onAccent, r);
             c.restore();
-            if ((on || buffering) && motion() && isShown()) postInvalidateOnAnimation();
+            if ((on || buffering) && motion() && isShown() && getWindowVisibility() == VISIBLE && (this == pPlay || !playerOpen)) postInvalidateOnAnimation();
         }
     }
 
@@ -5833,7 +5853,7 @@ public final class SpatchUi extends FrameLayout {
                 float k = run ? .35f + .65f * Math.abs((float) Math.sin(t * (3.1f + i * 1.7f) + i * 1.3f)) : .3f + .2f * i;
                 c.drawRoundRect(bw * i * 2, h * (1 - k), bw * i * 2 + bw, h, bw / 2, bw / 2, paint);
             }
-            if (run && isShown()) postInvalidateOnAnimation();
+            if (run && isShown() && getWindowVisibility() == VISIBLE && !playerOpen) postInvalidateOnAnimation();
         }
     }
 
@@ -5895,6 +5915,11 @@ public final class SpatchUi extends FrameLayout {
         private int lastTenth = -1;
         Wave() { super(activity); setContentDescription("Playback position"); }
 
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility == VISIBLE) invalidate();
+        }
+
         private void cancelScrub() {
             preview = -1;
             lastTenth = -1;
@@ -5936,7 +5961,7 @@ public final class SpatchUi extends FrameLayout {
             paint.setTextAlign(Paint.Align.RIGHT);
             c.drawText(duration > 0 ? "−" + time(Math.max(0, duration - shownTime)) : "—", x1, dp(50), paint);
             boolean settling = Math.abs(target - amp) > .05f || Math.abs(wantGrow - grow) > .01f;
-            if ((playing || settling) && isShown()) { if (motion()) postInvalidateOnAnimation(); else postInvalidateDelayed(500); }
+            if ((playing || settling) && isShown() && getWindowVisibility() == VISIBLE && isAttachedToWindow()) { if (motion()) postInvalidateOnAnimation(); else postInvalidateDelayed(500); }
         }
 
         @Override public boolean onTouchEvent(MotionEvent e) {
