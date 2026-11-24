@@ -178,7 +178,7 @@ with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     work = Path(temporary)
     sources = sorted((REPO / "android/ui").glob("*.java"))
     sources += [REPO / f"android/tests/spatch/{name}.java"
-                for name in ("BlurTest", "CreationRouteTest", "PcmSpectrumTest", "SubscriptionsTest")]
+                for name in ("BlurTest", "CreationRouteTest", "SubscriptionsTest")]
     sources += [p for p in (REPO / "android/stubs").rglob("*.java") if p.name != "Single.java"]
     for name, source in FIXTURES.items():
         file = work / name
@@ -188,6 +188,6 @@ with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     classes = work / "classes"
     subprocess.run([str(JAVA / "javac"), "--release", "11", "-cp", str(ANDROID),
                     "-d", str(classes), *map(str, sources)], check=True)
-    for check in ("BlurTest", "CatalogRequestCheck", "CreationRouteTest", "PcmSpectrumTest", "SubscriptionsTest"):
+    for check in ("BlurTest", "CatalogRequestCheck", "CreationRouteTest", "SubscriptionsTest"):
         subprocess.run([str(JAVA / "java"), "-ea", "-cp", os.pathsep.join([str(classes), str(ANDROID)]),
                         f"spatch.{check}"], check=True)

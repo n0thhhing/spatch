@@ -149,14 +149,18 @@ public class MacPreviewTest {
     }
     @Test public void audioMath() { AudioTest.main(new String[0]); }
 
-    @Test public void catalogAndCelebrationMath() {
-        java.util.List<AutoEqCatalog.Headphone> models = AutoEqCatalog.parse(
-            "- [A (ANC Off)](./Source/GRAS/A%20(ANC%20Off))\n"
+    @Test public void catalogAndCelebrationMath() throws Exception {
+        String md = "- [A (ANC Off)](./Source/GRAS/A%20(ANC%20Off))\n"
             + "- [Unicode + é](./Source/GRAS/Unicode%20+%20%C3%A9)\n"
-            + "- [Bad](./../../../outside)\n- [Bad](./Source/A?query=1)\n- [Bad](https://evil.test/file)\n");
-        assertEquals(2, models.size());
+            + "- [Bad](./../../../outside)\n- [Bad](./Source/A?query=1)\n- [Bad](https://evil.test/file)\n";
+        java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("autoeq-test");
+        assertEquals(2, AutoEqCatalog.nativeLoad(dir.toString(), md.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        java.util.List<AutoEqCatalog.Headphone> models = AutoEqCatalog.search("ANC", 10);
+        assertEquals(1, models.size());
         assertTrue(models.get(0).url.endsWith("A%20(ANC%20Off)/A%20(ANC%20Off)%20GraphicEQ.txt"));
-        assertTrue(models.get(1).url.contains("Unicode%20+%20%C3%A9"));
+        java.util.List<AutoEqCatalog.Headphone> unicode = AutoEqCatalog.search("Unicode", 10);
+        assertEquals(1, unicode.size());
+        assertTrue(unicode.get(0).url.contains("Unicode%20+%20%C3%A9"));
         assertEquals(6, Confetti.count("few"));
         assertEquals(24, Confetti.count("lots"));
         assertArrayEquals(new float[]{0, 0}, Confetti.place(0, 1, 0, 100, 50), .001f);

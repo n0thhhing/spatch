@@ -1013,11 +1013,11 @@ public final class Audio {
 
     /** On when the bars read Spotify's audio directly (see feed) instead of an Android Visualizer, which needs the microphone permission. */
     static volatile boolean directOn;
-    private static final float[] RING = new float[PcmSpectrum.N];
+    private static final int DIRECT_FFT_N = 1024;
+    private static final float[] RING = new float[DIRECT_FFT_N];
     private static int ringAt;
     private static volatile long fedAt;
     private static volatile int fedRate = 44100;
-    private static byte[] directFft;
 
     static void setDirect(boolean on) {
         directOn = on;
@@ -1035,7 +1035,7 @@ public final class Audio {
         if (!directOn) return;
         try {
             int channels = channelConfig == 12 ? 2 : 1, width = encoding == 4 ? 4 : 2, frame = channels * width;
-            int frames = Math.min(len, pcm.length) / frame, take = Math.min(frames, PcmSpectrum.N), first = (frames - take) * frame;
+            int frames = Math.min(len, pcm.length) / frame, take = Math.min(frames, DIRECT_FFT_N), first = (frames - take) * frame;
             synchronized (RING) {
                 for (int i = 0; i < take; i++) {
                     int at = first + i * frame;
@@ -1047,7 +1047,7 @@ public final class Audio {
                             : Float.intBitsToFloat((pcm[o] & 255) | ((pcm[o + 1] & 255) << 8) | ((pcm[o + 2] & 255) << 16) | ((pcm[o + 3] & 255) << 24));
                     }
                     RING[ringAt] = sum / channels;
-                    ringAt = (ringAt + 1) % PcmSpectrum.N;
+                    ringAt = (ringAt + 1) % DIRECT_FFT_N;
                 }
             }
             fedRate = rate > 0 ? rate : 44100;
@@ -1168,15 +1168,13 @@ public final class Audio {
             // Preview or standalone build without libspatch_app.
         }
         if (fedAt == 0 || now - fedAt > 400) { say("Waiting for Spotify's audio"); return false; }
-        if (directFft == null) directFft = new byte[PcmSpectrum.N];
-        float[] window = new float[PcmSpectrum.N];
+        float[] window = new float[DIRECT_FFT_N];
         synchronized (RING) {
-            for (int i = 0; i < window.length; i++) window[i] = RING[(ringAt + i) % PcmSpectrum.N];
+            for (int i = 0; i < window.length; i++) window[i] = RING[(ringAt + i) % DIRECT_FFT_N];
         }
-        PcmSpectrum.fftBytes(window, directFft);
         say("Reading Spotify's audio directly");
         sampled = now;
-        nativeAnalyse(directFft, fedRate, dt, now, OUT);
+        nativeAnalysePcm(window, fedRate, dt, now, OUT);
         System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
         bass = OUT[48]; level = OUT[49]; kick = OUT[50];
         return true;
@@ -1186,6 +1184,7 @@ public final class Audio {
     private static native void nativeSetDirect(boolean on);
     private static native boolean nativeSampleDirect(float dtMs, long nowMs, float[] out);
     private static native void nativeAnalyse(byte[] fft, int rateHz, float dtMs, long nowMs, float[] out);
+    private static native void nativeAnalysePcm(float[] pcm, int rateHz, float dtMs, long nowMs, float[] out);
     private static native void nativeReset();
     private static final float[] OUT = new float[53];
     private static long loggedAt;

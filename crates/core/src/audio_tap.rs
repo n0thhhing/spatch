@@ -237,6 +237,25 @@ pub extern "system" fn Java_spatch_Audio_nativeSampleDirect(
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_Audio_nativeAnalysePcm(
+    env: jni::JNIEnv,
+    _: jni::objects::JClass,
+    pcm: jni::objects::JFloatArray,
+    rate_hz: jni::sys::jint,
+    dt_ms: jni::sys::jfloat,
+    now_ms: jni::sys::jlong,
+    out: jni::objects::JFloatArray,
+) {
+    let mut samples = [0.0f32; FFT_N];
+    if env.get_float_array_region(&pcm, 0, &mut samples).is_err() {
+        return;
+    }
+    let fft = fft_bytes(&samples);
+    let values = crate::spectrum::analyse_into(&fft, rate_hz.max(8_000) as f32, dt_ms, now_ms);
+    let _ = env.set_float_array_region(&out, 0, &values);
+}
+
 #[cfg(all(target_os = "android", not(feature = "preview")))]
 mod native_hook {
     use super::{DIRECT_ENABLED, RING};
