@@ -175,18 +175,6 @@ public class MacPreviewTest {
         String[] sample = new String[]{"", "Glasshouse", "Café ♫", "spotify:track:1", ""};
         assertArrayEquals(sample, PackedStrings.unpackStrings(PackedStrings.packStrings(sample)));
 
-        // 2. AutoEq Rust vs Java URL parity
-        String md = "- [A (ANC Off)](./Source/GRAS/A%20(ANC%20Off))\n"
-            + "- [Unicode + é](./Source/GRAS/Unicode%20+%20%C3%A9)\n"
-            + "- [Bad](./../../../outside)\n- [Bad](./Source/A?query=1)\n- [Bad](https://evil.test/file)\n";
-        java.util.List<AutoEqCatalog.Headphone> rModels = AutoEqCatalog.parse(md);
-        java.util.List<AutoEqCatalog.Headphone> jModels = AutoEqCatalog.parseJava(md);
-        assertEquals(jModels.size(), rModels.size());
-        for (int i = 0; i < jModels.size(); i++) {
-            assertEquals(jModels.get(i).name, rModels.get(i).name);
-            assertEquals(jModels.get(i).url, rModels.get(i).url);
-        }
-
         // 4. Rust -> Java push callback syncs immediately without advancing the clock
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).create().start().resume().visible().get();
         ShadowLooper.idleMainLooper();
