@@ -317,7 +317,66 @@ public final class SpatchUi extends FrameLayout {
             }
             return insets;
         });
+        Carried was = carried;
+        carried = null;
+        boolean resumed = was != null && SystemClock.uptimeMillis() - was.at < 5000;
+        if (resumed) {
+            tab = was.tab;
+            settingsSection = was.settingsSection;
+            tabHistory.addAll(was.history);
+            pageStack.addAll(was.stack);
+            scrolls.putAll(was.scrolls);
+            playerOpen = was.player; // build() reopens it
+        }
         build();
+        if (resumed && was.playlist != null) {
+            quietEnter = true;
+            openPlaylist(was.playlist, false);
+            quietEnter = false;
+        }
+    }
+
+    /**
+     * What the screen showed, handed to the next SpatchUi when Android recreates the activity (rotation, a theme
+     * change): without it the new one started on Home with the player closed.
+     */
+    private static final class Carried {
+        final long at = SystemClock.uptimeMillis();
+        int tab, settingsSection;
+        boolean player;
+        MediaEntry playlist;
+        final java.util.List<Integer> history = new ArrayList<>();
+        final java.util.List<MediaEntry> stack = new ArrayList<>();
+        final java.util.Map<String, int[]> scrolls = new java.util.HashMap<>();
+    }
+    private static Carried carried;
+    private boolean quietEnter;
+
+    /** Where each page was scrolled to (first row and its offset, or a scroll offset), keyed by {@link #pageKey}. */
+    private final java.util.Map<String, int[]> scrolls = new java.util.HashMap<>();
+    private String shownKey;
+
+    private String pageKey() {
+        return playlist != null ? "playlist:" + playlist.uri : tab == SETTINGS ? "settings:" + settingsSection : "tab:" + tab;
+    }
+
+    /** Notes how far the page on screen is scrolled, so coming back to it lands in the same place. */
+    private void rememberScroll() {
+        if (shownKey == null) return;
+        android.widget.AbsListView list = pageList != null ? pageList : libraryList;
+        // A page rebuilt before it was ever laid out (fresh data right after the cached copy) hasn't moved: keep
+        // what was saved rather than recording the top.
+        if (list != null) { if (list.isLaidOut() && list.getChildCount() > 0) scrolls.put(shownKey, new int[] { list.getFirstVisiblePosition(), list.getChildAt(0).getTop(), 0 }); }
+        else if (pageScroll != null && pageScroll.isLaidOut()) scrolls.put(shownKey, new int[] { 0, 0, pageScroll.getScrollY() });
+    }
+
+    private void restoreScroll() {
+        int[] at = scrolls.get(shownKey);
+        if (at == null) return;
+        android.widget.AbsListView list = pageList != null ? pageList : libraryList;
+        if (list instanceof ListView) ((ListView) list).setSelectionFromTop(at[0], at[1]);
+        else if (list != null) list.setSelection(at[0]);
+        else keepScroll(pageScroll, at[2]);
     }
 
     /**
@@ -726,6 +785,11 @@ public final class SpatchUi extends FrameLayout {
     }
 
     @Override protected void onDetachedFromWindow() {
+        rememberScroll();
+        Carried c = new Carried();
+        c.tab = tab; c.settingsSection = settingsSection; c.player = playerOpen; c.playlist = playlist;
+        c.history.addAll(tabHistory); c.stack.addAll(pageStack); c.scrolls.putAll(scrolls);
+        carried = activity.isChangingConfigurations() ? c : null; // only a recreation (rotation, theme) resumes; a real exit starts fresh
         closed = true;
         lifetime++;
         stopHeldSeek();
@@ -1100,7 +1164,7 @@ public final class SpatchUi extends FrameLayout {
 
     /** The page just shown slides in from (dx, dy) while it fades up. */
     void enter(float dx, float dy) {
-        if (!motion() || pageHost.getChildCount() == 0) return;
+        if (!motion() || quietEnter || pageHost.getChildCount() == 0) return;
         View page = pageHost.getChildAt(0);
         // Fading a page normally draws it through an offscreen layer cut to the page's bounds, which hid a backdrop
         // reaching past them (under the rail and camera strip) until the fade ended; fade each child in place instead.
@@ -2439,6 +2503,7 @@ public final class SpatchUi extends FrameLayout {
         setDockHidden(false);
         if (playlist == null && watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
         if (flightView != null) { removeView(flightView); flightView = null; }
+        rememberScroll();
         pageHost.removeAllViews();
         pageScroll = null;
         pageList = null;
@@ -2446,6 +2511,8 @@ public final class SpatchUi extends FrameLayout {
         heroArt = null; heroTitle = heroArtist = null;
         View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == SEARCH ? searchPage() : tab == LIBRARY ? libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : tab == STATS ? statsPage() : settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
+        shownKey = pageKey();
+        restoreScroll();
         if (tab != SETTINGS && playlist == null) refreshLibraryIfStale();
         if ((tab == HOME || tab == STATS) && playlist == null) loadRecentIfStale();
         refresh();
@@ -3314,6 +3381,7 @@ public final class SpatchUi extends FrameLayout {
     void openPlaylist(MediaEntry e, boolean forward) {
         if (watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
         if (forward && playlist != null && playlist != e) pageStack.push(playlist);
+        if (forward) { rememberScroll(); shownKey = null; scrolls.remove("playlist:" + e.uri); } // a fresh visit opens at the top
         playlist = e;
         playlistTracks = new ArrayList<>();
         releases = new ArrayList<>();

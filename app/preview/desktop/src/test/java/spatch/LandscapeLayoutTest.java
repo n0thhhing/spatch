@@ -52,6 +52,29 @@ public class LandscapeLayoutTest {
         activity.finish();
     }
 
+    @Test public void recreatingKeepsThePlaylistAndPlayer() throws Exception {
+        org.robolectric.android.controller.ActivityController<PreviewActivity> controller = Robolectric.buildActivity(PreviewActivity.class).setup().visible();
+        ViewGroup root = (ViewGroup) controller.get().getWindow().getDecorView();
+        settle();
+        SpatchUi ui = findUi(root);
+        java.lang.reflect.Method targets = SpatchUi.class.getDeclaredMethod("nativePlaylistTargets");
+        targets.setAccessible(true);
+        String[] playlist = PackedStrings.unpackStrings((byte[]) targets.invoke(null));
+        java.lang.reflect.Constructor<?> entry = Class.forName("spatch.MediaEntry").getDeclaredConstructor(String.class, String.class, String.class, String.class, int.class);
+        entry.setAccessible(true);
+        SpatchUi.class.getDeclaredMethod("openPlaylist", Class.forName("spatch.MediaEntry")).invoke(ui, entry.newInstance(playlist[0], "", playlist[2], "demo:1", 1));
+        java.lang.reflect.Method open = SpatchUi.class.getDeclaredMethod("openPlayer", boolean.class);
+        open.setAccessible(true);
+        open.invoke(ui, false);
+        settle();
+        controller.recreate();
+        settle();
+        SpatchUi again = findUi((ViewGroup) controller.get().getWindow().getDecorView());
+        assertNotSame("Android made a new screen", ui, again);
+        assertEquals("The player is still open", Boolean.TRUE, field(again, "playerOpen"));
+        assertEquals("The playlist is still showing behind it", playlist[2], ((MediaEntry) field(again, "playlist")).uri);
+    }
+
     private static void screenshot(View root, int width, int height, String name) throws Exception {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         root.draw(new Canvas(bitmap));
