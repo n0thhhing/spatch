@@ -1177,7 +1177,8 @@ public final class SpatchUi extends FrameLayout {
                 canvas.drawRenderNode(pageNode);
             }
         };
-        frosted = GpuFx.blur(prefs);
+        // Measured on a Pixel 11 Pro: about 12% more CPU and 2 ms slower frames while scrolling, so it's opt-in.
+        frosted = GpuFx.blur(prefs) && prefs.getBoolean("frost", false);
         LayoutParams hostAt = new LayoutParams(-1, -1);
         hostAt.leftMargin = sideLeft(); hostAt.rightMargin = inset.right; // landscape: clear of the side system bar, cutout and rail
         pageHost.setClipChildren(false); // page backdrops may reach out under those insets (and the rail)
@@ -4414,7 +4415,8 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
             toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
-            if (android.os.Build.VERSION.SDK_INT >= 31) toggle(player, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours, lyrics that focus on the sung line and frosted bars. Off uses the plain look", "gpu_fx", true, false);
+            if (android.os.Build.VERSION.SDK_INT >= 31) toggle(player, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours and lyrics that focus on the sung line. Off uses the plain look", "gpu_fx", true, false);
+            if (android.os.Build.VERSION.SDK_INT >= 31 && pref("gpu_fx", true)) toggle(player, "Frosted bars", "The mini player and tabs as frosted glass over the page. Uses noticeably more battery while scrolling", "frost", false, false);
             toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
             toggle(player, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false);
             if (pref("idle_hide", false)) {
@@ -5081,7 +5083,11 @@ public final class SpatchUi extends FrameLayout {
             });
             if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
-            else if (key.equals("gpu_fx")) build(); // the dock's frosted pills and the page capture are set up by build()
+            else if (key.equals("gpu_fx") || key.equals("frost")) { // the dock's pills and the page capture are set up by build()
+                int y = pageScroll != null ? pageScroll.getScrollY() : 0;
+                build();
+                keepScroll(pageScroll, y);
+            }
             else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
             else if (key.equals("idle_hide")) {
                 if (!sw.on) { idleHidden = false; for (View v : idleViews) v.setAlpha(1f); }
