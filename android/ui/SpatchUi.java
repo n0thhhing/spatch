@@ -788,6 +788,20 @@ public final class SpatchUi extends FrameLayout {
         return super.dispatchKeyEvent(event);
     }
 
+    private boolean wasLandscape;
+
+    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        boolean land = w > h && w >= dp(600);
+        if (oldw > 0 && land != wasLandscape) {
+            wasLandscape = land;
+            // Rebuild the underlying page immediately on orientation flip so closing the player never shifts it.
+            post(() -> { showPage(); dockUi.updateDock(); });
+        } else {
+            wasLandscape = land;
+        }
+    }
+
     Object backCallback() { return (android.window.OnBackInvokedCallback) this::back; }
 
     void back() {
@@ -2204,7 +2218,7 @@ public final class SpatchUi extends FrameLayout {
             list.addView(option, p);
         }
         card.addView(choices, new LinearLayout.LayoutParams(-1, -2));
-        int sheetWidth = wide() ? Math.min(dp(520), Math.max(dp(320), getWidth() - dp(48))) : -1;
+        int sheetWidth = landscape() ? Math.min(dp(520), Math.max(dp(320), getWidth() - dp(48))) : -1;
         scrim.addView(card, new LayoutParams(sheetWidth, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
         addView(scrim, new LayoutParams(-1, -1));
         close[0] = () -> {
