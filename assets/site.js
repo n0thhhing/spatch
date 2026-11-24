@@ -351,7 +351,7 @@ more.addEventListener('click', loadLog);
     // Same first page the changelog uses, so this costs no extra request.
     const [list, r] = await Promise.all([
       gh(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=${PER_PAGE}&page=1`),
-      gh(`https://api.github.com/repos/${REPO}/releases/latest`).catch(() => null),
+      gh(`https://api.github.com/repos/n0thhhing/spatch-manager/releases/latest`).catch(() => null),
     ]);
     const mins = (new Date(list[0].commit.committer.date) - Date.now()) / 60000;
     const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
