@@ -23,10 +23,3 @@ whisper-rs = "0.16"
 
 [build-dependencies]
 prost-build = "0.14"
-
-[profile.release]
-opt-level = "s"
-lto = true
-codegen-units = 1
-strip = true
-panic = "abort"

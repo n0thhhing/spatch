@@ -1,4 +1,4 @@
-//! Generates Rust types for the protos Spatch's app speaks (rebuilt from Spotify by scripts/port/protos.py).
+//! Generates Rust types for the protos Spatch's app speaks (rebuilt from Spotify by tools/port/protos.py).
 fn main() {
     let protos = [
         "proto/com.spotify.searchview.proto.proto",

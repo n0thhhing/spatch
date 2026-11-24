@@ -5,11 +5,11 @@ use std::path::Path;
 
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
-    let spatch_dir = Path::new(&manifest_dir).join("java/dex/src/spatch");
+    let spatch_dir = Path::new(&manifest_dir).join("../../android/ui");
     println!("cargo:rerun-if-changed={}", spatch_dir.display());
 
     let mut classes: Vec<String> = fs::read_dir(&spatch_dir)
-        .expect("failed to read java/dex/src/spatch")
+        .expect("failed to read ../../android/ui")
         .filter_map(|entry| {
             let entry = entry.ok()?;
             let path = entry.path();
@@ -37,7 +37,7 @@ fn main() {
     for class in &classes {
         writeln!(
             out,
-            "    ({class:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/java/dex/src/spatch/{class}.java\"))),"
+            "    ({class:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../../android/ui/{class}.java\"))),"
         )
         .unwrap();
     }

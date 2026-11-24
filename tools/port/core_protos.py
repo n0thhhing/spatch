@@ -1,5 +1,5 @@
 """Finds the serialized FileDescriptorProtos in Spotify's core (liborbit-jni-spotify.so) and prints every service, method,
-message and enum as .proto text: python3 -I scripts/port/core_protos.py <lib.so> [package filter]."""
+message and enum as .proto text: python3 -I tools/port/core_protos.py <lib.so> [package filter]."""
 import re
 import sys
 

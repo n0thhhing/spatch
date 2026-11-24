@@ -1,11 +1,10 @@
-[package]
-name = "spatch"
-version = "0.8.1"
-edition = "2024"
-description = "Guarded UI redesign patcher for one exact Spotify Android APKM"
-license = "MIT"
+[workspace]
+resolver = "2"
+members = ["crates/patcher", "crates/core"]
 
-[dependencies]
-bsdiff = "0.2"
-sha2 = "0.10"
-zip = { version = "2.6", default-features = false, features = ["deflate"] }
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

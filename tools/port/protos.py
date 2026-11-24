@@ -6,7 +6,7 @@ numbers, wire types, oneofs) and an object array (Java field names, element clas
 R8, so it is decoded here instead of guessing from the obfuscated getters. Proto field names come
 from the kept *_FIELD_NUMBER constants. Enums become int32 (same wire format).
 
-    scripts/port/protos.py <decoded-apk-dir> <out-dir> [java/package/prefix ...]
+    tools/port/protos.py <decoded-apk-dir> <out-dir> [java/package/prefix ...]
 """
 import os
 import re
@@ -252,7 +252,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     bad = 0
     for pkg, items in sorted(by_pkg.items()):
-        lines = ['syntax = "proto3";', "", "// Rebuilt from Spotify's generated classes by scripts/port/protos.py; enums are int32.", "package %s;" % pkg, ""]
+        lines = ['syntax = "proto3";', "", "// Rebuilt from Spotify's generated classes by tools/port/protos.py; enums are int32.", "package %s;" % pkg, ""]
         imports = set()
         body = []
         for n, m in sorted(items, key=lambda x: x[0]):

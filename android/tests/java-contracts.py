@@ -10,7 +10,7 @@ import re
 import subprocess
 import tempfile
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parents[2]
 
 
 def _strip_comments_and_strings(source: str) -> str:
@@ -60,18 +60,18 @@ def _non_private_static_methods(path: Path) -> set[str]:
 
 def check_core_bridge_preview_contract() -> None:
     """Ensure every non-private CoreBridge static method used by UI/preview tests exists in preview."""
-    prod_path = REPO / "java/dex/src/spatch/CoreBridge.java"
-    preview_path = REPO / "app/preview/src/spatch/CoreBridge.java"
+    prod_path = REPO / "android/ui/CoreBridge.java"
+    preview_path = REPO / "preview/src/spatch/CoreBridge.java"
     prod_methods = _non_private_static_methods(prod_path)
     preview_methods = _non_private_static_methods(preview_path)
 
     caller_files = [
-        p for p in (REPO / "java/dex/src/spatch").glob("*.java") if p != prod_path
+        p for p in (REPO / "android/ui").glob("*.java") if p != prod_path
     ]
     caller_files.extend(
-        p for p in (REPO / "app/preview/src").rglob("*.java") if p != preview_path
+        p for p in (REPO / "preview/src").rglob("*.java") if p != preview_path
     )
-    caller_files.extend((REPO / "app/preview/desktop/src/test").rglob("*.java"))
+    caller_files.extend((REPO / "preview/desktop/src/test").rglob("*.java"))
 
     used_methods: set[str] = set()
     call_re = re.compile(r"\bCoreBridge\.([A-Za-z_][A-Za-z0-9_]*)\s*\(")
@@ -84,13 +84,13 @@ def check_core_bridge_preview_contract() -> None:
 
     missing = sorted(used_methods - preview_methods)
     assert not missing, (
-        f"app/preview/src/spatch/CoreBridge.java is missing non-private static method(s) "
+        f"preview/src/spatch/CoreBridge.java is missing non-private static method(s) "
         f"used by UI/tests: {', '.join(missing)}"
     )
     extra = sorted(preview_methods - prod_methods)
     assert not extra, (
-        f"app/preview/src/spatch/CoreBridge.java declares static method(s) absent from "
-        f"java/dex/src/spatch/CoreBridge.java: {', '.join(extra)}"
+        f"preview/src/spatch/CoreBridge.java declares static method(s) absent from "
+        f"android/ui/CoreBridge.java: {', '.join(extra)}"
     )
     print(
         f"CoreBridge preview contract passed: {len(used_methods)} UI/test-used static methods "
@@ -176,10 +176,10 @@ public class CatalogRequestCheck {
 
 with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     work = Path(temporary)
-    sources = sorted((REPO / "java/dex/src/spatch").glob("*.java"))
-    sources += [REPO / f"java/dex/test/spatch/{name}.java"
+    sources = sorted((REPO / "android/ui").glob("*.java"))
+    sources += [REPO / f"android/tests/spatch/{name}.java"
                 for name in ("BlurTest", "CreationRouteTest", "PcmSpectrumTest", "SubscriptionsTest")]
-    sources += [p for p in (REPO / "java/dex/stubs").rglob("*.java") if p.name != "Single.java"]
+    sources += [p for p in (REPO / "android/stubs").rglob("*.java") if p.name != "Single.java"]
     for name, source in FIXTURES.items():
         file = work / name
         file.parent.mkdir(parents=True, exist_ok=True)

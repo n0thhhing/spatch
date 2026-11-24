@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-repo=$(cd "$here/../.." && pwd)
+repo=$(cd "$here/.." && pwd)
 out=${1:-"$repo/dist/spatch-preview.apk"}
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/homebrew/share/android-commandlinetools}}
 jdk=${JAVA_HOME:-/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home}
@@ -22,12 +22,12 @@ fi
 # Use a separate target so the demo library can never replace the patcher's release library.
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-export CARGO_TARGET_DIR="$repo/app/target/preview"
-cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked --features preview --manifest-path "$repo/app/Cargo.toml"
+export CARGO_TARGET_DIR="$repo/target/preview"
+cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked --features preview --manifest-path "$repo/crates/core/Cargo.toml"
 
 mkdir -p "$work/classes" "$work/dex" "$(dirname "$out")"
 helpers=()
-for file in "$repo/java/dex/src/spatch/"*.java; do
+for file in "$repo/android/ui/"*.java; do
     case "${file##*/}" in CoreBridge.java|DevIntegrity.java|SpatchApp.java|Subscriptions.java|SpotifyWeb.java) continue ;; esac
     helpers+=("$file")
 done

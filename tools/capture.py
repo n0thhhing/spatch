@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Captures a screenshot (or screen recording) from a connected Android phone via adb.
 
-    python3 scripts/capture.py [-o <path>] [-d | --display] [--rows <n>] [--record <seconds>]
+    python3 tools/capture.py [-o <path>] [-d | --display] [--rows <n>] [--record <seconds>]
 
 Saves to dist/captures/capture-<timestamp>.png (or .mp4 with --record) unless -o / --out is
 given. With -d / --display, renders the screenshot inline in the terminal using the Kitty

@@ -132,10 +132,10 @@ METHOD_NAME = re.compile(r'^\.method .*?([\w$]+)\(')
 def referenced():
     """Obfuscated class names Spatch mentions anywhere it reaches into Spotify."""
     names = set()
-    for f in ['src/edits.rs', 'src/dex.rs', 'src/helpers.rs', 'src/patch.rs']:
+    for f in ['crates/patcher/src/edits.rs', 'crates/patcher/src/dex.rs', 'crates/patcher/src/helpers.rs', 'crates/patcher/src/patch.rs']:
         t = Path(ROOT, f).read_text(encoding='utf-8')
         names |= set(re.findall(r'Lp/([\w$]+);', t)) | set(re.findall(r'smali\w*/p/([\w$]+)\.smali', t))
-    for p in glob.glob(os.path.join(ROOT, 'java/dex/src/**/*.java'), recursive=True):
+    for p in glob.glob(os.path.join(ROOT, 'android/ui/**/*.java'), recursive=True):
         names |= set(re.findall(r'\bp\.([a-z][\w]*)\b', Path(p).read_text(encoding='utf-8')))
     return sorted(names)
 

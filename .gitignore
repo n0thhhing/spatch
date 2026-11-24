@@ -4,6 +4,6 @@ dist/
 # local design-reference checkout (separate repo, no licence): never vendored
 swiftify/
 .cache/
-scripts/port/.work/
-app/preview/desktop/.gradle/
-app/preview/desktop/build/
+tools/port/.work/
+preview/desktop/.gradle/
+preview/desktop/build/

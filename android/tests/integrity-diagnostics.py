@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 JDK = Path(os.environ["JAVA_HOME"])
 
 SOURCES = {
@@ -209,9 +209,9 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(source)
         for name, original in {
-            'spatch/DevIntegrity.java': 'java/dex/src/spatch/DevIntegrity.java',
-            'p/dmt0.java': 'java/dex/stubs/p/dmt0.java',
-            'p/osm.java': 'java/dex/stubs/p/osm.java',
+            'spatch/DevIntegrity.java': 'android/ui/DevIntegrity.java',
+            'p/dmt0.java': 'android/stubs/p/dmt0.java',
+            'p/osm.java': 'android/stubs/p/osm.java',
         }.items():
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)

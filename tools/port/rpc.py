@@ -3,7 +3,7 @@
 response messages. Clients are ClientBase / CoroutineClientBase subclasses; R8 keeps the service
 and method strings and the protobuf class names, so the catalog survives obfuscation.
 
-    scripts/port/rpc.py <decoded-apk-dir> > app/proto/rpc.tsv
+    tools/port/rpc.py <decoded-apk-dir> > crates/core/proto/rpc.tsv
 """
 import glob
 import os

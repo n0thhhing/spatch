@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[1]
+root = Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
     repo = Path(temp)
     def git(*args):
@@ -14,11 +14,12 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
     git("init", "-q")
     git("config", "user.email", "test@example.invalid")
     git("config", "user.name", "Test")
-    for name in ["src/input.rs", "java/test", "manager/test", "scripts/port/aliases.tsv", "Cargo.toml"]:
+    for name in ["crates/patcher/src/input.rs", "android/test", "manager/test", "tools/port/aliases.tsv", "Cargo.toml"]:
         path = repo / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("original\n")
-    shutil.copy(root / "scripts/nightly.sh", repo / "scripts/nightly.sh")
+    (repo / "tools").mkdir(parents=True, exist_ok=True)
+    shutil.copy(root / "tools/nightly.sh", repo / "tools/nightly.sh")
     git("add", ".")
     git("commit", "-qm", "baseline")
     labels = repo / "labels"
@@ -31,11 +32,11 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
     env = dict(os.environ, PATH=str(mock) + os.pathsep + os.environ["PATH"],
                MOCK_LABELS=str(labels), NIGHTLY_CHECK="1")
     def check(patches, manager):
-        actual = subprocess.check_output(["sh", str(repo / "scripts/nightly.sh")], env=env, text=True)
+        actual = subprocess.check_output(["sh", str(repo / "tools/nightly.sh")], env=env, text=True)
         assert actual == f"patches={str(patches).lower()}\nmanager={str(manager).lower()}\n", actual
     def published():
         tree = subprocess.check_output(["git", "-C", str(repo), "ls-tree", "-r", "HEAD", "--",
-                                        "src", "java", "app", "Cargo.toml", "Cargo.lock"])
+                                        "crates", "android", "Cargo.toml", "Cargo.lock"])
         patch = subprocess.check_output(["git", "hash-object", "--stdin"], input=tree).decode().strip()
         manager = git("rev-parse", "HEAD:manager")
         labels.write_text(f"spatch-bundle.zip\tnightly-{patch}\n"
@@ -48,13 +49,13 @@ with tempfile.TemporaryDirectory(prefix="spatch-nightly-test-") as temp:
     git("commit", "-qm", "manager only")
     check(False, True)
     published()
-    (repo / "java/test").write_text("patch changed\n")
-    git("add", "java")
+    (repo / "android/test").write_text("patch changed\n")
+    git("add", "android")
     git("commit", "-qm", "patches only")
     check(True, False)
     published()
-    (repo / "scripts/port/aliases.tsv").write_text("manual port mapping\n")
-    git("add", "scripts/port/aliases.tsv")
+    (repo / "tools/port/aliases.tsv").write_text("manual port mapping\n")
+    git("add", "tools/port/aliases.tsv")
     git("commit", "-qm", "porting aliases only")
     check(False, False)
     patch_label, manager_label = labels.read_text().splitlines()

@@ -9,13 +9,12 @@ on:
     branches: ["**"]
     tags-ignore: ["**"]
     paths:
-      - "src/**"
-      - "java/**"
-      - "app/**"
+      - "crates/**"
+      - "android/**"
       - "manager/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "scripts/nightly.sh"
+      - "tools/nightly.sh"
       - ".github/workflows/nightly.yml"
   workflow_dispatch:
 
@@ -41,7 +40,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NIGHTLY_CHECK: 1
-        run: scripts/nightly.sh "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+        run: tools/nightly.sh "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
 
   build:
     needs: changes
@@ -61,7 +60,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.spatch/nightly-target
-          key: ${{ runner.os }}-nightly-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('Cargo.toml', 'src/**', 'java/**') }}
+          key: ${{ runner.os }}-nightly-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('Cargo.toml', 'crates/**', 'android/**') }}
           restore-keys: |
             ${{ runner.os }}-nightly-${{ hashFiles('Cargo.lock') }}-
             ${{ runner.os }}-nightly-
@@ -98,28 +97,28 @@ jobs:
           chmod +x "$HOME/bin/apktool"
           echo "$HOME/bin" >> "$GITHUB_PATH"
       - uses: actions/cache@v4
-        if: hashFiles('app/Cargo.toml') != ''
+        if: hashFiles('crates/core/Cargo.toml') != ''
         with:
           path: |
             ~/.cargo/bin/cargo-ndk
-            app/target
-          key: ${{ runner.os }}-spatch-app-${{ hashFiles('app/Cargo.lock', 'app/Cargo.toml') }}-${{ hashFiles('app/src/**', 'app/proto/**', 'app/build.rs') }}
+            target
+          key: ${{ runner.os }}-spatch-app-${{ hashFiles('Cargo.lock', 'crates/core/Cargo.toml') }}-${{ hashFiles('crates/core/src/**', 'crates/core/proto/**', 'crates/core/build.rs') }}
           restore-keys: |
-            ${{ runner.os }}-spatch-app-${{ hashFiles('app/Cargo.lock', 'app/Cargo.toml') }}-
+            ${{ runner.os }}-spatch-app-${{ hashFiles('Cargo.lock', 'crates/core/Cargo.toml') }}-
             ${{ runner.os }}-spatch-app-
       - name: Rust app library
-        if: hashFiles('app/Cargo.toml') != ''
+        if: hashFiles('crates/core/Cargo.toml') != ''
         run: |
           sudo apt-get update -qq > /dev/null && sudo apt-get install -y -qq protobuf-compiler > /dev/null
           rustup target add aarch64-linux-android
           command -v cargo-ndk > /dev/null || cargo install cargo-ndk --locked --version 4.1.2
-          (cd app && ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" cargo ndk -t arm64-v8a -P 29 build --release --locked)
-          echo "SPATCH_APP_SO=$PWD/app/target/aarch64-linux-android/release/libspatch_app.so" >> "$GITHUB_ENV"
+          ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" cargo ndk -t arm64-v8a -P 29 build --release --locked -p spatch_app
+          echo "SPATCH_APP_SO=$PWD/target/aarch64-linux-android/release/libspatch_app.so" >> "$GITHUB_ENV"
       - name: Spotify APKM from the private source
         env:
           INVITE: ${{ secrets.SOURCE_INVITE }}
         run: |
-          version=$(sed -n 's/^pub const VERSION_NAME: &str = "\(.*\)";/\1/p' src/input.rs)
+          version=$(sed -n 's/^pub const VERSION_NAME: &str = "\(.*\)";/\1/p' crates/patcher/src/input.rs)
           index=${INVITE%%#*} login=${INVITE#*#}
           auth="${login%%.*}:${login#*.}"
           curl -fsS -u "$auth" "$index" > "$RUNNER_TEMP/index.json"
@@ -136,7 +135,7 @@ jobs:
           NIGHTLY_BUILD: normal
           NIGHTLY_OUT: ${{ runner.temp }}/bundle
         run: |
-          scripts/nightly.sh "$GITHUB_SHA"
+          tools/nightly.sh "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         with:
           name: bundle
@@ -170,7 +169,7 @@ jobs:
             printf '%s' "$MANAGER_KEYSTORE" | base64 -d > "$RUNNER_TEMP/manager.p12"
             export MANAGER_KEYSTORE_FILE="$RUNNER_TEMP/manager.p12"
           fi
-          scripts/nightly.sh "$GITHUB_SHA"
+          tools/nightly.sh "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         with:
           name: manager
@@ -199,4 +198,4 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          scripts/nightly.sh "$GITHUB_SHA"
+          tools/nightly.sh "$GITHUB_SHA"

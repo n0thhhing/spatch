@@ -36,17 +36,17 @@ configurations.configureEach {
 sourceSets.main.java.setSrcDirs([])
 compileJava {
     // Compile the production screen and audio class directly. There is no second UI to maintain.
-    source = files(fileTree('../../../java/dex/src/spatch') {
+    source = files(fileTree('../../android/ui') {
                        exclude 'CoreBridge.java', 'DevIntegrity.java', 'SpatchApp.java', 'Subscriptions.java', 'SpotifyWeb.java'
                    },
                    '../src/spatch/CoreBridge.java', '../src/spatch/PreviewActivity.java')
     options.release = 11
 }
 compileTestJava {
-    source '../../../java/dex/test/spatch/AudioTest.java', '../../../java/dex/src/spatch/SpatchApp.java'
-    source '../../../java/dex/test/spatch/PublicTrackMetadataTest.java'
-    source '../../../java/dex/test/spatch/OfficialPlaybackTest.java'
-    source '../../../java/dex/test/spatch/LrclibTest.java'
+    source '../../android/tests/spatch/AudioTest.java', '../../android/ui/SpatchApp.java'
+    source '../../android/tests/spatch/PublicTrackMetadataTest.java'
+    source '../../android/tests/spatch/OfficialPlaybackTest.java'
+    source '../../android/tests/spatch/LrclibTest.java'
     options.release = 11
 }
 
@@ -91,7 +91,7 @@ tasks.register('macApp', Exec) {
             copy { from file; into new File(input, 'lib'); rename { "${i}.jar" } }
         }
         copy { from '../../target/mac-preview/release/libspatch_app.dylib'; into new File(input, 'native') }
-        def destination = file('../../../dist')
+        def destination = file('../../dist')
         delete new File(destination, 'Spatch Preview.app')
         def options = desktopJvmArgs.findAll { !it.startsWith('-Djava.library.path=') } +
             ['-Djava.library.path=$APPDIR/native', '-Dspatch.preview.interactive=true']

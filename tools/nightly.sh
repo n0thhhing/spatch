@@ -3,7 +3,7 @@
 # Spatch Manager installs when Nightly patches is on. Builds from a clean copy of the commit, so
 # uncommitted work never ships. Needs the supported Spotify APKM: $SPATCH_APKM, or in the repo root
 # (it is ignored). .github/workflows/nightly.yml runs this on every push, split in parts:
-#   scripts/nightly.sh [commit]                        build patches and Manager, then publish
+#   tools/nightly.sh [commit]                          build patches and Manager, then publish
 #   NIGHTLY_BUILD=normal|manager NIGHTLY_OUT=<dir> ...   only build that artifact into <dir>
 #   NIGHTLY_BUNDLES=<dir> ...                          only publish the bundles already in <dir>
 #   NIGHTLY_TAG=branch-<name> ...                     publish to that branch's prerelease instead of `nightly`
@@ -14,7 +14,7 @@ export GH_REPO=n0thhhing/spatch # gh runs outside the checkout below
 sha=$(git -C "$repo" rev-parse "${1:-HEAD}")
 short=$(echo "$sha" | cut -c1-7)
 # Source identities are independent of the overall release commit and of each other.
-patch_id=$(git -C "$repo" ls-tree -r "$sha" -- src java app Cargo.toml Cargo.lock | git hash-object --stdin)
+patch_id=$(git -C "$repo" ls-tree -r "$sha" -- crates android Cargo.toml Cargo.lock | git hash-object --stdin)
 manager_id=$(git -C "$repo" rev-parse "$sha:manager")
 labels=$(gh release view "$tag" --json assets -q '.assets[] | [.name, (.label // "")] | @tsv' 2>/dev/null || true)
 changed() { ! printf '%s\n' "$labels" | awk -F '\t' -v name="$1" -v label="nightly-$2" '$1==name && $2==label {found=1} END {exit !found}'; }
@@ -25,7 +25,7 @@ if [ "${NIGHTLY_CHECK:-}" = 1 ]; then
     printf 'patches=%s\nmanager=%s\n' "$patches" "$manager"
     exit 0
 fi
-version=$(git -C "$repo" show "$sha:src/input.rs" | sed -n 's/^pub const VERSION_NAME: &str = "\(.*\)";/\1/p')
+version=$(git -C "$repo" show "$sha:crates/patcher/src/input.rs" | sed -n 's/^pub const VERSION_NAME: &str = "\(.*\)";/\1/p')
 apkm=${SPATCH_APKM:-$(ls "$repo"/*"_$version-"*.apkm 2>/dev/null | head -1)}
 
 work=$(mktemp -d)
@@ -56,12 +56,12 @@ if [ -z "${NIGHTLY_BUNDLES:-}" ]; then
         [ -n "$apkm" ] || { echo "no Spotify $version APKM in $repo"; exit 1; }
         case "$apkm" in /*) ;; *) apkm="$PWD/$apkm" ;; esac
         if [ -z "${SPATCH_APP_SO:-}" ]; then
-            (cd "$work/src/app" && GITHUB_SHA="$sha" cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked)
+            (cd "$work/src" && GITHUB_SHA="$sha" cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked -p spatch_app)
             export SPATCH_APP_SO="$work/lib/arm64-v8a/libspatch_app.so"
         else
             case "$SPATCH_APP_SO" in /*) ;; *) export SPATCH_APP_SO="$PWD/$SPATCH_APP_SO" ;; esac
         fi
-        cargo build -q --release --locked --manifest-path "$work/src/Cargo.toml"
+        cargo build -q --release --locked -p spatch --manifest-path "$work/src/Cargo.toml"
     fi
     cd "$work/src"
     spatch="$CARGO_TARGET_DIR/release/spatch"

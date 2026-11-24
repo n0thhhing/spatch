@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 
 def load_aliases(old_col_name, new_col_name, work):
-    aliases_text = Path(ROOT, 'scripts/port/aliases.tsv').read_text(encoding='utf-8')
+    aliases_text = Path(ROOT, 'tools/port/aliases.tsv').read_text(encoding='utf-8')
     rows = [l.split('\t') for l in aliases_text.splitlines() if l and not l.startswith('#')]
     hdr = rows[0]
     oc = hdr.index(old_col_name) if old_col_name in hdr else len(hdr) - 2
@@ -73,7 +73,7 @@ def locate(tree, cell_or_path):
 
 
 def edits_for(new_map, r_to_new_id):
-    src = Path(ROOT, 'src/edits.rs').read_text(encoding='utf-8')
+    src = Path(ROOT, 'crates/patcher/src/edits.rs').read_text(encoding='utf-8')
     out = []
     for m in re.finditer(r'Edit\s*\{\s*file:\s*"([^"]+)",\s*anchor:\s*"((?:[^"\\]|\\.)*)"', src, re.DOTALL):
         ftok, anchor = m.group(1), m.group(2).encode().decode('unicode_escape')

@@ -18,23 +18,18 @@ jobs:
           rustup component add clippy
           sudo apt-get update -qq
           sudo apt-get install -y protobuf-compiler
-      - name: Check the patcher
+      - name: Check the workspace
         run: |
           cargo test --locked
           cargo clippy --all-targets --locked -- -D warnings
-      - name: Check the app and preview
-        working-directory: app
-        run: |
-          cargo test --locked
-          cargo clippy --all-targets --locked -- -D warnings
-          cargo test --features preview --locked
-          cargo clippy --all-targets --features preview --locked -- -D warnings
+          cargo test -p spatch_app --features preview --locked
+          cargo clippy -p spatch_app --all-targets --features preview --locked -- -D warnings
       - name: Check nightly input selection
-        run: python3 tests/nightly-inputs.py
+        run: python3 android/tests/nightly-inputs.py
       - name: Check integrity diagnostics
-        run: python3 tests/integrity-diagnostics.py
+        run: python3 android/tests/integrity-diagnostics.py
       - name: Check Java bridge contracts
-        run: python3 tests/java-contracts.py
+        run: python3 android/tests/java-contracts.py
 
   mac-preview:
     runs-on: macos-latest
@@ -45,20 +40,20 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
-          cache-dependency-path: app/preview/desktop/**/*.gradle
+          cache-dependency-path: preview/desktop/**/*.gradle
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.m2/repository/org/robolectric
-            app/target/mac-preview
-          key: mac-preview-${{ runner.arch }}-${{ hashFiles('app/Cargo.lock', 'app/preview/desktop/build.gradle') }}-${{ hashFiles('app/src/**', 'app/proto/**') }}
-          restore-keys: mac-preview-${{ runner.arch }}-${{ hashFiles('app/Cargo.lock', 'app/preview/desktop/build.gradle') }}-
+            target/mac-preview
+          key: mac-preview-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'preview/desktop/build.gradle') }}-${{ hashFiles('crates/core/src/**', 'crates/core/proto/**') }}
+          restore-keys: mac-preview-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'preview/desktop/build.gradle') }}-
       - name: Install protobuf compiler
         run: command -v protoc || brew install protobuf
       - name: Render the shared Android UI on Mac
-        run: app/preview/mac.sh --check
+        run: preview/mac.sh --check
       - uses: actions/upload-artifact@v4
         with:
           name: mac-preview-screenshot
-          path: app/preview/desktop/build/reports/preview/*.png
+          path: preview/desktop/build/reports/preview/*.png

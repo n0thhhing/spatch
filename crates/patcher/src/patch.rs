@@ -201,10 +201,10 @@ pub fn run(
 /// is checked for every added resource, so a wrong id fails the patch instead of shipping).
 const WIDGET_TYPES: [(&str, u8); 5] = [("anim", 0x01), ("animator", 0x02), ("drawable", 0x08), ("layout", 0x0e), ("xml", 0x16)];
 
-/// A widget resource: its type, its name and its source text (java/widget/res/<type>/<name>.xml).
+/// A widget resource: its type, its name and its source text (android/widget/res/<type>/<name>.xml).
 macro_rules! res {
     ($t:literal, $n:literal) => {
-        ($t, $n, include_str!(concat!("../java/widget/res/", $t, "/", $n, ".xml")))
+        ($t, $n, include_str!(concat!("../../../android/widget/res/", $t, "/", $n, ".xml")))
     };
 }
 
@@ -331,12 +331,12 @@ fn resource_id_of(ids: &[(String, u32)], kind: &str, name: &str) -> Result<u32> 
 /// Where SpatchApp finds the Rust app library (copied out and loaded at run time, so the splits stay untouched).
 pub const RUST_APP_ASSET: &str = "assets/spatch/libspatch_app.so";
 
-/// The arm64 Rust app library to ship: $SPATCH_APP_SO, else app/'s release build if one exists.
+/// The arm64 Rust app library to ship: $SPATCH_APP_SO, else the workspace's release build if one exists.
 fn rust_app() -> Result<Option<Vec<u8>>> {
     if let Some(path) = std::env::var_os("SPATCH_APP_SO") {
         return Ok(Some(fs::read(&path).map_err(|e| format!("SPATCH_APP_SO {}: {e}", Path::new(&path).display()))?));
     }
-    let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("app/target/aarch64-linux-android/release/libspatch_app.so");
+    let built = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/aarch64-linux-android/release/libspatch_app.so");
     Ok(if built.is_file() { Some(fs::read(built)?) } else { None })
 }
 
