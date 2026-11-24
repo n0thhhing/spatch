@@ -78,7 +78,7 @@ final class CreationSheet {
         else menuParams.setMargins(ui.dp(8), ui.dp(8), ui.dp(8), ui.dp(10));
         overlay.addView(scroll, menuParams);
         overlay.setOnClickListener(v -> closeCreateMenu());
-        ui.addView(overlay, new LayoutParams(-1, available));
+        ui.addView(overlay, new LayoutParams(-1, land ? -1 : available));
         overlay.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         card.setAccessibilityPaneTitle("Create");
         ui.dockUi.updateDock();
