@@ -1112,7 +1112,7 @@ public final class SpatchUi extends FrameLayout {
         fade.setBackground(fadeBg);
         colored(fade, () -> fadeBg.setColors(new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg}));
         addView(fade, new LayoutParams(-1, dockRoom() + dp(20), Gravity.BOTTOM));
-        if (landscape()) fade.setVisibility(GONE); // the rail sits beside the content, nothing passes under it
+        if (landscape() || dockUi.frosted) fade.setVisibility(GONE); // no fade when frosted glass blurs the page itself
         // And under the status bar, so scrolled content doesn't collide with the clock and icons: solid behind
         // the bar itself, then a short fade below it.
         View topSolid = new View(activity);
