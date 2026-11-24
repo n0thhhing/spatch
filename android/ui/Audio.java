@@ -182,12 +182,11 @@ public final class Audio {
             }
         }
 
-        PlatformSupport support = PlatformSupport.query();
         if (!cfg.masterEnabled || targetSessions.isEmpty()) {
             eqStatus = cfg.masterEnabled
                 ? "Start playback on this device to apply the equalizer"
                 : "Equalizer off";
-            lastCapabilities = Capabilities.idle(support, cfg, usingLegacy, eqStatus, eqError);
+            lastCapabilities = Capabilities.idle();
             return;
         }
 
@@ -230,7 +229,7 @@ public final class Audio {
         } else {
             eqStatus = formatActiveStatus(current, cfg);
         }
-        lastCapabilities = Capabilities.from(support, cfg, current, active, usingLegacy, current == null ? baseInputGainDb : current.inputGainDb, eqStatus, eqError);
+        lastCapabilities = Capabilities.from(current, active);
         if (effects.size() < targetSessions.size()) {
             worker().postDelayed(Audio.EQUALIZE, equalizerRetryMs);
             equalizerRetryMs = Math.min(30_000, equalizerRetryMs * 2);
@@ -920,142 +919,41 @@ public final class Audio {
         }
     }
 
-    private static final class PlatformSupport {
-        final boolean dynamicsProcessing;
-        final boolean equalizer;
-        final boolean bassBoost;
-        final boolean presetReverb;
-        final boolean virtualizer;
-
-        private PlatformSupport(boolean dp, boolean eq, boolean bb, boolean pr, boolean virt) {
-            this.dynamicsProcessing = dp;
-            this.equalizer = eq;
-            this.bassBoost = bb;
-            this.presetReverb = pr;
-            this.virtualizer = virt;
-        }
-
-        static PlatformSupport query() {
-            boolean dp = false, eq = false, bb = false, pr = false, virt = false;
-            try {
-                AudioEffect.Descriptor[] descriptors = AudioEffect.queryEffects();
-                if (descriptors != null) {
-                    for (AudioEffect.Descriptor d : descriptors) {
-                        if (d == null || d.type == null) continue;
-                        UUID t = d.type;
-                        if (AudioEffect.EFFECT_TYPE_DYNAMICS_PROCESSING.equals(t)) dp = true;
-                        else if (AudioEffect.EFFECT_TYPE_EQUALIZER.equals(t)) eq = true;
-                        else if (AudioEffect.EFFECT_TYPE_BASS_BOOST.equals(t)) bb = true;
-                        else if (AudioEffect.EFFECT_TYPE_PRESET_REVERB.equals(t) && AudioEffect.EFFECT_INSERT.equals(d.connectMode)) pr = true;
-                        else if (AudioEffect.EFFECT_TYPE_VIRTUALIZER.equals(t)) virt = true;
-                    }
-                }
-            } catch (RuntimeException ignored) {
-                // Robolectric or restricted environment
-            }
-            return new PlatformSupport(dp, eq, bb, pr, virt);
-        }
-    }
-
-    /** Immutable snapshot of platform effect support and active session DSP state. */
+    /** Immutable snapshot of active session DSP state. */
     public static final class Capabilities {
-        public final boolean dynamicsProcessingSupported;
-        public final boolean equalizerSupported;
-        public final boolean bassBoostSupported;
-        public final boolean presetReverbSupported;
-        public final boolean virtualizerSupported;
         public final int activeSession;
-        public final boolean legacyMode;
         public final boolean usingFallbackEqualizer;
         public final int eqBandCount;
-        public final boolean geqActive;
-        public final boolean autoEqActive;
-        public final boolean equalLoudnessActive;
-        public final boolean bassTunerActive;
-        public final boolean limiterActive;
-        public final boolean channelBalanceActive;
-        public final boolean bassBoostActive;
-        public final boolean presetReverbActive;
-        public final boolean virtualizerActive;
-        public final float attenuationDb;
-        public final String statusSummary;
-        public final String lastError;
         public final String bassBoostError;
         public final String reverbError;
         public final String virtualizerError;
 
         private Capabilities() {
-            this(false, false, false, false, false, -1, false, false, 0,
-                false, false, false, false, false, false, false, false, false,
-                0f, "", "", "", "", "");
+            this(-1, false, 0, "", "", "");
         }
 
         private Capabilities(
-            boolean dpSup, boolean eqSup, boolean bbSup, boolean prSup, boolean virtSup,
-            int activeSession, boolean legacyMode, boolean fallbackEq, int eqBandCount,
-            boolean geqActive, boolean autoEqActive, boolean equalLoudnessActive,
-            boolean bassTunerActive, boolean limiterActive, boolean channelBalanceActive,
-            boolean bassBoostActive, boolean presetReverbActive, boolean virtualizerActive,
-            float attenuationDb, String statusSummary, String lastError,
+            int activeSession, boolean fallbackEq, int eqBandCount,
             String bassBoostError, String reverbError, String virtualizerError
         ) {
-            this.dynamicsProcessingSupported = dpSup;
-            this.equalizerSupported = eqSup;
-            this.bassBoostSupported = bbSup;
-            this.presetReverbSupported = prSup;
-            this.virtualizerSupported = virtSup;
             this.activeSession = activeSession;
-            this.legacyMode = legacyMode;
             this.usingFallbackEqualizer = fallbackEq;
             this.eqBandCount = eqBandCount;
-            this.geqActive = geqActive;
-            this.autoEqActive = autoEqActive;
-            this.equalLoudnessActive = equalLoudnessActive;
-            this.bassTunerActive = bassTunerActive;
-            this.limiterActive = limiterActive;
-            this.channelBalanceActive = channelBalanceActive;
-            this.bassBoostActive = bassBoostActive;
-            this.presetReverbActive = presetReverbActive;
-            this.virtualizerActive = virtualizerActive;
-            this.attenuationDb = attenuationDb;
-            this.statusSummary = statusSummary;
-            this.lastError = lastError;
             this.bassBoostError = bassBoostError;
             this.reverbError = reverbError;
             this.virtualizerError = virtualizerError;
         }
 
-        static Capabilities idle(PlatformSupport s, DspSettings cfg, boolean legacy, String status, String err) {
-            return new Capabilities(
-                s.dynamicsProcessing, s.equalizer, s.bassBoost, s.presetReverb, s.virtualizer,
-                -1, legacy, false, 0,
-                false, false, false, false, false, false, false, false, false,
-                0f, status, err, "", "", ""
-            );
+        static Capabilities idle() {
+            return new Capabilities();
         }
 
-        static Capabilities from(
-            PlatformSupport s, DspSettings cfg, SessionChain chain, int activeSession,
-            boolean legacy, float attenDb, String status, String err
-        ) {
-            if (chain == null) return idle(s, cfg, legacy, status, err);
-            boolean fallback = chain.main instanceof Equalizer;
-            boolean mainOk = chain.main != null;
+        static Capabilities from(SessionChain chain, int activeSession) {
+            if (chain == null) return idle();
             return new Capabilities(
-                s.dynamicsProcessing, s.equalizer, s.bassBoost, s.presetReverb, s.virtualizer,
-                activeSession, legacy, fallback, chain.eqBandCount,
-                mainOk && cfg.geqEnabled,
-                mainOk && cfg.autoEqEnabled && cfg.autoEqProfile != null,
-                mainOk && cfg.loudnessEnabled,
-                chain.bassTunerActive,
-                chain.limiterActive,
-                chain.channelBalanceActive,
-                chain.bassBoostActive,
-                chain.reverbActive,
-                chain.virtualizerActive,
-                attenDb,
-                status,
-                err,
+                activeSession,
+                chain.main instanceof Equalizer,
+                chain.eqBandCount,
                 chain.bassBoostError,
                 chain.reverbError,
                 chain.virtualizerError

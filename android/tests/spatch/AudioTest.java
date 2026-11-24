@@ -143,7 +143,7 @@ public final class AudioTest {
     private static void testInitialCapabilities() {
         Audio.Capabilities caps = Audio.capabilities();
         check(caps != null, "capabilities never null");
-        check(!caps.geqActive && !caps.bassTunerActive && !caps.limiterActive, "idle capabilities inactive");
+        check(caps.activeSession < 0 && !caps.usingFallbackEqualizer && caps.eqBandCount == 0, "idle capabilities inactive");
     }
 
     private static void expectIllegal(String raw, String label) {
