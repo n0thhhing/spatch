@@ -15,14 +15,12 @@ sha=$(git -C "$repo" rev-parse "${1:-HEAD}")
 short=$(echo "$sha" | cut -c1-7)
 # Source identities are independent of the overall release commit and of each other.
 patch_id=$(git -C "$repo" ls-tree -r "$sha" -- crates android Cargo.toml Cargo.lock | git hash-object --stdin)
-manager_id=$(git -C "$repo" rev-parse "$sha:manager")
 labels=$(gh release view "$tag" --json assets -q '.assets[] | [.name, (.label // "")] | @tsv' 2>/dev/null || true)
 changed() { ! printf '%s\n' "$labels" | awk -F '\t' -v name="$1" -v label="nightly-$2" '$1==name && $2==label {found=1} END {exit !found}'; }
-patches=false manager=false
+patches=false
 if changed spatch-bundle.zip "$patch_id"; then patches=true; fi
-if changed spatch-manager.apk "$manager_id"; then manager=true; fi
 if [ "${NIGHTLY_CHECK:-}" = 1 ]; then
-    printf 'patches=%s\nmanager=%s\n' "$patches" "$manager"
+    printf 'patches=%s\n' "$patches"
     exit 0
 fi
 version=$(git -C "$repo" show "$sha:crates/patcher/src/input.rs" | sed -n 's/^pub const VERSION_NAME: &str = "\(.*\)";/\1/p')
@@ -33,26 +31,12 @@ trap 'rm -rf "$work"' EXIT
 out=${NIGHTLY_BUNDLES:-${NIGHTLY_OUT:-$work/out}}
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
-build_manager() {
-    ks=${MANAGER_KEYSTORE_FILE:-$HOME/.spatch/device-test.p12}
-    if [ -z "${MANAGER_KS_PASS:-}" ] && [ -f "$HOME/.spatch/device-test.pass" ]; then
-        MANAGER_KS_PASS=$(cat "$HOME/.spatch/device-test.pass")
-        export MANAGER_KS_PASS
-    fi
-    if [ -f "$ks" ] && [ -n "${MANAGER_KS_PASS:-}" ]; then
-        # The version being worked towards (manager/VERSION), so a nightly is never older than the last release.
-        mgr_ver=$(cat "$work/src/manager/VERSION" 2>/dev/null || gh release list --limit 50 --json tagName -q '[.[] | select(.tagName | startswith("manager-v"))][0].tagName | sub("^manager-v"; "")' 2>/dev/null || true)
-        mgr_ver=${mgr_ver:-0.9.0}
-        "$work/src/manager/build.sh" "$mgr_ver-$(echo "$manager_id" | cut -c1-7)" "$out/spatch-manager.apk" \
-            --keystore "$ks" --alias "${MANAGER_KS_ALIAS:-spatch-test}" --ks-pass-env MANAGER_KS_PASS
-    fi
-}
 
 if [ -z "${NIGHTLY_BUNDLES:-}" ]; then
     mkdir "$work/src"
     git -C "$repo" archive "$sha" | tar -x -C "$work/src"
     export CARGO_TARGET_DIR="$HOME/.spatch/nightly-target" # kept between runs so dependencies build once
-    if [ "${NIGHTLY_BUILD:-both}" != manager ] && [ "$patches" = true ]; then
+    if [ "$patches" = true ]; then
         [ -n "$apkm" ] || { echo "no Spotify $version APKM in $repo"; exit 1; }
         case "$apkm" in /*) ;; *) apkm="$PWD/$apkm" ;; esac
         if [ -z "${SPATCH_APP_SO:-}" ]; then
@@ -65,16 +49,8 @@ if [ -z "${NIGHTLY_BUNDLES:-}" ]; then
     fi
     cd "$work/src"
     spatch="$CARGO_TARGET_DIR/release/spatch"
-    case "${NIGHTLY_BUILD:-both}" in
-        manager) [ "$manager" = false ] || build_manager; exit 0 ;;
-        normal)
-            [ "$patches" = false ] || "$spatch" bundle "$apkm" --out "$out/spatch-bundle.zip"
-            exit 0 ;;
-        both)
-            [ "$patches" = false ] || "$spatch" bundle "$apkm" --out "$out/spatch-bundle.zip"
-            [ "$manager" = false ] || build_manager ;;
-        *) echo "NIGHTLY_BUILD is normal, manager or unset"; exit 2 ;;
-    esac
+    [ "$patches" = false ] || "$spatch" bundle "$apkm" --out "$out/spatch-bundle.zip"
+    if [ -n "${NIGHTLY_OUT:-}" ]; then exit 0; fi
 fi
 cd "$out"
 assets=""
