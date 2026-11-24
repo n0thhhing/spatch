@@ -4456,7 +4456,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Heart button", "Save to Liked Songs from the player", "player_heart", true, false);
             toggle(player, "Shuffle and repeat", "The buttons on either side of play", "player_modes", true, false);
             toggle(player, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
-            if (pref("backdrop", true)) choice(player, "Backdrop blur", new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
+            if (pref("backdrop", true)) choice(player, "Backdrop blur", GpuFx.shaders(prefs) ? new String[]{"Soft", "Deep", "Streaks", "Flowing"} : new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
             toggle(player, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
             toggle(player, "Rotating stickers", "The shapes behind playlist headers turn slowly. Keeps the page redrawing, so it uses some battery", "sticker_spin", false, false);
             if (pref("motes", true)) {

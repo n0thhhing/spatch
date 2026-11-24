@@ -1,4 +1,5 @@
-// A soft field of four colours, one pool from each quarter of the cover, slowly drifting and folding into itself.
+// A soft field of four colours (the player's "Flowing" backdrop: one per quarter of the cover; a playlist header: four
+// tints of its colours), slowly drifting and folding into itself.
 // shade 1 darkens it toward the page colour like the player's scrim (40% at the top, 60% by 45% down, solid at the
 // foot); 2 fades it fully into the page colour by the bottom edge, for a header wash. Fine grain breaks up banding.
 uniform float2 size;

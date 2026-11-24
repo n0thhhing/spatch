@@ -206,15 +206,37 @@ final class ArtworkViews {
         /** GPU mode: the blurred cover is drawn through a grain shader, so its long dark fades don't band. */
         private final boolean gpu;
         private Shader grain;
+        /**
+         * The optional "Flowing" style: a colour field from the cover's four quarters, drifting by time played. It is
+         * drawn into the cached layer about 30 times a second; the frames between reuse the texture.
+         */
+        private final boolean flow;
+        private android.animation.ValueAnimator clock;
+        private Shader field;
+        private Bitmap colorsOf;
+        private int[] colorsFrom, colorsTo;
+        private final int[] colorsNow = new int[4];
+        private long colorAt, phaseAt, drawnAt;
+        private float phase;
 
         Backdrop() {
             super(ui.activity);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             int style = ui.prefs.getInt("backdrop_blur", 0);
             gpu = GpuFx.shaders(ui.prefs) && style != 2; // the streaks style is a sharp sliver, nothing to band
+            flow = GpuFx.shaders(ui.prefs) && style == 3;
             // GPU mode draws through a grain shader; a hardware layer keeps that result, so the drift only moves a texture.
             if (gpu) setLayerType(LAYER_TYPE_HARDWARE, null);
-            if (ui.motion()) {
+            if (flow) {
+                if (ui.motion()) {
+                    clock = android.animation.ValueAnimator.ofFloat(0f, 1f);
+                    clock.setDuration(1000);
+                    clock.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                    clock.addUpdateListener(a -> { if (SystemClock.uptimeMillis() - drawnAt >= 33) invalidate(); });
+                    clock.start();
+                    if (!ui.playing) clock.pause();
+                }
+            } else if (ui.motion()) {
                 setScaleX(1.25f);
                 setScaleY(1.25f);
                 drift = android.animation.ObjectAnimator.ofPropertyValuesHolder(this,
@@ -230,6 +252,10 @@ final class ArtworkViews {
 
         /** The drift is mood lighting for music that is playing; frozen while paused so an idle player stops redrawing. */
         void drifting(boolean on) {
+            if (clock != null) {
+                if (on && clock.isPaused()) clock.resume();
+                else if (!on && clock.isRunning()) clock.pause();
+            }
             if (drift == null) return;
             if (on && drift.isPaused()) drift.resume();
             else if (!on && drift.isRunning()) drift.pause();
@@ -271,7 +297,38 @@ final class ArtworkViews {
             paint.setShader(null);
         }
 
-        @Override protected void onDetachedFromWindow() { if (drift != null) drift.cancel(); super.onDetachedFromWindow(); }
+        @Override protected void onDetachedFromWindow() { if (drift != null) drift.cancel(); if (clock != null) clock.cancel(); super.onDetachedFromWindow(); }
+
+        private void drawField(Canvas c, float w, float h) {
+            long now = SystemClock.uptimeMillis();
+            drawnAt = now;
+            Bitmap cover = ui.art(ui.image, 440);
+            if (cover != null && cover != colorsOf) {
+                colorsOf = cover;
+                int[] next = GpuFx.quarters(cover);
+                colorsFrom = colorsTo == null ? next : colorsNow.clone(); // a new cover's colours fade in over the old
+                colorsTo = next;
+                colorAt = colorsFrom != next && ui.motion() ? now : 0;
+            }
+            if (colorsTo == null) { c.drawColor(ui.bg); return; }
+            float f = colorAt == 0 ? 1f : Math.min(1f, (now - colorAt) / 700f);
+            for (int i = 0; i < 4; i++) colorsNow[i] = SpatchUi.blend(colorsFrom[i], colorsTo[i], f);
+            if (f < 1f && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
+            // It moves by time played, so it holds still while paused and doesn't jump when music resumes.
+            boolean moving = clock != null && clock.isRunning();
+            if (moving && phaseAt != 0) phase += Math.min(100, now - phaseAt) / 1000f;
+            phaseAt = moving ? now : 0;
+            if (field == null) field = new android.graphics.RuntimeShader(GpuFx.source("field"));
+            android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) field;
+            rs.setFloatUniform("size", w, h);
+            rs.setFloatUniform("time", phase);
+            rs.setFloatUniform("shade", 1f);
+            for (int i = 0; i < 4; i++) rs.setColorUniform("c" + i, colorsNow[i]);
+            rs.setColorUniform("base", ui.bg);
+            paint.setShader(rs);
+            c.drawRect(0, 0, w, h, paint);
+            paint.setShader(null);
+        }
 
         @Override protected void onWindowVisibilityChanged(int visibility) {
             super.onWindowVisibilityChanged(visibility);
@@ -282,8 +339,10 @@ final class ArtworkViews {
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
             if (!ui.pref("backdrop", true)) { c.drawColor(ui.bg); return; }
+            if (flow && c.isHardwareAccelerated()) { drawField(c, w, h); return; } // a bitmap snapshot can't run shaders
             ui.art(ui.image, 440);
-            int style = Math.max(0, Math.min(BLUR_SIZES.length - 1, ui.prefs.getInt("backdrop_blur", 0)));
+            int chosen = ui.prefs.getInt("backdrop_blur", 0);
+            int style = chosen == 3 ? 0 : Math.max(0, Math.min(BLUR_SIZES.length - 1, chosen)); // Flowing falls back to Soft
             Bitmap blur = SpatchUi.IMAGES.get(ui.image + ":440/blur/" + style);
             c.drawColor(ui.bg);
             long now = SystemClock.uptimeMillis();
