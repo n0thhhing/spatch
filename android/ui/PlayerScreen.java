@@ -117,6 +117,10 @@ final class PlayerScreen {
         if (ui.playlistScreen.listFab != null) ui.playlistScreen.listFab.invalidate();
         ui.dockUi.setDockHidden(false);
         ui.activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            android.view.WindowInsetsController ic = ui.activity.getWindow().getInsetsController();
+            if (ic != null) ic.show(android.view.WindowInsets.Type.statusBars());
+        }
         View p = ui.player;
         if (ui.motion()) p.animate().translationY(ui.getHeight()).setDuration(300).setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f)).withEndAction(() -> ui.removeView(p)).start();
         else ui.removeView(p);
@@ -297,6 +301,14 @@ final class PlayerScreen {
         boolean land = ui.landscape();
         LinearLayout sideColumn = null;
         if (land) {
+            // Hide the status bar in landscape player for extra vertical room.
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                android.view.WindowInsetsController ic = ui.activity.getWindow().getInsetsController();
+                if (ic != null) {
+                    ic.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    ic.hide(android.view.WindowInsets.Type.statusBars());
+                }
+            }
             // Cover, title and controls on the left; the lyrics, with the top buttons above them, take the right.
             col.setPadding(ui.dp(18) + ui.inset.left, ui.dp(2) + ui.inset.top, ui.dp(10), ui.dp(4) + ui.inset.bottom);
             LinearLayout split = ui.row();
@@ -306,7 +318,7 @@ final class PlayerScreen {
             split.addView(sideColumn, new LinearLayout.LayoutParams(0, -1, 1.15f));
             ui.player.addView(split, new FrameLayout.LayoutParams(-1, -1));
         } else {
-            col.setPadding(ui.dp(18) + ui.inset.left, ui.dp(6) + ui.inset.top, ui.dp(18) + ui.inset.right, ui.dp(14) + ui.inset.bottom);
+            col.setPadding(ui.dp(18) + ui.inset.left, ui.dp(10) + Math.max(ui.inset.top, ui.dp(28)), ui.dp(18) + ui.inset.right, ui.dp(14) + ui.inset.bottom);
             ui.player.addView(col, new FrameLayout.LayoutParams(-1, -1));
         }
 
@@ -461,7 +473,7 @@ final class PlayerScreen {
         col.addView(titleRow, ui.fill(-2));
 
         ui.wave = ui.controls.new Wave();
-        LinearLayout.LayoutParams wp = ui.fill(ui.dp(land ? 48 : 62));
+        LinearLayout.LayoutParams wp = ui.fill(ui.dp(land ? 40 : 62));
         wp.topMargin = ui.dp(land ? 2 : 6);
         col.addView(ui.wave, wp);
         LinearLayout controls = ui.row();

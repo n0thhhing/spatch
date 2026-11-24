@@ -366,7 +366,6 @@ public class SpatchWidget extends AppWidgetProvider {
         }
         String[][] slots = { { "title", "subtitle", "artwork" }, { "title2", "subtitle2", "thumbnail" } };
         for (int k = 0; k < 2; k++) {
-            if (!flip && k != shown) continue; // the hidden slot isn't on screen: no point resending its text and cover
             int i = flip ? k : shown;
             v.setTextViewText(id(context, slots[k][0], "id"), slotTitle[i] == null ? "" : slotTitle[i]);
             v.setTextColor(id(context, slots[k][0], "id"), 0xFFF3EEFF);

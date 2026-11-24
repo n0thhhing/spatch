@@ -795,8 +795,17 @@ public final class SpatchUi extends FrameLayout {
         boolean land = w > h && w >= dp(600);
         if (oldw > 0 && land != wasLandscape) {
             wasLandscape = land;
-            // Rebuild the underlying page immediately on orientation flip so closing the player never shifts it.
-            post(() -> { showPage(); dockUi.updateDock(); });
+            // Rebuild the underlying page (and player if open) immediately on orientation flip so closing never shifts.
+            post(() -> {
+                showPage();
+                dockUi.updateDock();
+                if (playerOpen) {
+                    removeView(player);
+                    player = null;
+                    playerOpen = false;
+                    playerScreen.openPlayer(false);
+                }
+            });
         } else {
             wasLandscape = land;
         }
