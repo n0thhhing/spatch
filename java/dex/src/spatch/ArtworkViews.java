@@ -242,6 +242,8 @@ final class ArtworkViews {
             if (blur == washBmpA) return washShaderA;
             if (blur == washBmpB) return washShaderB;
             BitmapShader s = new BitmapShader(blur, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            // Inside the grain shader the paint's filter flag doesn't reach it, and nearest sampling shows the small blur as tiles.
+            if (android.os.Build.VERSION.SDK_INT >= 33) s.setFilterMode(BitmapShader.FILTER_MODE_LINEAR);
             washBmpB = washBmpA; washShaderB = washShaderA;
             washBmpA = blur; washShaderA = s;
             return s;

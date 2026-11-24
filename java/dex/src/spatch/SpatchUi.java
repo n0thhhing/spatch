@@ -554,6 +554,74 @@ public final class SpatchUi extends FrameLayout {
         return colored(v, () -> v.color = color.get());
     }
 
+    /** GPU effects (Android 12+): the dock's pills are frosted glass over the page; null when they're solid. */
+    private boolean frosted;
+    private android.graphics.RenderNode pageNode;
+
+    /**
+     * Frosted glass for a dock pill: the page behind it, blurred, under the pill's own colour at partial opacity, with
+     * the usual hairline edge. Only the pill's area is blurred; a bitmap snapshot gets the solid colour instead.
+     */
+    private final class Frost extends android.graphics.drawable.Drawable {
+        private final View pill;
+        private final float radius;
+        private final ColorOf color;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path shape = new Path();
+        private final RectF box = new RectF();
+        private final int[] at = new int[2], host = new int[2];
+        private android.graphics.RenderNode blur;
+
+        Frost(View pill, float radiusDp, ColorOf color) { this.pill = pill; this.radius = dp(radiusDp); this.color = color; }
+
+        @Override public void draw(Canvas c) {
+            android.graphics.Rect b = getBounds();
+            box.set(b);
+            shape.rewind();
+            shape.addRoundRect(box, radius, radius, Path.Direction.CW);
+            int tint = color.get();
+            paint.setStyle(Paint.Style.FILL);
+            if (c.isHardwareAccelerated() && pageNode != null && android.os.Build.VERSION.SDK_INT >= 31) {
+                if (blur == null) {
+                    blur = new android.graphics.RenderNode("frost");
+                    blur.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(dp(18), dp(18), Shader.TileMode.CLAMP));
+                }
+                pill.getLocationInWindow(at);
+                pageHost.getLocationInWindow(host);
+                blur.setPosition(0, 0, b.width(), b.height());
+                android.graphics.RecordingCanvas into = blur.beginRecording();
+                into.translate(host[0] - at[0] - b.left, host[1] - at[1] - b.top);
+                into.drawRenderNode(pageNode);
+                blur.endRecording();
+                c.save();
+                c.clipPath(shape);
+                c.translate(b.left, b.top);
+                c.drawRenderNode(blur);
+                c.restore();
+                tint = (tint & 0x00ffffff) | 0xb8000000; // the glass: the pill's colour, letting the blurred page through
+            }
+            paint.setColor(tint);
+            c.drawPath(shape, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1, dp(.8f)));
+            paint.setColor((ink & 0x00ffffff) | 0x16000000);
+            c.drawPath(shape, paint);
+        }
+
+        @Override public void setAlpha(int alpha) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        @Override public void getOutline(android.graphics.Outline outline) { outline.setRoundRect(getBounds(), radius); }
+    }
+
+    /** A dock pill's background: frosted glass in GPU mode, else the solid rounded colour with a hairline edge. */
+    private void dockPill(View v, float radiusDp, ColorOf color) {
+        if (frosted) {
+            v.setBackground(new Frost(v, radiusDp, color));
+            colored(v, v::invalidate);
+        } else bgRound(v, radiusDp, color).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+    }
+
     GradientDrawable bgRound(View v, float radiusDp, ColorOf color) {
         GradientDrawable d = round(color.get(), radiusDp);
         v.setBackground(d);
@@ -1097,7 +1165,19 @@ public final class SpatchUi extends FrameLayout {
         sheetClose = null;
         nextKey = "";
         setBackgroundColor(bg);
-        pageHost = new FrameLayout(activity);
+        pageHost = new FrameLayout(activity) {
+            // GPU effects: what the page draws is also kept as a RenderNode, which the dock's frosted pills blur.
+            @Override protected void dispatchDraw(Canvas canvas) {
+                if (!frosted || !canvas.isHardwareAccelerated()) { super.dispatchDraw(canvas); return; }
+                if (pageNode == null) { pageNode = new android.graphics.RenderNode("page"); pageNode.setClipToBounds(false); }
+                pageNode.setPosition(0, 0, getWidth(), getHeight());
+                android.graphics.RecordingCanvas into = pageNode.beginRecording();
+                super.dispatchDraw(into);
+                pageNode.endRecording();
+                canvas.drawRenderNode(pageNode);
+            }
+        };
+        frosted = GpuFx.blur(prefs);
         LayoutParams hostAt = new LayoutParams(-1, -1);
         hostAt.leftMargin = sideLeft(); hostAt.rightMargin = inset.right; // landscape: clear of the side system bar, cutout and rail
         pageHost.setClipChildren(false); // page backdrops may reach out under those insets (and the rail)
@@ -2222,7 +2302,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout mini = row();
         mini.setPadding(dp(8), dp(6), dp(8), dp(6));
         // A hairline edge instead of an elevation shadow, which drew unevenly under the rounded, tinted pills.
-        bgRound(mini, 30, () -> blend(surfHi, accent, .12f)).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+        dockPill(mini, 30, () -> blend(surfHi, accent, .12f));
         mArt = artwork.new Art(Art.CIRCLE, true);
         mArt.crossfade = true;
         mini.addView(mArt, lp(dp(46), dp(46)));
@@ -2247,7 +2327,7 @@ public final class SpatchUi extends FrameLayout {
 
         dockBar = new Navigator(rail);
         dockBar.setGravity(Gravity.CENTER);
-        bgRound(dockBar, rail ? 32 : 28, () -> surf).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
+        dockPill(dockBar, rail ? 32 : 28, () -> surf);
         dockBar.setPadding(dp(5), dp(6), dp(5), dp(6));
         if (rail) {
             // The mini player folds into the rail's foot: the spinning cover (tap for the player, swipe to skip) over play.
@@ -5001,7 +5081,8 @@ public final class SpatchUi extends FrameLayout {
             });
             if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
-            else if (key.equals("motes") || key.equals("backdrop") || key.equals("gpu_fx")) settingsChanged(false);
+            else if (key.equals("gpu_fx")) build(); // the dock's frosted pills and the page capture are set up by build()
+            else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
             else if (key.equals("idle_hide")) {
                 if (!sw.on) { idleHidden = false; for (View v : idleViews) v.setAlpha(1f); }
                 settingsChanged(false);
