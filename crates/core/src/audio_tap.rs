@@ -434,8 +434,17 @@ mod native_hook {
                     continue;
                 }
                 let got_slot = (base + entry.r_offset as usize) as *mut usize;
+                let addr = got_slot as usize;
+                const PT_GNU_RELRO: u32 = 0x6474_e552;
+                let relro = phdrs.iter().any(|p| {
+                    if p.p_type != PT_GNU_RELRO {
+                        return false;
+                    }
+                    let start = base + p.p_vaddr as usize;
+                    addr >= start && addr < start + p.p_memsz as usize
+                });
                 let page = unsafe { sysconf(SC_PAGESIZE) }.max(4096) as usize;
-                let page_addr = (got_slot as usize) & !(page - 1);
+                let page_addr = addr & !(page - 1);
                 if unsafe { mprotect(page_addr as *mut c_void, page, PROT_READ | PROT_WRITE) } != 0 {
                     continue;
                 }
@@ -445,6 +454,9 @@ mod native_hook {
                     let _ = REAL_DLSYM.compare_exchange(0, orig, Ordering::AcqRel, Ordering::Acquire);
                 }
                 unsafe { got_slot.write_volatile(hook) };
+                if relro {
+                    let _ = unsafe { mprotect(page_addr as *mut c_void, page, PROT_READ) };
+                }
                 log::info!("audio_tap: hooked dlsym in liborbit-jni-spotify.so");
                 return 1;
             }
