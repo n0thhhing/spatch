@@ -1,9 +1,0 @@
-name = "spatch-source"
-main = "worker.js"
-compatibility_date = "2026-10-01"
-workers_dev = true
-
-# Where the APKMs live: releases in a private repository the GitHub token can read, one per version,
-# tagged apkm-<versionName> with the asset spotify-<versionName>.apkm.
-[vars]
-REPO = "n0thhhing/spatch-builds"

@@ -1,9 +1,0 @@
-    {
-      "versionName": "9.2.0.2053",
-      "versionCode": 148387875,
-      "sha256": "03c17c489820909ee1b8e7944fea9bb78e0b6fe00895c8a728b33793d4c16a9a",
-      "size": 60210754,
-      "minSdk": 24,
-      "abis": ["arm64-v8a"],
-      "urls": ["spotify-148387875-03c17c489820909e.apkm"]
-    }
