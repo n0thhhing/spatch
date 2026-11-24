@@ -360,8 +360,10 @@ public class SpatchWidget extends AppWidgetProvider {
         if (modern) v.setColorStateList(root, "setBackgroundTintList", ColorStateList.valueOf(background));
         if (modern && artSide > 0) {
             for (String name : new String[] { "artwork", "thumbnail" }) {
-                v.setViewLayoutWidth(id(context, name, "id"), artSide, android.util.TypedValue.COMPLEX_UNIT_DIP);
-                v.setViewLayoutHeight(id(context, name, "id"), artSide, android.util.TypedValue.COMPLEX_UNIT_DIP);
+                int artId = id(context, name, "id");
+                v.setViewLayoutWidth(artId, artSide, android.util.TypedValue.COMPLEX_UNIT_DIP);
+                v.setViewLayoutHeight(artId, artSide, android.util.TypedValue.COMPLEX_UNIT_DIP);
+                v.setViewOutlinePreferredRadius(artId, 16f, android.util.TypedValue.COMPLEX_UNIT_DIP);
             }
         }
         String[][] slots = { { "title", "subtitle", "artwork" }, { "title2", "subtitle2", "thumbnail" } };
