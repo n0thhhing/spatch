@@ -108,15 +108,6 @@ fn hsl(h: f32, s: f32, l: f32) -> u32 {
     0xff00_0000 | byte(r) << 16 | byte(g) << 8 | byte(b)
 }
 
-/// The palette for a seed (0 = none) in dark or light.
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativePalette(env: JNIEnv, _: JClass, seed: jint, has_seed: jboolean, dark: jboolean) -> jintArray {
-    let colours = palette((has_seed != 0).then_some(seed as u32), dark != 0).map(|c| c as i32);
-    let Ok(out) = env.new_int_array(8) else { return std::ptr::null_mut() };
-    let _ = env.set_int_array_region(&out, 0, &colours);
-    out.into_raw()
-}
-
 /// The palette for primary + optional secondary seeds in dark or light.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativePalette2(
@@ -134,17 +125,6 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePalette2(
     let Ok(out) = env.new_int_array(8) else { return std::ptr::null_mut() };
     let _ = env.set_int_array_region(&out, 0, &colours);
     out.into_raw()
-}
-
-/// The seed colour among a cover's sampled pixels.
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeSeed(env: JNIEnv, _: JClass, pixels: JIntArray) -> jint {
-    let Ok(len) = env.get_array_length(&pixels) else { return 0 };
-    let mut values = vec![0i32; len as usize];
-    if env.get_int_array_region(&pixels, 0, &mut values).is_err() {
-        return 0;
-    }
-    seed(&values.iter().map(|&p| p as u32).collect::<Vec<_>>()).unwrap_or(0) as jint
 }
 
 /// Primary and secondary distant-hue seed colours from sampled cover pixels (`[primary, secondary]`, 0 when absent).

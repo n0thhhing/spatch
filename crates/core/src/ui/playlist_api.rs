@@ -282,9 +282,3 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeWatchPlaylist(mut env: JNIEnv,
 pub extern "system" fn Java_spatch_SpatchUi_nativeStopPlaylist(_: JNIEnv, _: JClass) {
     stop_watching_playlist();
 }
-
-/// Bumps whenever the open playlist changes.
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativePlaylistRevision(_: JNIEnv, _: JClass) -> jlong {
-    PLAYLIST_REVISION.load(Ordering::Relaxed)
-}

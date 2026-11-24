@@ -281,15 +281,6 @@ pub fn search_packed(query: &str, limit: usize) -> Vec<u8> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_AutoEqCatalog_nativeParse(env: JNIEnv, _: JClass, markdown: JByteArray) -> jbyteArray {
-    let Ok(bytes) = env.convert_byte_array(&markdown) else { return std::ptr::null_mut() };
-    let Ok(text) = std::str::from_utf8(&bytes) else { return std::ptr::null_mut() };
-    let entries = parse(text);
-    let packed = pack_pairs(entries.iter().map(|e| (e.name.as_str(), e.url.as_str())));
-    env.byte_array_from_slice(&packed).map_or(std::ptr::null_mut(), |a| a.into_raw())
-}
-
-#[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_AutoEqCatalog_nativeLoad(
     mut env: JNIEnv,
     _: JClass,

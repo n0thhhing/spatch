@@ -23,7 +23,6 @@ final class AutoEqCatalog {
         Headphone(String name, String url) { this.name = name; this.query = name.toLowerCase(Locale.ROOT); this.url = url; }
     }
 
-    private static native byte[] nativeParse(byte[] markdown);
     private static native int nativeLoad(String dir, byte[] markdown);
     private static native byte[] nativeSearch(String query, int limit);
 
@@ -50,12 +49,6 @@ final class AutoEqCatalog {
     }
 
     static List<Headphone> parse(String markdown) {
-        try {
-            byte[] packed = nativeParse(markdown.getBytes(StandardCharsets.UTF_8));
-            if (packed != null) return unpackPairs(packed);
-        } catch (UnsatisfiedLinkError ignored) {
-            // Fall back to pure Java when running standalone without libspatch_app.
-        }
         return parseJava(markdown);
     }
 

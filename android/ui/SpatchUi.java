@@ -64,7 +64,6 @@ public final class SpatchUi extends FrameLayout {
     private static native byte[] nativePlaylistTargets();
     static native String[] nativeDevices();
     private static native void nativeCacheDir(String dir);
-    private static native long nativeLibraryRevision();
     static native String nativeBuild();
     private static native float nativePlaybackSpeed();
     static native int nativeVolume();
@@ -82,16 +81,13 @@ public final class SpatchUi extends FrameLayout {
     static native String nativeSetShuffleMode(String uri, int mode);
     static native void nativeWatchPlaylist(String uri, String key);
     static native void nativeStopPlaylist();
-    private static native long nativePlaylistRevision();
     static native byte[] nativePlaylistRest(String uri, int offset);
     static native void nativeSongs(byte[] packed);
     static native int[] nativeArrange(String query, int sort);
     private static native boolean nativePlayFrom(String context, String track, int index);
     static native byte[] nativeCached(String key);
     static native void nativeRemember(String key, byte[] packed);
-    private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
     static native int[] nativePalette2(int seed, boolean hasSeed, int seed2, boolean hasSeed2, boolean dark);
-    private static native int nativeSeed(int[] pixels);
     private static native int[] nativeSeedPair(int[] pixels);
     static native void nativeRing(int perSide, float[] out);
     static native String[] nativeSpotifySettings();

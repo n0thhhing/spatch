@@ -62,12 +62,6 @@ pub(super) fn watch_library() {
     }
 }
 
-/// Bumps whenever the library changes; the UI redraws when it moves.
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeLibraryRevision(_: JNIEnv, _: JClass) -> jlong {
-    LIBRARY_REVISION.load(Ordering::Relaxed)
-}
-
 /// Logs the account's product state once per session: the keys that decide song details and the login hand-off.
 #[cfg(not(feature = "preview"))]
 pub(super) fn log_product_state() {
