@@ -398,6 +398,9 @@ final class ArtworkViews {
         Motes() {
             super(ui.activity);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            amountIdx = Math.max(0, Math.min(MOTE_COUNTS.length - 1, ui.prefs.getInt("motes_amount", 1)));
+            shapeIdx = Math.max(0, Math.min(3, ui.prefs.getInt("motes_shape", 0)));
+            ui.prefs.registerOnSharedPreferenceChangeListener(prefListener);
             java.util.Random r = new java.util.Random(7);
             for (int i = 0; i < x.length; i++) { x[i] = r.nextFloat(); y[i] = r.nextFloat(); sz[i] = 1.2f + r.nextFloat() * r.nextFloat() * 4.2f; sp[i] = .012f + r.nextFloat() * .03f; ph[i] = r.nextFloat() * 6.283f; }
         }
