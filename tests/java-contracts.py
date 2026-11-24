@@ -6,10 +6,100 @@ Spotify/RxJava at the boundary; they do not contact Spotify or test authenticati
 """
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 
 REPO = Path(__file__).resolve().parent.parent
+
+
+def _strip_comments_and_strings(source: str) -> str:
+    """Remove Java comments and string/char literals while preserving structure."""
+    pattern = re.compile(
+        r'//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
+    )
+    return pattern.sub(lambda m: "\n" if m.group(0).startswith("//") else " ", source)
+
+
+def _non_private_static_methods(path: Path) -> set[str]:
+    """Return public and package-private static method names declared at top-level of a class."""
+    cleaned = _strip_comments_and_strings(path.read_text(encoding="utf-8"))
+    top_level: list[str] = []
+    depth = 0
+    for ch in cleaned:
+        if ch == "{":
+            depth += 1
+            if depth == 2:
+                top_level.append(";")
+        elif ch == "}":
+            depth = max(0, depth - 1)
+        elif depth == 1:
+            top_level.append(ch)
+    methods: set[str] = set()
+    for decl in "".join(top_level).split(";"):
+        paren = decl.find("(")
+        if paren == -1:
+            continue
+        eq = decl.find("=")
+        if eq != -1 and eq < paren:
+            continue
+        head = decl[:paren].strip()
+        tokens = head.split()
+        if len(tokens) < 2:
+            continue
+        modifiers = set(tokens[:-1])
+        if "static" not in modifiers or "private" in modifiers:
+            continue
+        if modifiers & {"class", "interface", "enum"}:
+            continue
+        name = tokens[-1]
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            methods.add(name)
+    return methods
+
+
+def check_core_bridge_preview_contract() -> None:
+    """Ensure every non-private CoreBridge static method used by UI/preview tests exists in preview."""
+    prod_path = REPO / "java/dex/src/spatch/CoreBridge.java"
+    preview_path = REPO / "app/preview/src/spatch/CoreBridge.java"
+    prod_methods = _non_private_static_methods(prod_path)
+    preview_methods = _non_private_static_methods(preview_path)
+
+    caller_files = [
+        p for p in (REPO / "java/dex/src/spatch").glob("*.java") if p != prod_path
+    ]
+    caller_files.extend(
+        p for p in (REPO / "app/preview/src").rglob("*.java") if p != preview_path
+    )
+    caller_files.extend((REPO / "app/preview/desktop/src/test").rglob("*.java"))
+
+    used_methods: set[str] = set()
+    call_re = re.compile(r"\bCoreBridge\.([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+    for caller in caller_files:
+        cleaned = _strip_comments_and_strings(caller.read_text(encoding="utf-8"))
+        for match in call_re.finditer(cleaned):
+            name = match.group(1)
+            if name in prod_methods:
+                used_methods.add(name)
+
+    missing = sorted(used_methods - preview_methods)
+    assert not missing, (
+        f"app/preview/src/spatch/CoreBridge.java is missing non-private static method(s) "
+        f"used by UI/tests: {', '.join(missing)}"
+    )
+    extra = sorted(preview_methods - prod_methods)
+    assert not extra, (
+        f"app/preview/src/spatch/CoreBridge.java declares static method(s) absent from "
+        f"java/dex/src/spatch/CoreBridge.java: {', '.join(extra)}"
+    )
+    print(
+        f"CoreBridge preview contract passed: {len(used_methods)} UI/test-used static methods "
+        f"present in preview ({len(preview_methods)} total preview methods)"
+    )
+
+
+check_core_bridge_preview_contract()
+
 JAVA = Path(os.environ["JAVA_HOME"]) / "bin"
 ANDROID = sorted(
     (Path(os.environ["ANDROID_HOME"]) / "platforms").glob("android-*/android.jar"),

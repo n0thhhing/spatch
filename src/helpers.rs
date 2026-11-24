@@ -1,35 +1,6 @@
 //! Production helper sources and compile-only Spotify/RxJava signatures.
 
-/// Compiled together into the helper DEX. Keep this list in class-name order.
-pub const HELPERS: &[(&str, &str)] = &[
-    ("AboutScreen", include_str!("../java/dex/src/spatch/AboutScreen.java")),
-    ("ArtworkViews", include_str!("../java/dex/src/spatch/ArtworkViews.java")),
-    ("Audio", include_str!("../java/dex/src/spatch/Audio.java")),
-    ("AutoEqCatalog", include_str!("../java/dex/src/spatch/AutoEqCatalog.java")),
-    ("Blur", include_str!("../java/dex/src/spatch/Blur.java")),
-    ("Confetti", include_str!("../java/dex/src/spatch/Confetti.java")),
-    ("CoreBridge", include_str!("../java/dex/src/spatch/CoreBridge.java")),
-    ("CreationSheet", include_str!("../java/dex/src/spatch/CreationSheet.java")),
-    ("DevIntegrity", include_str!("../java/dex/src/spatch/DevIntegrity.java")),
-    ("GpuFx", include_str!("../java/dex/src/spatch/GpuFx.java")),
-    ("Lrclib", include_str!("../java/dex/src/spatch/Lrclib.java")),
-    ("LyricGen", include_str!("../java/dex/src/spatch/LyricGen.java")),
-    ("MediaEntry", include_str!("../java/dex/src/spatch/MediaEntry.java")),
-    ("OfficialPlayback", include_str!("../java/dex/src/spatch/OfficialPlayback.java")),
-    ("PackedStrings", include_str!("../java/dex/src/spatch/PackedStrings.java")),
-    ("PcmSpectrum", include_str!("../java/dex/src/spatch/PcmSpectrum.java")),
-    ("PlaybackTile", include_str!("../java/dex/src/spatch/PlaybackTile.java")),
-    ("ProgressMotion", include_str!("../java/dex/src/spatch/ProgressMotion.java")),
-    ("PublicTrackMetadata", include_str!("../java/dex/src/spatch/PublicTrackMetadata.java")),
-    ("SoundSettings", include_str!("../java/dex/src/spatch/SoundSettings.java")),
-    ("SpatchApp", include_str!("../java/dex/src/spatch/SpatchApp.java")),
-    ("SpatchUi", include_str!("../java/dex/src/spatch/SpatchUi.java")),
-    ("SpatchWidget", include_str!("../java/dex/src/spatch/SpatchWidget.java")),
-    ("SpatchWidgetSmall", include_str!("../java/dex/src/spatch/SpatchWidgetSmall.java")),
-    ("SpotifyWeb", include_str!("../java/dex/src/spatch/SpotifyWeb.java")),
-    ("Subscriptions", include_str!("../java/dex/src/spatch/Subscriptions.java")),
-    ("WebAuth", include_str!("../java/dex/src/spatch/WebAuth.java")),
-];
+include!(concat!(env!("OUT_DIR"), "/helpers.rs"));
 
 /// Stand-ins used by javac, never packaged in the helper DEX.
 pub const STUBS: &[(&str, &str)] = &[
