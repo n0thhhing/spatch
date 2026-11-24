@@ -1,0 +1,9 @@
+// Fine grain over whatever the view drew (here, the blurred cover): +-half a step of 8-bit colour, so the long dark
+// fades of a heavy blur don't show bands on an OLED screen. Kept in proportion to alpha so transparent stays clear.
+uniform shader content;
+float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  c.rgb += (hash(p) - 0.5) / 255.0 * c.a;
+  return c;
+}

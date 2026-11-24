@@ -1,0 +1,49 @@
+// The visualizer's 72 bars around the cover (36 levels, mirrored left and right), each a rounded stroke tinted along
+// the accent sweep, with a soft glow that grows with its level. Pixels inside the ring return at once. The 36 levels
+// arrive packed four to a float4 (a shader may only index arrays by constants, so a bar's level is picked out by
+// comparisons rather than an index).
+uniform float2 center;
+uniform float start;
+uniform float minLen;
+uniform float span;
+uniform float stroke;
+uniform float glow;
+uniform float4 l0, l1, l2, l3, l4, l5, l6, l7, l8;
+layout(color) uniform half4 a;
+layout(color) uniform half4 b;
+const float TAU = 6.2831853;
+float level(int k) {
+  int i = k < 36 ? k : 71 - k;
+  int v = i / 4;
+  float4 q = v == 0 ? l0 : v == 1 ? l1 : v == 2 ? l2 : v == 3 ? l3 : v == 4 ? l4 : v == 5 ? l5 : v == 6 ? l6 : v == 7 ? l7 : l8;
+  int c = i - v * 4;
+  return dot(q, float4(c == 0 ? 1.0 : 0.0, c == 1 ? 1.0 : 0.0, c == 2 ? 1.0 : 0.0, c == 3 ? 1.0 : 0.0));
+}
+float barDistance(float2 d, int k) {
+  float ang = -1.5707963 + (float(k) + 0.5) / 72.0 * TAU;
+  float2 dir = float2(cos(ang), sin(ang));
+  float len = minLen + span * min(1.0, level(k));
+  float along = clamp(dot(d, dir) - start, 0.0, len);
+  return length(d - dir * (start + along)) - stroke * 0.5;
+}
+half4 main(float2 p) {
+  float2 d = p - center;
+  float r = length(d);
+  if (r < start - glow * 3.0) return half4(0.0);
+  float ang = atan(d.y, d.x);
+  float turn = fract((ang + 1.5707963) / TAU);
+  int k = int(floor(turn * 72.0));
+  float core = 0.0, halo = 0.0;
+  for (int i = -1; i <= 1; i++) {
+    int j = k + i;
+    if (j < 0) j += 72;
+    if (j > 71) j -= 72;
+    float dist = barDistance(d, j);
+    core = max(core, clamp(0.5 - dist, 0.0, 1.0));
+    halo = max(halo, exp(-max(dist, 0.0) / glow) * (0.18 + 0.5 * min(1.0, level(j))));
+  }
+  float sweep = fract(ang / TAU);
+  half3 tint = mix(a.rgb, b.rgb, 1.0 - abs(fract(sweep * 2.0) * 2.0 - 1.0));
+  float alpha = core + halo * 0.55 * (1.0 - core);
+  return half4(tint * alpha, alpha);
+}

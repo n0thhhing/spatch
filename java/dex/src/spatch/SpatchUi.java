@@ -120,7 +120,7 @@ public final class SpatchUi extends FrameLayout {
     static final ExecutorService COMMANDS = Executors.newSingleThreadExecutor();
     static final ExecutorService PLAYLISTS = Executors.newCachedThreadPool();
     private static final ExecutorService WATCHES = Executors.newSingleThreadExecutor();
-    private static final ExecutorService ART = Executors.newFixedThreadPool(6);
+    static final ExecutorService ART = Executors.newFixedThreadPool(6);
     static final LruCache<String, Bitmap> IMAGES = new LruCache<String, Bitmap>(24 * 1024 * 1024) {
         @Override protected int sizeOf(String key, Bitmap b) { return b.getAllocationByteCount(); }
     };
@@ -3751,9 +3751,30 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout rightPane = land ? column() : null;
 
         // Atmospheric gradient wash behind the header, tinted from the page cover once known (else the active accent).
-        View wash = new View(activity);
+        // GPU mode paints the wash as a still colour field from four tints of the cover's colours; otherwise a gradient.
+        boolean gpuWash = GpuFx.shaders(prefs);
         GradientDrawable washBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{surfHi, surf, bg});
-        wash.setBackground(washBg);
+        washBg.setDither(true);
+        final int[] washColors = new int[5];
+        final int washSeed = playlist.uri.hashCode();
+        View wash = !gpuWash ? new View(activity) : new View(activity) {
+            private Shader field;
+            private final Paint fieldPaint = new Paint();
+            @Override protected void onDraw(Canvas c) {
+                if (!c.isHardwareAccelerated()) { washBg.setBounds(0, 0, getWidth(), getHeight()); washBg.draw(c); return; } // a bitmap snapshot can't run shaders
+                if (washColors[4] == 0) return;
+                if (field == null) field = new android.graphics.RuntimeShader(GpuFx.source("field"));
+                android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) field;
+                rs.setFloatUniform("size", getWidth(), getHeight());
+                rs.setFloatUniform("time", (washSeed & 0xffff) / 655.35f); // each playlist gets its own still arrangement
+                rs.setFloatUniform("shade", 2f);
+                for (int i = 0; i < 4; i++) rs.setColorUniform("c" + i, washColors[i]);
+                rs.setColorUniform("base", washColors[4]);
+                fieldPaint.setShader(rs);
+                c.drawRect(0, 0, getWidth(), getHeight(), fieldPaint);
+            }
+        };
+        if (!gpuWash) wash.setBackground(washBg);
         final Integer[] lastSeed = {null};
         final boolean[] lastDark = {dark};
         final int[] headPal = {0, 0};
@@ -3776,6 +3797,13 @@ public final class SpatchUi extends FrameLayout {
                 mid = blend(surf, accent, dark ? .18f : .12f);
             }
             washBg.setColors(new int[]{top, mid, bg});
+            int c0 = headPal[0] != 0 ? headPal[0] : accent2, c1 = headPal[1] != 0 ? headPal[1] : accent;
+            washColors[0] = top;
+            washColors[1] = blend(surfHi, c1, dark ? .34f : .22f);
+            washColors[2] = mid;
+            washColors[3] = blend(surf, c0, dark ? .20f : .12f);
+            washColors[4] = bg;
+            wash.invalidate();
         });
         // The wash runs under the side insets too (past the page's edges), so no plain strip shows beside it in landscape.
         page.setClipChildren(false);
@@ -3793,7 +3821,7 @@ public final class SpatchUi extends FrameLayout {
         // Centered Material 3 Expressive hero cover over a dual-colour ambient cover glow.
         FrameLayout glowBox = new FrameLayout(activity);
         View heroGlow = new View(activity) {
-            private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
             private RadialGradient ga, gb;
             private int ca, cb, gw, gh;
             @Override protected void onDraw(Canvas c) {
@@ -4306,6 +4334,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
             toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
             toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
+            if (android.os.Build.VERSION.SDK_INT >= 31) toggle(player, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours, lyrics that focus on the sung line and frosted bars. Off uses the plain look", "gpu_fx", true, false);
             toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
             toggle(player, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false);
             if (pref("idle_hide", false)) {
@@ -4972,7 +5001,7 @@ public final class SpatchUi extends FrameLayout {
             });
             if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
             if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
-            else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
+            else if (key.equals("motes") || key.equals("backdrop") || key.equals("gpu_fx")) settingsChanged(false);
             else if (key.equals("idle_hide")) {
                 if (!sw.on) { idleHidden = false; for (View v : idleViews) v.setAlpha(1f); }
                 settingsChanged(false);
@@ -5599,6 +5628,14 @@ public final class SpatchUi extends FrameLayout {
 
         disc = artwork.new Disc();
         col.addView(disc, new LinearLayout.LayoutParams(-1, 0, 1));
+        // The visualizer's glow reaches past the disc's own square; let every container up to the player draw it whole.
+        View discView = disc;
+        disc.post(() -> {
+            for (android.view.ViewParent up = discView.getParent(); up instanceof ViewGroup && up != SpatchUi.this; up = up.getParent()) {
+                ((ViewGroup) up).setClipChildren(false);
+                ((ViewGroup) up).setClipToPadding(false);
+            }
+        });
         gestures(disc);
         pLyric = null;
         if (pref("player_lyrics", false) && !land) {
@@ -5623,6 +5660,8 @@ public final class SpatchUi extends FrameLayout {
             rows[2].setVisibility(shownLines >= 2 ? VISIBLE : GONE);
             box.setTag(rows);
             box.setClipChildren(true);
+            // Its rows slide inside it; it clips them to its own card, since the column around it no longer clips (for the visualizer glow).
+            box.setClipToOutline(true);
             // The lines sit on a quiet glass card (rounded, a touch lighter than the backdrop) so they read as a part of the player.
             box.setPadding(dp(20), dp(14), dp(20), dp(14));
             bgRound(box, 26, () -> (ink & 0x00ffffff) | 0x16000000);
@@ -6122,7 +6161,7 @@ public final class SpatchUi extends FrameLayout {
                         });
                     }
                 }
-                if (synced) syncLyrics(alive, scroll, views, found, new int[] { -2, -1 }, touched);
+                if (synced) syncLyrics(alive, scroll, views, found, new int[] { -2, -1, 0 }, touched);
             });
         });
     }
@@ -6178,7 +6217,30 @@ public final class SpatchUi extends FrameLayout {
             int upTo = sungUpTo(lyrics, current, now);
             if (upTo != shown[1]) { shown[1] = upTo; views[current].setText(sungWords(lyrics.words[current], upTo, ink)); }
         }
+        focusLyrics(views, current, shown, SystemClock.uptimeMillis() - touched[0] < 4000);
         postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), walking ? 40 : 250);
+    }
+
+    private final android.graphics.RenderEffect[] lyricBlurs = new android.graphics.RenderEffect[5];
+
+    /**
+     * GPU mode: lines away from the sung one go softly out of focus, more the further they are, like a camera focused on
+     * the current line. While the reader is scrolling by hand everything is sharp. shown[2] holds the line it was last
+     * laid out for (+1), or 0 when sharp; nothing is redone between line changes.
+     */
+    private void focusLyrics(TextView[] views, int current, int[] shown, boolean reading) {
+        if (android.os.Build.VERSION.SDK_INT < 31) return;
+        int want = !GpuFx.blur(prefs) || reading || current < 0 ? 0 : current + 1;
+        if (want == shown[2]) return;
+        shown[2] = want;
+        for (int i = 0; i < views.length; i++) {
+            int far = want == 0 ? 0 : Math.min(4, Math.abs(i - current));
+            if (far > 0 && lyricBlurs[far] == null) {
+                float r = dp(1.1f * far);
+                lyricBlurs[far] = android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.DECAL);
+            }
+            views[i].setRenderEffect(far == 0 ? null : lyricBlurs[far]);
+        }
     }
 
     /** Rotation is opt-in: off locks portrait while on unlocks full landscape rotation. */
@@ -7062,7 +7124,7 @@ public final class SpatchUi extends FrameLayout {
                 if (got == null) got = CoreBridge.artwork(url, size);
                 if (got != null) {
                     IMAGES.put(key, got);
-                    if (size == 440) ArtworkViews.cacheBlurs(key, got);
+                    if (size == 440) ArtworkViews.cacheBlurs(key, got, GpuFx.blur(prefs));
                     if (!SEEDS.containsKey(url)) {
                         int[] pair = seedPairOf(got);
                         if (pair != null && pair.length >= 2) {

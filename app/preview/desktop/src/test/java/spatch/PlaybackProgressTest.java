@@ -178,7 +178,12 @@ public class PlaybackProgressTest {
     }
 
     private static void apply(SpatchUi ui, String uri, long position, long duration, boolean playing) throws Exception {
-        String[] state = {"999", "spotify:track:" + uri, "Song", "Artist", "Album", "demo:0",
+        // Stamped with the demo core's own revision, so the periodic sync doesn't re-apply the core's (playing) state over it.
+        long[] revisions = new long[5];
+        java.lang.reflect.Method read = SpatchUi.class.getDeclaredMethod("nativeRevisions", long[].class);
+        read.setAccessible(true);
+        read.invoke(null, (Object) revisions);
+        String[] state = {Long.toString(revisions[0]), "spotify:track:" + uri, "Song", "Artist", "Album", "demo:0",
             Boolean.toString(playing), "false", "0", Long.toString(position), Long.toString(duration), "Test",
             "", "", "", "false", "true", "true", "", ""};
         call(ui, "applyPlayer", new Class<?>[]{String[].class}, (Object) state);

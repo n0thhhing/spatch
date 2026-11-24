@@ -93,7 +93,7 @@ public class ArtworkEffectsTest {
         for (int y = 0; y < 96; y++) for (int x = 0; x < 96; x++) cover.setPixel(x, y, 0xff000000 | ((x * 37 % 256) << 16) | ((y * 29 % 256) << 8) | ((x + y) * 13 % 256));
         ui.image = "test:blur";
         SpatchUi.IMAGES.put(ui.image + ":440", cover);
-        ArtworkViews.cacheBlurs(ui.image + ":440", cover);
+        ArtworkViews.cacheBlurs(ui.image + ":440", cover, false);
         ArtworkViews.Backdrop backdrop = ui.artwork.new Backdrop();
         canvas(backdrop);
         Bitmap[] rendered = new Bitmap[3];
@@ -129,7 +129,7 @@ public class ArtworkEffectsTest {
         Bitmap cover = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888);
         cover.eraseColor(0xff204455);
         SpatchUi.IMAGES.put(ui.image + ":440", cover);
-        ArtworkViews.cacheBlurs(ui.image + ":440", cover);
+        ArtworkViews.cacheBlurs(ui.image + ":440", cover, false);
         ArtworkViews.Backdrop backdrop = ui.artwork.new Backdrop();
         canvas(backdrop);
         Bitmap dithered = Bitmap.createBitmap(240, 400, Bitmap.Config.ARGB_8888);

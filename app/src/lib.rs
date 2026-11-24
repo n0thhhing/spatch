@@ -10,6 +10,7 @@ pub mod cache;
 pub mod eq;
 pub mod lyric_gen;
 pub mod palette;
+pub mod shaders;
 pub mod shapes;
 pub mod spectrum;
 pub mod spotify;

@@ -18,16 +18,19 @@ import android.view.View;
 final class ArtworkViews {
     /** Width, height and blur radius of each backdrop style: soft and deep are smooth blurs, streaks a stretched sliver. */
     private static final int[][] BLUR_SIZES = {{56, 56, 4}, {40, 40, 6}, {2, 16, 0}};
+    /** The same softness for the GPU blur, as Gaussian sigma over the image width (what three box passes add up to). */
+    private static final float[] GPU_SIGMA = {.08f, .16f, 0f};
     private static final int[] MOTE_COUNTS = {12, 30, 64};
     private static final int[] MOTE_SHAPES = {Confetti.DOT, Confetti.STAR, Confetti.HEART};
     private final SpatchUi ui;
     ArtworkViews(SpatchUi ui) { this.ui = ui; }
 
     /** Tiny filtered textures keep backdrop effects off the per-frame allocation path. */
-    static void cacheBlurs(String key, Bitmap cover) {
+    static void cacheBlurs(String key, Bitmap cover, boolean gpu) {
         for (int i = 0; i < BLUR_SIZES.length; i++) {
             int[] size = BLUR_SIZES[i];
-            SpatchUi.IMAGES.put(key + "/blur/" + i, size[2] == 0 ? Bitmap.createScaledBitmap(cover, size[0], size[1], true) : Blur.soft(cover, size[0], size[1], size[2]));
+            Bitmap made = size[2] != 0 && gpu ? GpuFx.blurOnce(cover, 128, GPU_SIGMA[i]) : null;
+            SpatchUi.IMAGES.put(key + "/blur/" + i, made != null ? made : size[2] == 0 ? Bitmap.createScaledBitmap(cover, size[0], size[1], true) : Blur.soft(cover, size[0], size[1], size[2]));
         }
     }
 
@@ -200,10 +203,17 @@ final class ArtworkViews {
         private LinearGradient scrim;
         private float scrimH;
         private int scrimBg;
+        /** GPU mode: the blurred cover is drawn through a grain shader, so its long dark fades don't band. */
+        private final boolean gpu;
+        private Shader grain;
 
         Backdrop() {
             super(ui.activity);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            int style = ui.prefs.getInt("backdrop_blur", 0);
+            gpu = GpuFx.shaders(ui.prefs) && style != 2; // the streaks style is a sharp sliver, nothing to band
+            // GPU mode draws through a grain shader; a hardware layer keeps that result, so the drift only moves a texture.
+            if (gpu) setLayerType(LAYER_TYPE_HARDWARE, null);
             if (ui.motion()) {
                 setScaleX(1.25f);
                 setScaleY(1.25f);
@@ -238,7 +248,7 @@ final class ArtworkViews {
         }
 
         private void wash(Canvas c, Bitmap blur, float w, float h, int alpha) {
-            BitmapShader s = washShaderFor(blur);
+            Shader s = washShaderFor(blur);
             if (blur.getWidth() < 8) m.setScale(w / blur.getWidth(), h / blur.getHeight()); // the streaks sliver is meant to stretch
             else {
                 // Filled without stretching (a square cover stretched to a tall screen smears into bars), centred.
@@ -247,6 +257,11 @@ final class ArtworkViews {
                 m.postTranslate((w - blur.getWidth() * k) / 2, (h - blur.getHeight() * k) / 2);
             }
             s.setLocalMatrix(m);
+            if (gpu && c.isHardwareAccelerated()) { // a bitmap snapshot can't run shaders
+                if (grain == null) grain = new android.graphics.RuntimeShader(GpuFx.source("grain"));
+                ((android.graphics.RuntimeShader) grain).setInputShader("content", s);
+                s = grain;
+            }
             paint.setShader(s);
             paint.setAlpha(alpha);
             c.drawRect(0, 0, w, h, paint);
@@ -355,7 +370,9 @@ final class ArtworkViews {
     /** The art in a circle, turning slowly, inside a sweep-coloured ring with bars radiating from it. */
     final class Disc extends View {
         String url = "";
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+        /** GPU mode: the bars and their glow in one shader pass; the 36 levels ride in as nine float4 uniforms. */
+        private Shader ringShader;
         private final Path clip = new Path();
         private final Matrix m = new Matrix();
         private final Path contour = new Path();
@@ -403,6 +420,29 @@ final class ArtworkViews {
         }
 
         private int withAlpha(int colour, int alpha) { return (colour & 0xffffff) | alpha << 24; }
+
+        private final String[] LEVEL_NAMES = {"l0", "l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8"};
+
+        private void ringBars(Canvas c, float cx, float cy, float start, float bar, float stroke) {
+            if (ringShader == null) ringShader = new android.graphics.RuntimeShader(GpuFx.source("ring"));
+            android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) ringShader;
+            for (int v = 0; v < 9; v++) rs.setFloatUniform(LEVEL_NAMES[v], level[v * 4], level[v * 4 + 1], level[v * 4 + 2], level[v * 4 + 3]);
+            float glow = ui.dp(5);
+            rs.setFloatUniform("center", cx, cy);
+            rs.setFloatUniform("start", start);
+            rs.setFloatUniform("minLen", ui.dp(3));
+            rs.setFloatUniform("span", bar - ui.dp(6));
+            rs.setFloatUniform("stroke", stroke);
+            rs.setFloatUniform("glow", glow);
+            rs.setColorUniform("a", ui.accent);
+            rs.setColorUniform("b", ui.accent2);
+            Paint.Style was = paint.getStyle();
+            paint.setStyle(Paint.Style.FILL);
+            paint.setShader(rs);
+            float outer = start + bar + glow * 4;
+            c.drawRect(cx - outer, cy - outer, cx + outer, cy + outer, paint);
+            paint.setStyle(was);
+        }
 
         @Override protected void onWindowVisibilityChanged(int visibility) {
             super.onWindowVisibilityChanged(visibility);
@@ -507,7 +547,9 @@ final class ArtworkViews {
                     settling = true;
                 }
             }
-            if (style == 0) {
+            if (style == 0 && GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
+                ringBars(c, cx, cy, ring + ui.dp(10), bar, stroke);
+            } else if (style == 0) {
                 for (int k = 0; k < bars; k++) {
                     int bi = k < half ? k : bars - 1 - k;
                     double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;
