@@ -146,7 +146,7 @@ public class AboutDownloadsTest {
     }
 
     private static Object call(Object target, String name, Class<?>[] types, Object... args) throws Exception {
-        java.lang.reflect.Method method = target.getClass().getDeclaredMethod(name, types); method.setAccessible(true); return method.invoke(target, args);
+        return Reflect.call(target, name, types, args);
     }
 
     private static void click(View view) {

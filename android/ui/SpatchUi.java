@@ -1,11 +1,13 @@
 package spatch;
 
-import spatch.MediaEntry.Song;
 import spatch.ArtworkViews.Art;
 import spatch.ArtworkViews.Backdrop;
 import spatch.ArtworkViews.Disc;
 import spatch.ArtworkViews.Motes;
-import static spatch.PackedStrings.packStrings;
+import spatch.Controls.Bars;
+import spatch.Controls.PlayButton;
+import spatch.Controls.Wave;
+import spatch.MediaEntry.Song;
 import static spatch.PackedStrings.unpackStrings;
 
 import android.app.Activity;
@@ -17,9 +19,6 @@ import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.RadialGradient;
-import android.graphics.RectF;
-import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.SystemClock;
@@ -33,7 +32,6 @@ import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
@@ -51,82 +49,78 @@ import java.util.concurrent.Executors;
  * The Android app and native Mac preview compile this same view implementation.
  */
 public final class SpatchUi extends FrameLayout {
-    // ---- Rust (app/src/ui/mod.rs, shapes.rs) ----
     private static native void nativeAttachUi();
     private static native void nativeRevisions(long[] out);
     private static native boolean nativeConnect();
     private static native byte[] nativePlayer(long revision);
     private static native String nativeLibrary();
-    private static native boolean nativeRefreshLibrary();
+    static native boolean nativeRefreshLibrary();
     private static native byte[] nativeEntries(int filter, String query, boolean alphabetical, int limit);
-    private static native byte[] nativeRecent();
-    private static native String nativeLiked();
-    private static native String nativeLikedNote();
-    private static native byte[] nativePlaylist(String uri, int offset);
-    private static native byte[] nativePage(String uri);
+    static native byte[] nativeRecent();
+    static native String nativeLiked();
+    static native String nativeLikedNote();
+    static native byte[] nativePlaylist(String uri, int offset);
+    static native byte[] nativePage(String uri);
     private static native byte[] nativePlaylistTargets();
-    private static native String[] nativeDevices();
+    static native String[] nativeDevices();
     private static native void nativeCacheDir(String dir);
     private static native long nativeLibraryRevision();
-    private static native String nativeBuild();
+    static native String nativeBuild();
     private static native float nativePlaybackSpeed();
-    private static native int nativeVolume();
-    private static native String nativeSetVolume(int level);
+    static native int nativeVolume();
+    static native String nativeSetVolume(int level);
     private static native String[] nativeConnection();
-    private static native byte[] nativeSearch(String query);
-    private static native byte[] nativeCatalog(byte[] response);
+    static native byte[] nativeSearch(String query);
+    static native byte[] nativeCatalog(byte[] response);
     private static native void nativeDownloadsStart();
-    private static native byte[] nativeDownloads();
+    static native byte[] nativeDownloads();
     private static native long nativeDownloadsRevision();
     private static native long nativeDownloadsSet();
-    private static native String nativeDownload(String uri, int action, byte[] entry);
-    private static native String[] nativeDownloadTotals();
-    private static native int nativeShuffleMode(String uri);
-    private static native String nativeSetShuffleMode(String uri, int mode);
-    private static native void nativeWatchPlaylist(String uri, String key);
-    private static native void nativeStopPlaylist();
+    static native String nativeDownload(String uri, int action, byte[] entry);
+    static native String[] nativeDownloadTotals();
+    static native int nativeShuffleMode(String uri);
+    static native String nativeSetShuffleMode(String uri, int mode);
+    static native void nativeWatchPlaylist(String uri, String key);
+    static native void nativeStopPlaylist();
     private static native long nativePlaylistRevision();
-    private static native byte[] nativePlaylistRest(String uri, int offset);
-    private static native void nativeSongs(byte[] packed);
-    private static native int[] nativeArrange(String query, int sort);
+    static native byte[] nativePlaylistRest(String uri, int offset);
+    static native void nativeSongs(byte[] packed);
+    static native int[] nativeArrange(String query, int sort);
     private static native boolean nativePlayFrom(String context, String track, int index);
-    private static native byte[] nativeCached(String key);
-    private static native void nativeRemember(String key, byte[] packed);
+    static native byte[] nativeCached(String key);
+    static native void nativeRemember(String key, byte[] packed);
     private static native int[] nativePalette(int seed, boolean hasSeed, boolean dark);
-    private static native int[] nativePalette2(int seed, boolean hasSeed, int seed2, boolean hasSeed2, boolean dark);
+    static native int[] nativePalette2(int seed, boolean hasSeed, int seed2, boolean hasSeed2, boolean dark);
     private static native int nativeSeed(int[] pixels);
     private static native int[] nativeSeedPair(int[] pixels);
     static native void nativeRing(int perSide, float[] out);
-    private static native String[] nativeSpotifySettings();
-    private static native String nativeSetSpotifySetting(String key, int value);
-    private static native String nativeTransfer(String id);
-    private static native boolean nativeCommand(int action, long value, String uri);
-    private static native int nativeSaved(String uri);
-    private static native boolean nativeSave(String uri, boolean save);
-    private static native float[] nativeGeometry(String kind);
+    static native String[] nativeSpotifySettings();
+    static native String nativeSetSpotifySetting(String key, int value);
+    static native String nativeTransfer(String id);
+    static native boolean nativeCommand(int action, long value, String uri);
+    static native int nativeSaved(String uri);
+    static native boolean nativeSave(String uri, boolean save);
+    static native float[] nativeGeometry(String kind);
     private static native String[] nativeProfile();
     static native String[] nativeCreatePlaylist(String name, String description, boolean fromQueue);
     static native String nativeAddToPlaylist(String playlistUri, String[] uris);
 
-    private static final int PAUSE = 0, RESUME = 1, PREVIOUS = 2, NEXT = 3, SEEK = 4, SHUFFLE = 5, REPEAT = 6, PLAY = 7, SKIP_TO = 8, QUEUE_ADD = 9, QUEUE_NEXT = 13, SPEED = 14;
-    private static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5, STATS = 6;
-    private static final int[] NAV_TABS = {HOME, SEARCH, LIBRARY, CREATE};
-    private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
-    private static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
+    static final int HOME = 0, SEARCH = 1, LIBRARY = 2, SETTINGS = 3, CREATE = 4, PROFILE = 5, STATS = 6;
+    static final String[] SECTIONS = {"Playlists", "Albums", "Artists", "Podcasts"};
     /** The Library filter after the four sections: what's downloaded. */
-    private static final int DOWNLOADED = SECTIONS.length;
+    static final int DOWNLOADED = SECTIONS.length;
 
-    private static final ExecutorService DATA = Executors.newSingleThreadExecutor();
+    static final ExecutorService DATA = Executors.newSingleThreadExecutor();
     static final ExecutorService COMMANDS = Executors.newSingleThreadExecutor();
     static final ExecutorService PLAYLISTS = Executors.newCachedThreadPool();
-    private static final ExecutorService WATCHES = Executors.newSingleThreadExecutor();
+    static final ExecutorService WATCHES = Executors.newSingleThreadExecutor();
     static final ExecutorService ART = Executors.newFixedThreadPool(6);
     static final LruCache<String, Bitmap> IMAGES = new LruCache<String, Bitmap>(24 * 1024 * 1024) {
         @Override protected int sizeOf(String key, Bitmap b) { return b.getAllocationByteCount(); }
     };
-    private static final java.util.Map<String, Integer> SEEDS = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final java.util.Map<String, Integer> SEEDS2 = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
+    static final java.util.Map<String, Integer> SEEDS = new java.util.concurrent.ConcurrentHashMap<>();
+    static final java.util.Map<String, Integer> SEEDS2 = new java.util.concurrent.ConcurrentHashMap<>();
+    static final java.util.Map<String, float[]> GLYPHS = new java.util.HashMap<>();
     static final ColorMatrixColorFilter VIVID;
     static {
         ColorMatrix m = new ColorMatrix();
@@ -134,7 +128,7 @@ public final class SpatchUi extends FrameLayout {
         VIVID = new ColorMatrixColorFilter(m);
     }
 
-    private volatile boolean closed;
+    volatile boolean closed;
     private volatile long lifetime;
 
     /** Queued work from a detached account screen must never run in the next account. */
@@ -145,8 +139,17 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
-    private final CreationSheet creation = new CreationSheet(this);
-    private final SoundSettings sound = new SoundSettings(this);
+    final CreationSheet creation = new CreationSheet(this);
+    final SoundSettings sound = new SoundSettings(this);
+    final PlayerScreen playerScreen = new PlayerScreen(this);
+    final PlaylistScreen playlistScreen = new PlaylistScreen(this);
+    final SettingsScreen settingsScreen = new SettingsScreen(this);
+    final SearchScreen searchScreen = new SearchScreen(this);
+    final LibraryScreen libraryScreen = new LibraryScreen(this);
+    final HomeScreen homeScreen = new HomeScreen(this);
+    final Dock dockUi = new Dock(this);
+    final Controls controls = new Controls(this);
+    final Downloads downloadsScreen = new Downloads(this);
     final ArtworkViews artwork = new ArtworkViews(this);
     final Activity activity;
     private final float density;
@@ -154,20 +157,18 @@ public final class SpatchUi extends FrameLayout {
     final android.graphics.Rect inset = new android.graphics.Rect();
     private android.graphics.Rect pendingInsets;
     private final Set<String> loading = new HashSet<>();
-    private final java.util.Map<String, Long> failed = new java.util.HashMap<>();
-    private final java.util.Map<String, Integer> segPrev = new java.util.HashMap<>();
+    final java.util.Map<String, Long> failed = new java.util.HashMap<>();
 
     // palette, derived from the playing cover
     int bg, surf, surfHi, ink, inkDim, accent, onAccent, accent2;
-    private String paletteKey = "";
+    String paletteKey = "";
     private android.animation.ValueAnimator paletteAnim;
     private boolean paletteReady;
 
     // navigation
-    private int tab = HOME, filter = -1;
+    int tab = HOME, filter = -1;
     int settingsSection = -1;
-    private int navHover = -1;
-    private final java.util.ArrayDeque<Integer> tabHistory = new java.util.ArrayDeque<>();
+    final java.util.ArrayDeque<Integer> tabHistory = new java.util.ArrayDeque<>();
     android.widget.PopupWindow accountMenu;
     private String profileName = "", profileUsername = "", profileImage = "", profileUri = "", profileError = "";
     private boolean profileLoading, profileAnnounce;
@@ -176,89 +177,72 @@ public final class SpatchUi extends FrameLayout {
     /** Asks again for the account until it's known (the library, which it's learned from, may not be ready yet). */
     private final Runnable profileRetry = () -> loadProfile(true);
     private final Set<Art> avatars = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
-    private MediaEntry playlist;
-    private List<MediaEntry> playlistTracks = new ArrayList<>();
-    private boolean playlistLoading, playlistFailed;
+    MediaEntry playlist;
+    List<MediaEntry> playlistTracks = new ArrayList<>();
     boolean playerOpen;
-    private String playlistError = "";
     /** The link actually used for the open page: Liked Songs' real link is learned from Spotify when it opens. */
-    private String liveUri = "";
-    private String playUri() { return liveUri.isEmpty() ? playlist.uri : liveUri; }
-    /** For an album or artist page: Spotify's own heading, and the releases shelf. */
-    private String detailTitle = "", detailSubtitle = "", detailImage = "";
-    private List<MediaEntry> releases = new ArrayList<>();
+    String liveUri = "";
+    String playUri() { return liveUri.isEmpty() ? playlist.uri : liveUri; }
 
-    private static boolean isDetail(MediaEntry e) { return e.uri.startsWith("spotify:album:") || e.uri.startsWith("spotify:artist:") || e.uri.startsWith("spotify:show:"); }
-    private int playlistRequest;
-    private String query = "";
+    static boolean isDetail(MediaEntry e) { return e.uri.startsWith("spotify:album:") || e.uri.startsWith("spotify:artist:") || e.uri.startsWith("spotify:show:"); }
+    int playlistRequest;
+    String query = "";
 
     // player state
-    private long revision, lastConnect, libraryRetry, libraryLoadedAt, stamp, position, duration;
+    long revision, lastConnect, libraryRetry, libraryLoadedAt, stamp, position, duration;
     private int libraryAttempts;
     boolean polling, fetching, libraryReady, refreshing, playing, shuffle;
-    private int repeat;
-    private Boolean pending, saved;
-    private String savedUri = "";
-    private int savedRequest;
+    int repeat;
+    Boolean pending, saved;
     String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
-    private boolean buffering, canNext = true, canPrevious = true;
+    boolean buffering, canNext = true, canPrevious = true;
     private long prevTappedAt;
-    private String albumUri = "", artistUri = "";
+    String albumUri = "", artistUri = "";
     /** Skip buttons (true for next), dimmed and disabled while Spotify doesn't allow that skip. */
-    private final java.util.Map<View, Boolean> skipButtons = new java.util.WeakHashMap<>();
-    private final java.util.Set<PlayButton> playButtons = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    final java.util.Map<View, Boolean> skipButtons = new java.util.WeakHashMap<>();
+    final java.util.Set<PlayButton> playButtons = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     List<MediaEntry> upcoming = new ArrayList<>();
-    private String libraryStatus = "Connecting to your library…";
+    String libraryStatus = "Connecting to your library…";
 
     // views that live-update
-    private FrameLayout pageHost, player;
-    private LinearLayout dock, nextPill;
-    Navigator dockBar;
-    private View dockFade;
-    private boolean dockHidden, navDragging;
-    private int scrollTravel;
-    private ScrollView pageScroll;
-    private ListView pageList;
-    private Disc disc;
-    private Wave wave;
-    private final ProgressMotion progress = new ProgressMotion(this::invalidateProgress, EMPHASIZED);
-    private boolean holdingSeek;
-    private Runnable cancelHeldSeek;
-    private Backdrop backdrop;
-    private Motes motes;
-    private TextView pQuality, pSpeed;
-    private float speed = 1f;
+    FrameLayout pageHost, player;
+    LinearLayout dock, nextPill;
+    View dockFade;
+    int scrollTravel;
+    ScrollView pageScroll;
+    ListView pageList;
+    Disc disc;
+    Wave wave;
+    final ProgressMotion progress = new ProgressMotion(this::invalidateProgress, EMPHASIZED);
+    boolean holdingSeek;
+    Runnable cancelHeldSeek;
+    Backdrop backdrop;
+    Motes motes;
+    TextView pQuality, pSpeed;
+    float speed = 1f;
     /** Last backdrop blur and cover kept across switches so transitions start from the previous track's art. */
     Bitmap lastBlur, lastCover;
     String lastCoverUrl = "", nextKey = "";
-    private TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
-    /** The optional one-line lyric under the player's cover, and the lyrics it follows. */
-    private LinearLayout pLyric;
-    private View moreButton;
-    private int originalOrientation = -2;
+    TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
+    int originalOrientation = -2;
     /** In landscape the right panel switches between Lyrics (0) and Up next (1) beside the cover. */
-    private FrameLayout sideHost;
-    private int sideTab, sideQueueOffset;
-    private boolean sideTabManual;
-    private java.util.function.BiConsumer<Integer, Boolean> sideTabSelect;
-    private volatile String noLyricsUri = "";
-    private ScrollView sideQueueScroll;
-    private String lyricsUri = "", lyricKey = "";
-    private boolean lyricShown;
-    private CoreBridge.Lyrics lyricsData;
-    private Icon pLike, pShuffle, pRepeat, pSparkle;
+    FrameLayout sideHost;
+    int sideTab, sideQueueOffset;
+    boolean sideTabManual;
+    java.util.function.BiConsumer<Integer, Boolean> sideTabSelect;
+    volatile String noLyricsUri = "";
+    Icon pLike, pShuffle, pRepeat, pSparkle;
     /** Whether the playing playlist is in Smart Shuffle, as Spotify keeps it (read when the context changes). */
-    private boolean smartShuffle;
-    private PlayButton pPlay, mPlay;
-    private Art mArt, heroArt;
-    private Runnable sheetClose;
+    boolean smartShuffle;
+    Art mArt, heroArt;
+    Runnable sheetClose;
 
     SpatchUi(Activity activity) {
         super(activity);
         this.activity = activity;
         SpatchWidget.uiStarted(activity);
         originalOrientation = activity.getRequestedOrientation();
-        post(this::applyRotation);
+        post(playerScreen::applyRotation);
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
         OfficialPlayback.init(activity);
@@ -310,9 +294,9 @@ public final class SpatchUi extends FrameLayout {
             // The keyboard draws over Spatch rather than resizing it, so results keep clear of it by padding.
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 int keyboard = Math.max(0, insets.getInsets(WindowInsets.Type.ime()).bottom - inset.bottom);
-                if (keyboard != imeInset) {
-                    imeInset = keyboard;
-                    if (searchScroll != null) searchScroll.setPadding(0, 0, 0, imeInset);
+                if (keyboard != searchScreen.imeInset) {
+                    searchScreen.imeInset = keyboard;
+                    if (searchScreen.searchScroll != null) searchScreen.searchScroll.setPadding(0, 0, 0, searchScreen.imeInset);
                 }
             }
             return insets;
@@ -331,7 +315,7 @@ public final class SpatchUi extends FrameLayout {
         build();
         if (resumed && was.playlist != null) {
             quietEnter = true;
-            openPlaylist(was.playlist, false);
+            playlistScreen.openPlaylist(was.playlist, false);
             quietEnter = false;
         }
     }
@@ -353,15 +337,15 @@ public final class SpatchUi extends FrameLayout {
     private boolean quietEnter;
 
     /** Where each page was scrolled to (first row and its offset, or a scroll offset), keyed by {@link #pageKey}. */
-    private final java.util.Map<String, int[]> scrolls = new java.util.HashMap<>();
-    private String shownKey;
+    final java.util.Map<String, int[]> scrolls = new java.util.HashMap<>();
+    String shownKey;
 
     private String pageKey() {
         return playlist != null ? "playlist:" + playlist.uri : tab == SETTINGS ? "settings:" + settingsSection : "tab:" + tab;
     }
 
     /** Notes how far the page on screen is scrolled, so coming back to it lands in the same place. */
-    private void rememberScroll() {
+    void rememberScroll() {
         if (shownKey == null) return;
         android.widget.AbsListView list = pageList != null ? pageList : libraryList;
         // A page rebuilt before it was ever laid out (fresh data right after the cached copy) hasn't moved: keep
@@ -400,25 +384,19 @@ public final class SpatchUi extends FrameLayout {
 
     private void applyPendingInsets() {
         if (pendingInsets == null || sheetClose != null || creation.createOverlay != null || playerOpen
-                || queuePanel != null || accountMenu != null || findFocus() instanceof android.widget.EditText) return;
+                || playerScreen.queuePanel != null || accountMenu != null || findFocus() instanceof android.widget.EditText) return;
         inset.set(pendingInsets);
         pendingInsets = null;
         build();
     }
 
-    // ================= palette =================
 
     boolean pref(String key, boolean fallback) { return prefs.getBoolean(key, fallback); }
 
-    private boolean dark = true;
-    private static final int[] ACCENTS = {0, 0xff8b6fd6, 0xffd6567a, 0xff3d8fd6, 0xff2fa37a, 0xffd99a2b, 0xffe0663f};
-    private static final String[] ACCENT_NAMES = {"Default", "Lavender", "Rose", "Sky", "Mint", "Amber", "Coral"};
+    boolean dark = true;
+    static final int[] ACCENTS = {0, 0xff8b6fd6, 0xffd6567a, 0xff3d8fd6, 0xff2fa37a, 0xffd99a2b, 0xffe0663f};
 
-    // Fixed palettes from the earlier Spatch: bg, surf, surfHi, ink, accent2 (secondary text), inkDim, accent.
-    static final String[] PALETTE_NAMES = {"Dynamic", "Lavender", "Gruvbox", "Catppuccin Mocha", "Catppuccin Macchiato", "Catppuccin Frappé",
-        "Rosé Pine", "Rosé Pine Moon", "Nord", "Tokyo Night", "Tokyo Night Storm", "Dracula", "Gruvbox Material", "Everforest", "Kanagawa",
-        "Solarized", "One", "Spotify", "Graphite"};
-    private static final int[][] PALETTES = {null,
+    static final int[][] PALETTES = {null,
         {0x14121c, 0x1d1a2a, 0x2b2640, 0xf3eeff, 0xc6b8ff, 0xbcb3dc, 0xd0bcff},
         {0x282828, 0x3c3836, 0x504945, 0xfbf1c7, 0xd5c4a1, 0xa89984, 0xfe8019},
         {0x1e1e2e, 0x313244, 0x45475a, 0xcdd6f4, 0xf5c2e7, 0xa6adc8, 0xcba6f7},
@@ -448,7 +426,7 @@ public final class SpatchUi extends FrameLayout {
             luminance(a) > .55f ? 0xff101014 : 0xffffffff};
     }
 
-    private static float luminance(int c) { return (.2126f * Color.red(c) + .7152f * Color.green(c) + .0722f * Color.blue(c)) / 255f; }
+    static float luminance(int c) { return (.2126f * Color.red(c) + .7152f * Color.green(c) + .0722f * Color.blue(c)) / 255f; }
 
     /** Colours from the cover when there is one, else from the chosen accent; animated smoothly in place. */
     private void applyPalette(Integer seed, Integer seed2) {
@@ -509,7 +487,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Re-tints everything once the playing cover's colour is known; true if the palette changed. */
-    private boolean refreshPalette() {
+    boolean refreshPalette() {
         boolean fromArt = pref("art_colors", true);
         Integer seed = fromArt ? SEEDS.get(image) : null;
         Integer seed2 = fromArt ? SEEDS2.get(image) : null;
@@ -523,7 +501,6 @@ public final class SpatchUi extends FrameLayout {
         return true;
     }
 
-    // ================= small helpers =================
 
     int dp(float v) { return Math.round(v * density); }
     LinearLayout.LayoutParams lp(int w, int h) { return new LinearLayout.LayoutParams(w, h); }
@@ -531,7 +508,7 @@ public final class SpatchUi extends FrameLayout {
     LinearLayout.LayoutParams weight() { return new LinearLayout.LayoutParams(0, -2, 1); }
     LinearLayout column() { LinearLayout v = new LinearLayout(activity); v.setOrientation(LinearLayout.VERTICAL); return v; }
     LinearLayout row() { LinearLayout v = new LinearLayout(activity); v.setGravity(Gravity.CENTER_VERTICAL); return v; }
-    private View space(int w, int h) { View v = new View(activity); v.setLayoutParams(lp(w, h)); return v; }
+    View space(int w, int h) { View v = new View(activity); v.setLayoutParams(lp(w, h)); return v; }
 
     GradientDrawable round(int color, float radiusDp) {
         GradientDrawable d = new GradientDrawable();
@@ -554,73 +531,8 @@ public final class SpatchUi extends FrameLayout {
         return colored(v, () -> v.color = color.get());
     }
 
-    /** GPU effects (Android 12+): the dock's pills are frosted glass over the page; null when they're solid. */
-    private boolean frosted;
-    private android.graphics.RenderNode pageNode;
 
-    /**
-     * Frosted glass for a dock pill: the page behind it, blurred, under the pill's own colour at partial opacity, with
-     * the usual hairline edge. Only the pill's area is blurred; a bitmap snapshot gets the solid colour instead.
-     */
-    private final class Frost extends android.graphics.drawable.Drawable {
-        private final View pill;
-        private final float radius;
-        private final ColorOf color;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path shape = new Path();
-        private final RectF box = new RectF();
-        private final int[] at = new int[2], host = new int[2];
-        private android.graphics.RenderNode blur;
 
-        Frost(View pill, float radiusDp, ColorOf color) { this.pill = pill; this.radius = dp(radiusDp); this.color = color; }
-
-        @Override public void draw(Canvas c) {
-            android.graphics.Rect b = getBounds();
-            box.set(b);
-            shape.rewind();
-            shape.addRoundRect(box, radius, radius, Path.Direction.CW);
-            int tint = color.get();
-            paint.setStyle(Paint.Style.FILL);
-            if (c.isHardwareAccelerated() && pageNode != null && android.os.Build.VERSION.SDK_INT >= 31) {
-                if (blur == null) {
-                    blur = new android.graphics.RenderNode("frost");
-                    blur.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(dp(18), dp(18), Shader.TileMode.CLAMP));
-                }
-                pill.getLocationInWindow(at);
-                pageHost.getLocationInWindow(host);
-                blur.setPosition(0, 0, b.width(), b.height());
-                android.graphics.RecordingCanvas into = blur.beginRecording();
-                into.translate(host[0] - at[0] - b.left, host[1] - at[1] - b.top);
-                into.drawRenderNode(pageNode);
-                blur.endRecording();
-                c.save();
-                c.clipPath(shape);
-                c.translate(b.left, b.top);
-                c.drawRenderNode(blur);
-                c.restore();
-                tint = (tint & 0x00ffffff) | 0xb8000000; // the glass: the pill's colour, letting the blurred page through
-            }
-            paint.setColor(tint);
-            c.drawPath(shape, paint);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Math.max(1, dp(.8f)));
-            paint.setColor((ink & 0x00ffffff) | 0x16000000);
-            c.drawPath(shape, paint);
-        }
-
-        @Override public void setAlpha(int alpha) {}
-        @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
-        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
-        @Override public void getOutline(android.graphics.Outline outline) { outline.setRoundRect(getBounds(), radius); }
-    }
-
-    /** A dock pill's background: frosted glass in GPU mode, else the solid rounded colour with a hairline edge. */
-    private void dockPill(View v, float radiusDp, ColorOf color) {
-        if (frosted) {
-            v.setBackground(new Frost(v, radiusDp, color));
-            colored(v, v::invalidate);
-        } else bgRound(v, radiusDp, color).setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
-    }
 
     GradientDrawable bgRound(View v, float radiusDp, ColorOf color) {
         GradientDrawable d = round(color.get(), radiusDp);
@@ -629,7 +541,7 @@ public final class SpatchUi extends FrameLayout {
         return d;
     }
 
-    private static void recolorView(View v) {
+    static void recolorView(View v) {
         if (v.getTag(R_COLOR) instanceof Runnable) ((Runnable) v.getTag(R_COLOR)).run();
         v.invalidate();
         if (v instanceof ViewGroup) {
@@ -638,7 +550,7 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    private static void invalidateArt(View v) {
+    static void invalidateArt(View v) {
         if (v instanceof Art || v instanceof Disc || v instanceof Backdrop) v.invalidate();
         if (v instanceof ViewGroup) {
             ViewGroup g = (ViewGroup) v;
@@ -674,16 +586,8 @@ public final class SpatchUi extends FrameLayout {
 
     void oneLine(TextView v) { v.setSingleLine(true); v.setEllipsize(TextUtils.TruncateAt.END); }
 
-    private void marquee(TextView v) {
-        v.setSingleLine(true);
-        v.setEllipsize(TextUtils.TruncateAt.MARQUEE);
-        v.setMarqueeRepeatLimit(-1);
-        v.setHorizontalFadingEdgeEnabled(true);
-        v.setFadingEdgeLength(dp(24));
-        v.setSelected(true);
-    }
 
-    private void tick(View v) {
+    void tick(View v) {
         if (pref("haptics", true)) v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
     }
 
@@ -713,20 +617,20 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    private static boolean playerCommand(int action, long value, String target) {
+    static boolean playerCommand(int action, long value, String target) {
         return OfficialPlayback.enabled() ? OfficialPlayback.command(action, value, target) : nativeCommand(action, value, target);
     }
 
     private static boolean playerPlayFrom(String context, String track, int index) {
-        return OfficialPlayback.enabled() ? OfficialPlayback.command(PLAY, 0, track) : nativePlayFrom(context, track, index);
+        return OfficialPlayback.enabled() ? OfficialPlayback.command(PlayerScreen.PLAY, 0, track) : nativePlayFrom(context, track, index);
     }
 
-    private static String playbackFailure() {
+    static String playbackFailure() {
         return OfficialPlayback.enabled() ? OfficialPlayback.status() + " · this action may be unavailable" : "That didn’t go through";
     }
 
-    private void command(int action, long value, String target) {
-        if (action == NEXT || action == PLAY || action == SKIP_TO) prevTappedAt = 0;
+    void command(int action, long value, String target) {
+        if (action == PlayerScreen.NEXT || action == PlayerScreen.PLAY || action == PlayerScreen.SKIP_TO) prevTappedAt = 0;
         submit(COMMANDS, () -> {
             if (!playerCommand(action, value, target)) post(() -> {
                 if (OfficialPlayback.enabled()) { revision = -1; syncNativeState(); }
@@ -736,10 +640,10 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Restarts the song when well into it on the first tap, then forces skipping to the previous song on repeat taps or near the start. */
-    private void previousTrack() {
+    void previousTrack() {
         if (!canPrevious) {
             setPosition(0);
-            command(SEEK, 0, "");
+            command(PlayerScreen.SEEK, 0, "");
             return;
         }
         long now = SystemClock.uptimeMillis();
@@ -748,15 +652,15 @@ public final class SpatchUi extends FrameLayout {
         if (allowSeek) {
             setPosition(0);
         }
-        command(PREVIOUS, allowSeek ? 1 : 0, "");
+        command(PlayerScreen.PREVIOUS, allowSeek ? 1 : 0, "");
     }
 
-    private static String time(long ms) {
+    static String time(long ms) {
         long s = Math.max(0, ms) / 1000, r = s % 60;
         return (s / 60) + (r < 10 ? ":0" : ":") + r;
     }
 
-    private long playhead() {
+    long playhead() {
         long elapsed = playing && stamp > 0 ? Math.max(0, SystemClock.uptimeMillis() - stamp) : 0;
         long at = Math.max(0, position + elapsed);
         return duration > 0 ? Math.min(duration, at) : at;
@@ -772,29 +676,29 @@ public final class SpatchUi extends FrameLayout {
         return progress.shown(playbackFraction(), motion());
     }
 
-    private void invalidateProgress() {
+    void invalidateProgress() {
         if (wave != null) wave.invalidate();
         if (mArt != null) mArt.invalidate();
     }
 
-    private void animateProgress(float from) {
+    void animateProgress(float from) {
         progress.move(from, playbackFraction(), motion() && isShown() && (wave == null || wave.preview < 0));
     }
 
-    private void setPosition(long target) {
+    void setPosition(long target) {
         float from = shownProgress();
         position = Math.max(0, duration > 0 ? Math.min(duration, target) : target);
         stamp = SystemClock.uptimeMillis();
         animateProgress(from);
     }
 
-    private void stopHeldSeek() {
+    void stopHeldSeek() {
         if (cancelHeldSeek != null) { cancelHeldSeek.run(); cancelHeldSeek = null; }
         holdingSeek = false;
         invalidateProgress();
     }
 
-    private static String initial(String name) {
+    static String initial(String name) {
         for (int i = 0; i < name.length(); i++) {
             int cp = name.codePointAt(i);
             if (Character.isLetterOrDigit(cp)) return new String(Character.toChars(Character.toUpperCase(cp)));
@@ -802,13 +706,12 @@ public final class SpatchUi extends FrameLayout {
         return "";
     }
 
-    private static void notifyList(ListView list) {
+    static void notifyList(ListView list) {
         android.widget.ListAdapter a = list.getAdapter();
         if (a instanceof android.widget.HeaderViewListAdapter) a = ((android.widget.HeaderViewListAdapter) a).getWrappedAdapter();
         if (a instanceof BaseAdapter) ((BaseAdapter) a).notifyDataSetChanged();
     }
 
-    // ================= window plumbing =================
 
     @Override protected void onAttachedToWindow() {
         closed = false;
@@ -867,7 +770,7 @@ public final class SpatchUi extends FrameLayout {
         java.lang.ref.WeakReference<SpatchUi> ref = activeUi;
         if (ref != null && ref.get() == this) activeUi = null;
         playlistRequest++;
-        searchRequest++;
+        searchScreen.searchRequest++;
         profileTicket++;
         profileLoading = false;
         if (watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
@@ -900,11 +803,11 @@ public final class SpatchUi extends FrameLayout {
         }
         else if (accountMenu != null && accountMenu.isShowing()) accountMenu.dismiss();
         else if (sheetClose != null) sheetClose.run();
-        else if (lyricsPanel != null) closeLyrics();
-        else if (queuePanel != null) closeQueue();
-        else if (playerOpen) closePlayer();
-        else if (!pageStack.isEmpty()) openPlaylist(pageStack.pop(), false);
-        else if (playlist != null) { playlist = null; showPage(); updateDock(); enter(-dp(44), 0); }
+        else if (playerScreen.lyricsPanel != null) playerScreen.closeLyrics();
+        else if (playerScreen.queuePanel != null) playerScreen.closeQueue();
+        else if (playerOpen) playerScreen.closePlayer();
+        else if (!pageStack.isEmpty()) playlistScreen.openPlaylist(pageStack.pop(), false);
+        else if (playlist != null) { playlist = null; showPage(); dockUi.updateDock(); enter(-dp(44), 0); }
         else if (tab == SETTINGS && settingsSection == 2 && sound.panel >= 0) { sound.panel = sound.panel >= 6 ? 1 : -1; showPage(); }
         else if (tab == SETTINGS && settingsSection >= 0) { settingsSection = -1; showPage(); }
         else if (!tabHistory.isEmpty()) go(tabHistory.pop(), false);
@@ -934,7 +837,7 @@ public final class SpatchUi extends FrameLayout {
     private final Runnable syncPush = this::syncNativeState;
     private boolean libraryRedrawPending;
 
-    private void syncNativeState() {
+    void syncNativeState() {
         if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
         nativeRevisions(revisions);
         if (OfficialPlayback.enabled() || revisions[0] != revision) {
@@ -946,16 +849,16 @@ public final class SpatchUi extends FrameLayout {
             playlistRevision = listRevision;
             MediaEntry open = playlist;
             // The push carries the first page only, so ask again for the whole playlist; it redraws if it changed.
-            if (open != null && !isDetail(open) && !playlistLoading) loadPlaylist(open, 1);
+            if (open != null && !isDetail(open) && !playlistScreen.playlistLoading) playlistScreen.loadPlaylist(open, 1);
         }
         long downloadsNow = revisions[2];
-        if (downloadsNow != downloadRevision) {
-            downloadRevision = downloadsNow;
-            pullDownloads();
+        if (downloadsNow != downloadsScreen.downloadRevision) {
+            downloadsScreen.downloadRevision = downloadsNow;
+            downloadsScreen.pullDownloads();
             long setNow = revisions[3];
-            boolean setChanged = setNow != downloadSetRevision;
-            downloadSetRevision = setNow;
-            onDownloadsChanged(setChanged);
+            boolean setChanged = setNow != downloadsScreen.downloadSetRevision;
+            downloadsScreen.downloadSetRevision = setNow;
+            downloadsScreen.onDownloadsChanged(setChanged);
         }
         long libRevision = revisions[4];
         if (libRevision != libraryRevision) {
@@ -989,7 +892,7 @@ public final class SpatchUi extends FrameLayout {
         }
     };
 
-    private void loadLibrary() {
+    void loadLibrary() {
         fetching = true;
         submit(DATA, () -> {
             String status = nativeLibrary();
@@ -1004,8 +907,8 @@ public final class SpatchUi extends FrameLayout {
                     libraryStatus = "Nothing saved here yet";
                     // The username is learned from the library, so ask again now that it's here.
                     if (profileUsername.isEmpty()) loadProfile(true);
-                    if (!downloadsStarted) {
-                        downloadsStarted = true;
+                    if (!downloadsScreen.downloadsStarted) {
+                        downloadsScreen.downloadsStarted = true;
                         submit(PLAYLISTS, SpatchUi::nativeDownloadsStart);
                     }
                 } else {
@@ -1024,10 +927,10 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private long libraryRevision, playlistRevision;
-    private android.widget.AbsListView libraryList;
+    android.widget.AbsListView libraryList;
 
     /** Redraws the page for new data without losing your place in the Library list or Home's scroll. */
-    private void showPageKeepingPlace() {
+    void showPageKeepingPlace() {
         // Only for Home and Library: by the time a posted redraw runs, a playlist or the player may have opened.
         if (playlist != null || playerOpen || sheetClose != null || tab == SETTINGS || tab == SEARCH) return;
         android.widget.AbsListView list = tab == LIBRARY ? libraryList : null;
@@ -1041,7 +944,7 @@ public final class SpatchUi extends FrameLayout {
         else keepScroll(pageScroll, y);
         if (again != null) again.setLayoutAnimation(null); // no cascade for a quiet refresh
     }
-    private boolean watchingPlaylist;
+    boolean watchingPlaylist;
 
     private void refreshLibraryIfStale() {
         long now = SystemClock.uptimeMillis();
@@ -1065,14 +968,14 @@ public final class SpatchUi extends FrameLayout {
             if (wave != null) wave.cancelScrub();
         }
         uri = s[1]; title = s[2]; artist = s[3]; album = s[4]; image = s[5];
-        if (changed && lyricsPanel != null) { closeLyrics(); post(this::openLyrics); } // a new song: show its lyrics, not the last one's
+        if (changed && playerScreen.lyricsPanel != null) { playerScreen.closeLyrics(); post(playerScreen::openLyrics); } // a new song: show its lyrics, not the last one's
         if (changed) sideQueueOffset = 0;
         if (changed && sideHost != null) {
             sideTabManual = false;
             if (uri.isEmpty()) {
                 if (sideTab != 1 && sideTabSelect != null) post(() -> { if (sideTabSelect != null) sideTabSelect.accept(1, true); });
             } else if (sideTab == 0) {
-                post(() -> loadSidePanel(false, 0));
+                post(() -> playerScreen.loadSidePanel(false, 0));
             } else {
                 String trackId = uri.substring(uri.lastIndexOf(':') + 1);
                 String trackUri = uri, trackTitle = title, trackArtist = artist;
@@ -1097,7 +1000,7 @@ public final class SpatchUi extends FrameLayout {
         position = Long.parseLong(s[9]);
         long coreDuration = Long.parseLong(s[10]);
         if (coreDuration > 0 || changed) duration = Math.max(0, coreDuration);
-        if (duration == 0 && !uri.isEmpty()) for (Song song : allSongs) {
+        if (duration == 0 && !uri.isEmpty()) for (Song song : playlistScreen.allSongs) {
             if (song.uri.equals(uri) && song.duration > 0) { duration = song.duration; break; }
         }
         source = s[11];
@@ -1107,7 +1010,7 @@ public final class SpatchUi extends FrameLayout {
             // Learn whether the new context is in Smart Shuffle.
             String next = s[13];
             smartShuffle = false;
-            if (isPlaylistLink(next)) submit(PLAYLISTS, () -> {
+            if (PlayerScreen.isPlaylistLink(next)) submit(PLAYLISTS, () -> {
                 int m = nativeShuffleMode(next);
                 post(() -> { if (next.equals(context)) { smartShuffle = m == 2; refresh(); } });
             });
@@ -1133,7 +1036,7 @@ public final class SpatchUi extends FrameLayout {
         }
         if (buffering != wasBuffering) {
             for (PlayButton b : playButtons) b.invalidate();
-            if (listFab != null) listFab.invalidate();
+            if (playlistScreen.listFab != null) playlistScreen.listFab.invalidate();
         }
         stamp = SystemClock.uptimeMillis();
         LyricGen.playback(uri.substring(uri.lastIndexOf(':') + 1), position, playing, duration);
@@ -1147,20 +1050,19 @@ public final class SpatchUi extends FrameLayout {
         boolean queueChanged = !next.equals(upcoming) || changed;
         for (int i = 0; !queueChanged && i < next.size(); i++) queueChanged = !next.get(i).queueKey.equals(upcoming.get(i).queueKey);
         upcoming = next;
-        if (queuePanel != null && queueChanged) renderQueue();
-        if (queueChanged && sideHost != null && sideTab == 1) post(() -> loadSidePanel(false));
-        if (changed) checkSaved(uri);
+        if (playerScreen.queuePanel != null && queueChanged) playerScreen.renderQueue();
+        if (queueChanged && sideHost != null && sideTab == 1) post(() -> playerScreen.loadSidePanel(false));
+        if (changed) playerScreen.checkSaved(uri);
         refreshPalette();
         refresh();
     }
 
-    // ================= building =================
 
     /** Rebuilds the whole tree: insets or font/motion settings changed. */
-    private void build() {
+    void build() {
         if (accountMenu != null) accountMenu.dismiss();
         creation.closeCreateMenu();
-        closeQueue();
+        playerScreen.closeQueue();
         removeAllViews();
         sheetClose = null;
         nextKey = "";
@@ -1168,17 +1070,17 @@ public final class SpatchUi extends FrameLayout {
         pageHost = new FrameLayout(activity) {
             // GPU effects: what the page draws is also kept as a RenderNode, which the dock's frosted pills blur.
             @Override protected void dispatchDraw(Canvas canvas) {
-                if (!frosted || !canvas.isHardwareAccelerated()) { super.dispatchDraw(canvas); return; }
-                if (pageNode == null) { pageNode = new android.graphics.RenderNode("page"); pageNode.setClipToBounds(false); }
-                pageNode.setPosition(0, 0, getWidth(), getHeight());
-                android.graphics.RecordingCanvas into = pageNode.beginRecording();
+                if (!dockUi.frosted || !canvas.isHardwareAccelerated()) { super.dispatchDraw(canvas); return; }
+                if (dockUi.pageNode == null) { dockUi.pageNode = new android.graphics.RenderNode("page"); dockUi.pageNode.setClipToBounds(false); }
+                dockUi.pageNode.setPosition(0, 0, getWidth(), getHeight());
+                android.graphics.RecordingCanvas into = dockUi.pageNode.beginRecording();
                 super.dispatchDraw(into);
-                pageNode.endRecording();
-                canvas.drawRenderNode(pageNode);
+                dockUi.pageNode.endRecording();
+                canvas.drawRenderNode(dockUi.pageNode);
             }
         };
         // Measured on a Pixel 11 Pro: about 12% more CPU and 2 ms slower frames while scrolling, so it's opt-in.
-        frosted = GpuFx.blur(prefs) && prefs.getBoolean("frost", false);
+        dockUi.frosted = GpuFx.blur(prefs) && prefs.getBoolean("frost", false);
         LayoutParams hostAt = new LayoutParams(-1, -1);
         hostAt.leftMargin = sideLeft(); hostAt.rightMargin = inset.right; // landscape: clear of the side system bar, cutout and rail
         pageHost.setClipChildren(false); // page backdrops may reach out under those insets (and the rail)
@@ -1208,7 +1110,7 @@ public final class SpatchUi extends FrameLayout {
         // A swipe nudges the mini player sideways past the dock's padding (and the rail's narrow edge); let it show.
         dock.setClipToPadding(false);
         dock.setClipChildren(false);
-        dockHidden = false;
+        dockUi.dockHidden = false;
         scrollTravel = 0;
         if (landscape()) {
             // Sideways the dock is a rail down the left: tabs at the top, the playing song at the foot, and the
@@ -1219,17 +1121,17 @@ public final class SpatchUi extends FrameLayout {
             dock.setPadding(dp(12) + inset.left, 0, dp(12) + inset.right, dp(10) + inset.bottom);
             addView(dock, new LayoutParams(-1, -2, Gravity.BOTTOM));
         }
-        buildDock();
+        dockUi.buildDock();
         player = null;
         showPage();
-        if (playerOpen) { playerOpen = false; openPlayer(false); }
+        if (playerOpen) { playerOpen = false; playerScreen.openPlayer(false); }
     }
 
     /** Room a page leaves at its foot for the dock: two rows in portrait; in landscape the dock is a side rail. */
     int dockRoom() { return dp(landscape() ? 16 : 170) + inset.bottom; }
 
     /** Side rail width and its gap from the screen edge (dp); the gap keeps the rail clear of the camera hole. */
-    private static final int RAIL = 64, RAIL_GAP = 14;
+    static final int RAIL = 64, RAIL_GAP = 14;
 
     /** Where pages start from the left: past the side inset, plus the rail in landscape (less the page's own margin). */
     int sideLeft() { return inset.left + (landscape() ? dp(RAIL_GAP + RAIL - 8) : 0); }
@@ -1278,7 +1180,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** An × at the end of a search box, shown once there's text, that empties it. */
-    private void clearButton(LinearLayout box, android.widget.EditText field) {
+    void clearButton(LinearLayout box, android.widget.EditText field) {
         View clear = iconButton(icon("close", () -> inkDim), "Clear search", () -> field.setText(""));
         clear.setVisibility(field.length() > 0 ? VISIBLE : GONE);
         field.addTextChangedListener(new android.text.TextWatcher() {
@@ -1289,369 +1191,36 @@ public final class SpatchUi extends FrameLayout {
         box.addView(clear, lp(dp(40), dp(40)));
     }
 
-    // ================= downloads =================
     // Spotify's downloads live in its core (Offline service); Rust follows them and these screens show them.
 
-    private static final int DL_ERROR = 1, DL_REQUESTED = 2, DL_DONE = 3, DL_BUSY = 4, DL_WAITING = 5;
-    /** Downloaded or on its way, by uri: {state, percent 0 to 100}. */
-    private final java.util.Map<String, int[]> downloads = new java.util.HashMap<>();
-    private final java.util.Map<String, MediaEntry> downloadDetails = new java.util.LinkedHashMap<>();
-    private long downloadRevision, downloadSetRevision;
-    private boolean downloadsStarted;
-    private View downloadButton;
-    private LinearLayout downloadsList, downloadsProgress;
-    private TextView downloadsSummary, downloadsStorage, downloadsProgressText;
-    private Meter downloadsMeter;
-    private View removeAllDownloads;
-    private final java.util.Map<String, Object[]> downloadRows = new java.util.HashMap<>();
-    private long storageFree, storageTotal;
 
-    private int downloadState(String uri) {
-        int[] d = uri == null ? null : downloads.get(uri);
-        return d == null ? 0 : d[0];
-    }
 
-    private void pullDownloads() {
-        String[] f = unpackStrings(nativeDownloads());
-        downloads.clear();
-        if (f != null) for (int i = 0; i + 2 < f.length; i += 3) downloads.put(f[i], new int[]{parseInt(f[i + 1]), parseInt(f[i + 2])});
-        downloadDetails.clear();
-        for (MediaEntry e : entryList(unpackStrings(nativeCached("download-items")))) if (downloads.containsKey(e.uri)) downloadDetails.put(e.uri, e);
-        for (String item : downloads.keySet()) if (isTrack(item) && !downloadDetails.containsKey(item)) {
-            downloadDetails.put(item, new MediaEntry(kindName(item), "", item, "", -1));
-        }
-    }
 
-    /** Something changed in the core's downloads: progress only, or a download added, removed or finished. */
-    private void onDownloadsChanged(boolean setChanged) {
-        if (setChanged) for (Row row : attachedRows) row.updateDownloadBadge();
-        if (downloadButton != null && downloadButton.isAttachedToWindow()) downloadButton.invalidate();
-        if (downloadsList != null && downloadsList.isAttachedToWindow()) {
-            if (setChanged) { renderDownloads(); loadStorage(); } else updateDownloadProgress();
-        }
-        if (setChanged && tab != SETTINGS && tab != SEARCH && playlist == null && sheetClose == null && !playerOpen
-                && !(findFocus() instanceof android.widget.EditText)) showPageKeepingPlace();
-    }
 
-    private interface UriOf { String get(); }
 
-    /** The page's download button: a ring with an arrow, a filling ring while it downloads, a check once it has. */
-    private final class DownloadButton extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path glyph = new Path();
-        private final RectF oval = new RectF();
-        private final UriOf target;
-        private final String name;
-        private int descState = -1;
 
-        DownloadButton(UriOf target, String name) {
-            super(activity);
-            this.target = target;
-            this.name = name;
-            tappable(this, "Download", () -> downloadTapped(target.get(), name));
-        }
 
-        @Override protected void onDraw(Canvas c) {
-            int state = downloadState(target.get());
-            int[] d = downloads.get(target.get());
-            float w = getWidth(), h = getHeight(), cx = w / 2, cy = h / 2, size = Math.min(w, h);
-            boolean busy = state == DL_BUSY || state == DL_REQUESTED || state == DL_WAITING;
-            int descKind = state == DL_DONE ? 2 : busy ? 1 : 0;
-            if (descKind != descState) {
-                descState = descKind;
-                setContentDescription(descKind == 2 ? "Downloaded. Tap to remove" : descKind == 1 ? "Downloading. Tap to cancel" : "Download");
-            }
-            paint.setStyle(Paint.Style.FILL);
-            if (state == DL_DONE) {
-                paint.setColor(accent);
-                c.drawCircle(cx, cy, size * .3f, paint);
-                c.save();
-                c.translate(cx - size * .15f, cy - size * .15f);
-                drawGlyph(c, paint, glyph, "check", onAccent, size * .3f);
-                c.restore();
-            } else if (busy) {
-                float r = size * .3f;
-                oval.set(cx - r, cy - r, cx + r, cy + r);
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(dp(2.5f));
-                paint.setStrokeCap(Paint.Cap.ROUND);
-                paint.setColor((ink & 0x00ffffff) | 0x33000000);
-                c.drawOval(oval, paint);
-                paint.setColor(accent);
-                int percent = d == null ? 0 : d[1];
-                boolean known = state == DL_BUSY && percent > 0;
-                float start = known ? -90 : (SystemClock.uptimeMillis() % 1100) / 1100f * 360f, sweep = known ? 360f * percent / 100f : 95f;
-                c.drawArc(oval, start, sweep, false, paint);
-                paint.setStyle(Paint.Style.FILL);
-                float half = size * .075f;
-                c.drawRoundRect(cx - half, cy - half, cx + half, cy + half, dp(1.5f), dp(1.5f), paint);
-                if (!known && motion() && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
-            } else {
-                c.save();
-                c.translate(cx - size * .21f, cy - size * .21f);
-                drawGlyph(c, paint, glyph, "download", state == DL_ERROR ? accent2 : ink, size * .42f);
-                c.restore();
-            }
-        }
-    }
 
-    /** A thin progress bar. */
-    private final class Meter extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private float value;
-        Meter() { super(activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
-        void set(float v) {
-            float next = Math.max(0f, Math.min(1f, v));
-            if (next == value) return;
-            value = next;
-            invalidate();
-        }
-        @Override protected void onDraw(Canvas c) {
-            float w = getWidth(), h = getHeight(), r = h / 2;
-            paint.setColor((ink & 0x00ffffff) | 0x24000000);
-            c.drawRoundRect(0, 0, w, h, r, r, paint);
-            paint.setColor(accent);
-            c.drawRoundRect(0, 0, Math.max(h, w * value), h, r, r, paint);
-        }
-    }
 
-    /** The small round badge on a cover that's downloaded (accent) or downloading (dim). */
-    private View downloadChip(int state) {
-        FrameLayout chip = new FrameLayout(activity);
-        boolean done = state == DL_DONE;
-        bgRound(chip, 13, () -> done ? accent : (bg & 0x00ffffff) | 0xd0000000);
-        chip.addView(icon("download", () -> done ? onAccent : ink), new LayoutParams(dp(14), dp(14), Gravity.CENTER));
-        return chip;
-    }
 
-    private String downloadLabel(String uri) {
-        int state = downloadState(uri);
-        if (state == DL_DONE) return "Remove download";
-        if (state == DL_BUSY || state == DL_REQUESTED || state == DL_WAITING) return "Cancel download";
-        return state == DL_ERROR ? "Retry download" : uri.startsWith("spotify:episode:") ? "Download episode" : "Download song";
-    }
 
-    private Option songDownloadOption(MediaEntry song) {
-        int[] state = downloads.get(song.uri);
-        String note = state == null ? "Listen offline on this device" : downloadStatus(state);
-        return new Option(downloadLabel(song.uri), note, "", "download", state != null && state[0] == DL_DONE);
-    }
 
-    private void downloadTapped(String uri, String name) {
-        downloadTapped(new MediaEntry(name, "", uri, "", -1));
-    }
 
-    private void downloadTapped(MediaEntry entry) {
-        String uri = entry.uri, name = entry.title.isEmpty() ? kindName(uri) : entry.title;
-        int state = downloadState(uri);
-        if (state == 0 || state == DL_ERROR) {
-            submit(PLAYLISTS, () -> {
-                String error = nativeDownload(uri, 0, packStrings(new String[]{name, entry.subtitle, uri, entry.image, Integer.toString(entry.category)}));
-                post(() -> {
-                    if (closed) return;
-                    if (error != null && error.isEmpty()) { pullDownloads(); onDownloadsChanged(true); }
-                    Toast.makeText(activity, error != null && error.isEmpty() ? "Downloading “" + name + "”" : error == null ? "No reply from Spotify" : error,
-                        error != null && error.isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
-                });
-            });
-            return;
-        }
-        confirmRemoveDownload(uri, name, state == DL_DONE);
-    }
 
-    private void confirmRemoveDownload(String uri, String name, boolean done) {
-        sheet(name, done ? "Removes this download from this phone. It stays in your library." : "Stops the download and removes what’s been saved so far.",
-            new Option[]{new Option(done ? "Remove download" : "Cancel download", "", "", "close", false)}, c -> submit(PLAYLISTS, () -> {
-                String error = nativeDownload(uri, 1, null);
-                post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? (done ? "Removed download" : "Download cancelled") : error, Toast.LENGTH_LONG).show());
-            }));
-    }
 
-    private static String bytes(long b) {
-        if (b >= 1_000_000_000L) return String.format(java.util.Locale.ROOT, "%.1f GB", b / 1e9);
-        if (b >= 1_000_000L) return Math.round(b / 1e6) + " MB";
-        return Math.max(0, Math.round(b / 1e3)) + " KB";
-    }
 
-    private static String timeLeft(long seconds) {
-        if (seconds <= 0) return "";
-        return seconds < 60 ? "under a minute left" : ((seconds + 59) / 60) + " min left";
-    }
 
-    private static String kindName(String uri) {
-        return uri.startsWith("spotify:track:") ? "Song" : uri.startsWith("spotify:episode:") ? "Episode" : uri.contains(":album:") ? "Album" : uri.contains(":show:") ? "Podcast" : "Playlist";
-    }
 
-    private void downloadsCard(LinearLayout box) {
-        downloadsSummary = text("", 16, () -> ink, true);
-        downloadsSummary.setPadding(dp(18), dp(14), dp(18), dp(2));
-        box.addView(downloadsSummary);
-        downloadsStorage = text("", 13, () -> inkDim, false);
-        downloadsStorage.setPadding(dp(18), 0, dp(18), dp(8));
-        box.addView(downloadsStorage);
 
-        downloadsProgress = column();
-        downloadsProgress.setPadding(dp(18), dp(4), dp(18), dp(12));
-        downloadsProgressText = text("", 13, () -> ink, false);
-        downloadsProgress.addView(downloadsProgressText);
-        downloadsMeter = new Meter();
-        LinearLayout.LayoutParams mp = fill(dp(4));
-        mp.topMargin = dp(8);
-        downloadsProgress.addView(downloadsMeter, mp);
-        downloadsProgress.setVisibility(GONE);
-        box.addView(downloadsProgress, fill(-2));
 
-        downloadsList = column();
-        box.addView(downloadsList, fill(-2));
 
-        ensureSpotifySettings();
-        if (spotifySettings != null) {
-            int quality = spotifyValue("download_quality");
-            segmented(box, "Download quality", new String[]{"Low", "Normal", "High", "Very high", "Lossless"}, quality >= 1 && quality <= 5 ? quality - 1 : -1, i -> setSpotify("download_quality", i + 1));
-        }
 
-        if (spotifySettings != null) offlineModeRow(box);
 
-        TextView clear = pill("Remove all downloads", () -> sheet("Remove all downloads?", "Every downloaded song, episode, playlist and album is removed from this phone. Your library stays as it is.",
-            new Option[]{new Option("Remove all downloads", "", "", "close", false)}, c -> submit(PLAYLISTS, () -> {
-                String error = nativeDownload("", 2, null);
-                post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? "Removed all downloads" : error, Toast.LENGTH_LONG).show());
-            })));
-        clear.setTextColor(ink);
-        GradientDrawable clearBg = round(surfHi, 22);
-        clear.setBackground(clearBg);
-        colored(clear, () -> { clear.setTextColor(ink); clearBg.setColor(surfHi); });
-        LinearLayout.LayoutParams cp = fill(dp(46));
-        cp.setMargins(dp(18), dp(6), dp(18), dp(14));
-        box.addView(clear, cp);
-        removeAllDownloads = clear;
-
-        renderDownloads();
-        loadStorage();
-    }
-
-    /** Android's filesystem API guarantees bytes for this app's storage volume. */
-    private void loadStorage() {
-        submit(PLAYLISTS, () -> {
-            try {
-                android.os.StatFs fs = new android.os.StatFs(activity.getFilesDir().getPath());
-                long free = fs.getAvailableBytes(), total = fs.getTotalBytes();
-                post(() -> {
-                    storageFree = free;
-                    storageTotal = total;
-                    updateDownloadSummary();
-                });
-            } catch (RuntimeException unavailable) {
-                android.util.Log.w("SpatchUi", "Storage statistics unavailable", unavailable);
-            }
-        });
-    }
-
-    private void updateDownloadSummary() {
-        if (downloadsSummary == null) return;
-        int n = downloads.size();
-        downloadsSummary.setText(n == 0 ? "Nothing downloaded" : n + (n == 1 ? " download" : " downloads"));
-        downloadsStorage.setText(storageTotal > 0 ? bytes(storageFree) + " free of " + bytes(storageTotal) + " on this phone" : "");
-        downloadsStorage.setVisibility(storageTotal > 0 ? VISIBLE : GONE);
-    }
-
-    private String downloadStatus(int[] d) {
-        switch (d[0]) {
-            case DL_DONE: return "Downloaded";
-            case DL_BUSY: return d[1] > 0 ? "Downloading • " + d[1] + "%" : "Downloading…";
-            case DL_ERROR: return "Couldn’t download • tap to retry";
-            default: return "Waiting to download";
-        }
-    }
-
-    /** Rebuilds the list of downloads in Settings. */
-    private void renderDownloads() {
-        LinearLayout list = downloadsList;
-        if (list == null) return;
-        list.removeAllViews();
-        downloadRows.clear();
-        java.util.Map<String, MediaEntry> known = new java.util.HashMap<>();
-        known.putAll(downloadDetails);
-        for (MediaEntry e : entries(-1, "", false, 400)) known.put(e.uri, e);
-        List<String> order = new ArrayList<>(downloads.keySet());
-        java.util.Collections.sort(order, (a, b) -> {
-            int sa = downloads.get(a)[0] == DL_DONE ? 1 : 0, sb = downloads.get(b)[0] == DL_DONE ? 1 : 0;
-            if (sa != sb) return sa - sb; // what's still downloading first
-            MediaEntry ea = known.get(a), eb = known.get(b);
-            return (ea == null ? kindName(a) : ea.title).compareToIgnoreCase(eb == null ? kindName(b) : eb.title);
-        });
-        if (order.isEmpty()) {
-            TextView none = text("Hold a song or episode and choose Download, or use the download button on a playlist, album or podcast.", 13, () -> inkDim, false);
-            none.setPadding(dp(18), dp(4), dp(18), dp(12));
-            list.addView(none, fill(-2));
-        }
-        for (String uri : order) {
-            MediaEntry known1 = known.get(uri);
-            String name = known1 != null ? known1.title : kindName(uri);
-            MediaEntry entry = known1 != null ? known1 : new MediaEntry(name, "", uri, "", isTrack(uri) ? -1 : uri.contains(":album:") ? 1 : uri.contains(":show:") ? 3 : 0);
-            int[] d = downloads.get(uri);
-            LinearLayout line = row();
-            line.setPadding(dp(14), dp(8), dp(6), dp(8));
-            Art art = artwork.new Art(Art.ROUNDED, false);
-            art.letter = initial(name);
-            art.heart = liked(uri) && entry.image.isEmpty();
-            art.bind(entry.image);
-            line.addView(art, lp(dp(46), dp(46)));
-            LinearLayout words = column();
-            words.setPadding(dp(12), 0, dp(6), 0);
-            TextView title = text(name, 15, () -> ink, true);
-            oneLine(title);
-            words.addView(title);
-            TextView status = text(downloadStatus(d), 13, () -> d[0] == DL_ERROR ? accent2 : inkDim, false);
-            oneLine(status);
-            words.addView(status);
-            Meter meter = new Meter();
-            meter.set(d[1] / 100f);
-            meter.setVisibility(d[0] == DL_BUSY ? VISIBLE : GONE);
-            LinearLayout.LayoutParams mp = fill(dp(3));
-            mp.topMargin = dp(6);
-            words.addView(meter, mp);
-            line.addView(words, weight());
-            line.addView(iconButton(icon("close", () -> inkDim), "Remove download", () -> confirmRemoveDownload(uri, name, d[0] == DL_DONE)), lp(dp(40), dp(40)));
-            line.setClickable(true);
-            line.setOnClickListener(v -> {
-                if (d[0] == DL_ERROR) submit(PLAYLISTS, () -> nativeDownload(uri, 0, null));
-                else open(entry);
-            });
-            list.addView(line, fill(-2));
-            downloadRows.put(uri, new Object[]{status, meter});
-        }
-        if (removeAllDownloads != null) removeAllDownloads.setVisibility(order.isEmpty() ? GONE : VISIBLE);
-        updateDownloadSummary();
-        updateDownloadProgress();
-    }
-
-    /** Refreshes the progress lines in place while downloads move, without rebuilding the list. */
-    private void updateDownloadProgress() {
-        if (downloadsProgress == null) return;
-        String[] t = nativeDownloadTotals();
-        boolean busy = t != null && t.length >= 9 && "true".equals(t[4]);
-        downloadsProgress.setVisibility(busy ? VISIBLE : GONE);
-        if (busy) {
-            String left = timeLeft(parseInt(t[6]));
-            downloadsProgressText.setText("Downloading • " + t[0] + " of " + t[1] + " songs" + (left.isEmpty() ? "" : " • " + left));
-            downloadsMeter.set(parseInt(t[5]) / 100f);
-        }
-        for (java.util.Map.Entry<String, Object[]> row : downloadRows.entrySet()) {
-            int[] d = downloads.get(row.getKey());
-            if (d == null) continue;
-            ((TextView) row.getValue()[0]).setText(downloadStatus(d));
-            ((Meter) row.getValue()[1]).set(d[1] / 100f);
-        }
-    }
-
-    // ================= account and creation =================
-
-    private TextView pageHeading(LinearLayout page, String title, boolean edgeToEdge) {
+    TextView pageHeading(LinearLayout page, String title, boolean edgeToEdge) {
         return pageHeading(page, title, edgeToEdge, null);
     }
 
-    private TextView pageHeading(LinearLayout page, String title, boolean edgeToEdge, View leading) {
+    TextView pageHeading(LinearLayout page, String title, boolean edgeToEdge, View leading) {
         LinearLayout head = row();
         head.setPadding(edgeToEdge ? dp(18) : 0, dp(16), edgeToEdge ? dp(18) : 0, dp(12));
         if (leading != null) {
@@ -1779,15 +1348,15 @@ public final class SpatchUi extends FrameLayout {
         popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
         popup.setOnDismissListener(() -> { if (accountMenu == popup) accountMenu = null; });
         menuAction(menu, "Profile", "artist", () -> { popup.dismiss(); goFromLink(PROFILE); });
-        menuAction(menu, "Queue", "queue", () -> { popup.dismiss(); openQueue(); });
-        menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); updateDock(); } else goFromLink(LIBRARY); });
+        menuAction(menu, "Queue", "queue", () -> { popup.dismiss(); playerScreen.openQueue(); });
+        menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); dockUi.updateDock(); } else goFromLink(LIBRARY); });
         menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(true); });
         popup.showAsDropDown(anchor, 0, dp(8), Gravity.END);
         popIn(menu);
     }
 
     /** The menu grows out of its corner. */
-    private void popIn(LinearLayout menu) {
+    void popIn(LinearLayout menu) {
         if (motion()) {
             menu.setAlpha(0f);
             menu.setTranslationY(-dp(8));
@@ -1806,27 +1375,8 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    /** The player's more menu: what is not pinned to the bar, plus share and settings. */
-    private void openPlayerMenu(View anchor) {
-        if (accountMenu != null) accountMenu.dismiss();
-        LinearLayout menu = column();
-        menu.setPadding(dp(8), dp(8), dp(8), dp(8));
-        android.widget.PopupWindow popup = new android.widget.PopupWindow(menu, dp(272), -2, true);
-        accountMenu = popup;
-        popup.setBackgroundDrawable(round(surf, 24));
-        popup.setElevation(dp(14));
-        popup.setOutsideTouchable(true);
-        popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
-        popup.setOnDismissListener(() -> { if (accountMenu == popup) accountMenu = null; });
-        if (!pref("bar_timer", false)) menuAction(menu, sleepAt > SystemClock.uptimeMillis() ? "Sleep timer (running)" : "Sleep timer", "timer", () -> { popup.dismiss(); openSleepTimer(); });
-        if (!pref("bar_devices", false)) menuAction(menu, "Play on another device", "devices", () -> { popup.dismiss(); openDevices(); });
-        menuAction(menu, "Share", "share", () -> { popup.dismiss(); share(); });
-        menuAction(menu, "Player settings", "settings", () -> { popup.dismiss(); closePlayer(); openSettings(true); });
-        popup.showAsDropDown(anchor, 0, dp(4), Gravity.END);
-        popIn(menu);
-    }
 
-    private void menuAction(LinearLayout menu, String title, String symbol, Runnable action) {
+    void menuAction(LinearLayout menu, String title, String symbol, Runnable action) {
         LinearLayout item = row();
         item.setPadding(dp(14), dp(12), dp(14), dp(12));
         item.addView(icon(symbol, () -> inkDim), lp(dp(22), dp(22)));
@@ -1837,7 +1387,7 @@ public final class SpatchUi extends FrameLayout {
         menu.addView(item, fill(dp(48)));
     }
 
-    private void openSettings(boolean fromLink) {
+    void openSettings(boolean fromLink) {
         settingsSection = -1;
         sound.panel = -1;
         if (tab == SETTINGS && playlist == null) showPage();
@@ -1857,7 +1407,7 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    private View backHeader(String label, boolean horizontalPad) {
+    View backHeader(String label, boolean horizontalPad) {
         LinearLayout row = row();
         row.setPadding(horizontalPad ? dp(16) : dp(2), dp(6), dp(12), dp(2));
         row.addView(icon("back", () -> accent), lp(dp(20), dp(20)));
@@ -1878,14 +1428,14 @@ public final class SpatchUi extends FrameLayout {
         openNativeSpotify();
     }
 
-    private void openNativeSpotify() {
+    void openNativeSpotify() {
         String error = CoreBridge.openNativeSpotify(activity);
         if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
     }
 
     /** What Spatch knows about the connection to Spotify, with a button to copy it for whoever is helping. */
     private void connectionCard(LinearLayout page) {
-        LinearLayout box = card(page, "Connection");
+        LinearLayout box = settingsScreen.card(page, "Connection");
         String[] c;
         try { c = nativeConnection(); } catch (RuntimeException | LinkageError failed) { c = null; }
         String library = c != null && c.length > 0 ? c[0] : "unknown";
@@ -1900,7 +1450,7 @@ public final class SpatchUi extends FrameLayout {
         facts.setPadding(dp(18), dp(14), dp(18), dp(6));
         box.addView(facts, fill(-2));
         final String copy = report.toString();
-        settingsAction(box, "Copy details", "For troubleshooting: paste it to whoever is helping you", () -> {
+        settingsScreen.settingsAction(box, "Copy details", "For troubleshooting: paste it to whoever is helping you", () -> {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch connection details", copy));
             Toast.makeText(activity, "Details copied", Toast.LENGTH_SHORT).show();
@@ -1911,7 +1461,7 @@ public final class SpatchUi extends FrameLayout {
         LinearLayout page = column();
         page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
         pageHeading(page, "Your profile", false);
-        LinearLayout identity = card(page, "Spotify account");
+        LinearLayout identity = settingsScreen.card(page, "Spotify account");
         LinearLayout photo = row();
         photo.setPadding(dp(18), dp(16), dp(18), dp(16));
         photo.addView(profilePhoto(), lp(dp(88), dp(88)));
@@ -1924,7 +1474,7 @@ public final class SpatchUi extends FrameLayout {
         if (profileUsername.isEmpty() && !profileError.isEmpty() && !profileLoading) words.addView(text(profileError, 12, () -> inkDim, false));
         photo.addView(words, weight());
         identity.addView(photo, fill(-2));
-        if (!profileUri.isEmpty()) settingsAction(identity, "Copy profile link", "Share your Spotify profile", () -> {
+        if (!profileUri.isEmpty()) settingsScreen.settingsAction(identity, "Copy profile link", "Share your Spotify profile", () -> {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
             String link = profileUri.startsWith("spotify:user:") ? "https://open.spotify.com/user/" + android.net.Uri.encode(profileUri.substring(13)) : profileUri;
             if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spotify profile", link));
@@ -1934,23 +1484,23 @@ public final class SpatchUi extends FrameLayout {
             : profileLoading ? "Checking your Spotify account…"
             : profileAt == 0 ? "Reload your name and photo from Spotify"
             : "Reload your name and photo from Spotify · Updated " + ago(profileAt);
-        settingsAction(identity, "Refresh profile", refreshSubtitle, () -> {
+        settingsScreen.settingsAction(identity, "Refresh profile", refreshSubtitle, () -> {
             profileAnnounce = true;
             Toast.makeText(activity, profileLoading ? "Still checking your Spotify account…" : "Checking your Spotify account…", Toast.LENGTH_SHORT).show();
             loadProfile(true);
         });
-        settingsAction(identity, "Sign in or switch account", "Opens Spotify’s own screens to sign in or add an account. If you’re already signed in, you don’t need this.", this::openLogin);
-        settingsAction(identity, "Sign in here (test)", "Spotify’s own sign-in screen, opened the way Spotify opens it", () -> {
+        settingsScreen.settingsAction(identity, "Sign in or switch account", "Opens Spotify’s own screens to sign in or add an account. If you’re already signed in, you don’t need this.", this::openLogin);
+        settingsScreen.settingsAction(identity, "Sign in here (test)", "Spotify’s own sign-in screen, opened the way Spotify opens it", () -> {
             String error = CoreBridge.openSpotifyLogin(activity);
             if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
         });
-        settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
+        settingsScreen.settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
         connectionCard(page);
-        LinearLayout music = card(page, "Your music");
-        settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
-        settingsAction(music, "Create a playlist", "Start a new collection", () -> { creation.pendingPlaylistSong = null; creation.openCreatePlaylist(false); });
-        settingsAction(music, "Your library, at a glance", "What's saved, and what you've played lately", () -> goFromLink(STATS));
-        settingsAction(music, "Settings", "Personalise Spatch", () -> openSettings(true));
+        LinearLayout music = settingsScreen.card(page, "Your music");
+        settingsScreen.settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
+        settingsScreen.settingsAction(music, "Create a playlist", "Start a new collection", () -> { creation.pendingPlaylistSong = null; creation.openCreatePlaylist(false); });
+        settingsScreen.settingsAction(music, "Your library, at a glance", "What's saved, and what you've played lately", () -> goFromLink(STATS));
+        settingsScreen.settingsAction(music, "Settings", "Personalise Spatch", () -> openSettings(true));
         return scrolling(page);
     }
 
@@ -1961,7 +1511,7 @@ public final class SpatchUi extends FrameLayout {
         pageHeading(page, "Your library", false);
         int[] counts = new int[4]; // playlists, albums, artists, podcasts, by chip index
         for (MediaEntry e : entries(-1, "", false, 4000)) if (e.category >= 0 && e.category < counts.length) counts[e.category]++;
-        LinearLayout glance = card(page, "Saved");
+        LinearLayout glance = settingsScreen.card(page, "Saved");
         if (motion()) {
             android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
             rise.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
@@ -1982,7 +1532,7 @@ public final class SpatchUi extends FrameLayout {
         TextView totalNote = text(total == 1 ? "1 item saved" : total + " items saved, across everything Spatch can see in your library", 12, () -> inkDim, false);
         totalNote.setPadding(dp(18), dp(4), dp(18), dp(12));
         glance.addView(totalNote);
-        shelf(page, "Recently played", recent, null);
+        homeScreen.shelf(page, "Recently played", homeScreen.recent, null);
         return scrolling(page);
     }
 
@@ -2000,291 +1550,30 @@ public final class SpatchUi extends FrameLayout {
         return field;
     }
 
-    private View createPage() { return homePage(); }
+    private View createPage() { return homeScreen.homePage(); }
 
-    // ================= search =================
 
-    private static final int HIT_FIELDS = 7;
-    private String searchQuery = "";
-    private String[] searchHits = new String[0];
-    private boolean searchBusy, catalogSearch = true;
-    private String catalogPage = "", catalogError = "";
-    private int searchRequest, imeInset;
-    private ScrollView searchScroll;
-    private LinearLayout searchResults;
-    private android.widget.EditText searchField;
 
-    private final Runnable searchRun = () -> runSearch("", searchRequest);
 
-    private void scheduleSearch() {
-        removeCallbacks(searchRun);
-        searchRequest++;
-        searchHits = new String[0];
-        catalogPage = catalogError = "";
-        searchBusy = !searchQuery.trim().isEmpty();
-        renderSearch();
-        if (searchBusy) postDelayed(searchRun, 300);
-    }
 
-    private void runSearch(String token, int id) {
-        final String q = searchQuery.trim();
-        final boolean online = catalogSearch;
-        searchBusy = true;
-        renderSearch();
-        submit(PLAYLISTS, () -> {
-            String[] found = null;
-            String next = "", error = "";
-            try {
-                if (online) {
-                    String[] response = unpackStrings(nativeCatalog(CoreBridge.search(q, token)));
-                    if (response == null || response.length == 0 || (response.length - 1) % 6 != 0)
-                        throw new IllegalStateException("Invalid search response");
-                    next = response[0];
-                    List<String> hits = new ArrayList<>();
-                    for (int i = 1; i + 5 < response.length; i += 6) {
-                        int category = parseInt(response[i + 4]);
-                        String section = category == 0 ? "Playlists" : category == 1 ? "Albums" : category == 2 ? "Artists"
-                            : category == 3 ? "Podcasts" : response[i + 2].startsWith("spotify:episode:") ? "Podcast episodes" : "Songs";
-                        java.util.Collections.addAll(hits, section, response[i], response[i + 1], response[i + 2],
-                            response[i + 3], response[i + 4], response[i + 5]);
-                    }
-                    found = hits.toArray(new String[0]);
-                } else {
-                    String[] offline = unpackStrings(nativeSearch(q));
-                    List<String> hits = new ArrayList<>();
-                    if (offline != null) for (int i = 0; i + 6 <= offline.length; i += 6) {
-                        for (int j = 0; j < 6; j++) hits.add(offline[i + j]);
-                        hits.add("0");
-                    }
-                    found = hits.toArray(new String[0]);
-                }
-            } catch (Exception failed) {
-                error = failed.toString();
-                android.util.Log.w("SpatchUi", "Search failed", failed);
-            }
-            String[] result = found;
-            String page = next, failure = error;
-            post(() -> {
-                if (id != searchRequest) return;
-                searchBusy = false;
-                catalogError = failure;
-                if (failure.isEmpty()) {
-                    List<String> merged = new ArrayList<>();
-                    Set<String> seen = new HashSet<>();
-                    if (!token.isEmpty()) {
-                        java.util.Collections.addAll(merged, searchHits);
-                        for (int i = 0; i + HIT_FIELDS <= searchHits.length; i += HIT_FIELDS) seen.add(searchHits[i + 3]);
-                    }
-                    if (result != null) for (int i = 0; i + HIT_FIELDS <= result.length; i += HIT_FIELDS) {
-                        if (seen.add(result[i + 3])) for (int j = 0; j < HIT_FIELDS; j++) merged.add(result[i + j]);
-                    }
-                    searchHits = merged.toArray(new String[0]);
-                    catalogPage = page.equals(token) ? "" : page;
-                }
-                renderSearch();
-            });
-        });
-    }
 
-    private List<String> recentSearches() {
-        List<String> out = new ArrayList<>();
-        for (String q : prefs.getString("recent_searches", "").split("\n")) if (!q.trim().isEmpty()) out.add(q.trim());
-        return out;
-    }
 
-    private void rememberSearch(String q) {
-        q = q.trim();
-        if (q.isEmpty()) return;
-        List<String> all = recentSearches();
-        all.remove(q);
-        all.add(0, q);
-        while (all.size() > 8) all.remove(all.size() - 1);
-        prefs.edit().putString("recent_searches", android.text.TextUtils.join("\n", all)).apply();
-    }
 
-    private View searchPage() {
-        LinearLayout page = column();
-        page.setPadding(0, inset.top, 0, 0);
-        pageHeading(page, "Search", true);
 
-        Pick searchIn = selected -> {
-            catalogSearch = selected == 0;
-            scheduleSearch();
-            showPage();
-        };
 
-        LinearLayout box = row();
-        box.setPadding(dp(16), 0, dp(8), 0);
-        bgRound(box, 26, () -> surf);
-        box.addView(icon("search", () -> inkDim), lp(dp(22), dp(22)));
-        android.widget.EditText field = new android.widget.EditText(activity);
-        field.setBackground(null);
-        field.setHint("Songs, albums, playlists, podcasts");
-        field.setHintTextColor(inkDim);
-        field.setTextColor(ink);
-        field.setTextSize(16);
-        field.setSingleLine(true);
-        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
-        field.setPadding(dp(12), 0, dp(4), 0);
-        field.setText(searchQuery);
-        box.addView(field, new LinearLayout.LayoutParams(0, dp(50), 1));
-        clearButton(box, field);
-        searchField = field;
 
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setVerticalScrollBarEnabled(false);
-        scroll.setClipToPadding(true);
-        scroll.setPadding(0, 0, 0, imeInset);
-        LinearLayout results = column();
-        results.setPadding(dp(18), dp(4), dp(18), dockRoom());
-        scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
-        scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> scrollDock(y - oldY, y <= 0));
-        if (landscape()) {
-            LinearLayout split = row();
-            LinearLayout left = column();
-            left.setGravity(Gravity.TOP);
-            left.setPadding(0, 0, 0, dockRoom());
-            LinearLayout.LayoutParams bp = fill(dp(50));
-            bp.setMargins(dp(18), dp(4), dp(10), dp(10));
-            left.addView(box, bp);
-            segmented(left, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
-            split.addView(left, new LinearLayout.LayoutParams(0, -1, .85f));
-            results.setPadding(dp(10), dp(4), dp(18), dockRoom());
-            split.addView(scroll, new LinearLayout.LayoutParams(0, -1, 1.25f));
-            page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1));
-        } else {
-            segmented(page, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
-            LinearLayout.LayoutParams bp = fill(dp(50));
-            bp.setMargins(dp(18), 0, dp(18), dp(8));
-            page.addView(box, bp);
-            page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        }
-        searchScroll = scroll;
-        searchResults = results;
 
-        field.addTextChangedListener(new android.text.TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void afterTextChanged(android.text.Editable e) {
-                searchQuery = e.toString();
-                scheduleSearch();
-            }
-        });
-        field.setOnEditorActionListener((v, action, event) -> { hideKeyboard(); return true; });
-        renderSearch();
-        return page;
-    }
-
-    /** Draws the results (or, with nothing typed, the recent searches and a note on what's searched). */
-    private void renderSearch() {
-        LinearLayout box = searchResults;
-        if (box == null || !box.isAttachedToWindow() && box.getParent() == null) return;
-        box.removeAllViews();
-        String q = searchQuery.trim();
-        if (q.isEmpty()) {
-            List<String> recents = recentSearches();
-            if (!recents.isEmpty()) {
-                LinearLayout head = row();
-                TextView title = text("Recent searches", 15, () -> ink, true);
-                head.addView(title, weight());
-                TextView clear = pill("Clear", () -> { prefs.edit().remove("recent_searches").apply(); renderSearch(); });
-                clear.setTextSize(12);
-                clear.setPadding(dp(14), 0, dp(14), 0);
-                head.addView(clear, lp(-2, dp(32)));
-                head.setPadding(0, dp(6), 0, dp(6));
-                box.addView(head, fill(-2));
-                for (String recent : recents) {
-                    LinearLayout line = row();
-                    line.setPadding(dp(4), dp(4), dp(4), dp(4));
-                    line.addView(icon("timer", () -> inkDim), lp(dp(20), dp(20)));
-                    TextView label = text(recent, 16, () -> ink, false);
-                    label.setPadding(dp(14), dp(10), dp(8), dp(10));
-                    oneLine(label);
-                    line.addView(label, weight());
-                    tappable(line, recent, .98f, () -> { searchField.setText(recent); searchField.setSelection(recent.length()); hideKeyboard(); });
-                    box.addView(line, fill(-2));
-                }
-            }
-            TextView note = text("Search Spotify’s catalog, or switch to On this device for your library and cached music.", 13, () -> inkDim, false);
-            note.setPadding(dp(2), dp(18), dp(2), 0);
-            box.addView(note, fill(-2));
-            return;
-        }
-        if (!catalogError.isEmpty()) {
-            TextView retry = pill("Couldn’t search Spotify · Retry", () -> runSearch(catalogPage, searchRequest));
-            box.addView(retry, fill(dp(48)));
-            return;
-        }
-        if (searchHits.length < HIT_FIELDS) {
-            if (searchBusy) {
-                box.addView(loader("Searching"), fill(-2));
-                return;
-            }
-            box.addView(emptyState("search", "badge8", "Nothing found for “" + q + "”",
-                catalogSearch ? "Try another title or artist." : "Searches your library and Spotify’s cached music on this device."), fill(-2));
-            return;
-        }
-        String section = "";
-        for (int i = 0; i + HIT_FIELDS <= searchHits.length; i += HIT_FIELDS) {
-            if (!searchHits[i].equals(section)) {
-                section = searchHits[i];
-                TextView header = text(section, 13, () -> accent, true);
-                header.setLetterSpacing(.04f);
-                header.setPadding(dp(4), dp(i == 0 ? 6 : 18), 0, dp(4));
-                box.addView(header, fill(-2));
-            }
-            MediaEntry e = new MediaEntry(searchHits[i + 1], searchHits[i + 2], searchHits[i + 3], searchHits[i + 4], parseInt(searchHits[i + 5]));
-            Row row = new Row();
-            row.bind(e);
-            if (isTrack(e.uri)) {
-                int ms = parseInt(searchHits[i + 6]);
-                row.length.setText(ms > 0 ? time(ms) : "");
-                row.length.setVisibility(ms > 0 ? VISIBLE : GONE);
-            }
-            row.setContentDescription(e.title);
-            row.setClickable(true);
-            row.setFocusable(true);
-            row.setOnClickListener(v -> {
-                tick(v);
-                rememberSearch(searchQuery);
-                if (!isTrack(e.uri)) captureFlight(row.art, e.image, e.category == 2);
-                open(e);
-            });
-            row.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
-            box.addView(row, fill(-2));
-        }
-        if (!catalogPage.isEmpty()) box.addView(pill(searchBusy ? "Loading…" : "Load more results", () -> {
-            if (!searchBusy) runSearch(catalogPage, searchRequest);
-        }), fill(dp(48)));
-    }
-
-    /** Long-press on a result: songs and episodes can play or queue; lists, albums and artists get the library menu. */
-    private static boolean isTrack(String uri) {
-        return uri.startsWith("spotify:track:") || uri.startsWith("spotify:episode:") || uri.startsWith("spotify:preview:");
-    }
-
-    private void searchActions(MediaEntry e) {
-        if (!e.uri.startsWith("spotify:track:") && !e.uri.startsWith("spotify:episode:") && !e.uri.startsWith("spotify:preview:")) { actions(e); return; }
-        sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Play next", "", "", "next", false), new Option("Add to queue", "", "", "queue", false), new Option("Add to playlist", "", "", "add", false), songDownloadOption(e)}, c -> {
-            if (c == 0) command(PLAY, 0, e.uri);
-            else if (c == 1) { command(QUEUE_NEXT, 0, e.uri); Toast.makeText(activity, "Playing next", Toast.LENGTH_SHORT).show(); }
-            else if (c == 3) addToPlaylist(e);
-            else if (c == 4) downloadTapped(e);
-            else { command(QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
-        });
-    }
-
-    private void goFromLink(int next) {
+    void goFromLink(int next) {
         if (next != tab && (tabHistory.isEmpty() || tabHistory.peek() != tab)) tabHistory.push(tab);
         go(next, true);
     }
 
-    private void go(int next) {
+    void go(int next) {
         tabHistory.clear();
         go(next, false);
     }
 
-    private void go(int next, boolean pushForward) {
+    void go(int next, boolean pushForward) {
         creation.closeCreateMenu();
         hideKeyboard();
         if (next == tab && playlist == null) return;
@@ -2292,314 +1581,40 @@ public final class SpatchUi extends FrameLayout {
         playlist = null;
         pageStack.clear();
         tab = next;
-        setDockHidden(false);
+        dockUi.setDockHidden(false);
         showPage();
-        updateDock();
+        dockUi.updateDock();
         enter((forward ? 1 : -1) * dp(36), 0);
     }
 
-    private void buildDock() {
-        dock.removeAllViews();
-        LinearLayout mini = row();
-        mini.setPadding(dp(8), dp(6), dp(8), dp(6));
-        // A hairline edge instead of an elevation shadow, which drew unevenly under the rounded, tinted pills.
-        dockPill(mini, 30, () -> blend(surfHi, accent, .12f));
-        mArt = artwork.new Art(Art.CIRCLE, true);
-        mArt.crossfade = true;
-        mini.addView(mArt, lp(dp(46), dp(46)));
-        LinearLayout words = column();
-        words.setPadding(dp(11), 0, dp(6), 0);
-        mTitle = text("", 15, () -> ink, true);
-        mArtist = text("", 12, () -> inkDim, false);
-        oneLine(mTitle); oneLine(mArtist);
-        words.addView(mTitle);
-        words.addView(mArtist);
-        mini.addView(words, weight());
-        mini.addView(skip(iconButton(icon("previous", () -> ink), "Previous", this::previousTrack), false), lp(dp(44), dp(44)));
-        mPlay = new PlayButton();
-        mini.addView(mPlay, lp(dp(50), dp(50)));
-        mini.addView(skip(iconButton(icon("next", () -> ink), "Next", () -> command(NEXT, 0, "")), true), lp(dp(44), dp(44)));
-        tappable(mini, "Open player", () -> openPlayer(true));
-        miniGestures(mini);
-        mini.setOnLongClickListener(v -> { currentSongActions(); return true; });
-        boolean rail = landscape();
-        LinearLayout.LayoutParams mp = fill(-2);
-        mp.bottomMargin = dp(8);
 
-        dockBar = new Navigator(rail);
-        dockBar.setGravity(Gravity.CENTER);
-        dockPill(dockBar, rail ? 32 : 28, () -> surf);
-        dockBar.setPadding(dp(5), dp(6), dp(5), dp(6));
-        if (rail) {
-            // The mini player folds into the rail's foot: the spinning cover (tap for the player, swipe to skip) over play.
-            mini.removeAllViews();
-            mini.setOrientation(LinearLayout.VERTICAL);
-            mini.setGravity(Gravity.CENTER_HORIZONTAL);
-            mini.setPadding(0, dp(8), 0, dp(6));
-            mini.addView(mArt, lp(dp(42), dp(42)));
-            LinearLayout.LayoutParams playAt = lp(dp(46), dp(46));
-            playAt.topMargin = dp(4);
-            mini.addView(mPlay, playAt);
-            dock.addView(dockBar, new LinearLayout.LayoutParams(dp(RAIL), -2));
-            dock.addView(space(1, 0), new LinearLayout.LayoutParams(1, 0, 1));
-            dock.addView(mini, new LinearLayout.LayoutParams(dp(RAIL), -2));
-        } else {
-            dock.addView(mini, mp);
-            dock.addView(dockBar, fill(dp(56)));
-        }
-        updateDock();
-        refresh();
-    }
 
-    private void navigate(int destination) {
-        if (destination == CREATE) {
-            if (creation.createOverlay == null) creation.openCreateMenu(); else creation.closeCreateMenu();
-        } else if (destination == SETTINGS) openSettings(false);
-        else go(destination);
-    }
 
-    void updateDock() {
-        if (dockBar == null) return;
-        String[] names = {"Home", "Search", "Library", "Create"}, glyphs = {"home", "search", "library", "add"};
-        if (dockBar.getChildCount() == 0) {
-            for (int i = 0; i < names.length; i++) {
-                final int index = NAV_TABS[i];
-                LinearLayout item = row();
-                item.setGravity(Gravity.CENTER);
-                item.addView(icon(glyphs[i], () -> ink), lp(dp(25), dp(25)));
-                tappable(item, names[i], () -> navigate(index));
-                dockBar.addView(item, dockBar.vertical ? new LinearLayout.LayoutParams(-1, dp(46)) : new LinearLayout.LayoutParams(0, dp(46), 1));
-            }
-        }
-        for (int i = 0; i < NAV_TABS.length; i++) if (NAV_TABS[i] == CREATE) {
-            Icon add = (Icon) ((ViewGroup) dockBar.getChildAt(i)).getChildAt(0);
-            float targetRotation = creation.createOverlay == null ? 0f : 45f;
-            if (!Float.valueOf(targetRotation).equals(add.getTag())) {
-                add.setTag(targetRotation);
-                add.animate().cancel();
-                if (motion()) add.animate().rotation(targetRotation).setDuration(260).setInterpolator(EMPHASIZED).start();
-                else add.setRotation(targetRotation);
-            }
-            dockBar.getChildAt(i).setContentDescription(creation.createOverlay == null ? "Create" : "Close create menu");
-        }
-        recolorView(dockBar);
-        dockBar.setDestination(creation.createOverlay != null ? CREATE : playlist == null ? tab : -1);
-    }
 
-    private final class DockScroll implements android.widget.AbsListView.OnScrollListener {
-        private int lastFirst = -1, lastTop;
-        public void onScrollStateChanged(android.widget.AbsListView view, int state) {}
-        public void onScroll(android.widget.AbsListView view, int first, int visible, int total) {
-            if (view.getChildCount() == 0) return;
-            int top = view.getChildAt(0).getTop();
-            int delta = lastFirst < 0 ? 0 : first == lastFirst ? lastTop - top : first > lastFirst ? dp(48) : -dp(48);
-            lastFirst = first; lastTop = top;
-            scrollDock(delta, first == 0 && top >= view.getPaddingTop());
-        }
-    }
 
-    final class Navigator extends LinearLayout {
-        private float startX, startY, indicatorX = -1, indicatorTarget = -1;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private android.animation.ValueAnimator slide;
-        private boolean draggingSlide;
-        private long lastTickMs;
-        private int destination = HOME;
-        /** Down a side rail (landscape) instead of across the bottom: the indicator, drags and taps follow the long axis. */
-        final boolean vertical;
-        Navigator(boolean vertical) { super(activity); this.vertical = vertical; setOrientation(vertical ? VERTICAL : HORIZONTAL); }
-        private float along(MotionEvent e) { return vertical ? e.getY() : e.getX(); }
-        private float across(MotionEvent e) { return vertical ? e.getX() : e.getY(); }
-        private float length() { return vertical ? getHeight() : getWidth(); }
-        private float middle(View child) { return vertical ? (child.getTop() + child.getBottom()) / 2f : (child.getLeft() + child.getRight()) / 2f; }
 
-        void setDestination(int target) {
-            destination = target;
-            if (navDragging || length() == 0) return;
-            float x = -1;
-            for (int i = 0; i < getChildCount(); i++) if (NAV_TABS[i] == target) {
-                x = middle(getChildAt(i));
-            }
-            settleIndicator(x);
-        }
-        private void settleIndicator(float x) {
-            if (x == indicatorTarget && !draggingSlide) return;
-            indicatorTarget = x;
-            draggingSlide = false;
-            if (slide != null) slide.cancel();
-            if (!motion() || indicatorX < 0 || x < 0) { indicatorX = x; invalidate(); return; }
-            slide = android.animation.ValueAnimator.ofFloat(indicatorX, x);
-            slide.setDuration(240);
-            slide.setInterpolator(EMPHASIZED);
-            slide.addUpdateListener(a -> { indicatorX = (float) a.getAnimatedValue(); invalidate(); });
-            slide.start();
-        }
-        private void chaseIndicator(float x) {
-            indicatorTarget = x;
-            if (!motion() || indicatorX < 0 || x < 0) { indicatorX = x; invalidate(); return; }
-            if (slide != null && slide.isRunning() && draggingSlide) return;
-            if (slide != null) slide.cancel();
-            draggingSlide = true;
-            lastTickMs = -1;
-            slide = android.animation.ValueAnimator.ofFloat(0f, 1f);
-            slide.setDuration(1000);
-            slide.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-            slide.setInterpolator(new android.view.animation.LinearInterpolator());
-            slide.addUpdateListener(a -> {
-                long now = a.getCurrentPlayTime();
-                if (lastTickMs < 0) {
-                    lastTickMs = now;
-                    if (now == 0) return;
-                }
-                long rawDt = now >= lastTickMs ? now - lastTickMs : (1000 - lastTickMs) + now;
-                lastTickMs = now;
-                if (rawDt == 0) return;
-                long dt = Math.min(50, rawDt);
-                float alpha = 1f - (float) Math.exp(-dt * 0.032f);
-                float next = indicatorX + (indicatorTarget - indicatorX) * alpha;
-                if (Math.abs(indicatorTarget - next) < 0.5f) {
-                    indicatorX = indicatorTarget;
-                    invalidate();
-                    if (!navDragging) { draggingSlide = false; a.cancel(); }
-                } else {
-                    indicatorX = next;
-                    invalidate();
-                }
-            });
-            slide.start();
-        }
-        @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
-            super.onLayout(changed, l, t, r, b);
-            setDestination(destination);
-        }
-        private float indicatorHalf() {
-            float room = vertical ? getHeight() - getPaddingTop() - getPaddingBottom() : getWidth() - getPaddingLeft() - getPaddingRight();
-            return Math.min(vertical ? dp(26) : dp(34), room / (2f * Math.max(1, getChildCount())) - dp(3));
-        }
-        @Override protected void dispatchDraw(Canvas canvas) {
-            if (indicatorX >= 0) {
-                paint.setColor(blend(surf, accent, navDragging ? .38f : .25f));
-                float half = indicatorHalf();
-                if (vertical) canvas.drawRoundRect(dp(6), indicatorX - half, getWidth() - dp(6), indicatorX + half, dp(22), dp(22), paint);
-                else canvas.drawRoundRect(indicatorX - half, dp(8), indicatorX + half, getHeight() - dp(8), dp(22), dp(22), paint);
-            }
-            super.dispatchDraw(canvas);
-        }
-        @Override protected void onDetachedFromWindow() { if (slide != null) slide.cancel(); draggingSlide = false; super.onDetachedFromWindow(); }
-        private void follow(MotionEvent event) {
-            float edge = Math.max(dp(24), (vertical ? getPaddingTop() : getPaddingLeft()) + indicatorHalf() + dp(3));
-            chaseIndicator(Math.max(edge, Math.min(length() - edge, along(event))));
-            int target = targetAt(event);
-            if (target >= 0 && target != navHover) {
-                navHover = target;
-                if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
-            }
-        }
-        @Override public boolean onInterceptTouchEvent(MotionEvent event) {
-            if (!pref("nav_drag", true)) return false;
-            int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN) {
-                startX = along(event); startY = across(event); navDragging = false;
-            } else if (action == MotionEvent.ACTION_MOVE
-                && Math.abs(along(event) - startX) > dp(6)
-                && Math.abs(along(event) - startX) >= Math.abs(across(event) - startY)) {
-                navDragging = true;
-                follow(event);
-                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
-                return true;
-            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                navDragging = false;
-            }
-            return navDragging;
-        }
-        @Override public boolean onTouchEvent(MotionEvent event) {
-            int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN && pref("nav_drag", true)) {
-                startX = along(event); startY = across(event); navDragging = false;
-                return true;
-            }
-            if (!navDragging) {
-                if (pref("nav_drag", true) && action == MotionEvent.ACTION_MOVE
-                    && Math.abs(along(event) - startX) > dp(6)
-                    && Math.abs(along(event) - startX) >= Math.abs(across(event) - startY)) {
-                    navDragging = true;
-                    follow(event);
-                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
-                    return true;
-                }
-                if (action == MotionEvent.ACTION_UP) {
-                    int target = targetAt(event);
-                    if (target >= 0) navigate(target);
-                    return true;
-                }
-                return super.onTouchEvent(event);
-            }
-            if (action == MotionEvent.ACTION_MOVE) follow(event);
-            else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                int target = targetAt(event);
-                navHover = -1; navDragging = false;
-                if (action == MotionEvent.ACTION_UP && target >= 0) navigate(target);
-                updateDock();
-            }
-            return true;
-        }
-        private int targetAt(MotionEvent event) {
-            int count = getChildCount();
-            if (count == 0) return -1;
-            float slop = dp(16), cross = vertical ? getWidth() : getHeight();
-            if (across(event) < -slop || across(event) > cross + slop) return -1;
-            if (along(event) < 0 || along(event) > length()) return -1;
-            View first = getChildAt(0), last = getChildAt(count - 1);
-            float at = Math.max(vertical ? first.getTop() : first.getLeft(), Math.min(vertical ? last.getBottom() : last.getRight(), along(event)));
-            for (int i = 0; i < count; i++) {
-                View child = getChildAt(i);
-                if (at >= (vertical ? child.getTop() : child.getLeft()) && at <= (vertical ? child.getBottom() : child.getRight())) return NAV_TABS[i];
-            }
-            return -1;
-        }
-    }
-
-    void setDockHidden(boolean hidden) {
-        if (dock == null) return;
-        hidden = hidden && pref("auto_hide_dock", false) && !playerOpen && !landscape(); // the rail covers nothing
-        if (dockHidden == hidden) return;
-        dockHidden = hidden;
-        float target = hidden ? dock.getHeight() + dp(24) : 0;
-        dock.animate().cancel();
-        dock.animate().translationY(target).alpha(hidden ? 0 : 1).setDuration(motion() ? 240 : 0).setInterpolator(EMPHASIZED).start();
-        if (dockFade != null) dockFade.animate().alpha(hidden ? 0 : 1).setDuration(motion() ? 240 : 0).start();
-    }
-
-    private void scrollDock(int delta, boolean atTop) {
-        if (!pref("auto_hide_dock", false) || playerOpen || sheetClose != null || creation.createOverlay != null || queuePanel != null) return;
-        if (atTop) { scrollTravel = 0; setDockHidden(false); return; }
-        if (Integer.signum(delta) != Integer.signum(scrollTravel)) scrollTravel = 0;
-        scrollTravel += delta;
-        if (scrollTravel > dp(32)) setDockHidden(true);
-        else if (scrollTravel < -dp(18)) setDockHidden(false);
-    }
 
     void showPage() {
         scrollTravel = 0;
-        setDockHidden(false);
+        dockUi.setDockHidden(false);
         if (playlist == null && watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
-        if (flightView != null) { removeView(flightView); flightView = null; }
+        if (playlistScreen.flightView != null) { removeView(playlistScreen.flightView); playlistScreen.flightView = null; }
         rememberScroll();
         pageHost.removeAllViews();
         pageScroll = null;
         pageList = null;
         libraryList = null;
         heroArt = null; heroTitle = heroArtist = null;
-        View page = playlist != null ? playlistPage() : tab == HOME ? homePage() : tab == SEARCH ? searchPage() : tab == LIBRARY ? libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : tab == STATS ? statsPage() : settingsPage();
+        View page = playlist != null ? playlistScreen.playlistPage() : tab == HOME ? homeScreen.homePage() : tab == SEARCH ? searchScreen.searchPage() : tab == LIBRARY ? libraryScreen.libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : tab == STATS ? statsPage() : settingsScreen.settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         shownKey = pageKey();
         restoreScroll();
         if (tab != SETTINGS && playlist == null) refreshLibraryIfStale();
-        if ((tab == HOME || tab == STATS) && playlist == null) loadRecentIfStale();
+        if ((tab == HOME || tab == STATS) && playlist == null) homeScreen.loadRecentIfStale();
         refresh();
     }
 
-    private ScrollView scrolling(LinearLayout content) {
+    ScrollView scrolling(LinearLayout content) {
         ScrollView s = new ScrollView(activity);
         s.setVerticalScrollBarEnabled(false);
         s.setClipToPadding(false);
@@ -2607,194 +1622,13 @@ public final class SpatchUi extends FrameLayout {
         content.setPadding(dp(18), dp(10), dp(18), dockRoom());
         content.setClipToPadding(false); // edge-to-edge shelves draw into the side padding
         s.addView(content, new ScrollView.LayoutParams(-1, -2));
-        s.setOnScrollChangeListener((view, x, y, oldX, oldY) -> scrollDock(y - oldY, y <= 0));
+        s.setOnScrollChangeListener((view, x, y, oldX, oldY) -> dockUi.scrollDock(y - oldY, y <= 0));
         pageScroll = s;
         return s;
     }
 
-    // ---------- Home ----------
 
-    private View homePage() {
-        LinearLayout page = column();
-        int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        final String shapeKey = hour < 5 ? "badge4" : hour < 12 ? "badge8" : hour < 18 ? "badge6" : "button5";
-        View greetBadge = new View(activity) {
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Path path = new Path();
-            @Override protected void onDraw(Canvas c) {
-                float w = getWidth(), h = getHeight(), s = Math.min(w, h), cx = w / 2f, cy = h / 2f;
-                if (s <= 0) return;
-                float[] pts = GLYPHS.get(shapeKey);
-                if (pts != null && pts.length >= 6) {
-                    float r = s * .46f;
-                    path.rewind();
-                    for (int i = 0; i < pts.length; i += 2) {
-                        float x = cx + pts[i] * r, y = cy + pts[i + 1] * r;
-                        if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
-                    }
-                    path.close();
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(blend(surfHi, accent, dark ? .34f : .24f));
-                    c.drawPath(path, paint);
-                }
-                c.save();
-                float gs = s * .48f;
-                c.translate(cx - gs / 2f, cy - gs / 2f);
-                drawGlyph(c, paint, path, "sparkle", accent, gs);
-                c.restore();
-            }
-        };
-        colored(greetBadge, greetBadge::invalidate);
-        TextView h = pageHeading(page, hour < 5 ? "Up late?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening", false, greetBadge);
-        final float[] greetSpin = {0f};
-        Runnable spinGreet = () -> {
-            tick(greetBadge);
-            greetSpin[0] += 360f;
-            if (motion()) {
-                greetBadge.animate().cancel();
-                greetBadge.setScaleX(1.16f);
-                greetBadge.setScaleY(1.16f);
-                greetBadge.animate().rotation(greetSpin[0]).scaleX(1f).scaleY(1f).setDuration(560)
-                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.15f)).start();
-            } else {
-                greetBadge.setRotation(greetSpin[0] % 360f);
-            }
-        };
-        greetBadge.setClickable(true);
-        greetBadge.setFocusable(true);
-        greetBadge.setContentDescription("Spin greeting icon");
-        greetBadge.setOnClickListener(v -> spinGreet.run());
-        h.setClickable(true);
-        h.setOnClickListener(v -> spinGreet.run());
-        // Expressive type: the first time Home appears the greeting swells from light to bold (variable fonts only).
-        if (!greeted && motion() && pref("expressive_type", true) && h.getFontVariationSettings() != null) {
-            greeted = true;
-            android.animation.ValueAnimator swell = android.animation.ValueAnimator.ofInt(250, 720);
-            swell.setDuration(900);
-            swell.setStartDelay(120);
-            swell.setInterpolator(EMPHASIZED);
-            swell.addUpdateListener(a -> h.setFontVariationSettings("'wght' " + a.getAnimatedValue() + ", 'ROND' 100"));
-            h.setFontVariationSettings("'wght' 250, 'ROND' 100");
-            swell.start();
-        }
-        TextView sub = text("Here’s your music", 15, () -> inkDim, false);
-        sub.setPadding(0, 0, 0, dp(16));
-        page.addView(sub);
 
-        FrameLayout hero = new FrameLayout(activity);
-        bgRound(hero, 30, () -> surf);
-        hero.setClipToOutline(true);
-        heroArt = artwork.new Art(Art.WIDE, false);
-        heroArt.crossfade = true;
-        hero.addView(heroArt, new LayoutParams(-1, -1));
-        View scrim = new View(activity);
-        GradientDrawable scrimBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{surf & 0x00ffffff, (surf & 0x00ffffff) | 0xc8000000, surf});
-        scrim.setBackground(scrimBg);
-        colored(scrim, () -> scrimBg.setColors(new int[]{surf & 0x00ffffff, (surf & 0x00ffffff) | 0xc8000000, surf}));
-        hero.addView(scrim, new LayoutParams(-1, dp(130), Gravity.BOTTOM));
-        LinearLayout words = column();
-        words.setPadding(dp(18), 0, dp(84), dp(16));
-        heroTitle = text("", 26, () -> ink, true);
-        heroArtist = text("", 14, () -> inkDim, false);
-        oneLine(heroTitle); oneLine(heroArtist);
-        words.addView(heroTitle);
-        words.addView(heroArtist);
-        hero.addView(words, new LayoutParams(-1, -2, Gravity.BOTTOM));
-        // Play or pause right from the banner.
-        PlayButton heroPlay = new PlayButton();
-        heroPlay.set(pending != null ? pending : playing);
-        LayoutParams hp = new LayoutParams(dp(58), dp(58), Gravity.BOTTOM | Gravity.END);
-        hp.setMargins(0, 0, dp(16), dp(14));
-        hero.addView(heroPlay, hp);
-        tappable(hero, "Open player", () -> openPlayer(true));
-
-        LinearLayout liked = row();
-        liked.setPadding(dp(14), dp(12), dp(16), dp(12));
-        GradientDrawable lg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{blend(surfHi, accent2, .28f), blend(surfHi, accent, .22f)});
-        lg.setCornerRadius(dp(26));
-        liked.setBackground(lg);
-        colored(liked, () -> lg.setColors(new int[]{blend(surfHi, accent2, .28f), blend(surfHi, accent, .22f)}));
-        FrameLayout badge = new FrameLayout(activity);
-        bgRound(badge, 18, () -> (ink & 0x00ffffff) | 0x26000000);
-        badge.addView(icon("heart", () -> ink), new LayoutParams(dp(22), dp(22), Gravity.CENTER));
-        liked.addView(badge, lp(dp(44), dp(44)));
-        LinearLayout lw = column();
-        lw.setPadding(dp(14), 0, 0, 0);
-        TextView likedTitle = text("Liked Songs", 17, () -> ink, true);
-        TextView likedSub = text("Everything you’ve hearted", 13, () -> inkDim, false);
-        oneLine(likedTitle); oneLine(likedSub);
-        lw.addView(likedTitle);
-        lw.addView(likedSub);
-        liked.addView(lw, weight());
-        tappable(liked, "Open Liked Songs", () -> openPlaylist(new MediaEntry("Liked Songs", "", "spotify:collection:tracks", "", 0)));
-
-        if (landscape()) {
-            LinearLayout topRow = row();
-            topRow.addView(hero, new LinearLayout.LayoutParams(0, dp(190), 1.45f));
-            LinearLayout quickCol = column();
-            quickCol.addView(liked, new LinearLayout.LayoutParams(-1, 0, 1f));
-            LinearLayout queueCard = row();
-            queueCard.setPadding(dp(14), dp(12), dp(16), dp(12));
-            bgRound(queueCard, 26, () -> surfHi);
-            FrameLayout qBadge = new FrameLayout(activity);
-            bgRound(qBadge, 18, () -> (ink & 0x00ffffff) | 0x1a000000);
-            qBadge.addView(icon("queue", () -> ink), new LayoutParams(dp(22), dp(22), Gravity.CENTER));
-            queueCard.addView(qBadge, lp(dp(44), dp(44)));
-            LinearLayout qw = column();
-            qw.setPadding(dp(14), 0, 0, 0);
-            TextView qTitle = text("Up next", 17, () -> ink, true);
-            TextView qSub = text(upcoming.isEmpty() ? "Open your queue" : upcoming.get(0).title, 13, () -> inkDim, false);
-            oneLine(qTitle); oneLine(qSub);
-            qw.addView(qTitle);
-            qw.addView(qSub);
-            queueCard.addView(qw, weight());
-            tappable(queueCard, "Open queue", this::openQueue);
-            LinearLayout.LayoutParams qcp = new LinearLayout.LayoutParams(-1, 0, 1f);
-            qcp.topMargin = dp(10);
-            quickCol.addView(queueCard, qcp);
-            LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(0, dp(190), 1f);
-            colParams.leftMargin = dp(14);
-            topRow.addView(quickCol, colParams);
-            page.addView(topRow, fill(dp(190)));
-        } else {
-            page.addView(hero, fill(dp(200)));
-            LinearLayout.LayoutParams likedParams = fill(-2);
-            likedParams.topMargin = dp(12);
-            page.addView(liked, likedParams);
-        }
-
-        boolean any = false, hidden = false;
-        if (!pref("home_recent", true)) hidden = true;
-        else if (!recent.isEmpty()) any |= shelf(page, "Recently played", recent, null);
-        for (int c = 0; c < SECTIONS.length; c++) {
-            final int category = c;
-            if (!pref("home_shelf_" + c, true)) { hidden = true; continue; }
-            any |= shelf(page, SECTIONS[c], entries(c, 14), () -> { filter = category; goFromLink(LIBRARY); });
-        }
-        if (!any && (!hidden || !libraryReady)) {
-            TextView note = text(libraryStatus, 14, () -> inkDim, false);
-            note.setPadding(dp(4), dp(24), 0, 0);
-            page.addView(note);
-            libraryRecoveryActions(page, false);
-        }
-        return scrolling(page);
-    }
-
-    private void libraryRecoveryActions(LinearLayout page, boolean edgeToEdge) {
-        // A pending/failed library request does not establish that the account is signed out.
-        if (libraryReady || fetching || libraryStatus.startsWith("Connecting")) return;
-        LinearLayout actions = row();
-        if (edgeToEdge) actions.setPadding(dp(22), 0, dp(22), 0);
-        actions.addView(pill("Retry", () -> {
-            if (fetching) return;
-            libraryStatus = "Connecting to your library…";
-            loadLibrary();
-            showPageKeepingPlace();
-        }));
-        actions.addView(space(dp(10), 1));
-        actions.addView(pill("Open Spotify", this::openNativeSpotify));
-        page.addView(actions, lp(-2, -2));
-    }
 
     TextView pill(String label, Runnable action) {
         TextView v = text(label, 14, onAccent, true);
@@ -2810,23 +1644,23 @@ public final class SpatchUi extends FrameLayout {
         return v;
     }
 
-    private static List<MediaEntry> entryList(String[] f) {
+    static List<MediaEntry> entryList(String[] f) {
         List<MediaEntry> out = new ArrayList<>();
         if (f == null) return out;
-        for (int i = 0; i + 4 < f.length; i += 5) out.add(new MediaEntry(f[i], f[i + 1], f[i + 2], f[i + 3], parseInt(f[i + 4])));
+        for (int i = 0; i + 4 < f.length; i += 5) out.add(new MediaEntry(f[i], f[i + 1], f[i + 2], f[i + 3], PlaylistScreen.parseInt(f[i + 4])));
         return out;
     }
 
     /** Library items for a chip (-1 for all), searched and sorted by Rust. */
-    private List<MediaEntry> entries(int category, String search, boolean alphabetical, int limit) {
+    List<MediaEntry> entries(int category, String search, boolean alphabetical, int limit) {
         if (category == DOWNLOADED) {
             List<MediaEntry> out = new ArrayList<>();
             Set<String> seen = new HashSet<>();
             for (MediaEntry e : entryList(unpackStrings(nativeEntries(-1, search, alphabetical, 400)))) {
-                if (downloadState(e.uri) != 0 && out.size() < limit && seen.add(e.uri)) out.add(e);
+                if (downloadsScreen.downloadState(e.uri) != 0 && out.size() < limit && seen.add(e.uri)) out.add(e);
             }
             String[] words = search.toLowerCase(java.util.Locale.ROOT).trim().split("\\s+");
-            for (MediaEntry e : downloadDetails.values()) {
+            for (MediaEntry e : downloadsScreen.downloadDetails.values()) {
                 if (out.size() >= limit || !seen.add(e.uri)) continue;
                 String text = (e.title + " " + e.subtitle).toLowerCase(java.util.Locale.ROOT);
                 boolean matches = true;
@@ -2839,399 +1673,21 @@ public final class SpatchUi extends FrameLayout {
         return entryList(unpackStrings(nativeEntries(category, search, alphabetical, limit)));
     }
 
-    private List<MediaEntry> entries(int category, int limit) { return entries(category, "", false, limit); }
+    List<MediaEntry> entries(int category, int limit) { return entries(category, "", false, limit); }
 
-    // ---- Spotify's own recently played, loaded in the background ----
-    private List<MediaEntry> recent = new ArrayList<>();
-    private long recentAt;
-    private boolean loadingRecent;
 
-    private void loadRecentIfStale() {
-        long now = SystemClock.uptimeMillis();
-        if (!libraryReady || loadingRecent || (recentAt != 0 && now - recentAt < 60_000)) return;
-        loadingRecent = true;
-        boolean first = recentAt == 0 && recent.isEmpty();
-        submit(PLAYLISTS, () -> {
-            if (first) {
-                String[] saved = unpackStrings(nativeCached("recent"));
-                if (saved != null) post(() -> {
-                    if (!recent.isEmpty()) return;
-                    recent = entryList(saved);
-                    if ((tab == HOME || tab == STATS) && playlist == null && sheetClose == null) showPage();
-                });
-            }
-            byte[] freshBytes = nativeRecent();
-            if (freshBytes != null && freshBytes.length > 0) nativeRemember("recent", freshBytes);
-            List<MediaEntry> got = entryList(unpackStrings(freshBytes));
-            post(() -> {
-                loadingRecent = false;
-                recentAt = SystemClock.uptimeMillis();
-                if (got.isEmpty() || got.equals(recent)) return;
-                recent = got;
-                if ((tab == HOME || tab == STATS) && playlist == null && sheetClose == null) showPage();
-            });
-        });
-    }
 
-    private boolean shelf(LinearLayout page, String heading, List<MediaEntry> items, Runnable seeAll) {
-        if (items.isEmpty()) return false;
-        LinearLayout head = row();
-        head.setPadding(0, dp(24), 0, dp(10));
-        head.addView(text(heading, 22, () -> ink, true), weight());
-        if (seeAll != null) {
-            TextView all = text("See all", 14, () -> accent, true);
-            tappable(all, "See all " + heading, seeAll);
-            head.addView(all);
-        }
-        page.addView(head, fill(-2));
-        HorizontalScrollView scroller = new HorizontalScrollView(activity);
-        scroller.setHorizontalScrollBarEnabled(false);
-        LinearLayout tiles = row();
-        int width = Math.max(120, Math.min(160, (getResources().getConfiguration().screenWidthDp - 50) / 2));
-        for (MediaEntry e : items) {
-            LinearLayout tile = column();
-            Art art = artwork.new Art(e.category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
-            art.letter = initial(e.title);
-            art.heart = liked(e.uri) && e.image.isEmpty();
-            art.bind(e.image);
-            FrameLayout cover = new FrameLayout(activity);
-            cover.addView(art, new LayoutParams(-1, -1));
-            // What's playing gets the little moving bars in a chip on its cover.
-            if (playingFrom(e.uri)) {
-                FrameLayout chip = new FrameLayout(activity);
-                bgRound(chip, 12, () -> (bg & 0x00ffffff) | 0xcc000000);
-                chip.addView(new Bars(), new LayoutParams(dp(16), dp(14), Gravity.CENTER));
-                LayoutParams cp = new LayoutParams(dp(34), dp(26), Gravity.BOTTOM | Gravity.END);
-                cp.setMargins(0, 0, dp(e.category == 2 ? 18 : 8), dp(e.category == 2 ? 18 : 8));
-                cover.addView(chip, cp);
-            }
-            int shelfDownload = downloadState(e.uri);
-            if (shelfDownload != 0) {
-                LayoutParams hp = new LayoutParams(dp(26), dp(26), Gravity.BOTTOM | Gravity.START);
-                hp.setMargins(dp(8), 0, 0, dp(8));
-                cover.addView(downloadChip(shelfDownload), hp);
-            }
-            tile.addView(cover, lp(dp(width), dp(width)));
-            TextView name = text(e.title, 14, () -> playingFrom(e.uri) ? accent : ink, true);
-            oneLine(name);
-            name.setPadding(dp(2), dp(8), dp(2), 0);
-            tile.addView(name);
-            if (!e.subtitle.isEmpty()) {
-                TextView sub = text(e.subtitle, 12, () -> inkDim, false);
-                oneLine(sub);
-                sub.setPadding(dp(2), 0, dp(2), 0);
-                tile.addView(sub);
-            }
-            if (!e.uri.isEmpty()) tappable(tile, e.title, () -> { captureFlight(art, e.image, e.category == 2); open(e); });
-            LinearLayout.LayoutParams p = lp(dp(width), -2);
-            p.rightMargin = dp(14);
-            tiles.addView(tile, p);
-        }
-        scroller.addView(tiles);
-        // Shelves run edge to edge, so cards scroll off the screen rather than being cut at the page margin.
-        scroller.setClipToPadding(false);
-        scroller.setPadding(dp(18), 0, dp(18), 0);
-        LinearLayout.LayoutParams sp = fill(-2);
-        sp.leftMargin = -dp(18);
-        sp.rightMargin = -dp(18);
-        page.addView(scroller, sp);
-        return true;
-    }
 
-    // ---------- Library ----------
 
-    /** Scrolls a horizontal filter strip only if `chip` is clipped near an edge, avoiding jarring recentering jumps. */
-    private void ensureChipVisible(HorizontalScrollView scroll, View chip, View container) {
-        if (scroll == null || chip == null || scroll.getWidth() <= 0 || chip.getWidth() <= 0) return;
-        int origin = container != null ? container.getLeft() : 0;
-        int left = origin + chip.getLeft(), right = left + chip.getWidth();
-        int cur = scroll.getScrollX(), viewW = scroll.getWidth(), pad = dp(16);
-        if (left < cur + pad) scroll.smoothScrollTo(Math.max(0, left - pad), 0);
-        else if (right > cur + viewW - pad) scroll.smoothScrollTo(Math.max(0, right - viewW + pad), 0);
-    }
 
-    private View libraryPage() {
-        LinearLayout page = column();
-        page.setPadding(0, inset.top, 0, 0);
-        if (!tabHistory.isEmpty() && tabHistory.peek() == PROFILE) {
-            page.addView(backHeader("Profile", true), lp(-2, dp(36)));
-        }
-        pageHeading(page, "Library", true);
 
-        boolean land = landscape();
-        LinearLayout search = row();
-        search.setPadding(dp(16), 0, dp(8), 0);
-        bgRound(search, 26, () -> surf);
-        search.addView(icon("search", () -> inkDim), lp(dp(22), dp(22)));
-        android.widget.EditText field = new android.widget.EditText(activity);
-        field.setBackground(null);
-        field.setHint("Search your library");
-        colored(field, () -> { field.setHintTextColor(inkDim); field.setTextColor(ink); });
-        field.setTextSize(16);
-        field.setSingleLine(true);
-        field.setPadding(dp(12), 0, dp(4), 0);
-        field.setText(query);
-        search.addView(field, new LinearLayout.LayoutParams(0, dp(land ? 44 : 50), 1));
-        clearButton(search, field);
 
-        HorizontalScrollView chipScroll = new HorizontalScrollView(activity);
-        chipScroll.setHorizontalScrollBarEnabled(false);
-        chipScroll.setHorizontalFadingEdgeEnabled(true);
-        chipScroll.setFadingEdgeLength(dp(24));
-        chipScroll.setPadding(dp(land ? 12 : 18), 0, dp(land ? 4 : 18), dp(land ? 0 : 6));
-        LinearLayout chips = row();
-        boolean[] azState = { pref("library_az", false) };
-        TextView sort = text(azState[0] ? "A–Z" : "Recent", 14, ink, true);
-        sort.setGravity(Gravity.CENTER);
-        sort.setPadding(dp(16), 0, dp(16), 0);
-        GradientDrawable sortBg = round(surfHi, 19);
-        sort.setBackground(sortBg);
-        colored(sort, () -> { sort.setTextColor(ink); sortBg.setColor(surfHi); });
-        chips.addView(sort, lp(-2, dp(38)));
-        chips.addView(space(dp(8), 1));
-        boolean[] gridState = { pref("library_grid", false) };
-        TextView layout = text(gridState[0] ? "Grid" : "List", 14, ink, true);
-        layout.setGravity(Gravity.CENTER);
-        layout.setPadding(dp(16), 0, dp(16), 0);
-        GradientDrawable layoutBg = round(surfHi, 19);
-        layout.setBackground(layoutBg);
-        colored(layout, () -> { layout.setTextColor(ink); layoutBg.setColor(surfHi); });
-        chips.addView(layout, lp(-2, dp(38)));
-        chips.addView(space(dp(8), 1));
 
-        int count = SECTIONS.length + 2;
-        TextView[] filterChips = new TextView[count];
-        View filterPill = new View(activity);
-        bgRound(filterPill, 19, () -> accent);
-        LinearLayout filterRow = row();
-        FrameLayout filterTrack = new FrameLayout(activity) {
-            private boolean placed;
-            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
-                super.onLayout(changed, l, t, r, b);
-                int sel = Math.max(0, Math.min(count - 1, filter + 1));
-                TextView target = filterChips[sel];
-                if (!placed && target != null && target.getWidth() > 0) {
-                    placed = true;
-                    int tw = target.getWidth(), th = Math.max(1, getHeight());
-                    LayoutParams lp = (LayoutParams) filterPill.getLayoutParams();
-                    lp.width = tw;
-                    filterPill.measure(MeasureSpec.makeMeasureSpec(tw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(th, MeasureSpec.EXACTLY));
-                    filterPill.layout(0, 0, tw, th);
-                    filterPill.setTranslationX(target.getLeft());
-                }
-            }
-        };
-        bgRound(filterTrack, 19, () -> surf);
-        filterTrack.addView(filterPill, new LayoutParams(0, dp(38)));
-        filterTrack.addView(filterRow, new LayoutParams(-2, dp(38)));
-
-        for (int i = -1; i <= SECTIONS.length; i++) {
-            final int index = i, slot = i + 1;
-            String labelText = i == -1 ? "All" : i == DOWNLOADED ? "Downloaded" : SECTIONS[i];
-            TextView chip = text(labelText, 14, () -> filter == index ? onAccent : ink, true);
-            chip.setGravity(Gravity.CENTER);
-            chip.setPadding(dp(16), 0, dp(16), 0);
-            chip.setBackground(null);
-            filterChips[slot] = chip;
-            filterRow.addView(chip, lp(-2, dp(38)));
-        }
-        chips.addView(filterTrack, lp(-2, dp(38)));
-        chipScroll.addView(chips);
-        if (filter >= 0) {
-            final View picked = filterChips[Math.min(count - 1, filter + 1)];
-            chipScroll.post(() -> ensureChipVisible(chipScroll, picked, filterTrack));
-        }
-
-        if (land) {
-            LinearLayout bar = row();
-            bar.addView(search, new LinearLayout.LayoutParams(0, dp(44), .40f));
-            bar.addView(chipScroll, new LinearLayout.LayoutParams(0, -2, .60f));
-            LinearLayout.LayoutParams bp = fill(-2);
-            bp.setMargins(dp(18), 0, dp(18), dp(8));
-            page.addView(bar, bp);
-        } else {
-            LinearLayout.LayoutParams sp = fill(dp(50));
-            sp.setMargins(dp(18), 0, dp(18), dp(10));
-            page.addView(search, sp);
-            LinearLayout.LayoutParams cp = fill(-2);
-            cp.bottomMargin = dp(4);
-            page.addView(chipScroll, cp);
-        }
-
-        FrameLayout contentHost = new FrameLayout(activity);
-        page.addView(contentHost, new LinearLayout.LayoutParams(-1, 0, 1));
-        Runnable[] onQuery = new Runnable[1];
-        android.animation.ValueAnimator[] pillAnim = new android.animation.ValueAnimator[1];
-
-        java.util.function.IntConsumer renderContent = dir -> {
-            contentHost.removeAllViews();
-            pageList = null;
-            libraryList = null;
-            onQuery[0] = null;
-            List<MediaEntry> shown = entries(filter, query, azState[0], 400);
-            View shownView;
-            if (shown.isEmpty() && query.isEmpty()) {
-                LinearLayout emptyBox = column();
-                TextView note = text(filter == DOWNLOADED && libraryReady ? "Nothing downloaded yet. Open a playlist, album or podcast and tap its download button." : libraryStatus, 14, () -> inkDim, false);
-                note.setPadding(dp(22), dp(20), dp(22), 0);
-                emptyBox.addView(note);
-                libraryRecoveryActions(emptyBox, true);
-                shownView = emptyBox;
-            } else {
-                LinearLayout listBox = column();
-                TextView noMatch = text("Nothing in your library matches “" + query.trim() + "”", 15, () -> inkDim, false);
-                noMatch.setPadding(dp(22), dp(18), dp(22), 0);
-                noMatch.setVisibility(shown.isEmpty() && !query.trim().isEmpty() ? VISIBLE : GONE);
-                listBox.addView(noMatch);
-                android.widget.AbsListView list = gridState[0] ? entryGrid(shown) : (land ? entryListGrid(shown) : entryList(shown, null));
-                list.setOnScrollListener(new DockScroll());
-                list.setPadding(dp(gridState[0] ? 14 : 18), dp(4), dp(gridState[0] ? 14 : 18), dockRoom());
-                list.setClipToPadding(false);
-                listBox.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-                if (list instanceof ListView) pageList = (ListView) list;
-                libraryList = list;
-                onQuery[0] = () -> {
-                    shown.clear();
-                    shown.addAll(entries(filter, query, azState[0], 400));
-                    ((BaseAdapter) list.getAdapter()).notifyDataSetChanged();
-                    noMatch.setText("Nothing in your library matches “" + query.trim() + "”");
-                    noMatch.setVisibility(shown.isEmpty() && !query.trim().isEmpty() ? VISIBLE : GONE);
-                };
-                shownView = listBox;
-            }
-            contentHost.addView(shownView, new LayoutParams(-1, -1));
-            if (dir != 0 && motion()) {
-                shownView.setAlpha(0f);
-                shownView.setTranslationX(dir * dp(28));
-                shownView.animate().alpha(1f).translationX(0f).setDuration(220).setInterpolator(EMPHASIZED).start();
-            }
-        };
-
-        tappable(sort, azState[0] ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z", () -> {
-            azState[0] = !azState[0];
-            prefs.edit().putBoolean("library_az", azState[0]).apply();
-            sort.setText(azState[0] ? "A–Z" : "Recent");
-            sort.setContentDescription(azState[0] ? "Sorted A to Z, tap for recent" : "Sorted by recent, tap for A to Z");
-            renderContent.accept(0);
-        });
-        tappable(layout, gridState[0] ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid", () -> {
-            gridState[0] = !gridState[0];
-            prefs.edit().putBoolean("library_grid", gridState[0]).apply();
-            layout.setText(gridState[0] ? "Grid" : "List");
-            layout.setContentDescription(gridState[0] ? "Shown as a grid, tap for a list" : "Shown as a list, tap for a grid");
-            renderContent.accept(0);
-        });
-
-        for (int i = -1; i <= SECTIONS.length; i++) {
-            final int index = i, slot = i + 1;
-            TextView chip = filterChips[slot];
-            tappable(chip, chip.getText().toString(), () -> {
-                if (filter == index) return;
-                int prev = filter;
-                filter = index;
-                for (TextView c : filterChips) recolorView(c);
-                int targetW = chip.getWidth();
-                float targetX = chip.getLeft();
-                LayoutParams plp = (LayoutParams) filterPill.getLayoutParams();
-                if (pillAnim[0] != null) pillAnim[0].cancel();
-                if (targetW > 0 && plp.width > 0 && motion()) {
-                    int startW = filterPill.getWidth() > 0 ? filterPill.getWidth() : plp.width;
-                    float startX = filterPill.getTranslationX();
-                    android.animation.ValueAnimator slide = android.animation.ValueAnimator.ofFloat(0f, 1f);
-                    slide.setDuration(240);
-                    slide.setInterpolator(new android.view.animation.OvershootInterpolator(.8f));
-                    slide.addUpdateListener(a -> {
-                        float t = (float) a.getAnimatedValue();
-                        plp.width = Math.max(1, Math.round(startW + (targetW - startW) * t));
-                        filterPill.setLayoutParams(plp);
-                        filterPill.setTranslationX(startX + (targetX - startX) * t);
-                    });
-                    pillAnim[0] = slide;
-                    slide.start();
-                } else if (targetW > 0) {
-                    plp.width = targetW;
-                    filterPill.setLayoutParams(plp);
-                    filterPill.setTranslationX(targetX);
-                }
-                ensureChipVisible(chipScroll, chip, filterTrack);
-                renderContent.accept(filter > prev ? 1 : -1);
-            });
-        }
-
-        renderContent.accept(0);
-        field.addTextChangedListener(new android.text.TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void afterTextChanged(android.text.Editable e) {
-                query = e.toString();
-                if (onQuery[0] != null) onQuery[0].run();
-            }
-        });
-        return page;
-    }
-
-    /** The library as big covers: two columns in portrait, four in landscape. */
-    private android.widget.GridView entryGrid(List<MediaEntry> items) {
-        return mediaGrid(items, landscape() ? 4 : 2, landscape() ? 14 : 12, 16, true);
-    }
-
-    /** Landscape library list: two columns of compact rows so the wider viewport stays dense and scannable. */
-    private android.widget.GridView entryListGrid(List<MediaEntry> items) {
-        return mediaGrid(items, 2, 16, 2, false);
-    }
-
-    private android.widget.GridView mediaGrid(List<MediaEntry> items, int cols, int hGapDp, int vGapDp, boolean tiles) {
-        android.widget.GridView grid = new android.widget.GridView(activity);
-        grid.setNumColumns(cols);
-        grid.setStretchMode(android.widget.GridView.STRETCH_COLUMN_WIDTH);
-        grid.setHorizontalSpacing(dp(hGapDp));
-        grid.setVerticalSpacing(dp(vGapDp));
-        grid.setVerticalScrollBarEnabled(false);
-        grid.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
-        grid.setOverScrollMode(OVER_SCROLL_NEVER);
-        grid.setAdapter(new BaseAdapter() {
-            @Override public int getCount() { return items.size(); }
-            @Override public MediaEntry getItem(int i) { return items.get(i); }
-            @Override public long getItemId(int i) { return i; }
-            @Override public View getView(int i, View old, ViewGroup parent) {
-                if (tiles) {
-                    Tile tile = old instanceof Tile ? (Tile) old : new Tile();
-                    tile.bind(getItem(i));
-                    return tile;
-                }
-                Row row = old instanceof Row ? (Row) old : new Row();
-                row.number = 0;
-                row.bind(getItem(i));
-                return row;
-            }
-        });
-        grid.setOnItemClickListener((p, v, i, id) -> {
-            MediaEntry item = items.get(i);
-            if (v instanceof Tile) captureFlight(((Tile) v).art, item.image, item.category == 2);
-            else if (v instanceof Row) {
-                captureFlight(((Row) v).art, item.image, item.category == 2);
-                tick(v);
-            }
-            open(item);
-        });
-        grid.setOnItemLongClickListener((p, v, i, id) -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); actions(items.get(i)); return true; });
-        if (motion()) {
-            android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
-            rise.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
-            rise.addAnimation(tiles
-                ? new android.view.animation.ScaleAnimation(.92f, 1f, .92f, 1f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f, android.view.animation.Animation.RELATIVE_TO_SELF, .5f)
-                : new android.view.animation.TranslateAnimation(0, 0, dp(18), 0));
-            rise.setDuration(tiles ? 300 : 320);
-            rise.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
-            grid.setLayoutAnimation(new android.view.animation.GridLayoutAnimationController(rise, tiles ? .12f : .07f, tiles ? .1f : .08f));
-        }
-        return grid;
-    }
 
     /** A grid cell: a square cover (round for artists) with the name and kind under it. */
-    private final class Tile extends LinearLayout {
-        private final Art art = artwork.new Art(Art.ROUNDED, false);
-        private final TextView name = text("", 15, ink, true), sub = text("", 13, inkDim, false);
+    final class Tile extends LinearLayout {
+        final Art art = artwork.new Art(Art.ROUNDED, false);
+        final TextView name = text("", 15, ink, true), sub = text("", 13, inkDim, false);
         private final FrameLayout chipHolder = new FrameLayout(activity);
         Tile() {
             super(activity);
@@ -3267,12 +1723,12 @@ public final class SpatchUi extends FrameLayout {
             name.setTextColor(playingFrom(e.uri) ? accent : ink);
             sub.setText(e.subtitle);
             chipHolder.removeAllViews();
-            int ds = downloadState(e.uri);
-            if (ds != 0) chipHolder.addView(downloadChip(ds), new LayoutParams(-1, -1));
+            int ds = downloadsScreen.downloadState(e.uri);
+            if (ds != 0) chipHolder.addView(downloadsScreen.downloadChip(ds), new LayoutParams(-1, -1));
         }
     }
 
-    private ListView entryList(List<MediaEntry> items, View header) {
+    ListView entryList(List<MediaEntry> items, View header) {
         ListView list = new ListView(activity);
         list.setDivider(null);
         list.setVerticalScrollBarEnabled(false);
@@ -3315,13 +1771,13 @@ public final class SpatchUi extends FrameLayout {
         return list;
     }
 
-    private final Set<Row> attachedRows = new HashSet<>();
+    final Set<Row> attachedRows = new HashSet<>();
 
-    private final class Row extends LinearLayout {
+    final class Row extends LinearLayout {
         private String boundUri = "";
-        private final Art art = artwork.new Art(Art.ROUNDED, false);
-        private final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
-        private final Bars bars = new Bars();
+        final Art art = artwork.new Art(Art.ROUNDED, false);
+        final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
+        private final Bars bars = controls.new Bars();
         private final GradientDrawable pressedBg = round(surfHi, 16), badgeBg = round(inkDim, 3);
         private final TextView explicitBadge = text("E", 10, bg, true);
         private final Icon dlBadge = new Icon("download", inkDim);
@@ -3364,7 +1820,7 @@ public final class SpatchUi extends FrameLayout {
         @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); attachedRows.add(this); updateDownloadBadge(); }
         @Override protected void onDetachedFromWindow() { attachedRows.remove(this); super.onDetachedFromWindow(); }
         void updateDownloadBadge() {
-            dlState = downloadState(boundUri);
+            dlState = downloadsScreen.downloadState(boundUri);
             dlBadge.setVisibility(dlState != 0 ? VISIBLE : GONE);
             tint();
         }
@@ -3375,7 +1831,7 @@ public final class SpatchUi extends FrameLayout {
             length.setTextColor(inkDim);
             pressedBg.setColor(surfHi);
             badgeBg.setColor(inkDim);
-            dlBadge.color = dlState == DL_DONE ? accent : inkDim;
+            dlBadge.color = dlState == Downloads.DL_DONE ? accent : inkDim;
             dlBadge.invalidate();
             explicitBadge.setTextColor(bg);
             explicitBadge.setBackground(badgeBg);
@@ -3414,23 +1870,22 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    private boolean playingFrom(String item) {
+    boolean playingFrom(String item) {
         if (context.isEmpty() || item.isEmpty()) return false;
         return item.equals(context) || (liked(item) && liked(context));
     }
 
-    private static boolean liked(String u) {
+    static boolean liked(String u) {
         return u.equals("spotify:collection") || u.endsWith(":collection") || u.endsWith(":collection:tracks");
     }
 
-    // ---------- Playlist ----------
 
-    private void open(MediaEntry e) {
+    void open(MediaEntry e) {
         hideKeyboard(); // a search result shouldn't open under the keyboard
         // A song on a playlist or album page plays that list from the song, as Spotify does.
         if (playlist != null && (e.uri.startsWith("spotify:track:") || e.uri.startsWith("spotify:episode:") || e.uri.startsWith("spotify:preview:"))) {
             // The song that's already playing opens the player rather than starting over.
-            if (e.uri.equals(uri) && listIsPlaying()) { openPlayer(true); return; }
+            if (e.uri.equals(uri) && playlistScreen.listIsPlaying()) { playerScreen.openPlayer(true); return; }
             int index = e instanceof Song ? ((Song) e).index : Math.max(0, playlistTracks.indexOf(e));
             String context = playUri();
             submit(COMMANDS, () -> {
@@ -3438,887 +1893,41 @@ public final class SpatchUi extends FrameLayout {
             });
             return;
         }
-        if (isDetail(e)) { openPlaylist(e); return; }
+        if (isDetail(e)) { playlistScreen.openPlaylist(e); return; }
         boolean isList = e.category == 0 || e.uri.startsWith("spotify:playlist:") || (e.uri.startsWith("spotify:user:") && e.uri.contains(":playlist:")) || liked(e.uri);
-        if (isList) openPlaylist(e);
-        else command(PLAY, 0, e.uri);
+        if (isList) playlistScreen.openPlaylist(e);
+        else command(PlayerScreen.PLAY, 0, e.uri);
     }
 
-    /** Pages opened from another page (an album from a playlist...), so back retraces them. */
-    private static boolean greeted;
-    private View headCover, flightView;
-    private RectF flightFrom;
-    private String flightImage = "";
-    private boolean flightCircle;
-    private TextView nowPlayingChip, songsNoMatch, songCount;
-    private String songCountText = "";
     /** View tag key for the now-playing chip's position (any id unique to this file). */
-    private static final int R_COLOR = 0x7f5a0002;
-    private static final int R_JUMP = 0x7f5a0001;
-    private final java.util.ArrayDeque<MediaEntry> pageStack = new java.util.ArrayDeque<>();
+    static final int R_COLOR = 0x7f5a0002;
+    final java.util.ArrayDeque<MediaEntry> pageStack = new java.util.ArrayDeque<>();
 
-    void openPlaylist(MediaEntry e) { openPlaylist(e, true); }
 
-    void openPlaylist(MediaEntry e, boolean forward) {
-        if (watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
-        if (forward && playlist != null && playlist != e) pageStack.push(playlist);
-        if (forward) { rememberScroll(); shownKey = null; scrolls.remove("playlist:" + e.uri); } // a fresh visit opens at the top
-        playlist = e;
-        playlistTracks = new ArrayList<>();
-        releases = new ArrayList<>();
-        liveUri = "";
-        songQuery = "";
-        songFields = new String[0];
-        allSongs.clear();
-        recommendedSongs.clear();
-        shownReply = null;
-        shownCached = false;
-        detailTitle = detailSubtitle = detailImage = "";
-        playlistLoading = true;
-        playlistFailed = false;
-        String[] saved = unpackStrings(nativeCached((isDetail(e) ? "page3:" : "playlist4:") + e.uri));
-        if (saved != null && saved.length > 0) applyReply(e, saved, true);
-        else showPage();
-        updateDock();
-        enter((forward ? 1 : -1) * dp(44), 0);
-        loadPlaylist(e, 0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    void currentSongActions() {
+        if (!uri.isEmpty()) searchScreen.searchActions(new MediaEntry(title, artist, uri, image, -1));
     }
 
-    private void loadPlaylist(MediaEntry e, int attempt) {
-        int request = ++playlistRequest;
-        // Never wait forever: after 20 s the page offers Retry.
-        postDelayed(() -> {
-            if (request != playlistRequest || playlist != e || !playlistLoading) return;
-            playlistRequest++;
-            playlistLoading = false;
-            playlistFailed = true;
-            playlistError = "Spotify didn’t answer in time";
-            showPage();
-        }, 20_000);
-        submit(PLAYLISTS, () -> {
-            String key = (isDetail(e) ? "page3:" : "playlist4:") + e.uri;
-            // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
-            if (attempt == 0 && !shownCached) {
-                String[] saved = unpackStrings(nativeCached(key));
-                if (saved != null) post(() -> { if (request == playlistRequest && playlist == e && playlistLoading) applyReply(e, saved, true); });
-            }
-            // Liked Songs' link includes your username, which Spotify has to be asked for first.
-            String target = liked(e.uri) ? nativeLiked() : e.uri;
-            if (target == null || target.isEmpty()) target = e.uri;
-            final String resolved = target;
-            byte[] firstBytes = isDetail(e) ? nativePage(e.uri) : nativePlaylist(resolved, 0);
-            String[] first = unpackStrings(firstBytes);
-            boolean ok = first != null && first.length >= (isDetail(e) ? 6 : 2) && first[0].isEmpty();
-            int more = ok && !isDetail(e) ? parseInt(first[1]) : 0;
-            String[] full;
-            if (more > 0) {
-                // Long playlist: show the first page now if nothing is on screen, then fetch the rest and show it all.
-                post(() -> { if (request == playlistRequest && playlist == e && shownReply == null) applyReply(e, first, false); });
-                String[] rest = unpackStrings(nativePlaylistRest(resolved, more));
-                if (rest == null) rest = new String[0];
-                String[] all = java.util.Arrays.copyOf(first, first.length + rest.length);
-                System.arraycopy(rest, 0, all, first.length, rest.length);
-                all[1] = "0";
-                full = all;
-            } else full = first;
-            final String[] r = full;
-            post(() -> {
-                if (request != playlistRequest || playlist != e || !isAttachedToWindow()) return;
-                liveUri = resolved;
-                if (ok) {
-                    nativeRemember(key, more > 0 ? packStrings(r) : firstBytes);
-                    if (!isDetail(e) && !watchingPlaylist) {
-                        watchingPlaylist = true;
-                        WATCHES.execute(() -> nativeWatchPlaylist(resolved, "push:" + e.uri));
-                    }
-                }
-                if (r != null && r.length == 1 && "loading".equals(r[0]) && attempt < 10) {
-                    postDelayed(() -> { if (request == playlistRequest && playlist == e) loadPlaylist(e, attempt + 1); }, 700);
-                    return;
-                }
-                if (ok && java.util.Arrays.equals(r, shownReply)) return;
-                if (!ok && shownCached) { android.util.Log.w("SpatchUi", "Kept the saved copy: " + (r == null || r.length == 0 ? "no reply" : r[0])); return; }
-                applyReply(e, r != null && r.length == 1 && "loading".equals(r[0])
-                    ? new String[]{"Spotify is still loading this playlist. Try again in a moment."} : r, false);
-            });
-        });
-    }
-
-    /** Rust's playlist fields: SONG_FIELDS strings per song. */
-    private static final int SONG_FIELDS = Song.FIELDS;
-    /** Every song of the open playlist, in its order; playlistTracks is what the search and sort leave of it. */
-    private String[] songFields = new String[0];
-    private final List<Song> allSongs = new ArrayList<>();
-    private final List<Song> recommendedSongs = new ArrayList<>();
-    private String songQuery = "";
-
-    /** The reply this page is showing, and whether it came from the saved copy. */
-    private String[] shownReply;
-    private boolean shownCached;
-
-    private void applyReply(MediaEntry e, String[] r, boolean cached) {
-        // Replacing what's on screen (saved copy -> Spotify's answer, or a push) keeps the scroll position.
-        boolean replacing = shownReply != null;
-        ListView list = pageList;
-        int first = replacing && list != null ? list.getFirstVisiblePosition() : 0;
-        int top = replacing && list != null && list.getChildCount() > 0 ? list.getChildAt(0).getTop() : 0;
-        // A newer copy of the playlist that's already on screen updates the list where it stands: rebuilding the page
-        // flashed it and moved the list every time Spotify pushed the playlist, which it does whenever a song starts.
-        boolean inPlace = replacing && !isDetail(e) && !playlistLoading && !playlistFailed && list != null && songCount != null && list.isAttachedToWindow();
-        shownReply = r;
-        shownCached = cached;
-        if (inPlace) {
-            playlistTracks.clear();
-        } else {
-            playlistTracks = new ArrayList<>();
-            releases = new ArrayList<>();
-        }
-        if (isDetail(e)) applyDetail(r);
-        else applyPlaylist(r, inPlace);
-        ListView again = pageList;
-        if (replacing && again != null && first > 0 && again != list) again.setSelectionFromTop(Math.min(first, Math.max(0, again.getCount() - 1)), top);
-    }
-
-    private void applyPlaylist(String[] r) { applyPlaylist(r, false); }
-
-    /** inPlace: the page already lists this playlist, so only its songs and count change. */
-    private void applyPlaylist(String[] r, boolean inPlace) {
-        playlistLoading = false;
-        playlistFailed = r == null || r.length < 2 || !r[0].isEmpty();
-        playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
-        if (playlistFailed) android.util.Log.w("SpatchUi", "Playlist request failed: " + playlistError);
-        else {
-            allSongs.clear();
-            recommendedSongs.clear();
-            int count = (r.length - 2) / SONG_FIELDS;
-            List<String> kept = new ArrayList<>(count * SONG_FIELDS);
-            for (int i = 0; i < count; i++) {
-                int at = 2 + i * SONG_FIELDS;
-                boolean rec = !r[at + 10].isEmpty();
-                if (rec) {
-                    recommendedSongs.add(new Song(r, at, recommendedSongs.size()));
-                } else {
-                    allSongs.add(new Song(r, at, allSongs.size()));
-                    for (int k = 0; k < SONG_FIELDS; k++) kept.add(r[at + k]);
-                }
-            }
-            if (duration == 0 && !uri.isEmpty()) {
-                float from = shownProgress();
-                for (Song song : allSongs) {
-                    if (song.uri.equals(uri) && song.duration > 0) { duration = song.duration; break; }
-                }
-                if (duration > 0) animateProgress(from);
-            }
-            String[] next = kept.toArray(new String[0]);
-            // Only the recommended songs changed: the list on screen is already right, so don't repack or rebind it.
-            boolean unchanged = inPlace && pageList != null && songCount != null && java.util.Arrays.equals(next, songFields);
-            songFields = next;
-            if (!unchanged) nativeSongs(packStrings(songFields));
-            arrangeSongs();
-            if (unchanged) return;
-            if (inPlace && pageList != null && songCount != null) {
-                notifyList(pageList);
-                int total = allSongs.size();
-                String time = totalTime();
-                songCountText = total + (total == 1 ? " song" : " songs") + (time.isEmpty() ? "" : " • " + time);
-                String q = songQuery.trim();
-                songCount.setText(q.isEmpty() ? songCountText : playlistTracks.size() + " of " + allSongs.size() + " songs");
-                if (songsNoMatch != null) songsNoMatch.setVisibility(playlistTracks.isEmpty() && !q.isEmpty() ? VISIBLE : GONE);
-                return;
-            }
-        }
-        showPage();
-    }
-
-    /** playlistTracks becomes the songs the search and sort leave, in that order (Rust: playlist::arrange). */
-    private void arrangeSongs() {
-        int[] order = nativeArrange(songQuery, prefs.getInt("song_sort", 0));
-        playlistTracks.clear();
-        if (order != null) for (int i : order) if (i < allSongs.size()) playlistTracks.add(allSongs.get(i));
-    }
-
-    private static int parseInt(String s) {
-        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; }
-    }
-
-    private static final String[] SONG_SORTS = {"Playlist order", "Title", "Artist", "Album", "Recently added"};
-
-    /** "2 h 31 min" or "48 min" for every song's length together. */
-    private String totalTime() {
-        long ms = 0;
-        for (Song song : allSongs) ms += song.duration;
-        long minutes = Math.round(ms / 60000.0);
-        if (minutes == 0) return "";
-        return minutes >= 60 ? (minutes / 60) + " h " + (minutes % 60) + " min" : minutes + " min";
-    }
-
-    /** Reads nativePage's reply into the page state and redraws. */
-    private void applyDetail(String[] r) {
-        playlistLoading = false;
-        playlistFailed = r == null || r.length < 6 || !r[0].isEmpty();
-        playlistError = r == null || r.length == 0 ? "No reply from Spotify" : r[0];
-        if (playlistFailed) android.util.Log.w("SpatchUi", "Page request failed: " + playlistError);
-        else {
-            detailTitle = r[1]; detailSubtitle = r[2]; detailImage = r[3];
-            int tracks = Math.max(0, parseInt(r[4])), shelf = Math.max(0, parseInt(r[5]));
-            int at = 6;
-            for (int i = 0; i < tracks && at + SONG_FIELDS <= r.length; i++, at += SONG_FIELDS) playlistTracks.add(new Song(r, at, i));
-            for (int i = 0; i < shelf && at + 3 < r.length; i++, at += 4) releases.add(new MediaEntry(r[at], r[at + 1], r[at + 2], r[at + 3], 1));
-        }
-        showPage();
-    }
-
-    private void openRecommended() {
-        if (recommendedSongs.isEmpty()) return;
-        Option[] options = new Option[recommendedSongs.size()];
-        for (int i = 0; i < options.length; i++) {
-            Song s = recommendedSongs.get(i);
-            options[i] = new Option(s.title, s.subtitle, s.image, "play", false);
-        }
-        sheet("Similar songs", "Recommended based on this playlist", options, i -> command(PLAY, 0, recommendedSongs.get(i).uri));
-    }
-
-    /** The mini player follows a sideways drag; a flick left or right skips, a flick up opens the player. */
-    private void miniGestures(View mini) {
-        final float[] down = new float[2];
-        final boolean[] flung = new boolean[1];
-        android.view.GestureDetector detector = new android.view.GestureDetector(activity, new android.view.GestureDetector.SimpleOnGestureListener() {
-            @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
-                if (a == null) return false;
-                float dx = b.getX() - a.getX(), dy = b.getY() - a.getY();
-                if (dy < -dp(28) && Math.abs(dy) > Math.abs(dx)) { flung[0] = true; openPlayer(true); }
-                else if (Math.abs(dx) > dp(48) && Math.abs(dx) > Math.abs(dy)) {
-                    flung[0] = true;
-                    if (dx < 0) command(NEXT, 0, ""); else previousTrack();
-                    tick(mini);
-                }
-                return flung[0];
-            }
-        });
-        mini.setOnTouchListener((v, e) -> {
-            detector.onTouchEvent(e);
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    down[0] = e.getRawX(); down[1] = e.getRawY(); flung[0] = false;
-                    if (motion()) v.animate().scaleX(.97f).scaleY(.97f).setDuration(90).start();
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    float dx = e.getRawX() - down[0];
-                    if (motion() && Math.abs(dx) > Math.abs(e.getRawY() - down[1])) v.setTranslationX(dx * .35f);
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    if (motion()) v.animate().translationX(0).scaleX(1f).scaleY(1f).setDuration(320)
-                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
-                    else v.setTranslationX(0);
-                    if (flung[0]) { v.setPressed(false); return true; } // a flick isn't also a tap
-                    break;
-            }
-            return false;
-        });
-    }
-
-    /** Long-press on a playlist song: play from it, queue it, go to its album or artist, like or unlike it. */
-    private void songActions(Song song) {
-        List<Option> names = new ArrayList<>();
-        List<Runnable> runs = new ArrayList<>();
-        names.add(new Option("Play from here", "", "", "play", false)); runs.add(() -> open(song));
-        names.add(new Option("Play next", "", "", "next", false)); runs.add(() -> { command(QUEUE_NEXT, 0, song.uri); Toast.makeText(activity, "Playing next", Toast.LENGTH_SHORT).show(); });
-        names.add(new Option("Add to queue", "", "", "queue", false)); runs.add(() -> { command(QUEUE_ADD, 0, song.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
-        names.add(new Option("Add to playlist", "", "", "add", false)); runs.add(() -> addToPlaylist(song));
-        names.add(songDownloadOption(song)); runs.add(() -> downloadTapped(song));
-        if (!song.albumUri.isEmpty()) { names.add(new Option("Go to album", song.album, "", "album", false)); runs.add(() -> openPlaylist(new MediaEntry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
-        if (!song.artistUri.isEmpty()) { names.add(new Option("Go to artist", song.subtitle, "", "artist", false)); runs.add(() -> openPlaylist(new MediaEntry(song.subtitle, "Artist", song.artistUri, "", -1))); }
-        names.add(new Option(song.liked ? "Remove from Liked Songs" : "Add to Liked Songs", "", "", song.liked ? "heart" : "heart-outline", false));
-        runs.add(() -> setLikedSong(song, !song.liked));
-        String note = song.album.isEmpty() ? song.subtitle : song.subtitle + " • " + song.album;
-        sheet(song.title, note, names.toArray(new Option[0]), choice -> runs.get(choice).run());
-    }
-
-    private void captureFlight(View artView, String img, boolean circle) {
-        if (!motion() || artView == null || artView.getWidth() <= 0 || artView.getHeight() <= 0 || img.isEmpty()) {
-            flightFrom = null;
-            return;
-        }
-        int[] rootAt = new int[2], viewAt = new int[2];
-        getLocationInWindow(rootAt);
-        artView.getLocationInWindow(viewAt);
-        float l = viewAt[0] - rootAt[0], t = viewAt[1] - rootAt[1];
-        flightFrom = new RectF(l, t, l + artView.getWidth(), t + artView.getHeight());
-        flightImage = img;
-        flightCircle = circle;
-    }
-
-    private void launchHeroFlight(final View cover, final RectF from, final String img, final boolean circ) {
-        final android.view.ViewTreeObserver vto = cover.getViewTreeObserver();
-        vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
-            @Override public boolean onPreDraw() {
-                android.view.ViewTreeObserver curVto = cover.getViewTreeObserver();
-                if (curVto.isAlive()) curVto.removeOnPreDrawListener(this);
-                float tx = 0, ty = 0;
-                for (View cur = cover; cur != null && cur != SpatchUi.this; cur = cur.getParent() instanceof View ? (View) cur.getParent() : null) {
-                    tx += cur.getLeft();
-                    ty += cur.getTop();
-                }
-                float tw = cover.getWidth(), th = cover.getHeight();
-                if (tw <= 0 || th <= 0 || !cover.isAttachedToWindow()) return true;
-                cover.setAlpha(0f);
-                final Art flyer = artwork.new Art(circ ? Art.CIRCLE : Art.ROUNDED, false);
-                flyer.bind(img);
-                LayoutParams lp = new LayoutParams((int) Math.ceil(tw), (int) Math.ceil(th));
-                flyer.setPivotX(0f);
-                flyer.setPivotY(0f);
-                flyer.setX(from.left);
-                flyer.setY(from.top);
-                flyer.setScaleX(from.width() / tw);
-                flyer.setScaleY(from.height() / th);
-                addView(flyer, lp);
-                flightView = flyer;
-                final Runnable finish = () -> {
-                    cover.setAlpha(1f);
-                    if (flightView == flyer) flightView = null;
-                    if (flyer.getParent() != null) removeView(flyer);
-                };
-                cover.postDelayed(finish, 420);
-                flyer.animate().x(tx).y(ty).scaleX(1f).scaleY(1f).setDuration(340).setInterpolator(EMPHASIZED).withEndAction(finish).start();
-                return true;
-            }
-        });
-    }
-
-    private void wirePlaylistTools(ListView list, android.widget.EditText songSearch, TextView sortPill) {
-        if (songSearch != null) {
-            songSearch.addTextChangedListener(new android.text.TextWatcher() {
-                @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-                @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-                @Override public void afterTextChanged(android.text.Editable e) {
-                    songQuery = e.toString();
-                    arrangeSongs();
-                    notifyList(list);
-                    if (songCount != null) {
-                        String q = songQuery.trim();
-                        songCount.setText(q.isEmpty() ? songCountText : playlistTracks.size() + " of " + allSongs.size() + " songs");
-                    }
-                    if (songsNoMatch != null) {
-                        songsNoMatch.setText("No songs match “" + songQuery.trim() + "”");
-                        songsNoMatch.setVisibility(playlistTracks.isEmpty() && !songQuery.trim().isEmpty() ? VISIBLE : GONE);
-                    }
-                }
-            });
-        }
-        if (nowPlayingChip != null) {
-            TextView chip = nowPlayingChip;
-            int at = (Integer) chip.getTag(R_JUMP);
-            tappable(chip, "Jump to the song that's playing", () -> list.smoothScrollToPositionFromTop(at + list.getHeaderViewsCount(), dp(120), 520));
-        }
-        if (sortPill != null) {
-            TextView pillView = sortPill;
-            tappable(sortPill, "Sort songs", () -> sheet("Sort songs", "Only changes how Spatch shows this playlist", SONG_SORTS, choice -> {
-                prefs.edit().putInt("song_sort", choice).apply();
-                pillView.setText(SONG_SORTS[choice]);
-                if (pillView.getTag(R_COLOR) instanceof Runnable) ((Runnable) pillView.getTag(R_COLOR)).run();
-                arrangeSongs();
-                notifyList(list);
-            }));
-        }
-    }
-
-    private View playlistPage() {
-        FrameLayout page = new FrameLayout(activity);
-        boolean detail = isDetail(playlist);
-        boolean land = landscape() && !(playlistTracks.isEmpty() && releases.isEmpty());
-        String headImage = detail && !detailImage.isEmpty() ? detailImage : playlist.image;
-        String headTitle = detail && !detailTitle.isEmpty() ? detailTitle : playlist.title;
-        LinearLayout rightPane = land ? column() : null;
-
-        // Atmospheric gradient wash behind the header, tinted from the page cover once known (else the active accent).
-        // GPU mode paints the wash as a still colour field from four tints of the cover's colours; otherwise a gradient.
-        boolean gpuWash = GpuFx.shaders(prefs);
-        GradientDrawable washBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{surfHi, surf, bg});
-        washBg.setDither(true);
-        final int[] washColors = new int[5];
-        final int washSeed = playlist.uri.hashCode();
-        View wash = !gpuWash ? new View(activity) : new View(activity) {
-            private Shader field;
-            private final Paint fieldPaint = new Paint();
-            @Override protected void onDraw(Canvas c) {
-                if (!c.isHardwareAccelerated()) { washBg.setBounds(0, 0, getWidth(), getHeight()); washBg.draw(c); return; } // a bitmap snapshot can't run shaders
-                if (washColors[4] == 0) return;
-                if (field == null) field = new android.graphics.RuntimeShader(GpuFx.source("field"));
-                android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) field;
-                rs.setFloatUniform("size", getWidth(), getHeight());
-                rs.setFloatUniform("time", (washSeed & 0xffff) / 655.35f); // each playlist gets its own still arrangement
-                rs.setFloatUniform("shade", 2f);
-                for (int i = 0; i < 4; i++) rs.setColorUniform("c" + i, washColors[i]);
-                rs.setColorUniform("base", washColors[4]);
-                fieldPaint.setShader(rs);
-                c.drawRect(0, 0, getWidth(), getHeight(), fieldPaint);
-            }
-        };
-        if (!gpuWash) wash.setBackground(washBg);
-        final Integer[] lastSeed = {null};
-        final boolean[] lastDark = {dark};
-        final int[] headPal = {0, 0};
-        colored(wash, () -> {
-            Integer seed = headImage.isEmpty() ? null : SEEDS.get(headImage);
-            Integer seed2 = headImage.isEmpty() ? null : SEEDS2.get(headImage);
-            int top, mid;
-            if (seed != null) {
-                if (!seed.equals(lastSeed[0]) || lastDark[0] != dark || headPal[0] == 0) {
-                    int[] p = nativePalette2(seed, true, seed2 == null ? 0 : seed2, seed2 != null, dark);
-                    headPal[0] = p[5];
-                    headPal[1] = p[6];
-                    lastSeed[0] = seed;
-                    lastDark[0] = dark;
-                }
-                top = blend(surfHi, headPal[0], dark ? .38f : .26f);
-                mid = blend(surf, headPal[1], dark ? .20f : .14f);
-            } else {
-                top = blend(surfHi, accent2, dark ? .34f : .22f);
-                mid = blend(surf, accent, dark ? .18f : .12f);
-            }
-            washBg.setColors(new int[]{top, mid, bg});
-            int c0 = headPal[0] != 0 ? headPal[0] : accent2, c1 = headPal[1] != 0 ? headPal[1] : accent;
-            washColors[0] = top;
-            washColors[1] = blend(surfHi, c1, dark ? .34f : .22f);
-            washColors[2] = mid;
-            washColors[3] = blend(surf, c0, dark ? .20f : .12f);
-            washColors[4] = bg;
-            wash.invalidate();
-        });
-        // The wash runs under the side insets too (past the page's edges), so no plain strip shows beside it in landscape.
-        page.setClipChildren(false);
-        LayoutParams washAt = new LayoutParams(-1, dp(370) + inset.top, Gravity.TOP);
-        washAt.setMargins(-sideLeft(), 0, -inset.right, 0);
-        wash.setTag(BACKDROP);
-        page.addView(wash, washAt);
-        StickerBackdrop stickers = new StickerBackdrop(playlist.uri + ":" + headTitle);
-        stickers.setTag(BACKDROP);
-        page.addView(stickers, new LayoutParams(washAt));
-
-        LinearLayout header = column();
-        header.setPadding(dp(2), inset.top + dp(56), dp(2), dp(14));
-
-        // Centered Material 3 Expressive hero cover over a dual-colour ambient cover glow.
-        FrameLayout glowBox = new FrameLayout(activity);
-        View heroGlow = new View(activity) {
-            private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
-            private RadialGradient ga, gb;
-            private int ca, cb, gw, gh;
-            @Override protected void onDraw(Canvas c) {
-                int w = getWidth(), h = getHeight();
-                if (w <= 0 || h <= 0) return;
-                int c1 = headPal[0] != 0 ? headPal[0] : accent;
-                int c2 = headPal[1] != 0 ? headPal[1] : accent2;
-                if (ga == null || ca != c1 || cb != c2 || gw != w || gh != h) {
-                    ca = c1; cb = c2; gw = w; gh = h;
-                    float cx = w / 2f, cy = h / 2f, ox = dp(14), oy = dp(9);
-                    float r = Math.max(1f, Math.min(w, h) * .5f - Math.max(ox, oy) - dp(2));
-                    float[] stops = new float[]{0f, .45f, .78f, 1f};
-                    int a1 = (c1 & 0x00ffffff) | ((dark ? 78 : 56) << 24), a1m = (c1 & 0x00ffffff) | ((dark ? 28 : 18) << 24);
-                    int a2 = (c2 & 0x00ffffff) | ((dark ? 62 : 44) << 24), a2m = (c2 & 0x00ffffff) | ((dark ? 22 : 14) << 24);
-                    ga = new RadialGradient(cx - ox, cy + oy, r, new int[]{a1, a1m, c1 & 0x00ffffff, 0}, stops, Shader.TileMode.CLAMP);
-                    gb = new RadialGradient(cx + ox, cy - oy, r, new int[]{a2, a2m, c2 & 0x00ffffff, 0}, stops, Shader.TileMode.CLAMP);
-                }
-                glowPaint.setShader(ga);
-                c.drawRect(0, 0, w, h, glowPaint);
-                glowPaint.setShader(gb);
-                c.drawRect(0, 0, w, h, glowPaint);
-                glowPaint.setShader(null);
-            }
-        };
-        heroGlow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        colored(heroGlow, heroGlow::invalidate);
-        glowBox.addView(heroGlow, new LayoutParams(-1, -1));
-
-        FrameLayout coverWrap = new FrameLayout(activity);
-        boolean artistPage = playlist.uri.startsWith("spotify:artist:");
-        GradientDrawable coverShape = round(surfHi, artistPage ? 104 : 26);
-        coverWrap.setBackground(coverShape);
-        colored(coverWrap, () -> coverShape.setColor(surfHi));
-        coverWrap.setClipToOutline(true);
-        coverWrap.setElevation(dp(8));
-        if (headImage.isEmpty() && !detail && liked(playlist.uri)) {
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)});
-            g.setCornerRadius(dp(26));
-            coverWrap.setBackground(g);
-            colored(coverWrap, () -> g.setColors(new int[]{blend(surfHi, accent2, .5f), blend(surfHi, accent, .4f)}));
-            coverWrap.addView(icon("heart", () -> ink), new LayoutParams(dp(76), dp(76), Gravity.CENTER));
-        } else {
-            Art art = artwork.new Art(Art.WIDE, false);
-            art.letter = initial(headTitle);
-            art.bind(headImage);
-            coverWrap.addView(art, new LayoutParams(-1, -1));
-        }
-        int covDp = land ? 172 : 208; // sideways the header column has the height to spare for a larger cover
-        glowBox.addView(coverWrap, new LayoutParams(dp(covDp), dp(covDp), Gravity.CENTER));
-        coverWrap.setClickable(true);
-        coverWrap.setOnClickListener(v -> {
-            tick(coverWrap);
-            stickers.boostSpin();
-            if (motion()) {
-                coverWrap.animate().cancel();
-                coverWrap.setPivotX(coverWrap.getWidth() / 2f); // bounce from the middle (the scroll shrink moves the pivot to the top)
-                coverWrap.setPivotY(coverWrap.getHeight() / 2f);
-                coverWrap.setScaleX(.94f);
-                coverWrap.setScaleY(.94f);
-                coverWrap.animate().scaleX(1f).scaleY(1f).setDuration(380)
-                    .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
-            }
-        });
-        LinearLayout.LayoutParams covP = lp(dp(land ? 212 : 260), dp(land ? 208 : 256));
-        covP.gravity = Gravity.CENTER_HORIZONTAL;
-        covP.topMargin = -dp(land ? 18 : 24);
-        covP.bottomMargin = -dp(land ? 16 : 24);
-        header.addView(glowBox, covP);
-        headCover = coverWrap;
-
-        // Left-aligned Spotify-style editorial title and stats block.
-        TextView name = text(headTitle, land ? 22 : 26, () -> ink, true);
-        name.setPadding(0, dp(land ? 10 : 18), 0, dp(4));
-        name.setMaxLines(2);
-        name.setEllipsize(TextUtils.TruncateAt.END);
-        header.addView(name, fill(-2));
-        int total = detail ? playlistTracks.size() : allSongs.size();
-        String time = detail ? "" : totalTime();
-        String songs = total + (total == 1 ? " song" : " songs") + (time.isEmpty() ? "" : " • " + time);
-        TextView count = text(playlistLoading ? "Loading…" : playlistFailed ? "Couldn’t load" : detail && !detailSubtitle.isEmpty() ? detailSubtitle + " • " + songs : songs, 14, () -> inkDim, false);
-        header.addView(count, fill(-2));
-        songCount = count;
-        songCountText = count.getText().toString();
-        if (playlistFailed && !playlistError.isEmpty()) {
-            // Spotify's own reason, so a failure says what happened.
-            String lookup = liked(playlist.uri) ? nativeLikedNote() : "";
-            TextView why = text(playlistError + "\n" + playUri() + (lookup.isEmpty() ? "" : "\n" + lookup), 12, () -> inkDim, false);
-            why.setPadding(0, dp(6), 0, dp(4));
-            header.addView(why, fill(-2));
-        }
-
-        // Spotify-like action row: icon-only shuffle mode, share, Similar on the left; big scalloped play button on the right.
-        LinearLayout actions = row();
-        // Landscape gives the header a narrower column, so the buttons tighten up to keep the play button whole.
-        int actionSize = dp(land ? 42 : 46), actionGap = dp(land ? 8 : 10);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-        String listUri = playUri();
-        boolean smartAllowed = !detail && !liked(playlist.uri);
-
-        FrameLayout shuffleBox = new FrameLayout(activity);
-        GradientDrawable shufRing = round(surfHi, 23);
-        shuffleBox.setBackground(shufRing);
-        Icon modeIcon = new Icon("shuffle", inkDim);
-        Icon modeSparkle = new Icon("sparkle", accent);
-        shuffleBox.addView(modeIcon, new LayoutParams(dp(22), dp(22), Gravity.CENTER));
-        LayoutParams sp = new LayoutParams(dp(11), dp(11), Gravity.TOP | Gravity.END);
-        sp.setMargins(0, dp(8), dp(7), 0);
-        shuffleBox.addView(modeSparkle, sp);
-        Runnable paintMode = () -> {
-            boolean on = listShuffle > 0;
-            shufRing.setColor(on ? blend(surfHi, accent, .24f) : surfHi);
-            shufRing.setStroke(Math.max(1, dp(.8f)), on ? (accent & 0x00ffffff) | 0x48000000 : (ink & 0x00ffffff) | 0x14000000);
-            modeIcon.color = on ? accent : inkDim;
-            modeIcon.invalidate();
-            modeSparkle.color = accent;
-            modeSparkle.setVisibility(listShuffle == 2 ? VISIBLE : GONE);
-            modeSparkle.invalidate();
-        };
-        colored(shuffleBox, paintMode);
-        tappable(shuffleBox, "Shuffle: off, on or Smart Shuffle", () -> {
-            if (OfficialPlayback.enabled()) {
-                Toast.makeText(activity, "Change shuffle in official Spotify", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            // Off → Shuffle → Smart Shuffle (playlists only) → Off, stored with Spotify for this list.
-            int next = listShuffle <= 0 ? 1 : listShuffle == 1 && smartAllowed ? 2 : 0;
-            int before = listShuffle;
-            listShuffle = next;
-            paintMode.run();
-            if (listIsPlaying()) command(SHUFFLE, next > 0 ? 1 : 0, "");
-            submit(PLAYLISTS, () -> {
-                String error = nativeSetShuffleMode(listUri, next);
-                if (error != null && !error.isEmpty()) post(() -> {
-                    listShuffle = before;
-                    paintMode.run();
-                    Toast.makeText(activity, "Couldn’t change shuffle: " + error, Toast.LENGTH_SHORT).show();
-                });
-            });
-        });
-        actions.addView(shuffleBox, lp(actionSize, actionSize));
-
-        listShuffle = OfficialPlayback.enabled() ? 0 : -1;
-        if (OfficialPlayback.enabled()) shuffleBox.setVisibility(GONE);
-        paintMode.run();
-        if (!OfficialPlayback.enabled()) submit(PLAYLISTS, () -> {
-            int known = nativeShuffleMode(listUri);
-            post(() -> { if (playlist != null && listUri.equals(playUri()) && known >= 0) { listShuffle = known; paintMode.run(); } });
-        });
-
-        String link = shareLink(playlist.uri);
-        if (!link.isEmpty()) {
-            actions.addView(space(actionGap, 1));
-            View shareBtn = iconButton(icon("share", () -> ink), "Share", () -> shareLinkSheet(headTitle, link));
-            GradientDrawable shareBg = round(surfHi, 23);
-            shareBtn.setBackground(shareBg);
-            colored(shareBtn, () -> {
-                shareBg.setColor(surfHi);
-                shareBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
-            });
-            actions.addView(shareBtn, lp(actionSize, actionSize));
-        }
-        if (!playlist.uri.startsWith("spotify:artist:")) {
-            actions.addView(space(actionGap, 1));
-            DownloadButton dlBtn = new DownloadButton(this::playUri, headTitle);
-            GradientDrawable dlBg = round(surfHi, 23);
-            dlBtn.setBackground(dlBg);
-            colored(dlBtn, () -> {
-                dlBg.setColor(surfHi);
-                dlBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
-            });
-            actions.addView(dlBtn, lp(actionSize, actionSize));
-            downloadButton = dlBtn;
-        }
-        if (!recommendedSongs.isEmpty()) {
-            actions.addView(space(actionGap, 1));
-            View simBtn = iconButton(icon("sparkle", () -> accent), "Similar songs", this::openRecommended);
-            GradientDrawable simBg = round(surfHi, 23);
-            simBtn.setBackground(simBg);
-            colored(simBtn, () -> {
-                simBg.setColor(surfHi);
-                simBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x14000000);
-            });
-            actions.addView(simBtn, lp(actionSize, actionSize));
-        }
-        PlayButton fab = new PlayButton();
-        playButtons.remove(fab);
-        fab.set(listIsPlaying() && playing);
-        tappable(fab, "Play", () -> { if (listIsPlaying()) togglePlay(); else command(PLAY, listShuffle > 0 ? 1 : 2, playUri()); });
-        listFab = fab;
-        // Portrait pushes the play button to the far end; sideways it follows the other buttons, so the row reads as one.
-        actions.addView(land ? space(actionGap, 1) : space(0, 1), land ? lp(actionGap, 1) : weight());
-        // In portrait, a placeholder keeps room for the floating pinned PlayButton; in landscape it lives right in actions.
-        View fabSlot = land ? null : space(dp(62), dp(62));
-        if (land) actions.addView(fab, lp(dp(58), dp(58)));
-        else actions.addView(fabSlot);
-        LinearLayout.LayoutParams ap = fill(-2);
-        ap.topMargin = dp(12);
-        header.addView(actions, ap);
-
-        if (playlistFailed) header.addView(pill("Retry", () -> { playlistLoading = true; playlistFailed = false; showPage(); loadPlaylist(playlist, 0); }));
-        LinearLayout listTop = land ? rightPane : header;
-        android.widget.EditText songSearch = null;
-        TextView sortPill = null;
-        if (!detail && allSongs.size() > 1) {
-            // Search and sort inside the playlist, done in Rust over the songs already here.
-            LinearLayout tools = row();
-            LinearLayout search = row();
-            search.setPadding(dp(14), 0, dp(6), 0);
-            GradientDrawable searchBg = round(surfHi, 23);
-            search.setBackground(searchBg);
-            colored(search, () -> {
-                searchBg.setColor(surfHi);
-                searchBg.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x12000000);
-            });
-            search.addView(icon("search", () -> inkDim), lp(dp(19), dp(19)));
-            songSearch = new android.widget.EditText(activity);
-            songSearch.setBackground(null);
-            songSearch.setHint("Find in playlist");
-            android.widget.EditText find = songSearch;
-            colored(find, () -> { find.setHintTextColor(inkDim); find.setTextColor(ink); });
-            songSearch.setTextSize(15);
-            songSearch.setSingleLine(true);
-            songSearch.setPadding(dp(10), 0, dp(4), 0);
-            songSearch.setText(songQuery);
-            search.addView(songSearch, new LinearLayout.LayoutParams(0, dp(44), 1));
-            clearButton(search, songSearch);
-            tools.addView(search, new LinearLayout.LayoutParams(0, dp(44), 1));
-            tools.addView(space(dp(8), 1));
-            int sortChoice = Math.max(0, Math.min(SONG_SORTS.length - 1, prefs.getInt("song_sort", 0)));
-            sortPill = text(SONG_SORTS[sortChoice], 14, sortChoice > 0 ? accent : ink, true);
-            sortPill.setGravity(Gravity.CENTER);
-            sortPill.setPadding(dp(15), 0, dp(15), 0);
-            sortPill.setSingleLine(true);
-            GradientDrawable sortBg = round(surfHi, 23);
-            sortPill.setBackground(sortBg);
-            TextView pill = sortPill;
-            colored(pill, () -> {
-                boolean active = prefs.getInt("song_sort", 0) > 0;
-                pill.setTextColor(active ? accent : ink);
-                sortBg.setColor(active ? blend(surfHi, accent, .20f) : surfHi);
-                sortBg.setStroke(Math.max(1, dp(.8f)), active ? (accent & 0x00ffffff) | 0x40000000 : (ink & 0x00ffffff) | 0x12000000);
-            });
-            tools.addView(sortPill, lp(-2, dp(44)));
-            LinearLayout.LayoutParams tp = fill(-2);
-            if (!land) tp.topMargin = dp(14);
-            listTop.addView(tools, tp);
-            songsNoMatch = text("", 15, () -> inkDim, false);
-            songsNoMatch.setGravity(Gravity.CENTER);
-            songsNoMatch.setPadding(0, dp(24), 0, 0);
-            songsNoMatch.setVisibility(GONE);
-            listTop.addView(songsNoMatch, fill(-2));
-            // The song that's playing is in this list: a chip that glides the list down to it.
-            int playingAt = -1;
-            for (int i = 0; i < playlistTracks.size(); i++) {
-                MediaEntry t = playlistTracks.get(i);
-                if (!title.isEmpty() && t.title.equals(title) && t.subtitle.equals(artist)) { playingAt = i; break; }
-            }
-            if (playingAt > 3) {
-                nowPlayingChip = text("Now playing • " + title, 13, () -> onAccent, true);
-                nowPlayingChip.setSingleLine(true);
-                nowPlayingChip.setEllipsize(TextUtils.TruncateAt.END);
-                nowPlayingChip.setGravity(Gravity.CENTER);
-                nowPlayingChip.setPadding(dp(16), 0, dp(16), 0);
-                bgRound(nowPlayingChip, 18, () -> accent);
-                nowPlayingChip.setTag(R_JUMP, playingAt);
-                LinearLayout.LayoutParams cp = lp(-2, dp(34));
-                cp.topMargin = dp(10);
-                listTop.addView(nowPlayingChip, cp);
-            } else nowPlayingChip = null;
-        }
-
-        // Collapsing floating top bar: tonal back circle + page title that fades in as the hero scrolls off.
-        LinearLayout topBar = row();
-        topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(dp(14), inset.top + dp(6), dp(18), dp(8));
-        GradientDrawable barBg = new GradientDrawable();
-        barBg.setColor(bg);
-        topBar.setBackground(barBg);
-        barBg.setAlpha(0);
-        colored(topBar, () -> barBg.setColor(bg));
-        View barFade = new View(activity);
-        GradientDrawable barFadeBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, bg & 0x00ffffff});
-        barFade.setBackground(barFadeBg);
-        colored(barFade, () -> barFadeBg.setColors(new int[]{bg, bg & 0x00ffffff}));
-        barFade.setAlpha(0f);
-        FrameLayout backBox = new FrameLayout(activity);
-        GradientDrawable backShape = round(surf, 21);
-        backBox.setBackground(backShape);
-        colored(backBox, () -> {
-            backShape.setColor((surf & 0x00ffffff) | 0xc8000000);
-            backShape.setStroke(Math.max(1, dp(.8f)), (ink & 0x00ffffff) | 0x16000000);
-        });
-        backBox.addView(icon("back", () -> ink), new LayoutParams(dp(22), dp(22), Gravity.CENTER));
-        tappable(backBox, "Back", this::back);
-        if (!land) topBar.addView(backBox, lp(dp(42), dp(42)));
-        TextView collapsed = text(headTitle, 18, () -> ink, true);
-        oneLine(collapsed);
-        collapsed.setPadding(dp(12), 0, dp(74), 0);
-        collapsed.setAlpha(0f);
-        topBar.addView(collapsed, weight());
-
-        final float pinY = inset.top + dp(25);
-        Runnable syncFab = () -> {
-            if (fabSlot == null || fabSlot.getHeight() == 0) return;
-            boolean headerVisible = header.getParent() != null;
-            float scrollY = header.getParent() instanceof ScrollView ? ((ScrollView) header.getParent()).getScrollY() : 0f;
-            float naturalY = headerVisible ? header.getTop() + actions.getTop() + fabSlot.getTop() - scrollY : -dp(200);
-            fab.setTranslationY(Math.max(pinY, naturalY));
-            if (fab.getVisibility() != VISIBLE) fab.setVisibility(VISIBLE);
-        };
-        if (!land) {
-            fab.setVisibility(INVISIBLE);
-            header.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or_, ob) -> syncFab.run());
-        }
-
-        if (playlistTracks.isEmpty() && releases.isEmpty()) {
-            ScrollView s = new ScrollView(activity);
-            s.setVerticalScrollBarEnabled(false);
-            header.setPadding(dp(20), inset.top + dp(56), dp(20), dockRoom());
-            s.addView(header);
-            s.setOnScrollChangeListener((v, sx, sy, osx, osy) -> { syncFab.run(); scrollDock(sy - osy, sy <= 0); });
-            page.addView(s, new LayoutParams(-1, -1));
-        } else if (land) {
-            LinearLayout split = row();
-            ScrollView leftScroll = new ScrollView(activity);
-            leftScroll.setVerticalScrollBarEnabled(false);
-            leftScroll.setOverScrollMode(OVER_SCROLL_NEVER);
-            header.setPadding(dp(18), inset.top + dp(16), dp(12), dockRoom()); // the page host already keeps clear of the side insets
-            leftScroll.addView(header, new ScrollView.LayoutParams(-1, -2));
-            split.addView(leftScroll, new LinearLayout.LayoutParams(0, -1, 1f));
-            ListView list = entryList(playlistTracks, null);
-            list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-            wirePlaylistTools(list, songSearch, sortPill);
-            if (!releases.isEmpty()) {
-                LinearLayout footer = column();
-                shelf(footer, "Releases", releases, null);
-                list.addFooterView(footer, null, false);
-            }
-            list.setPadding(0, dp(8), 0, dockRoom());
-            list.setClipToPadding(false);
-            list.setVerticalFadingEdgeEnabled(true); // rows fade out under the search bar instead of being sliced off
-            list.setFadingEdgeLength(dp(28));
-            list.setOnScrollListener(new DockScroll());
-            rightPane.setPadding(dp(10), inset.top + dp(12), dp(18), 0);
-            rightPane.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-            split.addView(rightPane, new LinearLayout.LayoutParams(0, -1, 1.25f));
-            page.addView(split, new LayoutParams(-1, -1));
-            pageList = list;
-            LayoutParams bp = new LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.START);
-            bp.setMargins(dp(14), inset.top + dp(6), 0, 0);
-            page.addView(backBox, bp);
-        } else {
-            ListView list = entryList(playlistTracks, header);
-            list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-            wirePlaylistTools(list, songSearch, sortPill);
-            if (!releases.isEmpty()) {
-                LinearLayout footer = column();
-                shelf(footer, "Releases", releases, null);
-                list.addFooterView(footer, null, false);
-            }
-            list.setPadding(dp(18), 0, dp(18), dockRoom());
-            // The cover shrinks up and fades, the atmospheric wash recedes, and the floating bar brings in the title.
-            View coverView = headCover;
-            DockScroll dockScroll = new DockScroll();
-            list.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
-                @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {}
-                @Override public void onScroll(android.widget.AbsListView v, int first, int visible, int totalItems) {
-                    dockScroll.onScroll(v, first, visible, totalItems);
-                    float scrolled = first == 0 && v.getChildCount() > 0 ? Math.max(0, -v.getChildAt(0).getTop()) : dp(400);
-                    float f = Math.max(0f, Math.min(1f, scrolled / dp(240)));
-                    if (coverView != null && motion()) {
-                        // Shrinks toward its top middle; both axes are set, since an explicit pivot no longer centres the other one.
-                        coverView.setPivotX(coverView.getWidth() / 2f);
-                        coverView.setPivotY(0);
-                        coverView.setScaleX(1f - .3f * f);
-                        coverView.setScaleY(1f - .3f * f);
-                        coverView.setAlpha(1f - .9f * f);
-                    }
-                    glowBox.setAlpha(1f - .9f * f);
-                    wash.setTranslationY(-scrolled * .35f);
-                    wash.setAlpha(1f - .9f * f);
-                    stickers.setTranslationY(-scrolled * .22f);
-                    stickers.setAlpha(1f - f);
-                    float barT = Math.max(0f, Math.min(1f, (scrolled - dp(190)) / dp(60)));
-                    barBg.setAlpha(Math.round(255 * barT));
-                    barFade.setAlpha(barT);
-                    collapsed.setAlpha(barT);
-                    syncFab.run();
-                }
-            });
-            list.setClipToPadding(false);
-            page.addView(list, new LayoutParams(-1, -1));
-            pageList = list;
-        }
-        if (!land) {
-            page.addView(topBar, new LayoutParams(-1, dp(56) + inset.top, Gravity.TOP));
-            LayoutParams bf = new LayoutParams(-1, dp(16), Gravity.TOP);
-            bf.topMargin = dp(56) + inset.top;
-            page.addView(barFade, bf);
-            LayoutParams fp = new LayoutParams(dp(62), dp(62), Gravity.TOP | Gravity.END);
-            fp.rightMargin = dp(20);
-            page.addView(fab, fp);
-        }
-        if (flightFrom != null && motion()) {
-            RectF from = flightFrom; String img = flightImage; boolean circ = flightCircle;
-            flightFrom = null;
-            launchHeroFlight(coverWrap, from, img, circ);
-        }
-        return page;
-    }
-
-    private void currentSongActions() {
-        if (!uri.isEmpty()) searchActions(new MediaEntry(title, artist, uri, image, -1));
-    }
-
-    private void addToPlaylist(MediaEntry song) {
+    void addToPlaylist(MediaEntry song) {
         List<MediaEntry> targets = new ArrayList<>();
         List<Option> options = new ArrayList<>();
         options.add(new Option("New playlist", "Start a collection", "", "add", false));
@@ -4341,386 +1950,41 @@ public final class SpatchUi extends FrameLayout {
             final String failure = error == null ? "Couldn’t add this song" : error;
             post(() -> {
                 Toast.makeText(activity, failure.isEmpty() ? "Added to “" + target.title + "”" : failure, Toast.LENGTH_LONG).show();
-                if (failure.isEmpty() && playlist != null && playlist.uri.equals(target.uri)) openPlaylist(target);
+                if (failure.isEmpty() && playlist != null && playlist.uri.equals(target.uri)) playlistScreen.openPlaylist(target);
             });
         });
     }
 
-    private void actions(MediaEntry e) {
-        if (e instanceof Song) { songActions((Song) e); return; }
-        if (isTrack(e.uri)) { searchActions(e); return; }
+    void actions(MediaEntry e) {
+        if (e instanceof Song) { playlistScreen.songActions((Song) e); return; }
+        if (SearchScreen.isTrack(e.uri)) { searchScreen.searchActions(e); return; }
         boolean song = playlist != null;
         Option[] options = song
             ? new Option[]{new Option("Play", "", "", "play", false), new Option("Add to queue", "", "", "queue", false)}
             : new Option[]{new Option("Play", "", "", "play", false), new Option("Shuffle play", "", "", "shuffle", false), new Option("Open", "", "", "chevron", false)};
         sheet(e.title, e.subtitle.isEmpty() ? "Choose what to do" : e.subtitle, options, choice -> {
             if (song) {
-                if (choice == 0) command(PLAY, 0, e.uri);
-                else { command(QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
+                if (choice == 0) command(PlayerScreen.PLAY, 0, e.uri);
+                else { command(PlayerScreen.QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
             } else if (choice == 2) open(e);
-            else { command(SHUFFLE, choice == 1 ? 1 : 0, ""); command(PLAY, 0, e.uri); }
+            else { command(PlayerScreen.SHUFFLE, choice == 1 ? 1 : 0, ""); command(PlayerScreen.PLAY, 0, e.uri); }
         });
     }
 
-    // ---------- Settings ----------
-
-    private View settingsHub() {
-        LinearLayout page = column();
-        pageHeading(page, "Settings", false);
-        LinearLayout categories = card(page, "Make it yours");
-        String[] summaries = {"Colour, artwork, motion and celebrations", "Quality, crossfade and listening controls",
-            "Headphone correction, tone and dynamics", "Navigation, scroll behaviour and gestures",
-            "Downloads, artwork cache and storage", "Diagnostics and connection details", "Version and app information"};
-        for (int i = 0; i < SETTINGS_GROUPS.length; i++) {
-            final int section = i;
-            settingsAction(categories, SETTINGS_GROUPS[i], summaries[i], () -> { settingsSection = section; sound.panel = -1; showPage(); enter(dp(28), 0); });
-        }
-        return scrolling(page);
-    }
-
-    private View settingsPage() {
-        if (settingsSection < 0 || settingsSection >= SETTINGS_GROUPS.length) return settingsHub();
-        LinearLayout page = column();
-        LinearLayout up = row();
-        up.setPadding(dp(2), dp(6), 0, 0);
-        up.addView(icon("back", () -> accent), lp(dp(20), dp(20)));
-        TextView parent = text(settingsSection == 2 && sound.panel >= 6 ? "Headphone correction" : settingsSection == 2 && sound.panel >= 0 ? "Equalizer & sound" : "Settings", 14, () -> accent, true);
-        parent.setPadding(dp(8), 0, 0, 0);
-        up.addView(parent);
-        tappable(up, "Back to settings", () -> {
-            if (settingsSection == 2 && sound.panel >= 0) sound.panel = sound.panel >= 6 ? 1 : -1; else settingsSection = -1;
-            showPage();
-        });
-        page.addView(up, fill(dp(34)));
-        pageHeading(page, settingsSection == 2 && sound.panel >= 0 ? SoundSettings.SOUND_GROUPS[sound.panel] : SETTINGS_GROUPS[settingsSection], false).setTextSize(28);
-        switch (settingsSection) {
-        case 0: {
-            LinearLayout look = card(page, "Look");
-            paletteRow(look);
-            if (fixedPalette() == null) {
-                choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 1, true);
-                toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, true);
-                accentRow(look);
-            }
-            toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
-
-            LinearLayout player = card(page, "Player visuals");
-            choice(player, "Visualizer", new String[]{"Bars", "Ring", "Off", "Contour"}, "viz", 0, false);
-            toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
-            toggle(player, "Read audio directly", "Experimental: take Spotify’s audio before the volume, so the bars keep moving at volume 0 and no microphone permission is needed", "audio_direct", false, false);
-            TextView audioStatus = text("Status: " + Audio.status, 12, () -> inkDim, false);
-            audioStatus.setPadding(dp(18), 0, dp(18), dp(10));
-            player.addView(audioStatus);
-            toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
-            toggle(player, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
-            toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
-            toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
-            if (android.os.Build.VERSION.SDK_INT >= 31) toggle(player, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours and lyrics that focus on the sung line. Off uses the plain look", "gpu_fx", true, false);
-            if (android.os.Build.VERSION.SDK_INT >= 31 && pref("gpu_fx", true)) toggle(player, "Frosted bars", "The mini player and tabs as frosted glass over the page. Uses noticeably more battery while scrolling", "frost", false, false);
-            toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
-            toggle(player, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false);
-            if (pref("idle_hide", false)) {
-                multiChips(player, "Fade when idle", new String[][]{
-                    {"Top bar", "idle_hide_top", "1"},
-                    {"Title & artist", "idle_hide_title", "0"},
-                    {"Seek bar", "idle_hide_wave", "0"},
-                    {"Controls", "idle_hide_controls", "1"},
-                    {"Up next", "idle_hide_next", "1"}
-                });
-            }
-            toggle(player, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
-            if (pref("player_lyrics", false)) choice(player, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
-            toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
-            toggle(player, "Generate missing lyrics", "Experimental: when no service has a song's lyrics, listen to it on the phone and write rough timed lyrics, saved for next time. Downloads a 60 MB speech model once; uses extra battery while it listens", "lyric_gen", false, false);
-            TextView genStatus = text("", 12, () -> inkDim, false);
-            genStatus.setPadding(dp(18), 0, dp(18), dp(10));
-            player.addView(genStatus);
-            Runnable showGen = new Runnable() {
-                @Override public void run() {
-                    String now = pref("lyric_gen", false) ? (LyricGen.enabled() ? "Model ready" : LyricGen.status) : "";
-                    genStatus.setText(now);
-                    genStatus.setVisibility(now.isEmpty() ? View.GONE : View.VISIBLE);
-                    if (pref("lyric_gen", false) && !LyricGen.enabled() && genStatus.isAttachedToWindow()) genStatus.postDelayed(this, 500); // follow the download
-                }
-            };
-            genStatus.post(showGen);
-            genStatus.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-                @Override public void onViewAttachedToWindow(View v) { v.post(showGen); }
-                @Override public void onViewDetachedFromWindow(View v) {}
-            });
-            toggle(player, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
-            toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
-            toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
-            toggle(player, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
-            toggle(player, "Quality line", "What Spotify says is playing, under the artist", "player_quality", true, false);
-            toggle(player, "Heart button", "Save to Liked Songs from the player", "player_heart", true, false);
-            toggle(player, "Shuffle and repeat", "The buttons on either side of play", "player_modes", true, false);
-            toggle(player, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
-            if (pref("backdrop", true)) choice(player, "Backdrop blur", GpuFx.shaders(prefs) ? new String[]{"Soft", "Deep", "Streaks", "Flowing"} : new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
-            toggle(player, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
-            toggle(player, "Rotating stickers", "The shapes behind playlist headers turn slowly. Keeps the page redrawing, so it uses some battery", "sticker_spin", false, false);
-            if (pref("motes", true)) {
-                choice(player, "Mote amount", new String[]{"Few", "Normal", "Many"}, "motes_amount", 1, false);
-                choice(player, "Mote shapes", new String[]{"Dots", "Stars", "Hearts", "Mix"}, "motes_shape", 0, false);
-            }
 
 
-            LinearLayout celebrations = card(page, "Motion & celebrations");
-            toggle(celebrations, "Reduce motion", "A calmer app, without animated transitions or celebrations", "reduce_motion", false, true);
-            toggle(celebrations, "Playback confetti", "A burst of shapes when you tap play or pause", "confetti", true, false);
-            choice(celebrations, "Celebrate", new String[]{"Play & pause", "Play only"}, "confetti_when", 0, false);
-            choice(celebrations, "Amount", new String[]{"Subtle", "Normal", "Festive"}, "confetti_amount", 1, false);
-            choice(celebrations, "Shapes", new String[]{"Mix", "Cookies", "Hearts", "Stars", "Dots"}, "confetti_shape", 0, false);
-            choice(celebrations, "Size", new String[]{"Small", "Normal", "Large"}, "confetti_size", 1, false);
-            choice(celebrations, "Colours", new String[]{"Artwork", "Rainbow", "Solid"}, "confetti_tones", 0, false);
 
-            LinearLayout home = card(page, "Home");
-            toggle(home, "Recently played", "Spotify’s own listening history", "home_recent", true, false);
-            for (int i = 0; i < SECTIONS.length; i++) toggle(home, SECTIONS[i], "Show the " + SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true, false);
 
-            LinearLayout library = card(page, "Library");
-            toggle(library, "Sort A to Z", "Alphabetical, with Liked Songs first; off shows Spotify’s recent order", "library_az", false, false);
-            toggle(library, "Show as a grid", "Big covers two to a row instead of a list", "library_grid", false, false);
-            break;
-        }
-        case 1: {
-            if (!OfficialPlayback.enabled()) {
-                LinearLayout spotify = card(page, "Spotify");
-                spotifyCard(spotify);
-            }
 
-            LinearLayout backend = card(page, "Playback backend");
-            settingsAction(backend, "Playback backend", OfficialPlayback.enabled() ? "Official Spotify fallback" : "Built-in player", () -> {
-                sheet("Playback backend", "Official Spotify plays audio while Spatch shows your library and controls. Keep it installed and signed in; normal ads and free-account restrictions apply. Some selections may open Spotify.",
-                    new String[]{"Built-in player", "Official Spotify fallback"}, selected -> {
-                        boolean official = selected == 1;
-                        if (official && !OfficialPlayback.installed()) {
-                            Toast.makeText(activity, OfficialPlayback.status(), Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                        if (official) COMMANDS.execute(() -> nativeCommand(PAUSE, 0, ""));
-                        OfficialPlayback.setEnabled(official);
-                        revision = -1;
-                        syncNativeState();
-                        settingsChanged(false);
-                        if (official && !OfficialPlayback.allowed()) OfficialPlayback.configure(activity);
-                    });
-            });
-            if (OfficialPlayback.enabled()) {
-                settingsAction(backend, "Notification access", OfficialPlayback.status(), () -> OfficialPlayback.configure(activity));
-                settingsAction(backend, "Open official Spotify", "Sign in or start a session, then return to Spatch", () -> {
-                    android.content.Intent launch = activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
-                    if (launch != null) activity.startActivity(launch);
-                    else Toast.makeText(activity, OfficialPlayback.status(), Toast.LENGTH_LONG).show();
-                });
-            }
 
-            LinearLayout playback = card(page, "Player");
-            toggle(playback, "Keep screen on", "While the player is open", "keep_on", true, false);
-            break;
-        }
-        case 2: {
-            if (OfficialPlayback.enabled()) {
-                LinearLayout note = card(page, "Official Spotify audio");
-                settingsAction(note, "Audio settings", "Manage sound in official Spotify while using the fallback", () -> {
-                    android.content.Intent launch = activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
-                    if (launch != null) activity.startActivity(launch);
-                });
-            } else sound.render(page);
-            break;
-        }
-        case 3: {
-            LinearLayout navigation = card(page, "Navigation");
-            toggle(navigation, "Slide to switch", "Press and drag across the navigation bar, then release on a destination", "nav_drag", true, false);
-            toggle(navigation, "Hide controls while scrolling", "Hide the navigation bar and mini player on the way down; show them when you scroll up", "auto_hide_dock", false, false);
 
-            LinearLayout gestures = card(page, "Gestures and controls");
-            toggle(gestures, "Double-tap to play or pause", "On the artwork in the player", "double_tap", true, false);
-            toggle(gestures, "Swipe artwork to skip", "Flick the artwork left for next, right for previous", "swipe_skip", true, false);
-            choice(gestures, "Hold-to-seek step", new String[]{"5 s", "10 s", "30 s"}, "seek_step", 1, false);
-            toggle(gestures, "Haptics", "Little taps on buttons", "haptics", true, false);
-            break;
-        }
-        case 4: {
-            LinearLayout downloadsBox = card(page, "Downloads");
-            downloadsCard(downloadsBox);
 
-            LinearLayout storage = card(page, "Storage");
-            cacheRow(storage);
-            break;
-        }
-        case 5: {
-            LinearLayout developer = card(page, "Developer");
-            toggle(developer, "Skip integrity attestation", "Experiment only. Restart Spotify after changing; verification may run only once a day.",
-                "integrity_skip", false, false);
-            choice(developer, "Integrity experiment", new String[]{"Skip call", "Empty token"}, "integrity_variant", 0, false);
-            toggle(developer, "Trace signature reads", "Log certificate digests and matching request bodies. Restart to trace startup reads.",
-                "integrity_trace", false, false);
-            settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
-                String report = "Build " + nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
-                    + "\nPlaying " + playing + " · buffering " + buffering
-                    + "\nPosition " + position + " ms · duration " + duration + " ms"
-                    + "\nLibrary loaded " + libraryReady + " · upcoming " + upcoming.size()
-                    + "\nEqualizer " + Audio.eqStatus + "\nEQ detail " + Audio.eqError + "\nVisualizer " + Audio.status
-                    + "\nSearch " + (catalogError.isEmpty() ? "No error" : catalogError)
-                    + "\n" + CoreBridge.diagnostics();
-                sheet("Diagnostics", report, new String[]{"Copy diagnostics", "Close"}, choice -> {
-                    if (choice == 0) {
-                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-                        if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch diagnostics", report));
-                    }
-                });
-            });
-            settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
-                submit(DATA, () -> {
-                    nativeRefreshLibrary();
-                    post(() -> Toast.makeText(activity, "Library refresh finished", Toast.LENGTH_SHORT).show());
-                });
-            });
-            break;
-        }
-        case 6: {
-            AboutScreen.render(this, page, nativeBuild());
-            break;
-        }
-        }
-        return scrolling(page);
-    }
 
-    // ---- Spotify's own settings (Settings service in its core), read and written live ----
-    private java.util.Map<String, Integer> spotifySettings;
-    private String spotifyError = "";
-    private boolean spotifyLoading;
 
-    private int spotifyValue(String key) { Integer v = spotifySettings == null ? null : spotifySettings.get(key); return v == null ? 0 : v; }
 
-    /** Loads Spotify's own settings once; every card that shows one calls this and is redrawn when they arrive. */
-    private void ensureSpotifySettings() {
-        if (spotifySettings != null || spotifyLoading || !spotifyError.isEmpty()) return;
-        spotifyLoading = true;
-        submit(PLAYLISTS, () -> {
-            String[] f = nativeSpotifySettings();
-            post(() -> {
-                spotifyLoading = false;
-                if (f == null || f.length < 2 || f[0].equals("!")) spotifyError = f == null || f.length < 2 ? "no reply" : f[1];
-                else {
-                    java.util.Map<String, Integer> read = new java.util.HashMap<>();
-                    for (int i = 0; i + 1 < f.length; i += 2) read.put(f[i], Integer.parseInt(f[i + 1]));
-                    spotifySettings = read;
-                }
-                if (tab == SETTINGS && playlist == null) settingsChanged(false);
-            });
-        });
-    }
-
-    private void spotifyCard(LinearLayout box) {
-        if (spotifySettings == null) {
-            TextView note = text(spotifyError.isEmpty() ? "Loading Spotify’s settings…" : "Couldn’t read Spotify’s settings: " + spotifyError, 14, () -> inkDim, false);
-            note.setPadding(dp(18), dp(12), dp(18), dp(12));
-            box.addView(note);
-            if (!spotifyError.isEmpty()) {
-                TextView retry = pill("Retry", () -> { spotifyError = ""; settingsChanged(false); });
-                retry.setPadding(dp(18), dp(10), dp(18), dp(10));
-                LinearLayout.LayoutParams rp = lp(-2, -2);
-                rp.setMargins(dp(18), 0, 0, dp(12));
-                box.addView(retry, rp);
-            } else ensureSpotifySettings();
-            return;
-        }
-        // Spotify's scale: 1 Low, 2 Normal, 3 High, 4 Very high, 5 Lossless (Premium where offered).
-        String[] qualities = {"Low", "Normal", "High", "Very high", "Lossless"};
-        int streaming = spotifyValue("stream_quality");
-        segmented(box, "Streaming quality", qualities, streaming >= 1 && streaming <= 5 ? streaming - 1 : -1, i -> setSpotify("stream_quality", i + 1));
-        spotifySwitch(box, "Allow quality downgrade", "Lower the quality when your connection is slow", "allow_audio_quality_downgrade");
-        spotifySwitch(box, "Download over cellular", "Let downloads use mobile data", "download_over_3g");
-        spotifySwitch(box, "Normalise volume", "Play songs at the same level", "normalize");
-        spotifySwitch(box, "Gapless playback", "No pause between songs", "gapless");
-        spotifySwitch(box, "Automix", "Blend songs together in playlists", "automix");
-        int fade = spotifyValue("crossfade") == 0 ? 0 : spotifyValue("crossfade_time_seconds");
-        int[] seconds = {0, 3, 6, 12};
-        // Spotify's crossfade is any number of seconds; light the nearest of the offered lengths.
-        int selected = 0;
-        for (int i = 0; i < seconds.length; i++) if (Math.abs(seconds[i] - fade) < Math.abs(seconds[selected] - fade)) selected = i;
-        if (fade > 0 && selected == 0) selected = 1;
-        segmented(box, "Crossfade", new String[]{"Off", "3 s", "6 s", "12 s"}, selected, i -> {
-            if (seconds[i] == 0) setSpotify("crossfade", 0, false);
-            else { setSpotify("crossfade_time_seconds", seconds[i], false); setSpotify("crossfade", 1, false); }
-            settingsChanged(false);
-        });
-        spotifySwitch(box, "Play explicit content", "Off hides songs marked explicit", "play_explicit_content");
-        spotifySwitch(box, "Private session", "Listen without it showing in your activity", "private_session");
-        spotifySwitch(box, "Show unavailable songs", "Keep songs that can’t be played in lists", "show_unavailable_tracks");
-        TextView note = text("These are Spotify’s own settings: changing them here changes them in Spotify too.", 12, () -> inkDim, false);
-        note.setPadding(dp(18), dp(4), dp(18), dp(10));
-        box.addView(note);
-    }
-
-    /** Spotify's offline mode: it stops using the internet and plays only downloads, so turning it on asks first. */
-    private void offlineModeRow(LinearLayout box) {
-        boolean on = spotifyValue("offline_mode") != 0;
-        LinearLayout line = row();
-        line.setPadding(dp(18), dp(12), dp(16), dp(12));
-        LinearLayout words = column();
-        words.addView(text("Offline mode", 16, () -> ink, true));
-        TextView d = text("Play only what’s downloaded, without using the internet", 13, () -> inkDim, false);
-        d.setPadding(0, dp(2), dp(8), 0);
-        words.addView(d);
-        line.addView(words, weight());
-        Switch sw = new Switch(on);
-        line.addView(sw, lp(dp(52), dp(32)));
-        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(on ? "On" : "Off");
-        tappable(line, "Offline mode", () -> {
-            if (on) { setSpotify("offline_mode", 0); return; }
-            sheet("Turn on offline mode?", "Spotify stops using the internet and plays only what you’ve downloaded. Browsing and search won’t load anything new until you turn it off here.",
-                new Option[]{new Option("Turn on offline mode", "", "", "download", false)}, c -> setSpotify("offline_mode", 1));
-        });
-        box.addView(line, fill(-2));
-    }
-
-    private void spotifySwitch(LinearLayout box, String name, String detail, String key) {
-        LinearLayout line = row();
-        line.setPadding(dp(18), dp(12), dp(16), dp(12));
-        LinearLayout words = column();
-        words.addView(text(name, 16, () -> ink, true));
-        TextView d = text(detail, 13, () -> inkDim, false);
-        d.setPadding(0, dp(2), dp(8), 0);
-        words.addView(d);
-        line.addView(words, weight());
-        Switch sw = new Switch(spotifyValue(key) != 0);
-        line.addView(sw, lp(dp(52), dp(32)));
-        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
-        tappable(line, name, () -> { sw.set(!sw.on); setSpotify(key, sw.on ? 1 : 0, false); });
-        box.addView(line, fill(-2));
-    }
-
-    /** Shows the new value at once, asks Spotify to change it, and puts the old one back if it refuses. */
-    private void setSpotify(String key, int value) { setSpotify(key, value, true); }
-
-    private void setSpotify(String key, int value, boolean redraw) {
-        if (spotifySettings == null) return;
-        int before = spotifyValue(key);
-        spotifySettings.put(key, value);
-        if (redraw) settingsChanged(false);
-        submit(PLAYLISTS, () -> {
-            String error = nativeSetSpotifySetting(key, value);
-            if (error != null && !error.isEmpty()) post(() -> {
-                spotifySettings.put(key, before);
-                Toast.makeText(activity, "Spotify didn’t change that: " + error, Toast.LENGTH_LONG).show();
-                if (tab == SETTINGS && playlist == null) settingsChanged(false);
-            });
-        });
-    }
-
-    /** Redraws Settings in place after a change, keeping the scroll position. */
-    void settingsChanged(boolean palette) {
-        int y = pageScroll != null ? pageScroll.getScrollY() : 0;
-        showPage();
-        keepScroll(pageScroll, y);
-        if (palette) { paletteKey = "?"; refreshPalette(); }
-    }
 
     /** Puts a rebuilt page back at `y` after layout but before its first frame, so it never shows at the top. */
-    private static void keepScroll(ScrollView s, int y) {
+    static void keepScroll(ScrollView s, int y) {
         if (s == null || y <= 0) return;
         s.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
             @Override public boolean onPreDraw() {
@@ -4731,422 +1995,23 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
-    /** A title over a connected button group; the pick is stored as an index under `key`. */
-    void choice(LinearLayout box, String name, String[] names, String key, int fallback, boolean palette) {
-        segmented(box, name, names, prefs.getInt(key, fallback), pick -> {
-            prefs.edit().putInt(key, pick).apply();
-            if (key.startsWith("eq_")) Audio.refreshEqualizer();
-            settingsChanged(palette);
-        });
-    }
 
-    interface Pick { void picked(int index); }
 
-    /** A title over a connected sliding pill group with `selected` highlighted (-1 for none). */
-    private void segmented(LinearLayout box, String name, String[] names, int selected, Pick onPick) {
-        TextView label = text(name, 16, () -> ink, true);
-        label.setPadding(dp(18), dp(12), dp(18), dp(8));
-        box.addView(label);
-        final int current = selected, n = names.length;
-        View pill = new View(activity);
-        bgRound(pill, 19, () -> accent);
-        pill.setVisibility(current >= 0 && current < n ? VISIBLE : GONE);
-        FrameLayout track = new FrameLayout(activity) {
-            private boolean placed;
-            private int lastW;
-            private float slotStep(int innerW, int slotW) { return n > 1 ? (innerW - slotW) / (float) (n - 1) : 0f; }
-            @Override protected void onMeasure(int wSpec, int hSpec) {
-                int innerW = Math.max(0, MeasureSpec.getSize(wSpec) - getPaddingLeft() - getPaddingRight());
-                int slotW = n > 0 ? innerW / n : 0;
-                if (pill.getLayoutParams().width != slotW) pill.getLayoutParams().width = slotW;
-                super.onMeasure(wSpec, hSpec);
-            }
-            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
-                super.onLayout(changed, l, t, r, b);
-                int innerW = Math.max(0, (r - l) - getPaddingLeft() - getPaddingRight());
-                int slotW = n > 0 ? innerW / n : 0;
-                if (slotW <= 0 || current < 0 || current >= n) return;
-                int width = getWidth();
-                if (!placed || lastW != width) {
-                    placed = true;
-                    lastW = width;
-                    float step = slotStep(innerW, slotW), targetX = current * step;
-                    Integer prev = segPrev.remove(name);
-                    if (prev != null && prev != current && prev >= 0 && prev < n && motion()) {
-                        pill.setTranslationX(prev * step);
-                        pill.animate().cancel();
-                        pill.animate().translationX(targetX).setDuration(240)
-                            .setInterpolator(new android.view.animation.OvershootInterpolator(.85f)).start();
-                    } else {
-                        pill.setTranslationX(targetX);
-                    }
-                }
-            }
-        };
-        bgRound(track, 22, () -> surfHi);
-        track.setPadding(dp(3), dp(3), dp(3), dp(3));
-        track.addView(pill, new FrameLayout.LayoutParams(0, -1));
-        LinearLayout group = row();
-        for (int i = 0; i < n; i++) {
-            final int pick = i;
-            boolean on = i == current;
-            TextView option = text(names[i], n > 4 ? 12 : 13, on ? onAccent : ink, true);
-            option.setGravity(Gravity.CENTER);
-            option.setSingleLine(true);
-            option.setBackground(null);
-            colored(option, () -> option.setTextColor(on ? onAccent : ink));
-            tappable(option, name + ": " + names[i], () -> { segPrev.put(name, current); onPick.picked(pick); });
-            group.addView(option, new LinearLayout.LayoutParams(0, -1, 1));
-        }
-        track.addView(group, new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout.LayoutParams tp = fill(dp(46));
-        tp.setMargins(dp(14), 0, dp(14), dp(12));
-        box.addView(track, tp);
-    }
 
-    /** Multi-select filter chips in a wrapping row; each item is {label, prefKey, "1"|"0" default}. */
-    private void multiChips(LinearLayout box, String name, String[][] items) {
-        TextView label = text(name, 14, () -> inkDim, true);
-        label.setPadding(dp(18), dp(2), dp(18), dp(8));
-        box.addView(label);
-        final int gap = dp(8);
-        android.view.ViewGroup wrap = new android.view.ViewGroup(activity) {
-            @Override protected void onMeasure(int wSpec, int hSpec) {
-                int max = MeasureSpec.getSize(wSpec), padL = getPaddingLeft(), padR = getPaddingRight();
-                int avail = Math.max(1, max - padL - padR), x = 0, y = getPaddingTop(), rowH = 0;
-                for (int i = 0; i < getChildCount(); i++) {
-                    View child = getChildAt(i);
-                    child.measure(MeasureSpec.makeMeasureSpec(avail, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
-                    int cw = child.getMeasuredWidth(), ch = child.getMeasuredHeight();
-                    if (x > 0 && x + cw > avail) { y += rowH + gap; x = 0; rowH = 0; }
-                    x += cw + gap;
-                    rowH = Math.max(rowH, ch);
-                }
-                setMeasuredDimension(max, y + rowH + getPaddingBottom());
-            }
-            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
-                int avail = Math.max(1, r - l - getPaddingLeft() - getPaddingRight());
-                int x = getPaddingLeft(), y = getPaddingTop(), rowH = 0;
-                for (int i = 0; i < getChildCount(); i++) {
-                    View child = getChildAt(i);
-                    int cw = child.getMeasuredWidth(), ch = child.getMeasuredHeight();
-                    if (x > getPaddingLeft() && (x - getPaddingLeft()) + cw > avail) { y += rowH + gap; x = getPaddingLeft(); rowH = 0; }
-                    child.layout(x, y, x + cw, y + ch);
-                    x += cw + gap;
-                    rowH = Math.max(rowH, ch);
-                }
-            }
-        };
-        wrap.setPadding(dp(16), 0, dp(16), dp(12));
-        for (String[] item : items) {
-            String title = item[0], key = item[1];
-            boolean on = pref(key, "1".equals(item[2]));
-            LinearLayout chip = row();
-            chip.setPadding(dp(12), dp(8), dp(14), dp(8));
-            bgRound(chip, 18, () -> on ? accent : surfHi);
-            if (on) {
-                View check = icon("check", () -> onAccent);
-                LinearLayout.LayoutParams cp = lp(dp(14), dp(14));
-                cp.rightMargin = dp(6);
-                chip.addView(check, cp);
-            }
-            TextView tv = text(title, 13, () -> on ? onAccent : ink, true);
-            chip.addView(tv);
-            tappable(chip, name + ": " + title + (on ? ", on" : ", off"), () -> {
-                prefs.edit().putBoolean(key, !on).apply();
-                settingsChanged(false);
-            });
-            wrap.addView(chip);
-        }
-        box.addView(wrap, fill(-2));
-    }
 
-    /** A strip of miniature app-window palette cards: Dynamic follows the cover and accent, the rest are fixed palettes. */
-    private void paletteRow(LinearLayout box) {
-        TextView label = text("Palette", 16, () -> ink, true);
-        label.setPadding(dp(18), dp(12), dp(18), dp(8));
-        box.addView(label);
-        HorizontalScrollView strip = new HorizontalScrollView(activity);
-        strip.setHorizontalScrollBarEnabled(false);
-        strip.setClipToPadding(false);
-        strip.setPadding(dp(14), 0, dp(14), dp(12));
-        LinearLayout cards = row();
-        int chosen = Math.max(0, Math.min(PALETTES.length - 1, prefs.getInt("palette", 0)));
-        for (int i = 0; i < PALETTES.length; i++) {
-            final int pick = i;
-            int[] p = PALETTES[i];
-            View card = new View(activity) {
-                private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                private final Path glyphPath = new Path();
-                private final RectF box = new RectF();
-                @Override protected void onDraw(Canvas c) {
-                    float w = getWidth(), h = getHeight(), r = dp(16);
-                    int back = p == null ? blend(bg, accent, .18f) : p[0] | 0xff000000;
-                    int cardSurf = p == null ? surf : p[1] | 0xff000000;
-                    int cardHi = p == null ? surfHi : p[2] | 0xff000000;
-                    int words = p == null ? ink : p[3] | 0xff000000;
-                    int second = p == null ? accent2 : p[4] | 0xff000000;
-                    int dim = p == null ? inkDim : p[5] | 0xff000000;
-                    int fore = p == null ? accent : p[6] | 0xff000000;
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(back);
-                    box.set(0, 0, w, h);
-                    c.drawRoundRect(box, r, r, paint);
-                    // Miniature hero card preview: cover swatch, two text lines and a play badge.
-                    paint.setColor(cardSurf);
-                    box.set(dp(10), dp(10), w - dp(10), dp(50));
-                    c.drawRoundRect(box, dp(10), dp(10), paint);
-                    paint.setColor(fore);
-                    box.set(dp(15), dp(15), dp(43), dp(43));
-                    c.drawRoundRect(box, dp(6), dp(6), paint);
-                    paint.setColor(second);
-                    c.drawCircle(dp(34), dp(24), dp(4), paint);
-                    float textL = dp(49), textR = w - dp(35);
-                    if (textR > textL + dp(12)) {
-                        paint.setColor(words);
-                        box.set(textL, dp(19), textR, dp(24));
-                        c.drawRoundRect(box, dp(2.5f), dp(2.5f), paint);
-                        paint.setColor(dim);
-                        box.set(textL, dp(28), textL + (textR - textL) * .68f, dp(32));
-                        c.drawRoundRect(box, dp(2), dp(2), paint);
-                    }
-                    paint.setColor(fore);
-                    c.drawCircle(w - dp(21), dp(37), dp(6.5f), paint);
-                    // Miniature dock bar preview with active pill indicator.
-                    paint.setColor(cardHi);
-                    box.set(dp(10), dp(55), w - dp(10), dp(67));
-                    c.drawRoundRect(box, dp(6), dp(6), paint);
-                    paint.setColor(fore);
-                    box.set(dp(14), dp(58), dp(42), dp(64));
-                    c.drawRoundRect(box, dp(3), dp(3), paint);
-                    paint.setColor(second);
-                    c.drawCircle(w - dp(18), dp(61), dp(2.5f), paint);
-                    // Palette label and selected checkmark badge.
-                    paint.setColor(words);
-                    paint.setTextSize(dp(12));
-                    paint.setFakeBoldText(true);
-                    c.drawText(PALETTE_NAMES[pick], dp(12), h - dp(11), paint);
-                    paint.setFakeBoldText(false);
-                    if (pick == chosen) {
-                        float cx = w - dp(14), cy = dp(14), cr = dp(7.5f);
-                        paint.setColor(fore);
-                        c.drawCircle(cx, cy, cr, paint);
-                        int onDot = luminance(fore) > .55f ? 0xff101014 : 0xffffffff;
-                        c.save();
-                        c.translate(cx - dp(5), cy - dp(5));
-                        drawGlyph(c, paint, glyphPath, "check", onDot, dp(10));
-                        c.restore();
-                    }
-                    paint.setStyle(Paint.Style.STROKE);
-                    paint.setStrokeWidth(dp(pick == chosen ? 2.5f : 1));
-                    paint.setColor(pick == chosen ? fore : blend(back, words, .15f));
-                    float in = paint.getStrokeWidth() / 2;
-                    box.set(in, in, w - in, h - in);
-                    c.drawRoundRect(box, r - in, r - in, paint);
-                }
-            };
-            tappable(card, PALETTE_NAMES[i] + " palette" + (i == chosen ? ", selected" : ""), () -> {
-                prefs.edit().putInt("palette", pick).apply();
-                settingsChanged(true);
-            });
-            LinearLayout.LayoutParams at = lp(dp(146), dp(98));
-            at.setMarginEnd(dp(8));
-            cards.addView(card, at);
-        }
-        strip.addView(cards);
-        box.addView(strip, fill(-2));
-        if (chosen > 1) strip.post(() -> strip.scrollTo((chosen - 1) * dp(154), 0));
-    }
 
-    /** Accent swatches: used when the cover can’t colour the app (or Artwork colours is off). */
-    private void accentRow(LinearLayout box) {
-        TextView label = text("Accent colour", 16, () -> ink, true);
-        label.setPadding(dp(18), dp(10), dp(18), dp(2));
-        box.addView(label);
-        TextView hint = text("Used when Artwork colours is off or the cover has none", 13, () -> inkDim, false);
-        hint.setPadding(dp(18), 0, dp(18), dp(8));
-        box.addView(hint);
-        LinearLayout swatches = row();
-        swatches.setPadding(dp(12), 0, dp(12), dp(12));
-        int chosen = prefs.getInt("accent", 0);
-        for (int i = 0; i < ACCENTS.length; i++) {
-            final int pick = i;
-            View dot = new View(activity) {
-                private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                @Override protected void onDraw(Canvas c) {
-                    int colour = pick == 0 ? blend(surfHi, accent, .6f) : ACCENTS[pick];
-                    float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy) - dp(5);
-                    if (pick == chosen) {
-                        paint.setStyle(Paint.Style.STROKE);
-                        paint.setStrokeWidth(dp(2.5f));
-                        paint.setColor(ink);
-                        c.drawCircle(cx, cy, r + dp(2), paint);
-                        r -= dp(2);
-                    }
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(colour);
-                    c.drawCircle(cx, cy, r, paint);
-                }
-            };
-            tappable(dot, ACCENT_NAMES[i] + " accent", () -> { prefs.edit().putInt("accent", pick).apply(); settingsChanged(true); });
-            swatches.addView(dot, new LinearLayout.LayoutParams(0, dp(44), 1));
-        }
-        box.addView(swatches, fill(-2));
-    }
 
-    /** Shows how much artwork is stored on the phone and clears it when tapped. */
-    private void cacheRow(LinearLayout box) {
-        LinearLayout line = row();
-        line.setPadding(dp(18), dp(12), dp(16), dp(12));
-        LinearLayout words = column();
-        words.addView(text("Artwork cache", 16, () -> ink, true));
-        TextView size = text("Counting…", 13, () -> inkDim, false);
-        size.setPadding(0, dp(2), 0, 0);
-        words.addView(size);
-        line.addView(words, weight());
-        TextView clear = text("Clear", 14, onAccent, true);
-        clear.setGravity(Gravity.CENTER);
-        clear.setPadding(dp(18), 0, dp(18), 0);
-        GradientDrawable clearBg = round(accent, 20);
-        clear.setBackground(clearBg);
-        colored(clear, () -> { clear.setTextColor(onAccent); clearBg.setColor(accent); });
-        line.addView(clear, lp(-2, dp(40)));
-        box.addView(line, fill(-2));
-        submit(PLAYLISTS, () -> {
-            long bytes = 0;
-            java.io.File[] files = CoreBridge.cacheDir == null ? null : CoreBridge.cacheDir.listFiles();
-            if (files != null) for (java.io.File f : files) bytes += f.length();
-            final String text = bytes < 1024 * 1024 ? (bytes / 1024) + " KB" : String.format(java.util.Locale.ROOT, "%.1f MB", bytes / 1048576.0);
-            post(() -> size.setText(text + " of saved covers; they download again when needed"));
-        });
-        tappable(clear, "Clear the artwork cache", () -> submit(PLAYLISTS, () -> {
-            java.io.File[] files = CoreBridge.cacheDir == null ? null : CoreBridge.cacheDir.listFiles();
-            if (files != null) for (java.io.File f : files) f.delete();
-            post(() -> {
-                IMAGES.evictAll();
-                failed.clear();
-                size.setText("0 KB of saved covers; they download again when needed");
-                Toast.makeText(activity, "Artwork cache cleared", Toast.LENGTH_SHORT).show();
-                invalidateArt(SpatchUi.this);
-            });
-        }));
-    }
 
-    LinearLayout card(LinearLayout page, String title) {
-        TextView label = text(title, 14, () -> accent, true);
-        label.setPadding(dp(6), dp(18), 0, dp(8));
-        page.addView(label);
-        LinearLayout box = column();
-        bgRound(box, 26, () -> surf);
-        box.setPadding(0, dp(6), 0, dp(6));
-        page.addView(box, fill(-2));
-        return box;
-    }
 
-    void settingsAction(LinearLayout box, String title, String detail, Runnable action) {
-        LinearLayout line = row();
-        line.setPadding(dp(18), dp(12), dp(16), dp(12));
-        LinearLayout words = column();
-        words.addView(text(title, 16, () -> ink, true));
-        TextView hint = text(detail, 13, () -> inkDim, false);
-        hint.setPadding(0, dp(2), dp(8), 0);
-        words.addView(hint);
-        line.addView(words, weight());
-        line.addView(icon("chevron", () -> inkDim), lp(dp(24), dp(24)));
-        tappable(line, title, action);
-        box.addView(line, fill(-2));
-    }
 
-    private static String db(int gain) { return (gain > 0 ? "+" : "") + gain + " dB"; }
 
-    void toggle(LinearLayout box, String name, String detail, String key, boolean fallback, boolean rebuild) {
-        LinearLayout line = row();
-        line.setPadding(dp(18), dp(12), dp(16), dp(12));
-        LinearLayout words = column();
-        words.addView(text(name, 16, () -> ink, true));
-        TextView d = text(detail, 13, () -> inkDim, false);
-        d.setPadding(0, dp(2), dp(8), 0);
-        words.addView(d);
-        line.addView(words, weight());
-        Switch sw = new Switch(pref(key, fallback));
-        line.addView(sw, lp(dp(52), dp(32)));
-        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
-        tappable(line, name, () -> {
-            sw.set(!sw.on);
-            prefs.edit().putBoolean(key, sw.on).apply();
-            if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
-            if (key.equals("equalizer") || key.startsWith("eq_")) Audio.refreshEqualizer();
-            if (key.equals("auto_hide_dock") && !sw.on) setDockHidden(false);
-            if (key.equals("audio_direct")) Audio.setDirect(sw.on);
-            if (key.equals("lyric_gen") && sw.on) submit(ART, () -> {
-                try { LyricGen.download(); }
-                catch (Exception failed) { LyricGen.status = "Couldn’t get the model: " + failed.getMessage() + ". Turn this off and on to retry."; }
-            });
-            if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(activity)) activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
-            if (key.equals("art_colors")) { paletteKey = "?"; refreshPalette(); }
-            else if (key.equals("gpu_fx") || key.equals("frost")) { // the dock's pills and the page capture are set up by build()
-                int y = pageScroll != null ? pageScroll.getScrollY() : 0;
-                build();
-                keepScroll(pageScroll, y);
-            }
-            else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
-            else if (key.equals("idle_hide")) {
-                if (!sw.on) { idleHidden = false; for (View v : idleViews) v.setAlpha(1f); }
-                settingsChanged(false);
-            }
-            else if (key.equals("rotate")) applyRotation();
-            else if (rebuild) { int y = pageScroll != null ? pageScroll.getScrollY() : 0; build(); keepScroll(pageScroll, y); }
-        });
-        box.addView(line, fill(-2));
-    }
 
-    private final class Switch extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path check = new Path();
-        boolean on;
-        private float t;
-        Switch(boolean on) { super(activity); this.on = on; t = on ? 1 : 0; setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
-        private android.animation.ValueAnimator anim;
-        @Override protected void onDetachedFromWindow() {
-            super.onDetachedFromWindow();
-            if (anim != null) anim.cancel();
-        }
-        void set(boolean v) {
-            if (v == on) return;
-            on = v;
-            if (anim != null) anim.cancel(); // a quick double toggle must not leave two animators fighting over t
-            if (!motion()) { t = v ? 1 : 0; invalidate(); return; }
-            android.animation.ValueAnimator a = anim = android.animation.ValueAnimator.ofFloat(t, v ? 1 : 0);
-            a.setDuration(260);
-            a.setInterpolator(new android.view.animation.OvershootInterpolator(1.3f));
-            a.addUpdateListener(f -> { t = (float) f.getAnimatedValue(); invalidate(); });
-            a.start();
-        }
-        @Override protected void onDraw(Canvas c) {
-            float w = getWidth(), h = getHeight(), r = h / 2, k = Math.max(0, Math.min(1, t));
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(blend(surfHi, accent, k));
-            c.drawRoundRect(0, 0, w, h, r, r, paint);
-            paint.setColor(blend(inkDim, onAccent, k));
-            float cx = r + (w - 2 * r) * t;
-            c.drawCircle(cx, r, dp(8) + dp(4) * t, paint);
-            // Material 3's check inside the thumb, fading in as it slides on.
-            if (k > .05f) {
-                float size = dp(12);
-                c.save();
-                c.translate(cx - size / 2, r - size / 2);
-                drawGlyph(c, paint, check, "check", (accent & 0x00ffffff) | (Math.round(255 * k) << 24), size);
-                c.restore();
-            }
-        }
-    }
 
-    // ================= sheets =================
 
     interface Choice { void picked(int index); }
 
     /** A sheet choice: a label, an optional second line, a cover (image url) or icon, and whether it's the current one. */
-    private static final class Option {
+    static final class Option {
         final String label, detail, image, glyph;
         final boolean selected;
         Option(String label, String detail, String image, String glyph, boolean selected) {
@@ -5155,79 +2020,14 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** A view shown under the next sheet's note, then forgotten (the devices sheet's volume bar). */
-    private View sheetExtra;
+    View sheetExtra;
 
-    /** The volume of the device that's playing: a track you drag, with a speaker and the percentage. */
-    private final class VolumeBar extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path glyph = new Path();
-        private float value;
-        private boolean dragging;
-        private long sentAt;
-        private boolean failed;
-
-        VolumeBar(int level) {
-            super(activity);
-            value = Math.max(0, Math.min(1, level / 65535f));
-            setContentDescription("Volume");
-        }
-
-        @Override protected void onMeasure(int w, int h) { setMeasuredDimension(MeasureSpec.getSize(w), dp(52)); }
-
-        private float left() { return dp(40); }
-        private float right() { return getWidth() - dp(52); }
-
-        @Override protected void onDraw(Canvas c) {
-            float w = getWidth(), cy = getHeight() / 2f, x0 = left(), x1 = right(), x = x0 + (x1 - x0) * value;
-            c.save();
-            c.translate(dp(4), cy - dp(11));
-            drawGlyph(c, paint, glyph, "volume", ink, dp(22));
-            c.restore();
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor((ink & 0x00ffffff) | 0x30000000);
-            c.drawRoundRect(x0, cy - dp(3), x1, cy + dp(3), dp(3), dp(3), paint);
-            paint.setColor(accent);
-            c.drawRoundRect(x0, cy - dp(3), Math.max(x0 + dp(3), x), cy + dp(3), dp(3), dp(3), paint);
-            c.drawCircle(x, cy, dragging ? dp(13) : dp(10), paint);
-            paint.setColor(inkDim);
-            paint.setTextSize(dp(13));
-            paint.setTextAlign(Paint.Align.RIGHT);
-            c.drawText(Math.round(value * 100) + "%", w - dp(2), cy + dp(5), paint);
-        }
-
-        @Override public boolean onTouchEvent(MotionEvent e) {
-            int action = e.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN) { dragging = true; getParent().requestDisallowInterceptTouchEvent(true); }
-            if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP) {
-                value = Math.max(0, Math.min(1, (e.getX() - left()) / Math.max(1, right() - left())));
-                long now = SystemClock.uptimeMillis();
-                if (action == MotionEvent.ACTION_UP || now - sentAt > 120) { sentAt = now; send(); }
-                if (action == MotionEvent.ACTION_UP) dragging = false;
-                invalidate();
-                return true;
-            }
-            if (action == MotionEvent.ACTION_CANCEL) { dragging = false; invalidate(); return true; }
-            return false;
-        }
-
-        /** Sent in order, a little apart while dragging; the last position always goes. */
-        private void send() {
-            final int level = Math.round(value * 65535);
-            submit(COMMANDS, () -> {
-                String error = nativeSetVolume(level);
-                if (error != null && !error.isEmpty() && !failed) {
-                    failed = true;
-                    post(() -> Toast.makeText(activity, "Couldn’t change the volume: " + error, Toast.LENGTH_SHORT).show());
-                }
-            });
-        }
-    }
 
     /** Circular live countdown ring with remaining time shown inside the active sleep timer sheet. */
-    private final class SleepRingView extends View {
+    final class SleepRingView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.RectF arc = new android.graphics.RectF();
-        private final Runnable tick = new Runnable() {
+        final Runnable tick = new Runnable() {
             @Override public void run() {
                 invalidate();
                 if (isAttachedToWindow() && sleepAt > SystemClock.uptimeMillis()) postDelayed(this, 1000);
@@ -5427,581 +2227,20 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    // ================= player =================
 
-    private void openPlayer(boolean animate) {
-        if (playerOpen) return;
-        playerOpen = true;
-        buildPlayer();
-        addView(player, new LayoutParams(-1, -1));
-        if (pref("keep_on", true)) activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        refresh();
-        if (animate && motion()) {
-            player.setTranslationY(getHeight() > 0 ? getHeight() : dp(800));
-            player.animate().translationY(0).setDuration(440).setInterpolator(EMPHASIZED).start();
-            // Backdrop first, then each row of the player rises into place a beat after the one above it.
-            backdrop.setAlpha(0f);
-            backdrop.animate().alpha(1f).setStartDelay(120).setDuration(500).start();
-            ViewGroup col = (ViewGroup) player.getChildAt(player.getChildCount() - 1);
-            for (int i = 0; i < col.getChildCount(); i++) {
-                View row = col.getChildAt(i);
-                row.setAlpha(0f);
-                row.setTranslationY(dp(28));
-                row.animate().alpha(1f).translationY(0).setStartDelay(140 + i * 55L).setDuration(420).setInterpolator(EMPHASIZED).start();
-            }
-        }
-    }
 
-    private void closePlayer() {
-        if (!playerOpen) return;
-        stopHeldSeek();
-        if (wave != null && wave.preview >= 0) {
-            float from = shownProgress();
-            wave.cancelScrub();
-            animateProgress(from);
-        }
-        playerOpen = false;
-        // The play buttons' spin draws itself frame to frame only while the player is closed; restart it now.
-        for (PlayButton b : playButtons) b.invalidate();
-        if (listFab != null) listFab.invalidate();
-        setDockHidden(false);
-        activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        View p = player;
-        if (motion()) p.animate().translationY(getHeight()).setDuration(300).setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f)).withEndAction(() -> removeView(p)).start();
-        else removeView(p);
-        player = null;
-        disc = null; wave = null; backdrop = null; motes = null; nextPill = null;
-        pTitle = pArtist = pSource = pBadge = pQuality = pSpeed = null;
-        pLike = pShuffle = pRepeat = pSparkle = null;
-        pPlay = null;
-        pLyric = null;
-        sideHost = null;
-        sideTabSelect = null;
-        sideTabManual = false;
-        sideQueueScroll = null;
-        sideQueueOffset = 0;
-        nextKey = "";
-        for (PlayButton b : playButtons) b.invalidate();
-        for (Bars b : attachedBars) b.invalidate();
-        if (mArt != null) mArt.invalidate();
-    }
 
-    /** Opens or closes the player's lyric block: the cover area gives up its height smoothly and takes it back after. */
-    private void lyricBlock(LinearLayout box, boolean open) {
-        box.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1, getWidth() - dp(36)), View.MeasureSpec.AT_MOST), View.MeasureSpec.UNSPECIFIED);
-        int full = box.getMeasuredHeight();
-        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) box.getLayoutParams();
-        int from = params.height < 0 ? full : params.height, to = open ? full : 0;
-        if (!motion()) {
-            params.height = open ? -2 : 0;
-            params.topMargin = open ? dp(12) : 0;
-            params.bottomMargin = open ? dp(20) : 0;
-            box.setLayoutParams(params);
-            box.setAlpha(open ? 1f : 0f);
-            return;
-        }
-        android.animation.ValueAnimator grow = android.animation.ValueAnimator.ofInt(from, to);
-        grow.setDuration(420);
-        grow.setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f));
-        grow.addUpdateListener(a -> {
-            params.height = (int) a.getAnimatedValue();
-            float shown = full == 0 ? 0 : Math.min(1f, params.height / (float) full);
-            params.topMargin = Math.round(dp(12) * shown);
-            params.bottomMargin = Math.round(dp(20) * shown);
-            box.setLayoutParams(params);
-        });
-        grow.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override public void onAnimationEnd(android.animation.Animator done) {
-                params.topMargin = open ? dp(12) : 0;
-                params.bottomMargin = open ? dp(20) : 0;
-                if (open) params.height = -2;
-                box.setLayoutParams(params);
-            }
-        });
-        grow.start();
-        box.animate().alpha(open ? 1f : 0f).setDuration(open ? 420 : 260).start();
-    }
 
-    /** Keeps the player's three lyric lines on the line being sung: fetches the song's lyrics once, then follows the playhead. */
-    private void playerLyrics(LinearLayout box) {
-        if (player == null || pLyric != box) return;
-        TextView[] rows = (TextView[]) box.getTag();
-        if (!uri.equals(lyricsUri)) {
-            String forUri = lyricsUri = uri;
-            lyricsData = null;
-            if (!forUri.isEmpty()) {
-                String track = forUri.substring(forUri.lastIndexOf(':') + 1), songTitle = title, songArtist = artist;
-                long songLength = duration;
-                submit(ART, () -> {
-                    CoreBridge.Lyrics got = null;
-                    try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); } catch (Throwable none) { /* no lyrics, or offline: the lines just stay empty */ }
-                    CoreBridge.Lyrics found = got;
-                    post(() -> { if (forUri.equals(lyricsUri)) lyricsData = found; });
-                });
-            }
-        }
-        String[] want = { "", "", "" };
-        CoreBridge.Lyrics l = lyricsData;
-        boolean visible = false;
-        int current = -1;
-        long now = playhead();
-        if (l != null && l.words.length > 0 && l.starts[l.starts.length - 1] > 0) {
-            long last = l.starts.length - 1;
-            long over = (l.ends[(int) last] > l.starts[(int) last] ? l.ends[(int) last] : l.starts[(int) last] + 6000) + 1500;
-            visible = now >= l.starts[0] - 1500 && now <= over; // the block lives only while there is something to sing
-            for (int i = 0; i < l.starts.length; i++) if (l.starts[i] > 0 && l.starts[i] <= now) current = i;
-            if (current > 0) want[0] = l.words[current - 1];
-            if (current >= 0) want[1] = l.words[current];
-            if (current + 1 < l.words.length) want[2] = l.words[current + 1];
-        }
-        if (visible != lyricShown) {
-            lyricShown = visible;
-            lyricBlock(box, visible);
-        }
-        String key = want[0] + '\n' + want[1] + '\n' + want[2];
-        boolean walking = visible && current >= 0 && l.wordAt[current] != null;
-        if (visible && !key.equals(lyricKey)) {
-            lyricKey = key;
-            lyricSung = -1;
-            for (int i = 0; i < 3; i++) rows[i].setText(want[i]);
-            float[] from = { 1f, .38f, 0f }, to = { .38f, 1f, .38f };
-            if (motion() && !want[1].isEmpty()) {
-                // The lines step up: each fades to the look of the one above it while the block slides up into place.
-                // Moved row by row inside the box (which clips its children), so nothing slides over the title below.
-                for (int i = 0; i < 3; i++) {
-                    rows[i].setAlpha(from[i]);
-                    rows[i].setTranslationY(dp(24));
-                    rows[i].animate().alpha(to[i]).translationY(0).setDuration(520).setInterpolator(new android.view.animation.PathInterpolator(.2f, 0f, 0f, 1f)).start();
-                }
-            } else {
-                for (int i = 0; i < 3; i++) { rows[i].setAlpha(to[i]); rows[i].setTranslationY(0); }
-            }
-        }
-        if (walking) {
-            int upTo = sungUpTo(l, current, now);
-            if (upTo != lyricSung) { lyricSung = upTo; rows[1].setText(sungWords(want[1], upTo, rows[1].getCurrentTextColor())); }
-        }
-        box.postDelayed(() -> playerLyrics(box), walking ? 40 : 250); // word timing needs a quicker look, only while a timed line is sung
-    }
 
-    private int lyricSung = -1;
 
-    /** How much of a word-timed line has been sung: the text offset where the first word not yet reached begins. */
-    static int sungUpTo(CoreBridge.Lyrics l, int line, long now) {
-        int[] at = l.wordAt[line];
-        long[] when = l.wordStart[line];
-        String text = l.words[line] == null ? "" : l.words[line];
-        int upTo = 0;
-        for (int w = 0; w < at.length && w < when.length && when[w] <= now; w++) upTo = w + 1 < at.length ? at[w + 1] : text.length();
-        return Math.max(0, Math.min(upTo, text.length()));
-    }
 
-    /** A line with the words still to come dimmed, so the highlight walks along it word by word as they are sung. */
-    static CharSequence sungWords(String text, int upTo, int color) {
-        if (text == null || upTo >= text.length()) return text;
-        android.text.SpannableString s = new android.text.SpannableString(text);
-        s.setSpan(new android.text.style.ForegroundColorSpan((color & 0x00ffffff) | 0x5c000000), Math.max(0, upTo), text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        return s;
-    }
 
-    // Optional idle chrome: the top bar, controls and Next-up pill fade out after a quiet spell while music plays.
-    private View[] idleViews = new View[0];
-    private boolean idleHidden, idleSwallow;
-    private final Runnable idleHide = new Runnable() {
-        @Override public void run() {
-            if (player == null || !pref("idle_hide", false) || idleViews.length == 0) return;
-            if (!playing || queuePanel != null || lyricsPanel != null) { player.postDelayed(this, 5000); return; }
-            idleHidden = true;
-            for (View v : idleViews) v.animate().alpha(0f).setDuration(motion() ? 400 : 0).start();
-        }
-    };
 
-    private void idleTouched() {
-        if (player == null) return;
-        player.removeCallbacks(idleHide);
-        if (!pref("idle_hide", false) || idleViews.length == 0) return;
-        if (idleHidden) {
-            idleHidden = false;
-            for (View v : idleViews) v.animate().alpha(1f).setDuration(motion() ? 200 : 0).start();
-        }
-        player.postDelayed(idleHide, 5000);
-    }
 
-    private void buildPlayer() {
-        idleHidden = false;
-        player = new FrameLayout(activity) {
-            @Override public boolean dispatchTouchEvent(MotionEvent e) {
-                // A touch while the chrome is hidden only brings it back; it must not press an invisible button.
-                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { idleSwallow = idleHidden; idleTouched(); }
-                if (idleSwallow) { if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) idleSwallow = false; return true; }
-                return super.dispatchTouchEvent(e);
-            }
-        };
-        player.setClickable(true);
-        backdrop = artwork.new Backdrop();
-        player.addView(backdrop, new LayoutParams(-1, -1));
-        motes = pref("motes", true) ? artwork.new Motes() : null;
-        if (motes != null) player.addView(motes, new LayoutParams(-1, -1));
-        LinearLayout col = column();
-        boolean land = landscape();
-        LinearLayout sideColumn = null;
-        if (land) {
-            // Cover, title and controls on the left; the lyrics, with the top buttons above them, take the right.
-            col.setPadding(dp(18) + inset.left, dp(2) + inset.top, dp(10), dp(4) + inset.bottom);
-            LinearLayout split = row();
-            split.addView(col, new LinearLayout.LayoutParams(0, -1, 1f));
-            sideColumn = column();
-            sideColumn.setPadding(dp(10), dp(6) + inset.top, dp(18) + inset.right, dp(8) + inset.bottom);
-            split.addView(sideColumn, new LinearLayout.LayoutParams(0, -1, 1.15f));
-            player.addView(split, new LayoutParams(-1, -1));
-        } else {
-            col.setPadding(dp(18) + inset.left, dp(6) + inset.top, dp(18) + inset.right, dp(14) + inset.bottom);
-            player.addView(col, new LayoutParams(-1, -1));
-        }
 
-        LinearLayout top = row();
-        top.addView(iconButton(icon("down", () -> ink), "Close player", this::back), lp(dp(48), dp(48)));
-        LinearLayout from = column();
-        TextView cap = text("PLAYING FROM", 11, () -> inkDim, true);
-        cap.setLetterSpacing(.12f);
-        cap.setGravity(Gravity.CENTER);
-        from.addView(cap, fill(-2));
-        pSource = text("", 15, () -> ink, true);
-        pSource.setGravity(Gravity.CENTER);
-        oneLine(pSource);
-        from.addView(pSource, fill(-2));
-        top.addView(from, weight());
-        // The timer icon carries a small badge with the minutes left while a sleep timer runs.
-        FrameLayout timerBox = new FrameLayout(activity);
-        timerBox.setClipChildren(false);
-        timerBox.addView(iconButton(icon("timer", () -> sleepAt > SystemClock.uptimeMillis() ? accent : ink), "Sleep timer", this::openSleepTimer), new LayoutParams(-1, -1));
-        TextView left = text("", 10, () -> onAccent, true);
-        left.setGravity(Gravity.CENTER);
-        left.setPadding(dp(4), 0, dp(4), 0);
-        bgRound(left, 8, () -> accent);
-        timerBox.addView(left, new LayoutParams(-2, dp(16), Gravity.BOTTOM | Gravity.END));
-        sleepBadge = new Runnable() {
-            @Override public void run() {
-                left.removeCallbacks(this);
-                long ms = sleepAt - SystemClock.uptimeMillis();
-                left.setVisibility(ms > 0 ? VISIBLE : GONE);
-                recolorView(timerBox);
-                if (moreButton != null) recolorView(moreButton);
-                if (ms <= 0) return;
-                left.setText(Math.max(1, (ms + 59_999) / 60_000) + "m");
-                left.postDelayed(this, 15_000);
-            }
-        };
-        sleepBadge.run();
-        // Playback speed, for podcasts: a small chip that opens the choices.
-        pSpeed = text("1×", 13, () -> ink, true);
-        pSpeed.setGravity(Gravity.CENTER);
-        pSpeed.setPadding(dp(12), 0, dp(12), 0);
-        bgRound(pSpeed, 16, () -> surfHi);
-        tappable(pSpeed, "Playback speed", this::openSpeed);
-        pSpeed.setVisibility(GONE);
-        LinearLayout.LayoutParams speedParams = lp(-2, dp(32));
-        speedParams.rightMargin = dp(6);
-        top.addView(pSpeed, speedParams);
-        // The bar keeps only what is used every song; the rest lives in the more menu unless pinned back in settings.
-        if (pref("bar_timer", false)) top.addView(timerBox, lp(dp(48), dp(48)));
-        if (pref("bar_devices", false)) top.addView(iconButton(icon("devices", () -> ink), "Play on another device", this::openDevices), lp(dp(48), dp(48)));
-        if (pref("bar_lyrics", true) && !land) top.addView(iconButton(icon("note", () -> ink), "Lyrics", this::openLyrics), lp(dp(48), dp(48)));
-        if (pref("bar_queue", true)) top.addView(iconButton(icon("queue", () -> ink), "Up next", this::openQueue), lp(dp(48), dp(48)));
-        View[] more = new View[1];
-        more[0] = iconButton(icon("more", () -> sleepAt > SystemClock.uptimeMillis() ? accent : ink), "More", () -> openPlayerMenu(more[0]));
-        moreButton = more[0];
-        top.addView(more[0], lp(dp(48), dp(48)));
-        (land ? sideColumn : col).addView(top, fill(-2));
 
-        disc = artwork.new Disc();
-        col.addView(disc, new LinearLayout.LayoutParams(-1, 0, 1));
-        // The visualizer's glow reaches past the disc's own square; let every container up to the player draw it whole.
-        View discView = disc;
-        disc.post(() -> {
-            for (android.view.ViewParent up = discView.getParent(); up instanceof ViewGroup && up != SpatchUi.this; up = up.getParent()) {
-                ((ViewGroup) up).setClipChildren(false);
-                ((ViewGroup) up).setClipToPadding(false);
-            }
-        });
-        gestures(disc);
-        pLyric = null;
-        if (pref("player_lyrics", false) && !land) {
-            // Three quiet lines (the one before, the sung one, the one after), always three lines tall so nothing
-            // shifts when they fill in or empty; tap for all of it.
-            LinearLayout box = pLyric = column();
-            TextView[] rows = new TextView[3];
-            for (int k = 0; k < 3; k++) {
-                final boolean sung = k == 1;
-                // Left-aligned with the title below it, so the lyrics read as part of the same column; the sung line is bright and glows.
-                rows[k] = text("", sung ? 22 : 15, () -> ink, true);
-                rows[k].setLineSpacing(0, 1.05f);
-                rows[k].setGravity(Gravity.START);
-                rows[k].setSingleLine(true);
-                rows[k].setEllipsize(android.text.TextUtils.TruncateAt.END);
-                rows[k].setAlpha(sung ? 1f : .38f);
-                box.addView(rows[k], fill(-2));
-            }
-            // How many lines show is the user's call (default two: the sung line and what comes next); the rest are hidden, not removed.
-            int shownLines = Math.max(1, Math.min(3, prefs.getInt("player_lyric_lines", 1) + 1));
-            rows[0].setVisibility(shownLines >= 3 ? VISIBLE : GONE);
-            rows[2].setVisibility(shownLines >= 2 ? VISIBLE : GONE);
-            box.setTag(rows);
-            box.setClipChildren(true);
-            // Its rows slide inside it; it clips them to its own card, since the column around it no longer clips (for the visualizer glow).
-            box.setClipToOutline(true);
-            // The lines sit on a quiet glass card (rounded, a touch lighter than the backdrop) so they read as a part of the player.
-            box.setPadding(dp(20), dp(14), dp(20), dp(14));
-            bgRound(box, 26, () -> (ink & 0x00ffffff) | 0x16000000);
-            tappable(box, "Open lyrics", this::openLyrics);
-            LinearLayout.LayoutParams lineParams = lp(-1, 0); // collapsed until the song's lyrics are about to start
-            // No margins while collapsed: a song without lyrics must not move anything (lyricBlock grows them with the height).
-            box.setAlpha(0f);
-            col.addView(box, lineParams);
-            lyricShown = false;
-            lyricsUri = "";
-            lyricKey = "";
-            lyricsData = null;
-            playerLyrics(box);
-        }
 
-        LinearLayout titleRow = row();
-        LinearLayout words = column();
-        pTitle = text("", land ? 22 : 28, () -> ink, true);
-        marquee(pTitle);
-        pTitle.setOnLongClickListener(v -> share());
-        // The title opens the song's album, the artist line its artist, as in Spotify's player.
-        pTitle.setOnClickListener(v -> openFromPlayer(albumUri, album, artist));
-        words.addView(pTitle, fill(-2));
-        LinearLayout byline = row();
-        pBadge = text("E", 11, bg, true);
-        pBadge.setGravity(Gravity.CENTER);
-        GradientDrawable badgeBg = round(inkDim, 4);
-        pBadge.setBackground(badgeBg);
-        colored(pBadge, () -> { pBadge.setTextColor(bg); badgeBg.setColor(inkDim); });
-        LinearLayout.LayoutParams bp = lp(dp(17), dp(17));
-        bp.rightMargin = dp(7);
-        byline.addView(pBadge, bp);
-        pArtist = text("", 17, () -> inkDim, false);
-        pArtist.setOnClickListener(v -> openFromPlayer(artistUri, artist, "Artist"));
-        oneLine(pArtist);
-        byline.addView(pArtist, weight());
-        LinearLayout.LayoutParams byp = fill(-2);
-        byp.topMargin = dp(4);
-        words.addView(byline, byp);
-        // What Spotify says is playing. The line always keeps its space, so the layout never shifts when it arrives.
-        pQuality = text("", 12, () -> accent, true);
-        pQuality.setLetterSpacing(.04f);
-        pQuality.setSingleLine(true);
-        pQuality.setText(" ");
-        pQuality.setVisibility(INVISIBLE);
-        LinearLayout.LayoutParams qp = lp(-2, -2);
-        qp.topMargin = dp(6);
-        if (!land && pref("player_quality", true)) words.addView(pQuality, qp);
-        titleRow.addView(words, weight());
-        pLike = new Icon("heart-outline", ink);
-        colored(pLike, () -> {
-            boolean isLiked = Boolean.TRUE.equals(saved);
-            pLike.symbol = isLiked ? "heart" : "heart-outline";
-            pLike.color = isLiked ? accent : ink;
-            pLike.invalidate();
-        });
-        if (pref("player_heart", true)) titleRow.addView(iconButton(pLike, "Save to Liked Songs", .90f, this::toggleSaved), lp(dp(52), dp(52)));
-        col.addView(titleRow, fill(-2));
 
-        wave = new Wave();
-        LinearLayout.LayoutParams wp = fill(dp(land ? 60 : 62));
-        wp.topMargin = dp(land ? 2 : 6);
-        col.addView(wave, wp);
-        LinearLayout controls = row();
-        controls.setGravity(Gravity.CENTER);
-        pShuffle = new Icon("shuffle", inkDim);
-        colored(pShuffle, () -> { pShuffle.color = shuffle ? accent : inkDim; pShuffle.invalidate(); });
-        pRepeat = new Icon("repeat", inkDim);
-        colored(pRepeat, () -> { pRepeat.symbol = repeat == 2 ? "repeat-one" : "repeat"; pRepeat.color = repeat != 0 ? accent : inkDim; pRepeat.invalidate(); });
-        // Smart Shuffle shows as a small sparkle on the shuffle icon.
-        FrameLayout shuffleBox = new FrameLayout(activity);
-        shuffleBox.addView(iconButton(pShuffle, "Shuffle: off, on or Smart Shuffle", .90f, this::toggleShuffle), new LayoutParams(-1, -1));
-        pSparkle = new Icon("sparkle", accent);
-        colored(pSparkle, () -> { pSparkle.color = accent; pSparkle.setVisibility(shuffle && smartShuffle ? VISIBLE : GONE); pSparkle.invalidate(); });
-        LayoutParams sp = new LayoutParams(dp(11), dp(11), Gravity.TOP | Gravity.END);
-        sp.setMargins(0, dp(11), dp(9), 0);
-        shuffleBox.addView(pSparkle, sp);
-        boolean modes = pref("player_modes", true);
-        if (modes) controls.addView(shuffleBox, lp(dp(land ? 44 : 52), dp(land ? 44 : 52)));
-        controls.addView(skip(holdToSeek(iconButton(icon("previous", () -> ink), "Previous, hold to rewind", this::previousTrack), false), false), lp(dp(land ? 48 : 60), dp(land ? 48 : 60)));
-        pPlay = new PlayButton();
-        controls.addView(pPlay, lp(dp(land ? 66 : 86), dp(land ? 66 : 86)));
-        controls.addView(skip(holdToSeek(iconButton(icon("next", () -> ink), "Next, hold to fast forward", () -> command(NEXT, 0, "")), true), true), lp(dp(land ? 48 : 60), dp(land ? 48 : 60)));
-        if (modes) controls.addView(iconButton(pRepeat, "Repeat", .90f, this::cycleRepeat), lp(dp(land ? 44 : 52), dp(land ? 44 : 52)));
-        col.addView(controls, fill(-2));
-
-        nextPill = row();
-        nextPill.setPadding(dp(6), dp(6), dp(16), dp(6));
-        bgRound(nextPill, 24, () -> (ink & 0x00ffffff) | 0x1a000000);
-        LinearLayout.LayoutParams np = fill(-2);
-        np.topMargin = dp(12);
-        if (!land && pref("player_next", true)) col.addView(nextPill, np);
-        tappable(nextPill, "Up next", this::openQueue);
-        List<View> hide = new ArrayList<>();
-        if (pref("idle_hide_top", true)) hide.add(top);
-        if (pref("idle_hide_title", false)) hide.add(titleRow);
-        if (pref("idle_hide_wave", false)) hide.add(wave);
-        if (pref("idle_hide_controls", true)) hide.add(controls);
-        if (!land && pref("player_next", true) && pref("idle_hide_next", true)) hide.add(nextPill);
-        idleViews = hide.toArray(new View[0]);
-        idleTouched();
-        if (land) {
-            sideTabManual = false;
-            sideTab = (uri.isEmpty() || uri.equals(noLyricsUri)) ? 1 : 0;
-            View pillInd = new View(activity);
-            GradientDrawable indBg = round(accent, 15);
-            pillInd.setBackground(indBg);
-            FrameLayout tabContainer = new FrameLayout(activity) {
-                private int lastHalf = -1;
-                @Override protected void onMeasure(int wSpec, int hSpec) {
-                    int innerW = MeasureSpec.getSize(wSpec) - getPaddingLeft() - getPaddingRight();
-                    int halfW = Math.max(0, innerW / 2);
-                    if (halfW > 0 && halfW != lastHalf) {
-                        lastHalf = halfW;
-                        pillInd.getLayoutParams().width = halfW;
-                        pillInd.setTranslationX(sideTab * (float) halfW);
-                    }
-                    super.onMeasure(wSpec, hSpec);
-                }
-            };
-            tabContainer.setPadding(dp(3), dp(3), dp(3), dp(3));
-            GradientDrawable tabTrack = round((ink & 0x00ffffff) | 0x16000000, 18);
-            tabContainer.setBackground(tabTrack);
-            tabContainer.addView(pillInd, new LayoutParams(0, -1));
-            LinearLayout tabRow = row();
-            TextView[] tabViews = new TextView[2];
-            String[] tabNames = { "Lyrics", "Up next" };
-            Runnable syncTabs = () -> {
-                tabTrack.setColor((ink & 0x00ffffff) | 0x16000000);
-                indBg.setColor(accent);
-                for (int i = 0; i < 2; i++) tabViews[i].setTextColor(sideTab == i ? onAccent : inkDim);
-            };
-            sideTabSelect = (target, animate) -> {
-                if (sideTab == target && !animate) return;
-                int prev = sideTab;
-                sideTab = target;
-                syncTabs.run();
-                int halfW = pillInd.getWidth() > 0 ? pillInd.getWidth() : Math.max(0, (tabContainer.getWidth() - dp(6)) / 2);
-                float targetX = sideTab * (float) halfW;
-                if (animate && motion()) pillInd.animate().translationX(targetX).setDuration(280).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start(); // no overshoot: the end tab sits flush with the track, so any overshoot was clipped
-                else pillInd.setTranslationX(targetX);
-                loadSidePanel(animate, prev != target ? (target > prev ? 1 : -1) : 0);
-            };
-            for (int i = 0; i < 2; i++) {
-                final int pick = i;
-                tabViews[i] = text(tabNames[i], 13, () -> sideTab == pick ? onAccent : inkDim, true);
-                tabViews[i].setGravity(Gravity.CENTER);
-                tappable(tabViews[i], tabNames[i], .94f, () -> {
-                    if (sideTab == pick) return;
-                    sideTabManual = true;
-                    if (sideTabSelect != null) sideTabSelect.accept(pick, true);
-                });
-                tabRow.addView(tabViews[i], new LinearLayout.LayoutParams(0, -1, 1));
-            }
-            tabContainer.addView(tabRow, new LayoutParams(-1, -1));
-            colored(tabContainer, syncTabs);
-            LinearLayout.LayoutParams tp = lp(-1, dp(36));
-            tp.topMargin = dp(2);
-            tp.bottomMargin = dp(6);
-            sideColumn.addView(tabContainer, tp);
-
-            FrameLayout host = new FrameLayout(activity);
-            sideColumn.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
-            sideHost = host;
-            loadSidePanel(false, 0);
-        } else {
-            sideTabSelect = null;
-        }
-    }
-
-    /** Landscape: fills the right panel with synced lyrics or the interactive Up next queue. */
-    private void loadSidePanel(boolean cascade) { loadSidePanel(cascade, 0); }
-
-    private void loadSidePanel(boolean cascade, int slideDir) {
-        FrameLayout host = sideHost;
-        if (host == null) return;
-        if (sideQueueScroll != null) sideQueueOffset = sideQueueScroll.getScrollY();
-        sideQueueScroll = null;
-        host.removeAllViews();
-        if (sideTab == 1) {
-            ScrollView scroll = sideQueueScroll = new ScrollView(activity);
-            scroll.setVerticalScrollBarEnabled(false);
-            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-            scroll.setVerticalFadingEdgeEnabled(true);
-            scroll.setFadingEdgeLength(dp(56));
-            LinearLayout tracks = column();
-            tracks.setPadding(0, dp(4), 0, dp(24));
-            fillQueueList(tracks, cascade, false);
-            scroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
-            host.addView(scroll, new LayoutParams(-1, -1));
-            keepScroll(scroll, sideQueueOffset);
-        } else if (!uri.isEmpty()) {
-            String trackUri = uri;
-            fillLyrics(host, () -> sideHost == host && sideTab == 0 && player != null, uri.substring(uri.lastIndexOf(':') + 1), () -> {
-                if (trackUri.equals(uri)) noLyricsUri = trackUri;
-                if (!sideTabManual && sideHost == host && sideTab == 0 && sideTabSelect != null) sideTabSelect.accept(1, true);
-            });
-        }
-        if (slideDir != 0 && motion() && host.getChildCount() > 0) {
-            View child = host.getChildAt(0);
-            child.setAlpha(0f);
-            child.setTranslationX(slideDir * dp(24));
-            child.animate().alpha(1f).translationX(0f).setDuration(240).setInterpolator(EMPHASIZED).start();
-        }
-    }
-
-    /** Tap skips; holding the button jumps ten seconds at a time until it is released. */
-    private View skip(View button, boolean next) {
-        // Previous also restarts the song, which Spotify allows even when skipping back isn't, so only Next dims.
-        if (!next) return button;
-        skipButtons.put(button, true);
-        boolean allowed = next ? canNext : canPrevious;
-        button.setEnabled(allowed);
-        button.setAlpha(allowed ? 1f : .35f);
-        return button;
-    }
-
-    private View holdToSeek(View button, boolean forward) {
-        boolean[] held = new boolean[1];
-        Runnable[] step = new Runnable[1];
-        step[0] = () -> {
-            if (!held[0] || duration <= 0 || !button.isAttachedToWindow()) return;
-            long jump = new long[]{5_000, 10_000, 30_000}[Math.max(0, Math.min(2, prefs.getInt("seek_step", 1)))];
-            long target = Math.max(0, Math.min(duration - 1500, playhead() + (forward ? jump : -jump)));
-            setPosition(target);
-            command(SEEK, target, "");
-            tick(button);
-            button.postDelayed(step[0], 480);
-        };
-        button.setOnLongClickListener(v -> {
-            stopHeldSeek();
-            held[0] = true;
-            holdingSeek = true;
-            cancelHeldSeek = () -> { held[0] = false; button.removeCallbacks(step[0]); };
-            step[0].run();
-            invalidateProgress();
-            return true;
-        });
-        // iconButton installs its own touch listener for the press animation; wrap it so releasing still ends the hold.
-        button.setOnTouchListener(new View.OnTouchListener() {
-            @Override public boolean onTouch(View v, MotionEvent e) {
-                int a = e.getActionMasked();
-                if (a == MotionEvent.ACTION_DOWN && motion()) v.animate().scaleX(.90f).scaleY(.90f).setDuration(90).start();
-                else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
-                    if (held[0]) stopHeldSeek();
-                    if (motion()) v.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(2f)).start();
-                }
-                return false;
-            }
-        });
-        return button;
-    }
 
     View iconButton(Icon icon, String label, Runnable action) {
         return iconButton(icon, label, .96f, action);
@@ -6014,417 +2253,37 @@ public final class SpatchUi extends FrameLayout {
         return box;
     }
 
-    /** On the disc: pull down to close, flick sideways to skip, double tap to play or pause. */
-    private void gestures(View v) {
-        float[] start = new float[2];
-        boolean[] drag = new boolean[1], menuOpened = new boolean[1];
-        v.setContentDescription("Artwork, hold for song options");
-        v.setOnLongClickListener(view -> {
-            if (uri.isEmpty()) return false;
-            menuOpened[0] = true;
-            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
-            currentSongActions();
-            return true;
-        });
-        android.view.GestureDetector taps = new android.view.GestureDetector(activity, new android.view.GestureDetector.SimpleOnGestureListener() {
-            @Override public boolean onDown(MotionEvent e) { return true; }
-            @Override public void onLongPress(MotionEvent e) { if (!drag[0]) v.performLongClick(); }
-            @Override public boolean onDoubleTap(MotionEvent e) { if (pref("double_tap", true)) togglePlay(); return true; }
-            @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
-                if (a == null || !pref("swipe_skip", true) || Math.abs(b.getX() - a.getX()) < dp(60) || Math.abs(b.getX() - a.getX()) < Math.abs(b.getY() - a.getY())) return false;
-                if (b.getX() < a.getX()) command(NEXT, 0, ""); else previousTrack();
-                tick(v);
-                return true;
-            }
-        });
-        v.setOnTouchListener((view, e) -> {
-            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) menuOpened[0] = false;
-            if (menuOpened[0]) {
-                if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) taps.onTouchEvent(e);
-                return true;
-            }
-            if (player != null && motion()) {
-                switch (e.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN: start[0] = e.getRawX(); start[1] = e.getRawY(); drag[0] = false; break;
-                    case MotionEvent.ACTION_MOVE: {
-                        float dy = e.getRawY() - start[1], dx = e.getRawX() - start[0];
-                        if (!drag[0] && dy > dp(16) && dy > Math.abs(dx) * 1.4f) {
-                            drag[0] = true;
-                            view.getParent().requestDisallowInterceptTouchEvent(true);
-                            MotionEvent cancel = MotionEvent.obtain(e);
-                            cancel.setAction(MotionEvent.ACTION_CANCEL);
-                            taps.onTouchEvent(cancel);
-                            cancel.recycle();
-                        }
-                        if (drag[0]) { player.setTranslationY(Math.max(0, dy) * .8f); return true; }
-                        break;
-                    }
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        if (drag[0]) {
-                            drag[0] = false;
-                            if (e.getActionMasked() == MotionEvent.ACTION_UP && e.getRawY() - start[1] > dp(140)) back();
-                            else player.animate().translationY(0).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(.8f)).start();
-                            return true;
-                        }
-                        break;
-                }
-            }
-            taps.onTouchEvent(e);
-            return true;
-        });
-    }
 
-    private void togglePlay() {
-        if (uri.isEmpty() || pending != null) return;
-        boolean want = !playing;
-        pending = want;
-        refresh();
-        submit(COMMANDS, () -> {
-            boolean ok = playerCommand(want ? RESUME : PAUSE, 0, "");
-            post(() -> {
-                if (!ok) { pending = null; refresh(); }
-                else postDelayed(() -> { if (pending != null && pending == want) { pending = null; refresh(); } }, 2500);
-            });
-        });
-    }
 
-    private static boolean isPlaylistLink(String u) {
-        return u.startsWith("spotify:playlist:") || (u.startsWith("spotify:user:") && u.contains(":playlist:"));
-    }
 
-    /** Off → Shuffle → Smart Shuffle (playlists only) → Off, as Spotify's own shuffle button cycles. */
-    private void toggleShuffle() {
-        boolean before = shuffle, beforeSmart = smartShuffle;
-        int mode = !shuffle ? 1 : !smartShuffle && isPlaylistLink(context) ? 2 : 0;
-        boolean want = mode > 0;
-        shuffle = want;
-        smartShuffle = mode == 2;
-        refresh();
-        String list = context;
-        submit(COMMANDS, () -> {
-            boolean ok = playerCommand(SHUFFLE, want ? 1 : 0, "");
-            if (ok && isPlaylistLink(list)) {
-                String error = nativeSetShuffleMode(list, mode);
-                if (error != null && !error.isEmpty()) android.util.Log.w("SpatchUi", "Shuffle mode: " + error);
-            }
-            if (!ok) post(() -> {
-                if (shuffle == want) { shuffle = before; smartShuffle = beforeSmart; refresh(); }
-                if (isAttachedToWindow()) Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show();
-            });
-        });
-    }
 
-    private void cycleRepeat() {
-        int before = repeat, want = (before + 1) % 3;
-        repeat = want;
-        refresh();
-        submit(COMMANDS, () -> {
-            if (!playerCommand(REPEAT, want, "")) post(() -> {
-                if (repeat == want) { repeat = before; refresh(); }
-                if (isAttachedToWindow()) Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show();
-            });
-        });
-    }
 
-    private FrameLayout queuePanel;
-    private ScrollView queueScroll;
 
-    private void closeQueue() {
-        if (queuePanel != null) removeView(queuePanel);
-        queuePanel = null;
-        queueScroll = null;
-    }
 
-    private FrameLayout lyricsPanel;
 
-    private void closeLyrics() {
-        if (lyricsPanel != null) removeView(lyricsPanel);
-        lyricsPanel = null;
-    }
 
-    /** The song's lyrics from Spotify's lyrics service; time-synced ones light the current line. */
-    private void openLyrics() {
-        if (lyricsPanel != null || uri.isEmpty()) return;
-        String track = uri.substring(uri.lastIndexOf(':') + 1);
-        String name = title;
-        lyricsPanel = new FrameLayout(activity);
-        lyricsPanel.setClickable(true);
-        lyricsPanel.setBackgroundColor(bg);
-        addView(lyricsPanel, new LayoutParams(-1, -1));
-        if (pref("backdrop", true)) lyricsPanel.addView(artwork.new Backdrop(), new LayoutParams(-1, -1)); // the player's blurred cover, so the two screens match
-        LinearLayout body = column();
-        body.setPadding(dp(18), inset.top, dp(18), inset.bottom);
-        LinearLayout header = row();
-        header.addView(iconButton(icon("back", () -> ink), "Close lyrics", this::closeLyrics), lp(dp(48), dp(48)));
-        header.addView(text(name, 22, () -> ink, true), weight());
-        body.addView(header, fill(dp(64)));
-        FrameLayout host = new FrameLayout(activity);
-        body.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
-        lyricsPanel.addView(body, new LayoutParams(-1, -1));
-        FrameLayout panel = lyricsPanel;
-        fillLyrics(host, () -> lyricsPanel == panel, track);
-    }
 
-    /** Fills `host` with the song's lyrics (loading, none, or the lines); `alive` says the host is still on screen. */
-    private void fillLyrics(FrameLayout host, java.util.function.BooleanSupplier alive, String track) {
-        fillLyrics(host, alive, track, null);
-    }
 
-    private void fillLyrics(FrameLayout host, java.util.function.BooleanSupplier alive, String track, Runnable onEmpty) {
-        String songTitle = title, songArtist = artist;
-        long songLength = duration;
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setVerticalScrollBarEnabled(false);
-        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        scroll.setVerticalFadingEdgeEnabled(true); // lines melt into the top and bottom edges instead of being cut
-        scroll.setFadingEdgeLength(dp(96));
-        long[] touched = { 0 }; // while the reader is dragging, the screen must not scroll under their finger
-        scroll.setOnTouchListener((v, e) -> { touched[0] = SystemClock.uptimeMillis(); return false; });
-        LinearLayout lines = column();
-        lines.setPadding(0, dp(12), 0, dp(32));
-        View status = loader("Loading lyrics");
-        lines.addView(status, fill(-2));
-        scroll.addView(lines, new ScrollView.LayoutParams(-1, -2));
-        host.addView(scroll, new LayoutParams(-1, -1));
-        submit(ART, () -> {
-            CoreBridge.Lyrics got = null;
-            boolean missing = false;
-            try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); }
-            catch (Throwable failed) {
-                // The service answers 404 for a song with no lyrics; anything else is a real failure.
-                if (String.valueOf(failed.getMessage()).contains("HTTP 404")) missing = true;
-                else android.util.Log.w("SpatchUi", "lyrics failed", failed);
-            }
-            CoreBridge.Lyrics found = got;
-            String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now",
-                hint = !missing ? "Try again in a moment" : LyricGen.enabled() ? "Being written on this phone as the song plays; they’ll be here next time" : null;
-            post(() -> {
-                if (!alive.getAsBoolean()) return;
-                if (found == null || found.words.length == 0) {
-                    if (onEmpty != null) {
-                        onEmpty.run();
-                        if (!alive.getAsBoolean()) return;
-                    }
-                    lines.removeView(status);
-                    lines.addView(emptyState("note", "badge6", empty, hint), fill(-2));
-                    return;
-                }
-                lines.removeView(status);
-                if (found.generated) {
-                    TextView note = text("Generated on this phone · may be wrong", 12, () -> inkDim, false);
-                    note.setGravity(Gravity.CENTER);
-                    note.setPadding(0, dp(4), 0, dp(4));
-                    host.addView(note, new LayoutParams(-1, -2, Gravity.TOP));
-                }
-                boolean synced = found.starts[found.starts.length - 1] > 0;
-                // Synced lyrics are read one line at a time: the sung line sits in the middle, so room above and below it.
-                int room = host.getHeight() > 0 ? host.getHeight() : getHeight();
-                if (synced) lines.setPadding(0, room * 2 / 5, 0, room / 2);
-                TextView[] views = new TextView[found.words.length];
-                for (int i = 0; i < views.length; i++) {
-                    String line = found.words[i];
-                    views[i] = text(line.isEmpty() ? " " : line, synced ? 30 : 22, () -> ink, true);
-                    views[i].setLineSpacing(0, 1.05f);
-                    if (synced) views[i].setPadding(dp(16), dp(8), dp(16), dp(8));
-                    LinearLayout.LayoutParams at = fill(-2);
-                    if (synced) at.bottomMargin = dp(14);
-                    lines.addView(views[i], at);
-                    final long start = found.starts[i];
-                    if (synced) {
-                        views[i].setPivotX(0);
-                        views[i].addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> v.setPivotY((b - t) / 2f));
-                        final TextView tapped = views[i];
-                        tappable(views[i], null, () -> {
-                            setPosition(start);
-                            command(SEEK, start, ""); // tap a line to jump there
-                            GradientDrawable flash = round(0x33ffffff, 24); // the tap shows where it landed: a pill that fades
-                            tapped.setBackground(flash);
-                            tapped.postDelayed(() -> {
-                                android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(0x33, 0);
-                                fade.setDuration(220);
-                                fade.addUpdateListener(f -> flash.setColor(((int) f.getAnimatedValue() << 24) | 0xffffff));
-                                fade.start();
-                            }, 80);
-                        });
-                    }
-                }
-                if (synced) syncLyrics(alive, scroll, views, found, new int[] { -2, -1, 0 }, touched);
-            });
-        });
-    }
 
-    /**
-     * Keeps the sung line large, bright and centred while the lyrics screen is open (the others dim and shrink); `shown` holds the current line, -2 before the first pass, which snaps instead of animating.
-     */
-    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, CoreBridge.Lyrics lyrics, int[] shown, long[] touched) {
-        if (!alive.getAsBoolean()) return;
-        long[] starts = lyrics.starts;
-        if (shown[0] == -2 && (scroll.getHeight() == 0 || views[0].getHeight() == 0)) { // not laid out yet: the centring needs real sizes
-            postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), 30);
-            return;
-        }
-        long now = playhead();
-        int current = -1;
-        for (int i = 0; i < starts.length; i++) if (starts[i] > 0 && starts[i] <= now) current = i;
-        if (current != shown[0]) {
-            boolean first = shown[0] == -2, glide = motion() && !first;
-            if (shown[0] >= 0 && lyrics.wordAt[shown[0]] != null) views[shown[0]].setText(lyrics.words[shown[0]]); // the line just left is whole again
-            shown[0] = current;
-            shown[1] = -1;
-            for (int i = 0; i < views.length; i++) {
-                boolean on = i == current;
-                float alpha = on ? 1f : .3f, size = on ? 1f : .95f;
-                // The sung line glows in the cover's accent and sits on a soft pill.
-                views[i].setBackground(on ? round(0x14ffffff, 24) : null);
-                if (glide) views[i].animate().alpha(alpha).scaleX(size).scaleY(size).setDuration(320).start();
-                else { views[i].setAlpha(alpha); views[i].setScaleX(size); views[i].setScaleY(size); }
-            }
-            if (SystemClock.uptimeMillis() - touched[0] > 4000) {
-                View focus = views[Math.max(current, 0)]; // in the intro, the first line waits in the middle
-                int to = Math.max(0, focus.getTop() + focus.getHeight() / 2 - scroll.getHeight() / 2), before = scroll.getScrollY();
-                scroll.scrollTo(0, to);
-                int delta = scroll.getScrollY() - before;
-                // The column jumps and every line springs from where it was to its place, nearest the sung line first:
-                // it arrives as a ripple rather than a block.
-                if (glide && delta != 0) for (int i = 0; i < views.length; i++) {
-                    if (views[i].getTag() instanceof android.animation.ObjectAnimator) ((android.animation.ObjectAnimator) views[i].getTag()).cancel();
-                    float lag = views[i].getTranslationY() + delta;
-                    views[i].setTranslationY(lag);
-                    android.animation.ObjectAnimator settle = android.animation.ObjectAnimator.ofFloat(views[i], "translationY", lag, 0f);
-                    settle.setStartDelay(Math.min(Math.abs(i - Math.max(current, 0)), 8) * 16L);
-                    settle.setDuration(560);
-                    settle.setInterpolator(new android.view.animation.OvershootInterpolator(.6f));
-                    views[i].setTag(settle);
-                    settle.start();
-                }
-            }
-        }
-        boolean walking = current >= 0 && lyrics.wordAt[current] != null;
-        if (walking) {
-            int upTo = sungUpTo(lyrics, current, now);
-            if (upTo != shown[1]) { shown[1] = upTo; views[current].setText(sungWords(lyrics.words[current], upTo, ink)); }
-        }
-        focusLyrics(views, current, shown, SystemClock.uptimeMillis() - touched[0] < 4000);
-        postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), walking ? 40 : 250);
-    }
 
-    private final android.graphics.RenderEffect[] lyricBlurs = new android.graphics.RenderEffect[5];
 
-    /**
-     * GPU mode: lines away from the sung one go softly out of focus, more the further they are, like a camera focused on
-     * the current line. While the reader is scrolling by hand everything is sharp. shown[2] holds the line it was last
-     * laid out for (+1), or 0 when sharp; nothing is redone between line changes.
-     */
-    private void focusLyrics(TextView[] views, int current, int[] shown, boolean reading) {
-        if (android.os.Build.VERSION.SDK_INT < 31) return;
-        int want = !GpuFx.blur(prefs) || reading || current < 0 ? 0 : current + 1;
-        if (want == shown[2]) return;
-        shown[2] = want;
-        for (int i = 0; i < views.length; i++) {
-            int far = want == 0 ? 0 : Math.min(4, Math.abs(i - current));
-            if (far > 0 && lyricBlurs[far] == null) {
-                float r = dp(1.1f * far);
-                lyricBlurs[far] = android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.DECAL);
-            }
-            views[i].setRenderEffect(far == 0 ? null : lyricBlurs[far]);
-        }
-    }
 
-    /** Rotation is opt-in: off locks portrait while on unlocks full landscape rotation. */
-    private void applyRotation() {
-        if (originalOrientation == -2) return;
-        activity.setRequestedOrientation(pref("rotate", false) ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-    }
 
-    private void openQueue() {
-        hideKeyboard();
-        if (queuePanel == null) {
-            queuePanel = new FrameLayout(activity);
-            queuePanel.setClickable(true);
-            addView(queuePanel, new LayoutParams(-1, -1));
-            queueFresh = true;
-        }
-        renderQueue();
-    }
 
-    private boolean queueFresh;
 
-    private void renderQueue() {
-        if (queuePanel == null) return;
-        int offset = queueScroll == null ? 0 : queueScroll.getScrollY();
-        queuePanel.removeAllViews();
-        queuePanel.setBackgroundColor(bg);
-        LinearLayout body = column();
-        body.setPadding(dp(18), inset.top, dp(18), inset.bottom);
-        LinearLayout header = row();
-        header.addView(iconButton(icon("back", () -> ink), "Close queue", this::closeQueue), lp(dp(48), dp(48)));
-        header.addView(text("Queue", 30, () -> ink, true), weight());
-        body.addView(header, fill(dp(64)));
-        queueScroll = new ScrollView(activity);
-        queueScroll.setVerticalScrollBarEnabled(false);
-        queueScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        queueScroll.setVerticalFadingEdgeEnabled(true); // rows melt into the top and bottom
-        queueScroll.setFadingEdgeLength(dp(56));
-        LinearLayout tracks = column();
-        tracks.setPadding(0, dp(12), 0, dp(24));
-        fillQueueList(tracks, queueFresh, true);
-        queueScroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
-        queueFresh = false;
-        body.addView(queueScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        queuePanel.addView(body, new LayoutParams(-1, -1));
-        keepScroll(queueScroll, offset);
-    }
 
-    private void fillQueueList(LinearLayout tracks, boolean cascade, boolean showNowPlaying) {
-        if (showNowPlaying) {
-            tracks.addView(text("Now playing", 14, () -> accent, true), fill(-2));
-            tracks.addView(text(title.isEmpty() ? "Nothing playing" : title, 22, () -> ink, true), fill(-2));
-            tracks.addView(text(artist, 14, () -> inkDim, false), fill(-2));
-        }
-        tracks.addView(text(source.isEmpty() ? "Up next" : "Next from " + source, showNowPlaying ? 16 : 14, () -> accent, true), fill(dp(showNowPlaying ? 48 : 36)));
-        for (int i = 0; i < upcoming.size(); i++) {
-            final int index = i;
-            MediaEntry entry = upcoming.get(i);
-            LinearLayout line = row();
-            Row song = new Row();
-            song.bind(entry);
-            song.setOnClickListener(v -> command(SKIP_TO, index, entry.queueKey));
-            line.addView(song, weight());
-            View options = iconButton(icon("more", () -> inkDim), "Queue options for " + entry.title, .90f, () -> queueActions(index, entry));
-            line.addView(options, lp(dp(48), dp(48)));
-            song.setOnLongClickListener(v -> { queueActions(index, entry); return true; });
-            tracks.addView(line, fill(-2));
-            if (cascade && motion() && i < 12) { // the first rows cascade in when the queue opens
-                line.setAlpha(0f);
-                line.setTranslationY(dp(18));
-                line.animate().alpha(1f).translationY(0).setStartDelay(60L + i * 30L).setDuration(380).setInterpolator(new android.view.animation.PathInterpolator(.38f, 1.21f, .22f, 1f)).start();
-            }
-        }
-        if (upcoming.isEmpty()) tracks.addView(emptyState("queue", "badge4", "Nothing queued after this", "Add songs from any list with Add to queue"), fill(-2));
-    }
 
-    private void queueActions(int index, MediaEntry entry) {
-        List<String> options = new ArrayList<>();
-        List<Integer> commands = new ArrayList<>();
-        if (entry.editable && index > 0 && upcoming.get(index - 1).editable) { options.add("Move up"); commands.add(11); }
-        if (entry.editable && index + 1 < upcoming.size() && upcoming.get(index + 1).editable) { options.add("Move down"); commands.add(12); }
-        options.add("Add to playlist"); commands.add(-1);
-        options.add(downloadLabel(entry.uri)); commands.add(-2);
-        if (entry.editable) { options.add("Remove from queue"); commands.add(10); }
-        sheet(entry.title, entry.subtitle, options.toArray(new String[0]), choice -> { if (commands.get(choice) == -1) addToPlaylist(entry); else if (commands.get(choice) == -2) downloadTapped(entry); else command(commands.get(choice), index, entry.queueKey); });
-    }
 
 
     // Sleep timer: pauses playback later. Kept on the main looper, not in a view, so it survives page changes.
-    private static final android.os.Handler MAIN = new android.os.Handler(android.os.Looper.getMainLooper());
-    private static long sleepAt, sleepTotalMs;
+    static final android.os.Handler MAIN = new android.os.Handler(android.os.Looper.getMainLooper());
+    static long sleepAt, sleepTotalMs;
     private static volatile long accountGeneration;
-    private static final Runnable SLEEP = () -> {
+    static final Runnable SLEEP = () -> {
         sleepAt = 0;
         sleepTotalMs = 0;
         long generation = accountGeneration;
-        COMMANDS.execute(() -> { if (generation == accountGeneration) playerCommand(PAUSE, 0, ""); });
+        COMMANDS.execute(() -> { if (generation == accountGeneration) playerCommand(PlayerScreen.PAUSE, 0, ""); });
     };
 
     /** Set when Spotify's login opens: the next screen drops the saved profile so another account never shows it. */
@@ -6438,269 +2297,34 @@ public final class SpatchUi extends FrameLayout {
         MAIN.removeCallbacks(SLEEP);
     }
 
-    private static String speedLabel(float v) {
-        return (Math.abs(v - Math.round(v)) < .01f ? String.valueOf(Math.round(v)) : String.format(java.util.Locale.ROOT, "%s", Float.toString(Math.round(v * 100) / 100f))) + "×";
-    }
 
-    private void openSpeed() {
-        float[] speeds = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f};
-        Option[] options = new Option[speeds.length];
-        for (int i = 0; i < speeds.length; i++) options[i] = new Option(speedLabel(speeds[i]) + (speeds[i] == 1f ? "  (normal)" : ""), "", "", "play", Math.abs(speed - speeds[i]) < .01f);
-        sheet("Playback speed", "For podcasts and audiobooks", options, c -> {
-            speed = speeds[c];
-            if (pSpeed != null) pSpeed.setText(speedLabel(speed));
-            command(SPEED, Math.round(speeds[c] * 100), "");
-        });
-    }
 
-    private int sleepChoice;
-    private Runnable sleepBadge;
 
-    private static String formatSleepLeft(long ms) {
-        if (ms < 600_000L) {
-            long s = Math.max(1, (ms + 999) / 1000);
-            return (s / 60) + ":" + String.format(java.util.Locale.ROOT, "%02d", s % 60);
-        }
-        return Math.max(1, (ms + 59_999) / 60_000) + " min";
-    }
 
-    private void scheduleSleep(long delayMs, int choice, String toast) {
-        sleepChoice = choice;
-        sleepTotalMs = delayMs <= 0 ? 0 : (choice >= 0 ? delayMs : Math.max(sleepTotalMs, delayMs));
-        MAIN.removeCallbacks(SLEEP);
-        sleepAt = delayMs <= 0 ? 0 : SystemClock.uptimeMillis() + delayMs;
-        if (delayMs > 0) MAIN.postDelayed(SLEEP, delayMs);
-        if (sleepBadge != null) sleepBadge.run();
-        Toast.makeText(activity, toast, Toast.LENGTH_SHORT).show();
-    }
 
-    private void openSleepTimer() {
-        String[] names = {"Off", "15 minutes", "30 minutes", "45 minutes", "1 hour", "End of this track"};
-        long left = sleepAt - SystemClock.uptimeMillis();
-        String note = left > 0 ? "Pausing in " + formatSleepLeft(left) : "Pause playback later";
-        int current = left > 0 ? sleepChoice : 0;
-        List<Option> options = new ArrayList<>();
-        List<Runnable> actions = new ArrayList<>();
-        for (int i = 0; i < names.length; i++) {
-            final int idx = i;
-            options.add(new Option(names[i], "", "", i == 0 ? "close" : "timer", i == current));
-            actions.add(() -> {
-                long delay = idx == 0 ? 0 : idx == 5 ? Math.max(1000, duration - playhead() - 500) : new long[]{0, 15, 30, 45, 60}[idx] * 60_000L;
-                scheduleSleep(delay, idx, idx == 0 ? "Sleep timer off" : "Pausing " + (idx == 5 ? "after this track" : "in " + names[idx]));
-            });
-        }
-        if (left > 0) {
-            options.add(new Option("+5 minutes", "Add 5 minutes", "", "timer", false));
-            actions.add(() -> {
-                long nextDelay = Math.max(60_000L, sleepAt - SystemClock.uptimeMillis() + 5 * 60_000L);
-                scheduleSleep(nextDelay, -1, "Pausing in " + formatSleepLeft(nextDelay));
-            });
-            if (left > 5 * 60_000L) {
-                options.add(new Option("-5 minutes", "Subtract 5 minutes", "", "timer", false));
-                actions.add(() -> {
-                    long nextDelay = Math.max(60_000L, sleepAt - SystemClock.uptimeMillis() - 5 * 60_000L);
-                    scheduleSleep(nextDelay, -1, "Pausing in " + formatSleepLeft(nextDelay));
-                });
-            }
-        }
-        if (left > 0) sheetExtra = new SleepRingView();
-        sheet("Sleep timer", note, options.toArray(new Option[0]), choice -> actions.get(choice).run());
-    }
 
-    /** Lists the devices Spotify can play on and moves playback to the one you pick. */
-    private void openDevices() {
-        if (OfficialPlayback.enabled()) {
-            Toast.makeText(activity, "Choose playback devices in official Spotify", Toast.LENGTH_LONG).show();
-            return;
-        }
-        Toast.makeText(activity, "Looking for devices…", Toast.LENGTH_SHORT).show();
-        submit(PLAYLISTS, () -> {
-            String[] f = nativeDevices();
-            final int level = nativeVolume();
-            post(() -> {
-                if (f == null || f.length < 5) { Toast.makeText(activity, "No devices found", Toast.LENGTH_SHORT).show(); return; }
-                if (level >= 0) sheetExtra = new VolumeBar(level);
-                int count = f.length / 5;
-                Option[] devices = new Option[count];
-                for (int i = 0; i < count; i++) {
-                    boolean active = Boolean.parseBoolean(f[i * 5 + 3]), here = Boolean.parseBoolean(f[i * 5 + 4]);
-                    String kind = f[i * 5 + 1];
-                    String detail = (here ? "This phone" : kind) + (active ? " • Playing" : "");
-                    devices[i] = new Option(f[i * 5], detail, "", here ? "devices" : "volume", active);
-                }
-                sheet("Play on", "Pick where your music should play", devices, i -> {
-                    String id = f[i * 5 + 2];
-                    submit(PLAYLISTS, () -> {
-                        String error = nativeTransfer(id);
-                        post(() -> Toast.makeText(activity, error == null || error.isEmpty() ? "Playing on " + f[i * 5] : "Couldn’t switch: " + error, Toast.LENGTH_LONG).show());
-                    });
-                });
-            });
-        });
-    }
 
-    private boolean share() {
-        for (String kind : new String[]{"track", "episode"}) {
-            String prefix = "spotify:" + kind + ":";
-            if (!uri.startsWith(prefix)) continue;
-            String link = "https://open.spotify.com/" + kind + "/" + uri.substring(prefix.length());
-            sheet(title, artist, new String[]{"Share song link", "Copy song link"}, c -> {
-                if (c == 0) {
-                    android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
-                    send.setType("text/plain");
-                    send.putExtra(android.content.Intent.EXTRA_TEXT, link);
-                    activity.startActivity(android.content.Intent.createChooser(send, title));
-                } else {
-                    android.content.ClipboardManager clip = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-                    if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText(title, link));
-                }
-            });
-            return true;
-        }
-        return false;
-    }
 
-    // ---------- like ----------
 
-    private void checkSaved(String track) {
-        int request = ++savedRequest;
-        savedUri = track;
-        saved = null;
-        if (!track.startsWith("spotify:track:") && !track.startsWith("spotify:episode:") && !track.startsWith("spotify:preview:")) return;
-        submit(DATA, () -> {
-            int a = nativeSaved(track);
-            post(() -> { if (request == savedRequest && track.equals(savedUri)) { saved = a < 0 ? null : a == 1; refresh(); } });
-        });
-    }
 
-    /** A like's little burst: a ring pops outward and six dots fly off it, fading, over the heart. */
-    private void burst(View host) {
-        final float[] t = {0f};
-        final int ringColour = accent, dotColour = accent2;
-        android.graphics.drawable.Drawable pop = new android.graphics.drawable.Drawable() {
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            @Override public void draw(Canvas c) {
-                float f = t[0], cx = host.getWidth() / 2f, cy = host.getHeight() / 2f, max = Math.min(cx, cy);
-                int alpha = Math.round(255 * (1f - f));
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(dp(2.5f) * (1f - f) + 1);
-                paint.setColor(ringColour);
-                paint.setAlpha(alpha);
-                c.drawCircle(cx, cy, max * (.35f + .6f * f), paint);
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(dotColour);
-                paint.setAlpha(alpha);
-                for (int i = 0; i < 6; i++) {
-                    double a = Math.PI * 2 * i / 6 - Math.PI / 2;
-                    float d = max * (.45f + .5f * f);
-                    c.drawCircle(cx + (float) Math.cos(a) * d, cy + (float) Math.sin(a) * d, dp(2.6f) * (1f - f * .6f), paint);
-                }
-            }
-            @Override public void setAlpha(int alpha) {}
-            @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
-            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
-        };
-        pop.setBounds(0, 0, host.getWidth(), host.getHeight());
-        host.getOverlay().add(pop);
-        android.animation.ValueAnimator run = android.animation.ValueAnimator.ofFloat(0f, 1f);
-        run.setDuration(520);
-        run.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
-        run.addUpdateListener(a -> { t[0] = (float) a.getAnimatedValue(); pop.invalidateSelf(); host.invalidate(); });
-        run.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override public void onAnimationEnd(android.animation.Animator a) { host.getOverlay().remove(pop); }
-        });
-        run.start();
-    }
 
-    private void openFromPlayer(String link, String name, String detail) {
-        if (link.isEmpty()) return;
-        tick(player);
-        closePlayer();
-        openPlaylist(new MediaEntry(name, detail, link, link.startsWith("spotify:album:") ? image : "", -1));
-    }
 
-    private void toggleSaved() {
-        if (!uri.isEmpty()) setLikedSong(new MediaEntry(title, artist, uri, image, -1), !Boolean.TRUE.equals(saved));
-    }
 
-    private void setLikedSong(MediaEntry song, boolean want) {
-        String track = song.uri;
-        boolean current = track.equals(uri);
-        Boolean before = current ? saved : song instanceof Song ? ((Song) song).liked : null;
-        int request = current ? ++savedRequest : -1;
-        if (current) { savedUri = track; saved = want; }
-        if (song instanceof Song) ((Song) song).liked = want;
-        refresh();
-        if (want && current && motion() && pLike != null) {
-            pLike.setScaleX(.5f);
-            pLike.setScaleY(.5f);
-            pLike.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(3.2f)).start();
-            if (pLike.getParent() instanceof View) burst((View) pLike.getParent());
-            Confetti.hearts(pLike, prefs, accent, accent2, true);
-        }
-        submit(COMMANDS, () -> {
-            boolean ok = nativeSave(track, want);
-            post(() -> {
-                if (closed) return;
-                if (!ok) {
-                    if (request == savedRequest && track.equals(uri)) saved = before;
-                    if (song instanceof Song && ((Song) song).liked == want) ((Song) song).liked = Boolean.TRUE.equals(before);
-                }
-                refresh();
-                Toast.makeText(activity, !ok ? "Couldn’t update Liked Songs" : want ? "Added to Liked Songs" : "Removed from Liked Songs", Toast.LENGTH_SHORT).show();
-            });
-        });
-    }
 
-    // ---------- refresh ----------
 
-    /** Pushes the current state into whichever views exist. */
-    private PlayButton listFab;
-    /** The open list's shuffle mode as Spotify keeps it: -1 unknown, 0 off, 1 shuffle, 2 Smart Shuffle. */
-    private int listShuffle = -1;
 
-    /** The open.spotify.com link for a playlist, album, artist, show, song or episode; "" for others. */
-    private static String shareLink(String u) {
-        for (String kind : new String[]{"playlist", "album", "artist", "show", "track", "episode"}) {
-            String prefix = "spotify:" + kind + ":";
-            if (u.startsWith(prefix)) return "https://open.spotify.com/" + kind + "/" + u.substring(prefix.length());
-            int at = u.indexOf(":" + kind + ":");
-            if (u.startsWith("spotify:user:") && at > 0 && kind.equals("playlist")) return "https://open.spotify.com/playlist/" + u.substring(at + kind.length() + 2);
-        }
-        return "";
-    }
 
-    private void shareLinkSheet(String name, String link) {
-        sheet(name, link, new Option[]{new Option("Share link", "", "", "share", false), new Option("Copy link", "", "", "check", false)}, c -> {
-            if (c == 0) {
-                android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
-                send.setType("text/plain");
-                send.putExtra(android.content.Intent.EXTRA_TEXT, link);
-                activity.startActivity(android.content.Intent.createChooser(send, name));
-            } else {
-                android.content.ClipboardManager clip = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-                if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText(name, link));
-                Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
 
-    /** Whether the open playlist or page is what's playing. */
-    private boolean listIsPlaying() {
-        if (playlist == null || context.isEmpty()) return false;
-        String list = playUri();
-        return context.equals(list) || context.equals(playlist.uri) || (liked(context) && liked(playlist.uri));
-    }
 
-    private void refresh() {
-        for (Bars bars : attachedBars) bars.invalidate();
-        if (listFab != null && listFab.isAttachedToWindow()) listFab.set(listIsPlaying() && (pending == null ? playing : pending));
+    void refresh() {
+        for (Bars bars : controls.attachedBars) bars.invalidate();
+        if (playlistScreen.listFab != null && playlistScreen.listFab.isAttachedToWindow()) playlistScreen.listFab.set(playlistScreen.listIsPlaying() && (pending == null ? playing : pending));
         String shown = title.isEmpty() ? "Nothing playing" : title;
         boolean on = pending == null ? playing : pending;
         if (mTitle != null) mTitle.setText(shown);
         if (mArtist != null) mArtist.setText(artist);
         if (mArt != null) { mArt.bind(image); mArt.invalidate(); }
-        for (PlayButton b : playButtons) if (b != pPlay) b.set(on);
+        for (PlayButton b : playButtons) if (b != dockUi.pPlay) b.set(on);
         if (heroTitle != null) heroTitle.setText(shown);
         if (heroArtist != null) heroArtist.setText(artist);
         if (heroArt != null) heroArt.bind(image);
@@ -6726,7 +2350,7 @@ public final class SpatchUi extends FrameLayout {
             // Spoken word only: demo songs stand in for episodes in the preview app.
             boolean spoken = uri.startsWith("spotify:episode:") || uri.startsWith("spotify:preview:");
             pSpeed.setVisibility(spoken ? VISIBLE : GONE);
-            pSpeed.setText(speedLabel(speed));
+            pSpeed.setText(PlayerScreen.speedLabel(speed));
         }
         if (pQuality != null) {
             String label = quality.toUpperCase(java.util.Locale.ROOT);
@@ -6736,7 +2360,7 @@ public final class SpatchUi extends FrameLayout {
                 if (!label.isEmpty() && motion()) { pQuality.setAlpha(0f); pQuality.animate().alpha(1f).setDuration(260).start(); }
             }
         }
-        if (pPlay != null) pPlay.set(on);
+        if (dockUi.pPlay != null) dockUi.pPlay.set(on);
         if (pLike != null) {
             View button = (View) pLike.getParent();
             recolorView(button);
@@ -6779,7 +2403,6 @@ public final class SpatchUi extends FrameLayout {
         nextPill.addView(name, weight());
     }
 
-    // ================= custom views =================
 
     final class Icon extends View {
         String symbol;
@@ -6813,7 +2436,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Places three curated low-contrast geometric shapes framing playlist/album header washes with gentle rotation. */
-    private final class StickerBackdrop extends View {
+    final class StickerBackdrop extends View {
         private static final int COUNT = 3;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
@@ -6934,47 +2557,6 @@ public final class SpatchUi extends FrameLayout {
         }
     }
 
-    /** A loading indicator: a tonal shape that turns and morphs between four, six and eight lobes, over `label`. */
-    View loader(String label) {
-        LinearLayout box = column();
-        box.setGravity(Gravity.CENTER_HORIZONTAL);
-        box.setPadding(0, dp(28), 0, dp(20));
-        box.setContentDescription(label);
-        float[][] shapes = {nativeGeometry("badge4"), nativeGeometry("badge6"), nativeGeometry("badge8")};
-        long born = SystemClock.uptimeMillis();
-        View blob = new View(activity) {
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Path path = new Path();
-            @Override protected void onDraw(Canvas c) {
-                float r = Math.min(getWidth(), getHeight()) / 2f, t = motion() ? (SystemClock.uptimeMillis() - born) / 700f : 0f;
-                int k = (int) t % 3;
-                float f = t - (int) t;
-                f = f * f * (3 - 2 * f); // ease each morph, then hold briefly at the next shape
-                float[] a = shapes[k], b = shapes[(k + 1) % 3];
-                path.rewind();
-                for (int i = 0; i + 1 < a.length && i + 1 < b.length; i += 2) {
-                    float x = (a[i] + (b[i] - a[i]) * f) * r, y = (a[i + 1] + (b[i + 1] - a[i + 1]) * f) * r;
-                    if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
-                }
-                path.close();
-                c.save();
-                c.translate(getWidth() / 2f, getHeight() / 2f);
-                c.rotate(t * 60f);
-                paint.setColor(blend(surfHi, accent, .5f));
-                c.drawPath(path, paint);
-                c.restore();
-                if (motion() && isShown()) postInvalidateOnAnimation();
-            }
-        };
-        blob.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        box.addView(blob, lp(dp(44), dp(44)));
-        TextView words = text(label + "…", 14, () -> inkDim, false);
-        words.setGravity(Gravity.CENTER);
-        words.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        words.setPadding(0, dp(12), 0, 0);
-        box.addView(words, lp(-2, -2));
-        return box;
-    }
 
     /** An empty state: `symbol` on a lobed tonal badge (`shape` is a badge geometry) that springs in, over a title and a hint. */
     View emptyState(String symbol, String shape, String title, String hint) {
@@ -7020,182 +2602,10 @@ public final class SpatchUi extends FrameLayout {
         return box;
     }
 
-    /** The scallop play button: five lobes at rest, nine while playing, turning slowly. */
-    private final class PlayButton extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path scallop = new Path(), glyph = new Path();
-        private final float[] five = nativeGeometry("button5"), nine = nativeGeometry("button9");
-        private float shape, angle, pop = 1f;
-        private long spunAt;
-        private boolean on, started;
-        private android.animation.ValueAnimator popping;
-        /** The five-to-nine morph rides a loose spring, so the scallops overshoot and wobble into place. */
-        private final Spring morph = new Spring(0f, 14f, .35f, v -> { shape = v; invalidate(); });
-        /** Held down it squishes; let go and it springs back past full size before settling. */
-        private final Spring press = new Spring(1f, 22f, .28f, v -> { setScaleX(v); setScaleY(v); });
 
-        PlayButton() {
-            super(activity);
-            playButtons.add(this);
-            tappable(this, "Play or pause", 1f, SpatchUi.this::togglePlay);
-            setOnTouchListener((view, e) -> {
-                int a = e.getActionMasked();
-                if (!motion()) return false;
-                if (a == MotionEvent.ACTION_DOWN) press.to(.88f);
-                else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) press.to(1f);
-                return false;
-            });
-        }
 
-        @Override protected void onDetachedFromWindow() {
-            morph.cancel();
-            press.snap(1f);
-            if (popping != null) popping.cancel();
-            super.onDetachedFromWindow();
-        }
 
-        @Override protected void onWindowVisibilityChanged(int visibility) {
-            super.onWindowVisibilityChanged(visibility);
-            if (visibility == VISIBLE && (on || buffering) && motion()) invalidate();
-        }
 
-        @Override public boolean performClick() {
-            Confetti.clicked(this, prefs, accent, accent2, on, motion());
-            return super.performClick();
-        }
-
-        void set(boolean playingNow) {
-            if (started && playingNow == on) return;
-            started = true;
-            on = playingNow;
-            if (!motion() || !isAttachedToWindow()) { morph.snap(on ? 1 : 0); return; }
-            morph.to(on ? 1 : 0);
-            // The new glyph pops in from small with a strong overshoot.
-            if (popping != null) popping.cancel();
-            popping = android.animation.ValueAnimator.ofFloat(.55f, 1f);
-            popping.setDuration(480);
-            popping.setInterpolator(new android.view.animation.OvershootInterpolator(2.6f));
-            popping.addUpdateListener(a -> { pop = (float) a.getAnimatedValue(); invalidate(); });
-            popping.start();
-        }
-
-        @Override protected void onDraw(Canvas c) {
-            float r = Math.min(getWidth(), getHeight()) / 2f, outline = r * .95f; // room for the morph's overshoot
-            c.save();
-            c.translate(getWidth() / 2f, getHeight() / 2f);
-            scallop.rewind();
-            for (int i = 0; i < five.length; i += 2) {
-                float x = (five[i] + (nine[i] - five[i]) * shape) * outline, y = (five[i + 1] + (nine[i + 1] - five[i + 1]) * shape) * outline;
-                if (i == 0) scallop.moveTo(x, y); else scallop.lineTo(x, y);
-            }
-            scallop.close();
-            // Buffering: the scallop spins faster and a bright arc chases round inside it until the audio arrives.
-            // Turns by time, not by frame, so a 120 Hz screen doesn't spin it twice as fast.
-            long now = SystemClock.uptimeMillis();
-            float dt = spunAt == 0 ? 0f : Math.min(50, now - spunAt) / 1000f;
-            spunAt = now;
-            if ((on || buffering) && motion()) { angle = (angle + dt * (buffering ? 130f : 21f)) % 360f; c.rotate(angle); }
-            else spunAt = 0;
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(accent);
-            c.drawPath(scallop, paint);
-            if (buffering) {
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeCap(Paint.Cap.ROUND);
-                paint.setStrokeWidth(r * .09f);
-                paint.setColor((onAccent & 0x00ffffff) | 0x99000000);
-                float ring = r * .72f;
-                c.drawArc(-ring, -ring, ring, ring, angle * 2.5f, 100, false, paint);
-                paint.setStyle(Paint.Style.FILL);
-            }
-            c.restore();
-            c.save();
-            c.scale(pop, pop, getWidth() / 2f, getHeight() / 2f);
-            c.translate(getWidth() / 2f - r * .5f, getHeight() / 2f - r * .5f);
-            drawGlyph(c, paint, glyph, on ? "pause" : "play", onAccent, r);
-            c.restore();
-            if ((on || buffering) && motion() && isShown() && getWindowVisibility() == VISIBLE && (this == pPlay || !playerOpen)) postInvalidateOnAnimation();
-        }
-    }
-
-    /**
-     * A damped spring toward a target, stepped every frame by the real time elapsed (so it moves the same at 60 or
-     * 120 Hz); `omega` is its stiffness in radians a second, `zeta` its damping, below 1 for an overshoot.
-     */
-    static final class Spring implements android.view.Choreographer.FrameCallback {
-        private final float omega, zeta;
-        private final java.util.function.Consumer<Float> step;
-        private float value, velocity, target;
-        private long last;
-        private boolean running;
-
-        Spring(float start, float omega, float zeta, java.util.function.Consumer<Float> step) {
-            this.value = this.target = start; this.omega = omega; this.zeta = zeta; this.step = step;
-        }
-
-        void to(float next) {
-            target = next;
-            if (running) return;
-            running = true;
-            last = 0;
-            android.view.Choreographer.getInstance().postFrameCallback(this);
-        }
-
-        void snap(float next) {
-            cancel();
-            value = target = next;
-            velocity = 0;
-            step.accept(value);
-        }
-
-        void cancel() {
-            if (running) android.view.Choreographer.getInstance().removeFrameCallback(this);
-            running = false;
-        }
-
-        float advance(float seconds) {
-            for (int i = 0; i < 4; i++) { // small sub-steps keep a stiff spring stable
-                float h = seconds / 4, pull = -omega * omega * (value - target) - 2 * zeta * omega * velocity;
-                velocity += pull * h;
-                value += velocity * h;
-            }
-            if (Math.abs(value - target) < .001f && Math.abs(velocity) < .01f) { value = target; velocity = 0; running = false; }
-            return value;
-        }
-
-        @Override public void doFrame(long nanos) {
-            float dt = last == 0 ? 1 / 60f : Math.min(.05f, (nanos - last) / 1e9f);
-            last = nanos;
-            step.accept(advance(dt));
-            if (running) android.view.Choreographer.getInstance().postFrameCallback(this);
-        }
-    }
-
-    /** Three bouncing bars: this one is playing. */
-    private final Set<Bars> attachedBars = new HashSet<>();
-
-    private final class Bars extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        Bars() { super(activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
-        @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); attachedBars.add(this); invalidate(); }
-        @Override protected void onDetachedFromWindow() { attachedBars.remove(this); super.onDetachedFromWindow(); }
-        @Override protected void onWindowVisibilityChanged(int visibility) {
-            super.onWindowVisibilityChanged(visibility);
-            if (visibility == VISIBLE) invalidate();
-        }
-        @Override protected void onDraw(Canvas c) {
-            boolean run = playing && motion();
-            float t = run ? SystemClock.uptimeMillis() / 1000f : 0, h = getHeight(), bw = getWidth() / 5f;
-            paint.setColor(accent);
-            for (int i = 0; i < 3; i++) {
-                float k = run ? .35f + .65f * Math.abs((float) Math.sin(t * (3.1f + i * 1.7f) + i * 1.3f)) : .3f + .2f * i;
-                c.drawRoundRect(bw * i * 2, h * (1 - k), bw * i * 2 + bw, h, bw / 2, bw / 2, paint);
-            }
-            if (run && isShown() && getWindowVisibility() == VISIBLE && !playerOpen) postInvalidateOnAnimation();
-        }
-    }
-
-    // ---------- artwork ----------
 
     /** A cached cover at `size`, or null while it downloads (views are invalidated when it arrives). */
     boolean artFailed(String key) {
@@ -7237,7 +2647,7 @@ public final class SpatchUi extends FrameLayout {
                         }, 30_000);
                     } else failed.remove(key);
                     if (url.equals(image)) refreshPalette();
-                    if (playlist != null && (url.equals(playlist.image) || url.equals(detailImage))) applyColors();
+                    if (playlist != null && (url.equals(playlist.image) || url.equals(playlistScreen.detailImage))) applyColors();
                     invalidateArt(SpatchUi.this);
                 });
             });
@@ -7251,119 +2661,5 @@ public final class SpatchUi extends FrameLayout {
         return null;
     }
 
-    /** Progress eases across position changes and flattens while paused or seeking. */
-    private final class Wave extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path path = new Path();
-        private final RectF bubble = new RectF();
-        private float preview = -1, amp = -1, grow = 0;
-        private int lastTenth = -1;
-        private String scrubUri = "";
-        Wave() { super(activity); setContentDescription("Playback position"); }
-
-        @Override protected void onWindowVisibilityChanged(int visibility) {
-            super.onWindowVisibilityChanged(visibility);
-            if (visibility == VISIBLE) invalidate();
-        }
-
-        private void cancelScrub() {
-            preview = -1;
-            lastTenth = -1;
-            scrubUri = "";
-            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
-        }
-
-        @Override protected void onDraw(Canvas c) {
-            long el = playhead();
-            float f = shownProgress();
-            float x0 = dp(6), x1 = getWidth() - dp(6), y = dp(26), tip = x0 + (x1 - x0) * f;
-            // Scrubbing thickens the line; it eases back when you let go.
-            float wantGrow = preview >= 0 ? 1f : 0f;
-            grow = !motion() ? wantGrow : grow + (wantGrow - grow) * .25f;
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(4 + 3 * grow));
-            paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setColor((ink & 0x00ffffff) | 0x2a000000);
-            if (tip + dp(8) < x1) c.drawLine(tip + dp(8), y, x1, y, paint);
-            float target = playing && preview < 0 && !holdingSeek ? dp(3.2f) : 0;
-            amp = amp < 0 || !motion() ? target : amp + (target - amp) * .12f;
-            paint.setColor(accent);
-            path.rewind();
-            float phase = (SystemClock.uptimeMillis() % 1600) / 1600f;
-            for (float x = x0; x < tip; x += dp(2)) {
-                float dy = amp * (float) Math.sin(((x - x0) / dp(34) + phase) * 6.283f);
-                if (x == x0) path.moveTo(x, y + dy); else path.lineTo(x, y + dy);
-            }
-            c.drawPath(path, paint);
-            paint.setStyle(Paint.Style.FILL);
-            c.drawCircle(tip, y + amp * (float) Math.sin(((tip - x0) / dp(34) + phase) * 6.283f), dp(preview >= 0 ? 9 : 6), paint);
-            long shownTime = preview >= 0 ? Math.round(preview * (double) duration) : el;
-            if (preview >= 0) {
-                String seekLabel = time(shownTime);
-                paint.setTextSize(dp(10));
-                paint.setFakeBoldText(true);
-                float bw = paint.measureText(seekLabel) + dp(12), bh = dp(18);
-                float bx = Math.max(x0, Math.min(x1 - bw, tip - bw / 2f)), by = dp(2);
-                bubble.set(bx, by, bx + bw, by + bh);
-                paint.setColor(accent);
-                c.drawRoundRect(bubble, dp(9), dp(9), paint);
-                paint.setColor(onAccent);
-                paint.setTextAlign(Paint.Align.CENTER);
-                c.drawText(seekLabel, bubble.centerX(), bubble.centerY() - (paint.descent() + paint.ascent()) / 2f, paint);
-                paint.setFakeBoldText(false);
-            }
-            paint.setTextSize(dp(12));
-            paint.setTextAlign(Paint.Align.LEFT);
-            paint.setColor(preview >= 0 ? accent : inkDim);
-            paint.setFakeBoldText(preview >= 0);
-            c.drawText(time(shownTime), x0, dp(55), paint);
-            paint.setFakeBoldText(false);
-            paint.setColor(inkDim);
-            paint.setTextAlign(Paint.Align.RIGHT);
-            c.drawText(duration > 0 ? "−" + time(Math.max(0, duration - shownTime)) : "—", x1, dp(55), paint);
-            boolean settling = Math.abs(target - amp) > .05f || Math.abs(wantGrow - grow) > .01f;
-            if ((playing || settling) && isShown() && getWindowVisibility() == VISIBLE && isAttachedToWindow()) { if (motion()) postInvalidateOnAnimation(); else postInvalidateDelayed(500); }
-        }
-
-        @Override public boolean onTouchEvent(MotionEvent e) {
-            if (e.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                float from = shownProgress();
-                cancelScrub();
-                animateProgress(from);
-                return true;
-            }
-            if (duration <= 0) return false;
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    scrubUri = uri;
-                    stopHeldSeek();
-                    progress.cancel();
-                    getParent().requestDisallowInterceptTouchEvent(true);
-                case MotionEvent.ACTION_MOVE:
-                case MotionEvent.ACTION_UP:
-                    if (e.getActionMasked() != MotionEvent.ACTION_DOWN && (preview < 0 || !uri.equals(scrubUri))) {
-                        if (preview >= 0 && !uri.equals(scrubUri)) { cancelScrub(); invalidateProgress(); }
-                        return false;
-                    }
-                    preview = Math.max(0, Math.min(1, (e.getX() - dp(6)) / Math.max(1, getWidth() - dp(12))));
-                    // A light tick each time the drag crosses a tenth of the song.
-                    int tenth = (int) (preview * 10);
-                    if (e.getActionMasked() == MotionEvent.ACTION_DOWN) lastTenth = tenth;
-                    else if (tenth != lastTenth) {
-                        lastTenth = tenth;
-                        if (pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
-                    }
-                    if (e.getActionMasked() == MotionEvent.ACTION_UP) {
-                        long target = Math.round(duration * (double) preview);
-                        command(SEEK, target, "");
-                        setPosition(target);
-                        cancelScrub();
-                    }
-                    invalidateProgress();
-                    return true;
-                default: return false;
-            }
-        }
-    }
 
 }

@@ -144,7 +144,7 @@ final class SoundSettings {
         ui.bgRound(tone, 20, () -> ui.surf);
         LinearLayout.LayoutParams toneParams = ui.fill(-2); toneParams.topMargin = ui.dp(12);
         page.addView(tone, toneParams);
-        ui.toggle(tone, "Tone curve", "Bypass this curve to compare your sound", "eq_geq_enabled", true, false);
+        ui.settingsScreen.toggle(tone, "Tone curve", "Bypass this curve to compare your sound", "eq_geq_enabled", true, false);
         LinearLayout toolbar = ui.row();
         toolbar.setPadding(ui.dp(14), 0, ui.dp(14), ui.dp(4));
         EqualizerCurve graph = new EqualizerCurve();
@@ -464,30 +464,30 @@ final class SoundSettings {
             LinearLayout master = ui.column();
             ui.bgRound(master, 20, () -> ui.surf);
             page.addView(master, ui.fill(-2));
-            ui.toggle(master, "Sound processing", "Apply to playback on this device", "equalizer", false, false);
+            ui.settingsScreen.toggle(master, "Sound processing", "Apply to playback on this device", "equalizer", false, false);
             equalizerStatus = ui.text(soundStatus(), 13, () -> ui.inkDim, false);
             equalizerStatus.setPadding(ui.dp(18), 0, ui.dp(18), ui.dp(14));
             master.addView(equalizerStatus, ui.fill(-2));
             graphicEqualizer(page);
-            LinearLayout stages = ui.card(page, "Effects & headphones");
+            LinearLayout stages = ui.settingsScreen.card(page, "Effects & headphones");
             String[] descriptions = {"", ui.prefs.getString("eq_autoeq_name", "Find a correction for your headphones"),
                 "Equal loudness and bass character", "Reverb and stereo width", "Headroom, limiter and channel balance", "Device support and processing buffer"};
             for (int i = 1; i < 6; i++) {
                 final int panel = i;
-                ui.settingsAction(stages, SOUND_GROUPS[i], descriptions[i], () -> openPanel(panel));
+                ui.settingsScreen.settingsAction(stages, SOUND_GROUPS[i], descriptions[i], () -> openPanel(panel));
             }
             return;
         }
         if (panel == 0) {
             graphicEqualizer(page);
         } else if (panel == 1) {
-            LinearLayout correction = ui.card(page, "AutoEq");
-            ui.toggle(correction, "Headphone correction", "Compensate for your headphone’s measured frequency response", "eq_autoeq_enabled", false, false);
-            ui.settingsAction(correction, "Find your headphones", ui.prefs.getString("eq_autoeq_name", "Search the AutoEq database"), () -> { openPanel(6); loadHeadphones(); });
-            ui.settingsAction(correction, "Import a profile", "Paste GraphicEQ data from a custom measurement", () -> openPanel(7));
+            LinearLayout correction = ui.settingsScreen.card(page, "AutoEq");
+            ui.settingsScreen.toggle(correction, "Headphone correction", "Compensate for your headphone’s measured frequency response", "eq_autoeq_enabled", false, false);
+            ui.settingsScreen.settingsAction(correction, "Find your headphones", ui.prefs.getString("eq_autoeq_name", "Search the AutoEq database"), () -> { openPanel(6); loadHeadphones(); });
+            ui.settingsScreen.settingsAction(correction, "Import a profile", "Paste GraphicEQ data from a custom measurement", () -> openPanel(7));
             audioSlider(correction, "Correction intensity", "eq_autoeq_intensity", 0, 200, 100, 1, "%", false);
             if (!ui.prefs.getString("eq_autoeq_curve", "").isEmpty()) {
-                ui.settingsAction(correction, "Copy profile", "Copy this profile’s GraphicEQ data, to back it up or share it", () -> {
+                ui.settingsScreen.settingsAction(correction, "Copy profile", "Copy this profile’s GraphicEQ data, to back it up or share it", () -> {
                     String name = ui.prefs.getString("eq_autoeq_name", "Custom profile");
                     String curve = ui.prefs.getString("eq_autoeq_curve", "");
                     android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
@@ -496,53 +496,53 @@ final class SoundSettings {
                         Toast.makeText(ui.activity, "Profile copied", Toast.LENGTH_SHORT).show();
                     }
                 });
-                ui.settingsAction(correction, "Remove profile", "Keep your graphic EQ and other sound settings", () -> {
+                ui.settingsScreen.settingsAction(correction, "Remove profile", "Keep your graphic EQ and other sound settings", () -> {
                     ui.prefs.edit().remove("eq_autoeq_name").remove("eq_autoeq_curve").putBoolean("eq_autoeq_enabled", false).apply();
-                    Audio.refreshEqualizer(); ui.settingsChanged(false);
+                    Audio.refreshEqualizer(); ui.settingsScreen.settingsChanged(false);
                 });
             }
             soundNote(correction, "AutoEq by Jaakko Pasanen and the measurement contributors. Choose the exact model and listening mode for your headphones.");
         } else if (panel == 2) {
-            LinearLayout loudness = ui.card(page, "Equal loudness");
-            ui.toggle(loudness, "Equal loudness", "ISO 226 compensation that follows your media volume", "eq_loudness_enabled", false, false);
+            LinearLayout loudness = ui.settingsScreen.card(page, "Equal loudness");
+            ui.settingsScreen.toggle(loudness, "Equal loudness", "ISO 226 compensation that follows your media volume", "eq_loudness_enabled", false, false);
             audioSlider(loudness, "Volume threshold", "eq_loudness_threshold", 0, 100, 60, 1, "%", false);
-            LinearLayout bass = ui.card(page, "Bass boost");
-            ui.toggle(bass, "Bass boost", "Add weight to the low end", "eq_bass_boost_enabled", false, false);
+            LinearLayout bass = ui.settingsScreen.card(page, "Bass boost");
+            ui.settingsScreen.toggle(bass, "Bass boost", "Add weight to the low end", "eq_bass_boost_enabled", false, false);
             audioSlider(bass, "Strength", "eq_bass_boost_strength", 0, 100, 50, 1, "%", false);
-            LinearLayout tuner = ui.card(page, "Bass tuner");
-            ui.toggle(tuner, "Bass tuner", "Tune bass response and dynamics", "eq_bass_tuner_enabled", false, false);
-            ui.choice(tuner, "Bass character", new String[]{"Natural", "Transient", "Sustain"}, "eq_bass_tuner_type", 0, false);
+            LinearLayout tuner = ui.settingsScreen.card(page, "Bass tuner");
+            ui.settingsScreen.toggle(tuner, "Bass tuner", "Tune bass response and dynamics", "eq_bass_tuner_enabled", false, false);
+            ui.settingsScreen.choice(tuner, "Bass character", new String[]{"Natural", "Transient", "Sustain"}, "eq_bass_tuner_type", 0, false);
             audioSlider(tuner, "Cutoff frequency", "eq_bass_tuner_cutoff_hz", 20, 250, 100, 1, "Hz", false);
             audioSlider(tuner, "Post-gain", "eq_bass_tuner_post_gain_db", -15, 15, 0, .5f, "dB", true);
             equalizerStatus = soundNote(tuner, soundStatus());
         } else if (panel == 3) {
-            LinearLayout space = ui.card(page, "Reverberation");
-            ui.toggle(space, "Reverberation", "Give the music a sense of room and space", "eq_reverb_enabled", false, false);
+            LinearLayout space = ui.settingsScreen.card(page, "Reverberation");
+            ui.settingsScreen.toggle(space, "Reverberation", "Give the music a sense of room and space", "eq_reverb_enabled", false, false);
             audioPick(space, "Room", new String[]{"Off", "Small room", "Medium room", "Large room", "Medium hall", "Large hall", "Plate"}, "eq_reverb_preset", 1);
-            LinearLayout stereo = ui.card(page, "Stereo image");
-            ui.toggle(stereo, "Virtualizer", "Widen the stereo image on supported audio systems", "eq_virtualizer_enabled", false, false);
+            LinearLayout stereo = ui.settingsScreen.card(page, "Stereo image");
+            ui.settingsScreen.toggle(stereo, "Virtualizer", "Widen the stereo image on supported audio systems", "eq_virtualizer_enabled", false, false);
             audioSlider(stereo, "Strength", "eq_virtualizer_strength", 0, 100, 50, 1, "%", false);
             equalizerStatus = soundNote(stereo, soundStatus());
             soundNote(stereo, "Effect availability depends on the Android audio system. You can configure these before playback starts.");
         } else if (panel == 4) {
-            LinearLayout attenuation = ui.card(page, "Attenuation");
-            ui.toggle(attenuation, "Automatic headroom", "Compensate for boosts across your sound settings to avoid clipping", "eq_attenuator_auto", true, false);
+            LinearLayout attenuation = ui.settingsScreen.card(page, "Attenuation");
+            ui.settingsScreen.toggle(attenuation, "Automatic headroom", "Compensate for boosts across your sound settings to avoid clipping", "eq_attenuator_auto", true, false);
             audioSlider(attenuation, "Manual attenuation", "eq_attenuator_db", -30, 0, 0, .5f, "dB", true);
             soundNote(attenuation, "Manual attenuation applies when automatic headroom is off.");
-            LinearLayout limiter = ui.card(page, "Limiter");
-            ui.toggle(limiter, "Limiter", "Control peaks and smooth changes in loudness", "eq_limiter_enabled", false, false);
+            LinearLayout limiter = ui.settingsScreen.card(page, "Limiter");
+            ui.settingsScreen.toggle(limiter, "Limiter", "Control peaks and smooth changes in loudness", "eq_limiter_enabled", false, false);
             audioSlider(limiter, "Attack", "eq_limiter_attack_ms", .1f, 100, 1, .1f, "ms", true);
             audioSlider(limiter, "Release", "eq_limiter_release_ms", 1, 500, 60, 1, "ms", true);
             audioSlider(limiter, "Ratio", "eq_limiter_ratio", 1, 20, 4, .5f, ":1", true);
             audioSlider(limiter, "Threshold", "eq_limiter_threshold_db", -40, 0, -6, .5f, "dBFS", true);
             audioSlider(limiter, "Post-gain", "eq_limiter_post_gain_db", -15, 15, 0, .5f, "dB", true);
-            LinearLayout balance = ui.card(page, "Channel balance");
-            ui.toggle(balance, "Channel balance", "Adjust the left and right channels independently", "eq_balance_enabled", false, false);
+            LinearLayout balance = ui.settingsScreen.card(page, "Channel balance");
+            ui.settingsScreen.toggle(balance, "Channel balance", "Adjust the left and right channels independently", "eq_balance_enabled", false, false);
             audioSlider(balance, "Left channel", "eq_balance_left_db", -30, 0, 0, .5f, "dB", true);
             audioSlider(balance, "Right channel", "eq_balance_right_db", -30, 0, 0, .5f, "dB", true);
         } else if (panel == 5) {
-            LinearLayout compatibility = ui.card(page, "Audio compatibility");
-            ui.toggle(compatibility, "Legacy compatibility", "Try the output-mix session when Spotify has no active audio session; may affect other audio", "eq_legacy", false, false);
+            LinearLayout compatibility = ui.settingsScreen.card(page, "Audio compatibility");
+            ui.settingsScreen.toggle(compatibility, "Legacy compatibility", "Try the output-mix session when Spotify has no active audio session; may affect other audio", "eq_legacy", false, false);
             audioSlider(compatibility, "Preferred buffer", "eq_buffer_ms", 0, 50, 0, 1, "ms", false);
             soundNote(compatibility, "0 ms uses the device default. Larger buffers can improve stability at the cost of latency.");
             Audio.Capabilities support = Audio.capabilities();
@@ -561,7 +561,7 @@ final class SoundSettings {
             renderHeadphones();
             loadHeadphones();
         } else if (panel == 7) {
-            LinearLayout imported = ui.card(page, "Custom headphone profile");
+            LinearLayout imported = ui.settingsScreen.card(page, "Custom headphone profile");
             android.widget.EditText name = ui.createField("Profile name", "", false);
             android.widget.EditText data = ui.createField("GraphicEQ: frequency gain; frequency gain; …", "", true);
             imported.addView(name, ui.fill(-2)); imported.addView(data, ui.fill(ui.dp(180)));
@@ -576,8 +576,8 @@ final class SoundSettings {
 
     private void audioPick(LinearLayout box, String label, String[] values, String key, int fallback) {
         int selected = Math.max(0, Math.min(values.length - 1, ui.prefs.getInt(key, fallback)));
-        ui.settingsAction(box, label, values[selected], () -> ui.sheet(label, "Choose the sound you prefer", values, pick -> {
-            ui.prefs.edit().putInt(key, pick).apply(); Audio.refreshEqualizer(); ui.settingsChanged(false);
+        ui.settingsScreen.settingsAction(box, label, values[selected], () -> ui.sheet(label, "Choose the sound you prefer", values, pick -> {
+            ui.prefs.edit().putInt(key, pick).apply(); Audio.refreshEqualizer(); ui.settingsScreen.settingsChanged(false);
         }));
     }
 
@@ -659,7 +659,7 @@ final class SoundSettings {
         if (query.isEmpty()) { soundNote(rows, headphoneCount + " headphone models. Search for your exact model."); return; }
         List<AutoEqCatalog.Headphone> matches = AutoEqCatalog.search(query, 40);
         for (AutoEqCatalog.Headphone headphone : matches) {
-            ui.settingsAction(rows, headphone.name, headphoneLoading.equals(headphone.name) ? "Loading correction…" : "Load this AutoEq correction", () -> {
+            ui.settingsScreen.settingsAction(rows, headphone.name, headphoneLoading.equals(headphone.name) ? "Loading correction…" : "Load this AutoEq correction", () -> {
                 ui.hideKeyboard();
                 headphoneLoading = headphone.name;
                 int request = ++headphoneRequest;

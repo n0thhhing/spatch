@@ -130,8 +130,8 @@ public class MacPreviewTest {
         assertNotNull(find(root, "Open Spotify"));
         assertNull("Library failures do not force another login", find(root, "Sign in to Spotify"));
         // The same recovery component serves Home and Library, including a failed empty filtered list.
-        java.lang.reflect.Field tab = SpatchUi.class.getDeclaredField("tab"); tab.setAccessible(true); tab.setInt(ui, 2);
-        java.lang.reflect.Field filter = SpatchUi.class.getDeclaredField("filter"); filter.setAccessible(true); filter.setInt(ui, 99);
+        Reflect.set(ui, "tab", 2);
+        Reflect.set(ui, "filter", 99);
         show.invoke(ui);
         assertNotNull(find(root, "Retry")); assertNotNull(find(root, "Open Spotify")); assertNull(find(root, "Sign in to Spotify"));
         prefs.edit().clear().apply();
@@ -349,14 +349,13 @@ public class MacPreviewTest {
         if (!backToSettings.isClickable()) backToSettings = (View) backToSettings.getParent();
         backToSettings.performClick();
         settle();
-        java.lang.reflect.Method scroll = SpatchUi.class.getDeclaredMethod("scrollDock", int.class, boolean.class);
-        scroll.setAccessible(true);
-        scroll.invoke(ui, 100, false);
+        Class<?>[] scrollTypes = {int.class, boolean.class};
+        Reflect.call(ui, "scrollDock", scrollTypes, 100, false);
         assertEquals(false, field(ui, "dockHidden"));
         prefs.edit().putBoolean("auto_hide_dock", true).apply();
-        scroll.invoke(ui, 100, false);
+        Reflect.call(ui, "scrollDock", scrollTypes, 100, false);
         assertEquals(true, field(ui, "dockHidden"));
-        scroll.invoke(ui, -100, false);
+        Reflect.call(ui, "scrollDock", scrollTypes, -100, false);
         assertEquals(false, field(ui, "dockHidden"));
         View appearance = find(root, "Appearance");
         if (!appearance.isClickable()) appearance = (View) appearance.getParent();
@@ -444,9 +443,7 @@ public class MacPreviewTest {
     }
 
     private static Object field(Object object, String name) throws Exception {
-        java.lang.reflect.Field field = object.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(object);
+        return Reflect.get(object, name);
     }
 
     private static void drag(View nav, float endX, float endY) {

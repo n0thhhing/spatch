@@ -37,7 +37,7 @@ public final class LrclibTest {
         check(w.words[0].equals("I wear it") && w.starts[0] == 24280 && w.ends[0] == 25734, "Line text and times");
         check(w.wordAt[0][1] == 2 && w.wordStart[0][2] == 25048, "Word offsets index the joined line");
         check(w.words[1].equals("Say \"hi\"") && w.ends[1] == 31950, "Double-quoted escapes; missing end falls back");
-        check(SpatchUi.sungUpTo(w, 0, 24300) == 2 && SpatchUi.sungUpTo(w, 0, 24000) == 0 && SpatchUi.sungUpTo(w, 0, 26000) == 9, "Sung part grows word by word");
+        check(PlayerScreen.sungUpTo(w, 0, 24300) == 2 && PlayerScreen.sungUpTo(w, 0, 24000) == 0 && PlayerScreen.sungUpTo(w, 0, 26000) == 9, "Sung part grows word by word");
         check(Lrclib.wordSynced("lines:\n- text: a\n  start_ms: soon\n") == null, "Bad numbers fall back to line timing");
 
         JSONArray both = new JSONArray()

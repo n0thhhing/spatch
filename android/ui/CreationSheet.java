@@ -49,13 +49,13 @@ final class CreationSheet {
         if (createOverlay != null && createCard != null && createScroll != null) return;
         ui.hideKeyboard();
         if (ui.accountMenu != null) ui.accountMenu.dismiss();
-        ui.setDockHidden(false);
+        ui.dockUi.setDockHidden(false);
         FrameLayout overlay = new FrameLayout(ui.activity);
         overlay.setBackgroundColor(0x99000000);
         overlay.setClipChildren(true);
         createOverlay = overlay;
         int[] navAt = new int[2], rootAt = new int[2];
-        ui.dockBar.getLocationInWindow(navAt); ui.getLocationInWindow(rootAt);
+        ui.dockUi.dockBar.getLocationInWindow(navAt); ui.getLocationInWindow(rootAt);
         int available = navAt[1] - rootAt[1];
         if (available <= 0) available = ui.getHeight() - ui.dockRoom();
         LinearLayout card = ui.column();
@@ -81,7 +81,7 @@ final class CreationSheet {
         ui.addView(overlay, new LayoutParams(-1, available));
         overlay.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         card.setAccessibilityPaneTitle("Create");
-        ui.updateDock();
+        ui.dockUi.updateDock();
         if (ui.motion()) {
             overlay.setAlpha(0f);
             scroll.setAlpha(0f);
@@ -444,7 +444,7 @@ final class CreationSheet {
                     pendingPlaylistSong = null;
                     closeCreateMenu();
                     Toast.makeText(ui.activity, result[1].isEmpty() ? "Created “" + trimmed + "”" : result[1], result[1].isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
-                    ui.openPlaylist(new MediaEntry(trimmed, "Your playlist", result[0], "", 0));
+                    ui.playlistScreen.openPlaylist(new MediaEntry(trimmed, "Your playlist", result[0], "", 0));
                 });
             });
         });
@@ -466,7 +466,7 @@ final class CreationSheet {
         createComposerOpen = false;
         createComposerFromMenu = false;
         pendingPlaylistSong = null;
-        ui.updateDock();
+        ui.dockUi.updateDock();
         if (ui.motion() && ui.isAttachedToWindow()) {
             overlay.animate().cancel();
             overlay.animate().alpha(0f).setDuration(180).withEndAction(() -> ui.removeView(overlay)).start();

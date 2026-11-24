@@ -36,7 +36,7 @@ public class LandscapeLayoutTest {
         java.lang.reflect.Method build = SpatchUi.class.getDeclaredMethod("build");
         build.setAccessible(true);
         build.invoke(ui);
-        SpatchUi.class.getDeclaredMethod("openPlaylist", Class.forName("spatch.MediaEntry")).invoke(ui, entry.newInstance(playlist[0], "", playlist[2], "demo:1", 1));
+        Reflect.call(ui, "openPlaylist", new Class<?>[]{MediaEntry.class}, entry.newInstance(playlist[0], "", playlist[2], "demo:1", 1));
         settle();
         int width = root.getWidth(), height = root.getHeight();
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
@@ -62,10 +62,8 @@ public class LandscapeLayoutTest {
         String[] playlist = PackedStrings.unpackStrings((byte[]) targets.invoke(null));
         java.lang.reflect.Constructor<?> entry = Class.forName("spatch.MediaEntry").getDeclaredConstructor(String.class, String.class, String.class, String.class, int.class);
         entry.setAccessible(true);
-        SpatchUi.class.getDeclaredMethod("openPlaylist", Class.forName("spatch.MediaEntry")).invoke(ui, entry.newInstance(playlist[0], "", playlist[2], "demo:1", 1));
-        java.lang.reflect.Method open = SpatchUi.class.getDeclaredMethod("openPlayer", boolean.class);
-        open.setAccessible(true);
-        open.invoke(ui, false);
+        Reflect.call(ui, "openPlaylist", new Class<?>[]{MediaEntry.class}, entry.newInstance(playlist[0], "", playlist[2], "demo:1", 1));
+        Reflect.call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
         settle();
         controller.recreate();
         settle();
@@ -91,9 +89,7 @@ public class LandscapeLayoutTest {
     }
 
     private static Object field(Object object, String name) throws Exception {
-        java.lang.reflect.Field field = object.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(object);
+        return Reflect.get(object, name);
     }
 
     private static SpatchUi findUi(View view) {

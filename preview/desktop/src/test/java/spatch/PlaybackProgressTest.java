@@ -199,15 +199,11 @@ public class PlaybackProgressTest {
     }
 
     private static Object call(Object target, String name, Class<?>[] types, Object... args) throws Exception {
-        java.lang.reflect.Method method = target.getClass().getDeclaredMethod(name, types);
-        method.setAccessible(true);
-        return method.invoke(target, args);
+        return Reflect.call(target, name, types, args);
     }
 
     private static Object field(Object target, String name) throws Exception {
-        java.lang.reflect.Field field = (target instanceof Class<?> ? (Class<?>) target : target.getClass()).getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(target);
+        return Reflect.get(target, name);
     }
 
     private static void draw(View wave) {

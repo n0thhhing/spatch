@@ -31,13 +31,9 @@ public class PlaylistPickerTest {
         java.lang.reflect.Method nativeSave = SpatchUi.class.getDeclaredMethod("nativeSave", String.class, boolean.class);
         nativeSave.setAccessible(true);
         assertEquals(true, nativeSave.invoke(null, uri, false));
-        java.lang.reflect.Method check = SpatchUi.class.getDeclaredMethod("checkSaved", String.class);
-        check.setAccessible(true);
-        check.invoke(ui, uri);
+        Reflect.call(ui, "checkSaved", new Class<?>[]{String.class}, uri);
         settle();
-        java.lang.reflect.Method open = SpatchUi.class.getDeclaredMethod("openPlayer", boolean.class);
-        open.setAccessible(true);
-        open.invoke(ui, false);
+        Reflect.call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
         settle();
         View save = find(root, "Save to Liked Songs");
         assertNotNull(save);
@@ -92,15 +88,9 @@ public class PlaylistPickerTest {
         java.lang.reflect.Method go = SpatchUi.class.getDeclaredMethod("go", int.class);
         go.setAccessible(true);
         go.invoke(ui, searchTab.getInt(null));
-        java.lang.reflect.Field query = SpatchUi.class.getDeclaredField("searchQuery");
-        query.setAccessible(true);
-        query.set(ui, "Known");
-        java.lang.reflect.Field hits = SpatchUi.class.getDeclaredField("searchHits");
-        hits.setAccessible(true);
-        hits.set(ui, new String[]{"Songs", "Known", "Artist", "spotify:track:known", "demo:1", "-1", "221000"});
-        java.lang.reflect.Method render = SpatchUi.class.getDeclaredMethod("renderSearch");
-        render.setAccessible(true);
-        render.invoke(ui);
+        Reflect.set(ui, "searchQuery", "Known");
+        Reflect.set(ui, "searchHits", new String[]{"Songs", "Known", "Artist", "spotify:track:known", "demo:1", "-1", "221000"});
+        Reflect.call(ui, "renderSearch", new Class<?>[0]);
         View duration = find(root, "3:41");
         assertNotNull(duration);
         assertEquals(View.VISIBLE, duration.getVisibility());
@@ -115,12 +105,10 @@ public class PlaylistPickerTest {
         assertNotNull(ui);
         java.lang.reflect.Method visibility = SpatchUi.class.getDeclaredMethod("onWindowVisibilityChanged", int.class);
         visibility.setAccessible(true);
-        java.lang.reflect.Field request = SpatchUi.class.getDeclaredField("playlistRequest");
-        request.setAccessible(true);
-        int before = request.getInt(ui);
+        int before = (Integer) Reflect.get(ui, "playlistRequest");
         visibility.invoke(ui, View.INVISIBLE);
         visibility.invoke(ui, View.VISIBLE);
-        assertEquals("Backgrounding must preserve outstanding playlist loads", before, request.getInt(ui));
+        assertEquals("Backgrounding must preserve outstanding playlist loads", before, ((Integer) Reflect.get(ui, "playlistRequest")).intValue());
         Class<?> entry = Class.forName("spatch.MediaEntry");
         java.lang.reflect.Constructor<?> constructor = entry.getDeclaredConstructor(String.class, String.class, String.class, String.class, int.class);
         constructor.setAccessible(true);
@@ -168,9 +156,7 @@ public class PlaylistPickerTest {
         java.lang.reflect.Field pending = CreationSheet.class.getDeclaredField("pendingPlaylistSong");
         pending.setAccessible(true);
         assertNull("Canceling must not seed a later unrelated playlist", pending.get(field(ui, "creation")));
-        java.lang.reflect.Method openPlayer = SpatchUi.class.getDeclaredMethod("openPlayer", boolean.class);
-        openPlayer.setAccessible(true);
-        openPlayer.invoke(ui, false);
+        Reflect.call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
         settle();
         View artwork = (View) field(ui, "disc");
         assertTrue(artwork.performLongClick());
@@ -203,9 +189,7 @@ public class PlaylistPickerTest {
     }
 
     private static Object field(Object object, String name) throws Exception {
-        java.lang.reflect.Field field = object.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(object);
+        return Reflect.get(object, name);
     }
 
     private static void settle() throws Exception {

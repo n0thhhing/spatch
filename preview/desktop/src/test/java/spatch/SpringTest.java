@@ -11,7 +11,7 @@ import static org.junit.Assert.*;
 public class SpringTest {
     @Test public void overshootsThenSettlesTheSameAtAnyFrameRate() {
         for (float hz : new float[] { 60f, 120f }) {
-            SpatchUi.Spring s = new SpatchUi.Spring(0f, 14f, .35f, v -> {});
+            Controls.Spring s = new Controls.Spring(0f, 14f, .35f, v -> {});
             s.to(1f);
             float peak = 0, v = 0;
             for (int i = 0; i < hz * 2; i++) { v = s.advance(1 / hz); peak = Math.max(peak, v); }
