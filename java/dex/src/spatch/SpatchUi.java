@@ -4458,6 +4458,7 @@ public final class SpatchUi extends FrameLayout {
             toggle(player, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
             if (pref("backdrop", true)) choice(player, "Backdrop blur", new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
             toggle(player, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
+            toggle(player, "Rotating stickers", "The shapes behind playlist headers turn slowly. Keeps the page redrawing, so it uses some battery", "sticker_spin", false, false);
             if (pref("motes", true)) {
                 choice(player, "Mote amount", new String[]{"Few", "Normal", "Many"}, "motes_amount", 1, false);
                 choice(player, "Mote shapes", new String[]{"Dots", "Stars", "Hearts", "Mix"}, "motes_shape", 0, false);
@@ -6852,7 +6853,8 @@ public final class SpatchUi extends FrameLayout {
         }
 
         private void syncSpin() {
-            if (isAttachedToWindow() && getWindowVisibility() == VISIBLE && motion()) {
+            // Off by default: turning without end keeps an idle playlist page redrawing about 60 times a second.
+            if (isAttachedToWindow() && getWindowVisibility() == VISIBLE && motion() && pref("sticker_spin", false)) {
                 if (spinAnim == null) {
                     spinAnim = android.animation.ValueAnimator.ofFloat(0f, 360f);
                     spinAnim.setDuration(22_000L);
