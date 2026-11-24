@@ -92,6 +92,11 @@ final class ArtworkViews {
             paint.setShader(null);
         }
 
+        private LinearGradient shimmerShader;
+        private float shimmerW, shimmerH;
+        private int shimmerInk;
+        private final Matrix shimmerMatrix = new Matrix();
+
         private LinearGradient placeholderShader(float w, float h, int c1, int c2) {
             if (phShader == null || phW != w || phH != h || phC1 != c1 || phC2 != c2) {
                 phW = w; phH = h; phC1 = c1; phC2 = c2;
@@ -154,10 +159,18 @@ final class ArtworkViews {
             } else if (b == null) {
                 waiting = true;
                 // Still loading: a soft band of light sweeps across the placeholder until the cover arrives.
-                if (!url.isEmpty() && !ui.artFailed(url + ":180") && ui.motion() && isShown() && getWindowVisibility() == VISIBLE) {
+                if (!url.isEmpty() && !ui.artFailed(url + ":180") && ui.motion() && isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) {
                     float t = (SystemClock.uptimeMillis() % 1400) / 1400f, x = -w + t * w * 3;
-                    int glow = (ui.ink & 0x00ffffff) | 0x14000000, clear = ui.ink & 0x00ffffff;
-                    paint.setShader(new LinearGradient(x, 0, x + w, h, new int[]{clear, glow, clear}, null, Shader.TileMode.CLAMP));
+                    if (shimmerShader == null || shimmerW != w || shimmerH != h || shimmerInk != ui.ink) {
+                        shimmerW = w;
+                        shimmerH = h;
+                        shimmerInk = ui.ink;
+                        int glow = (ui.ink & 0x00ffffff) | 0x14000000, clear = ui.ink & 0x00ffffff;
+                        shimmerShader = new LinearGradient(0, 0, w, h, new int[]{clear, glow, clear}, null, Shader.TileMode.CLAMP);
+                    }
+                    shimmerMatrix.setTranslate(x, 0);
+                    shimmerShader.setLocalMatrix(shimmerMatrix);
+                    paint.setShader(shimmerShader);
                     c.drawRoundRect(box, r, r, paint);
                     paint.setShader(null);
                     postInvalidateOnAnimation();
@@ -376,6 +389,11 @@ final class ArtworkViews {
         private final float[] x = new float[64], y = new float[64], sz = new float[64], sp = new float[64], ph = new float[64];
         private long last;
         private float speed, phase;
+        private int amountIdx = 1, shapeIdx;
+        private final android.content.SharedPreferences.OnSharedPreferenceChangeListener prefListener = (p, k) -> {
+            if ("motes_amount".equals(k)) amountIdx = Math.max(0, Math.min(MOTE_COUNTS.length - 1, p.getInt("motes_amount", 1)));
+            else if ("motes_shape".equals(k)) shapeIdx = Math.max(0, Math.min(3, p.getInt("motes_shape", 0)));
+        };
 
         Motes() {
             super(ui.activity);
@@ -384,7 +402,18 @@ final class ArtworkViews {
             for (int i = 0; i < x.length; i++) { x[i] = r.nextFloat(); y[i] = r.nextFloat(); sz[i] = 1.2f + r.nextFloat() * r.nextFloat() * 4.2f; sp[i] = .012f + r.nextFloat() * .03f; ph[i] = r.nextFloat() * 6.283f; }
         }
 
-        @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); last = 0; invalidate(); }
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            amountIdx = Math.max(0, Math.min(MOTE_COUNTS.length - 1, ui.prefs.getInt("motes_amount", 1)));
+            shapeIdx = Math.max(0, Math.min(3, ui.prefs.getInt("motes_shape", 0)));
+            ui.prefs.registerOnSharedPreferenceChangeListener(prefListener);
+            last = 0;
+            invalidate();
+        }
+        @Override protected void onDetachedFromWindow() {
+            ui.prefs.unregisterOnSharedPreferenceChangeListener(prefListener);
+            super.onDetachedFromWindow();
+        }
         @Override protected void onWindowVisibilityChanged(int visibility) {
             super.onWindowVisibilityChanged(visibility);
             if (visibility == VISIBLE) { last = 0; invalidate(); }
@@ -402,8 +431,8 @@ final class ArtworkViews {
             phase += travel;
             if (run && ui.pref("audio", true) && Audio.level > 0) travel *= 1f + 3f * Audio.level + 3f * Audio.kick;
             float w = getWidth(), h = getHeight();
-            int count = MOTE_COUNTS[Math.max(0, Math.min(MOTE_COUNTS.length - 1, ui.prefs.getInt("motes_amount", 1)))];
-            int shape = Math.max(0, Math.min(3, ui.prefs.getInt("motes_shape", 0)));
+            int count = MOTE_COUNTS[amountIdx];
+            int shape = shapeIdx;
             for (int i = 0; i < count; i++) {
                 y[i] -= sp[i] * travel;
                 if (y[i] < -.03f) { y[i] = 1.03f; x[i] = (x[i] + .618f) % 1f; }
@@ -424,7 +453,7 @@ final class ArtworkViews {
                     c.restore();
                 }
             }
-            if ((run || speed > 0) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
+            if ((run || speed > 0) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateDelayed(16);
         }
     }
 
@@ -557,8 +586,10 @@ final class ArtworkViews {
             clip.rewind();
             clip.addCircle(cx, cy, pulseR, Path.Direction.CW);
             c.clipPath(clip);
+            float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
+            lastFrame = now;
             if (shown != null) {
-                if (run && ui.pref("spin", true)) angle = (angle + .12f) % 360f;
+                if (run && ui.pref("spin", true)) angle = (angle + 7.2f * dt) % 360f;
                 paint.setShader(null);
                 if (previous != null) cover(c, previous, cx, cy, pulseR, 255);
                 cover(c, shown, cx, cy, pulseR, Math.round(255 * fade));
@@ -585,8 +616,6 @@ final class ArtworkViews {
             paint.setStrokeWidth(stroke);
             float t = now / 1000f;
             int half = bars / 2;
-            float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
-            lastFrame = now;
             // The bands spread over each side's bars, bass-weighted (Rust: spectrum::bass_expanded).
             if (live) SpatchUi.nativeRing(half, ringTargets);
             boolean settling = bassBreath > 0f;
@@ -662,7 +691,10 @@ final class ArtworkViews {
             paint.setStyle(Paint.Style.FILL);
             boolean reactiveStyle = style == 0 || style == 3;
             if (run && audio && reactiveStyle) Audio.want();
-            if ((run || (settling && reactiveStyle)) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
+            if ((run || (settling && reactiveStyle)) && isShown() && getWindowVisibility() == VISIBLE) {
+                if (reactiveStyle) postInvalidateOnAnimation();
+                else postInvalidateDelayed(16);
+            }
         }
     }
 

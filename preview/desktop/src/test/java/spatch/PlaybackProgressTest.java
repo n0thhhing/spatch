@@ -119,6 +119,47 @@ public class PlaybackProgressTest {
         assertNull(field(field(ui, "progress"), "animator"));
     }
 
+    @Test public void discSpinsAtSameSpeedRegardlessOfFrameRate() throws Exception {
+        SpatchUi ui = create();
+        apply(ui, "same", 120000, 240000, true);
+        finish(ui);
+        call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
+        ui.measure(View.MeasureSpec.makeMeasureSpec(412, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(820, View.MeasureSpec.EXACTLY));
+        ui.layout(0, 0, 412, 820);
+        View disc = (View) field(ui, "disc");
+        java.lang.reflect.Field shownField = ArtworkViews.Disc.class.getDeclaredField("shown");
+        shownField.setAccessible(true);
+        shownField.set(disc, Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888));
+        java.lang.reflect.Field angleField = ArtworkViews.Disc.class.getDeclaredField("angle");
+        angleField.setAccessible(true);
+        java.lang.reflect.Field lastFrameField = ArtworkViews.Disc.class.getDeclaredField("lastFrame");
+        lastFrameField.setAccessible(true);
+
+        // Prime lastFrame, then step 960 ms at 8 ms (120 Hz) vs 16 ms (60 Hz).
+        angleField.set(disc, 0f);
+        lastFrameField.set(disc, 0L);
+        draw(disc);
+        float start8 = (Float) angleField.get(disc);
+        for (int i = 0; i < 120; i++) {
+            ShadowSystemClock.advanceBy(Duration.ofMillis(8));
+            draw(disc);
+        }
+        float delta8 = (Float) angleField.get(disc) - start8;
+
+        angleField.set(disc, 0f);
+        lastFrameField.set(disc, 0L);
+        draw(disc);
+        float start16 = (Float) angleField.get(disc);
+        for (int i = 0; i < 60; i++) {
+            ShadowSystemClock.advanceBy(Duration.ofMillis(16));
+            draw(disc);
+        }
+        float delta16 = (Float) angleField.get(disc) - start16;
+
+        assertEquals(delta16, delta8, delta16 * 0.01f);
+        assertEquals(7.2f * 0.96f, delta16, 0.1f);
+    }
+
     @Test public void pausedArtworkRingSettlesAndResumes() throws Exception {
         SpatchUi ui = create();
         SharedPreferences prefs = (SharedPreferences) field(ui, "prefs");

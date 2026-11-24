@@ -217,7 +217,7 @@ final class Controls {
                 paint.setColor(SpatchUi.blend(ui.surfHi, ui.accent, .5f));
                 c.drawPath(path, paint);
                 c.restore();
-                if (ui.motion() && isShown()) postInvalidateOnAnimation();
+                if (ui.motion() && isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateOnAnimation();
             }
         };
         blob.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
