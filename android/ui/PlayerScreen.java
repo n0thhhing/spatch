@@ -461,7 +461,7 @@ final class PlayerScreen {
         col.addView(titleRow, ui.fill(-2));
 
         ui.wave = ui.controls.new Wave();
-        LinearLayout.LayoutParams wp = ui.fill(ui.dp(land ? 60 : 62));
+        LinearLayout.LayoutParams wp = ui.fill(ui.dp(land ? 48 : 62));
         wp.topMargin = ui.dp(land ? 2 : 6);
         col.addView(ui.wave, wp);
         LinearLayout controls = ui.row();
