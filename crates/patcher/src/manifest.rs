@@ -172,41 +172,111 @@ fn element(out: &mut Vec<u8>, kind: u16, name: usize, attributes: &[Attribute]) 
 
 /// `manifest` with Spatch's widget receiver added to `<application>`. `provider` is the resource id of Spotify's
 /// own widget description, `label` what the widget picker shows.
-pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> Result<Vec<u8>> {
+fn parse_manifest(manifest: &[u8], guard: &str, dup_err: &str) -> Result<(Pool, usize, usize, u32)> {
     if u16_at(manifest, 0)? != XML {
         return Err("not a compiled manifest".into());
     }
-    let (mut pool, after_pool) = Pool::parse(manifest, u16_at(manifest, 2)? as usize)?;
-    if pool.find(class, usize::MAX).is_some() {
-        return Err("the manifest already has the Spatch widget".into());
+    let (pool, after_pool) = Pool::parse(manifest, u16_at(manifest, 2)? as usize)?;
+    if pool.find(guard, usize::MAX).is_some() {
+        return Err(dup_err.into());
     }
     // Resource map: one id per leading string; the attribute names live there.
     if u16_at(manifest, after_pool)? != 0x0180 {
         return Err("the manifest has no resource map".into());
     }
     let mapped = (u32_at(manifest, after_pool + 4)? as usize - 8) / 4;
+    let ns = pool
+        .find("http://schemas.android.com/apk/res/android", usize::MAX)
+        .ok_or("the manifest has no android namespace")? as u32;
+    Ok((pool, after_pool, mapped, ns))
+}
+
+fn find_end_tag(manifest: &[u8], after_pool: usize, pool: &Pool, tag: &str) -> Result<usize> {
+    let target = pool.find(tag, usize::MAX).ok_or_else(|| format!("the manifest has no {tag}"))?;
+    let mut at = after_pool + u32_at(manifest, after_pool + 4)? as usize;
+    let mut found = None;
+    while at < manifest.len() {
+        let size = u32_at(manifest, at + 4)? as usize;
+        if size < 8 || at + size > manifest.len() {
+            return Err("invalid manifest chunk".into());
+        }
+        if u16_at(manifest, at)? == END && u32_at(manifest, at + 20)? as usize == target {
+            found = Some(at);
+        }
+        at += size;
+    }
+    Ok(found.ok_or_else(|| format!("the manifest has no {tag} element"))?)
+}
+
+fn finish_manifest(manifest: &[u8], pool: &Pool, after_pool: usize, insert: usize, nodes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(manifest.len() + nodes.len() + 256);
+    out.extend(XML.to_le_bytes());
+    out.extend(8u16.to_le_bytes());
+    out.extend(0u32.to_le_bytes());
+    pool.write(&mut out);
+    out.extend(&manifest[after_pool..insert]);
+    out.extend(nodes);
+    out.extend(&manifest[insert..]);
+    let total = out.len() as u32;
+    out[4..8].copy_from_slice(&total.to_le_bytes());
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_service(
+    nodes: &mut Vec<u8>,
+    pool: &mut Pool,
+    ns: u32,
+    mapped: usize,
+    class: &str,
+    label: &str,
+    permission: &str,
+    action_name: &str,
+) -> Result<()> {
+    let attr = |name: &str| {
+        pool.find(name, mapped)
+            .map(|i| i as u32)
+            .ok_or_else(|| format!("the manifest has no attribute {name}"))
+    };
+    let (name_attr, exported_attr, permission_attr, label_attr) =
+        (attr("name")?, attr("exported")?, attr("permission")?, attr("label")?);
+    let service = pool.add("service");
+    let filter = pool.add("intent-filter");
+    let action = pool.add("action");
+    let class = pool.add(class) as u32;
+    let label = pool.add(label) as u32;
+    let bind = pool.add(permission) as u32;
+    let act = pool.add(action_name) as u32;
+    // Android attribute order: label, name, permission, exported.
+    element(
+        nodes,
+        START,
+        service,
+        &[
+            (ns, label_attr, label, STRING, label),
+            (ns, name_attr, class, STRING, class),
+            (ns, permission_attr, bind, STRING, bind),
+            (ns, exported_attr, NONE, BOOLEAN, 0xffff_ffff),
+        ],
+    );
+    element(nodes, START, filter, &[]);
+    element(nodes, START, action, &[(ns, name_attr, act, STRING, act)]);
+    element(nodes, END, action, &[]);
+    element(nodes, END, filter, &[]);
+    element(nodes, END, service, &[]);
+    Ok(())
+}
+
+pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> Result<Vec<u8>> {
+    let (mut pool, after_pool, mapped, ns) = parse_manifest(manifest, class, "the manifest already has the Spatch widget")?;
     let attr = |name: &str| pool.find(name, mapped).ok_or_else(|| format!("the manifest has no attribute {name}"));
     let (name, exported, label_attr, resource) = (attr("name")? as u32, attr("exported")? as u32, attr("label")? as u32, attr("resource")? as u32);
-    let ns = pool.find("http://schemas.android.com/apk/res/android", usize::MAX).ok_or("the manifest has no android namespace")? as u32;
     let find = |pool: &Pool, text: &str| pool.find(text, usize::MAX).ok_or_else(|| format!("the manifest has no {text}"));
     let (receiver, filter, action, meta) = (find(&pool, "receiver")?, find(&pool, "intent-filter")?, find(&pool, "action")?, find(&pool, "meta-data")?);
     let update = pool.add("android.appwidget.action.APPWIDGET_UPDATE") as u32;
     let provider_name = pool.add("android.appwidget.provider") as u32;
     let (class, label) = (pool.add(class) as u32, pool.add(label) as u32);
-
-    // The end of <application> is where the receiver goes.
-    let application = pool.find("application", usize::MAX).ok_or("the manifest has no application")?;
-    let mut at = after_pool;
-    at += u32_at(manifest, at + 4)? as usize;
-    let mut insert = None;
-    while at < manifest.len() {
-        let size = u32_at(manifest, at + 4)? as usize;
-        if u16_at(manifest, at)? == END && u32_at(manifest, at + 20)? as usize == application {
-            insert = Some(at);
-        }
-        at += size.max(8);
-    }
-    let insert = insert.ok_or("the manifest has no application element")?;
+    let insert = find_end_tag(manifest, after_pool, &pool, "application")?;
 
     let mut nodes = Vec::new();
     element(&mut nodes, START, receiver, &[(ns, label_attr, label, STRING, label), (ns, name, class, STRING, class), (ns, exported, NONE, BOOLEAN, 0xffff_ffff)]);
@@ -218,17 +288,7 @@ pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> R
     element(&mut nodes, END, meta, &[]);
     element(&mut nodes, END, receiver, &[]);
 
-    let mut out = Vec::with_capacity(manifest.len() + nodes.len() + 256);
-    out.extend(XML.to_le_bytes());
-    out.extend(8u16.to_le_bytes());
-    out.extend(0u32.to_le_bytes());
-    pool.write(&mut out);
-    out.extend(&manifest[after_pool..insert]);
-    out.extend(nodes);
-    out.extend(&manifest[insert..]);
-    let total = out.len() as u32;
-    out[4..8].copy_from_slice(&total.to_le_bytes());
-    Ok(out)
+    Ok(finish_manifest(manifest, &pool, after_pool, insert, &nodes))
 }
 
 /// A passive Quick Settings tile (its own name, icon and state are all set at runtime, not in the manifest):
@@ -239,138 +299,40 @@ pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> R
 /// </service>
 /// ```
 pub fn add_quick_settings_tile(manifest: &[u8]) -> Result<Vec<u8>> {
-    if u16_at(manifest, 0)? != XML {
-        return Err("not a compiled manifest".into());
-    }
-    let (mut pool, after_pool) = Pool::parse(manifest, u16_at(manifest, 2)? as usize)?;
-    let class = "spatch.PlaybackTile";
-    if pool.find(class, usize::MAX).is_some() {
-        return Err("the manifest already has the playback tile".into());
-    }
-    if u16_at(manifest, after_pool)? != 0x0180 {
-        return Err("the manifest has no resource map".into());
-    }
-    let mapped = (u32_at(manifest, after_pool + 4)? as usize - 8) / 4;
-    let attr = |name: &str| pool.find(name, mapped).map(|i| i as u32).ok_or_else(|| format!("the manifest has no attribute {name}"));
-    let (name, exported, permission) = (attr("name")?, attr("exported")?, attr("permission")?);
-    let ns = pool.find("http://schemas.android.com/apk/res/android", usize::MAX).ok_or("the manifest has no android namespace")? as u32;
-    let application = pool.find("application", usize::MAX).ok_or("the manifest has no application")? as u32;
-    let mut at = after_pool;
-    at += u32_at(manifest, at + 4)? as usize;
-    let mut insert = None;
-    while at < manifest.len() {
-        let size = u32_at(manifest, at + 4)? as usize;
-        if u16_at(manifest, at)? == END && u32_at(manifest, at + 20)? as usize == application as usize {
-            insert = Some(at);
-        }
-        at += size.max(8);
-    }
-    let insert = insert.ok_or("the manifest has no application element")?;
-    let service = pool.add("service");
-    let filter = pool.add("intent-filter");
-    let action = pool.add("action");
-    let class = pool.add(class) as u32;
-    let label_attr = pool.find("label", mapped).ok_or("the manifest has no label attribute")? as u32;
-    let label = pool.add("Spatch") as u32;
-    let bind = pool.add("android.permission.BIND_QUICK_SETTINGS_TILE") as u32;
-    let tile_action = pool.add("android.service.quicksettings.action.QS_TILE") as u32;
+    let (mut pool, after_pool, mapped, ns) = parse_manifest(manifest, "spatch.PlaybackTile", "the manifest already has the playback tile")?;
+    let insert = find_end_tag(manifest, after_pool, &pool, "application")?;
     let mut nodes = Vec::new();
-    element(&mut nodes, START, service, &[(ns, label_attr, label, STRING, label), (ns, name, class, STRING, class), (ns, permission, bind, STRING, bind), (ns, exported, NONE, BOOLEAN, 0xffff_ffff)]);
-    element(&mut nodes, START, filter, &[]);
-    element(&mut nodes, START, action, &[(ns, name, tile_action, STRING, tile_action)]);
-    element(&mut nodes, END, action, &[]);
-    element(&mut nodes, END, filter, &[]);
-    element(&mut nodes, END, service, &[]);
-    let mut out = Vec::with_capacity(manifest.len() + nodes.len() + 256);
-    out.extend(XML.to_le_bytes());
-    out.extend(8u16.to_le_bytes());
-    out.extend(0u32.to_le_bytes());
-    pool.write(&mut out);
-    out.extend(&manifest[after_pool..insert]);
-    out.extend(nodes);
-    out.extend(&manifest[insert..]);
-    let total = out.len() as u32;
-    out[4..8].copy_from_slice(&total.to_le_bytes());
-    Ok(out)
+    append_service(
+        &mut nodes,
+        &mut pool,
+        ns,
+        mapped,
+        "spatch.PlaybackTile",
+        "Spatch",
+        "android.permission.BIND_QUICK_SETTINGS_TILE",
+        "android.service.quicksettings.action.QS_TILE",
+    )?;
+    Ok(finish_manifest(manifest, &pool, after_pool, insert, &nodes))
 }
 
 /// Notification access is user-granted; the service reads media sessions, not notification contents.
 pub fn add_official_playback(manifest: &[u8]) -> Result<Vec<u8>> {
-    if u16_at(manifest, 0)? != XML {
-        return Err("not a compiled manifest".into());
-    }
-    let (mut pool, after_pool) = Pool::parse(manifest, u16_at(manifest, 2)? as usize)?;
-    let class = "spatch.OfficialPlayback";
-    if pool.find(class, usize::MAX).is_some() {
-        return Err("the manifest already has official playback".into());
-    }
-    if u16_at(manifest, after_pool)? != 0x0180 {
-        return Err("the manifest has no resource map".into());
-    }
-    let mapped = (u32_at(manifest, after_pool + 4)? as usize - 8) / 4;
-    let attr = |name: &str| {
-        pool.find(name, mapped)
-            .map(|i| i as u32)
-            .ok_or_else(|| format!("the manifest has no attribute {name}"))
-    };
-    let (name, exported, permission) = (attr("name")?, attr("exported")?, attr("permission")?);
-    let ns = pool
-        .find("http://schemas.android.com/apk/res/android", usize::MAX)
-        .ok_or("the manifest has no android namespace")? as u32;
-    let mut application_end = None;
-    let mut manifest_end = None;
-    let mut at = after_pool + u32_at(manifest, after_pool + 4)? as usize;
-    while at < manifest.len() {
-        let size = u32_at(manifest, at + 4)? as usize;
-        if size < 8 || at + size > manifest.len() {
-            return Err("invalid manifest chunk".into());
-        }
-        if u16_at(manifest, at)? == END {
-            match pool.text(u32_at(manifest, at + 20)? as usize).as_str() {
-                "application" => application_end = Some(at),
-                "manifest" => manifest_end = Some(at),
-                _ => {}
-            }
-        }
-        at += size;
-    }
-    let (app_end, root_end) = (
-        application_end.ok_or("the manifest has no application")?,
-        manifest_end.ok_or("the manifest has no root")?,
-    );
-    let service = pool.add("service");
-    let filter = pool.add("intent-filter");
-    let action = pool.add("action");
-    let class = pool.add(class) as u32;
-    let label_attr = pool
-        .find("label", mapped)
-        .ok_or("the manifest has no label attribute")? as u32;
-    let label = pool.add("Spotify playback fallback") as u32;
-    let bind = pool.add("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE") as u32;
-    let listener = pool.add("android.service.notification.NotificationListenerService") as u32;
+    let (mut pool, after_pool, mapped, ns) =
+        parse_manifest(manifest, "spatch.OfficialPlayback", "the manifest already has official playback")?;
+    let app_end = find_end_tag(manifest, after_pool, &pool, "application")?;
+    let root_end = find_end_tag(manifest, after_pool, &pool, "manifest")?;
+    let name = pool.find("name", mapped).map(|i| i as u32).ok_or("the manifest has no attribute name")?;
     let mut nodes = Vec::new();
-    // Android attribute order: label, name, permission, exported.
-    element(
+    append_service(
         &mut nodes,
-        START,
-        service,
-        &[
-            (ns, label_attr, label, STRING, label),
-            (ns, name, class, STRING, class),
-            (ns, permission, bind, STRING, bind),
-            (ns, exported, NONE, BOOLEAN, 0xffff_ffff),
-        ],
-    );
-    element(&mut nodes, START, filter, &[]);
-    element(
-        &mut nodes,
-        START,
-        action,
-        &[(ns, name, listener, STRING, listener)],
-    );
-    element(&mut nodes, END, action, &[]);
-    element(&mut nodes, END, filter, &[]);
-    element(&mut nodes, END, service, &[]);
+        &mut pool,
+        ns,
+        mapped,
+        "spatch.OfficialPlayback",
+        "Spotify playback fallback",
+        "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
+        "android.service.notification.NotificationListenerService",
+    )?;
     let queries = pool.add("queries");
     let package = pool.add("package");
     let spotify = pool.add("com.spotify.music") as u32;

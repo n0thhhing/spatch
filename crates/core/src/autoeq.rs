@@ -12,7 +12,6 @@ use std::sync::Mutex;
 
 const ROOT: &str = "/jaakkopasanen/AutoEq/master/results/";
 const HOST: &str = "raw.githubusercontent.com";
-const BIN_MAGIC: &[u8; 4] = b"AEQ1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {
@@ -22,15 +21,6 @@ pub struct Entry {
 }
 
 static CATALOG: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
-
-fn hex_val(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
-    }
-}
 
 /// Validates and percent-decodes a relative URI path segment from a markdown link (matching `URI.create(link).getPath()`).
 fn decode_uri_path(raw: &str) -> Option<String> {
@@ -47,8 +37,8 @@ fn decode_uri_path(raw: &str) -> Option<String> {
             if i + 2 >= bytes.len() {
                 return None;
             }
-            let hi = hex_val(bytes[i + 1])?;
-            let lo = hex_val(bytes[i + 2])?;
+            let hi = (bytes[i + 1] as char).to_digit(16)? as u8;
+            let lo = (bytes[i + 2] as char).to_digit(16)? as u8;
             let decoded = (hi << 4) | lo;
             if decoded == b'\\' {
                 return None;
@@ -165,44 +155,18 @@ pub fn parse(markdown: &str) -> Vec<Entry> {
     result
 }
 
-/// Encodes parsed entries into a compact binary cache (`AEQ1` + count + length-prefixed name/url pairs).
-fn encode_bin(entries: &[Entry]) -> Vec<u8> {
-    let cap = 8 + entries.iter().map(|e| 8 + e.name.len() + e.url.len()).sum::<usize>();
-    let mut out = Vec::with_capacity(cap);
-    out.extend_from_slice(BIN_MAGIC);
-    out.extend_from_slice(&(entries.len() as u32).to_le_bytes());
-    for e in entries {
-        out.extend_from_slice(&(e.name.len() as u32).to_le_bytes());
-        out.extend_from_slice(e.name.as_bytes());
-        out.extend_from_slice(&(e.url.len() as u32).to_le_bytes());
-        out.extend_from_slice(e.url.as_bytes());
-    }
-    out
+fn encode_entries(entries: &[Entry]) -> Vec<u8> {
+    let flat: Vec<String> = entries.iter().flat_map(|e| [e.name.clone(), e.url.clone()]).collect();
+    crate::cache::encode(&flat)
 }
 
-fn decode_bin(bytes: &[u8]) -> Option<Vec<Entry>> {
-    if bytes.len() < 8 || &bytes[..4] != BIN_MAGIC {
-        return None;
-    }
-    let count = u32::from_le_bytes(bytes[4..8].try_into().ok()?) as usize;
-    let mut entries = Vec::with_capacity(count.min(65_536));
-    let mut pos = 8;
-    for _ in 0..count {
-        let nlen = u32::from_le_bytes(bytes.get(pos..pos + 4)?.try_into().ok()?) as usize;
-        pos += 4;
-        let name = std::str::from_utf8(bytes.get(pos..pos + nlen)?).ok()?.to_string();
-        pos += nlen;
-        let ulen = u32::from_le_bytes(bytes.get(pos..pos + 4)?.try_into().ok()?) as usize;
-        pos += 4;
-        let url = std::str::from_utf8(bytes.get(pos..pos + ulen)?).ok()?.to_string();
-        pos += ulen;
-        let lower = name.to_lowercase();
-        entries.push(Entry { name, lower, url });
-    }
-    if pos != bytes.len() || entries.is_empty() {
-        return None;
-    }
-    Some(entries)
+fn decode_entries(bytes: &[u8]) -> Option<Vec<Entry>> {
+    let flat = crate::cache::decode(bytes).filter(|v| !v.is_empty() && v.len().is_multiple_of(2))?;
+    Some(
+        flat.as_chunks::<2>().0.iter()
+            .map(|[name, url]| Entry { name: name.clone(), lower: name.to_lowercase(), url: url.clone() })
+            .collect(),
+    )
 }
 
 fn write_atomic(path: &Path, bytes: &[u8]) {
@@ -221,25 +185,15 @@ pub fn load_or_store(dir: &Path, fresh_markdown: Option<&str>) -> usize {
         let parsed = parse(md);
         if !parsed.is_empty() {
             write_atomic(&md_path, md.as_bytes());
-            write_atomic(&bin_path, &encode_bin(&parsed));
+            write_atomic(&bin_path, &encode_entries(&parsed));
         }
         parsed
-    } else if let Ok(bin) = fs::read(&bin_path) {
-        if let Some(parsed) = decode_bin(&bin) {
-            parsed
-        } else if let Ok(md) = fs::read_to_string(&md_path) {
-            let parsed = parse(&md);
-            if !parsed.is_empty() {
-                write_atomic(&bin_path, &encode_bin(&parsed));
-            }
-            parsed
-        } else {
-            Vec::new()
-        }
+    } else if let Some(parsed) = fs::read(&bin_path).ok().and_then(|b| decode_entries(&b)) {
+        parsed
     } else if let Ok(md) = fs::read_to_string(&md_path) {
         let parsed = parse(&md);
         if !parsed.is_empty() {
-            write_atomic(&bin_path, &encode_bin(&parsed));
+            write_atomic(&bin_path, &encode_entries(&parsed));
         }
         parsed
     } else {
@@ -253,17 +207,6 @@ pub fn load_or_store(dir: &Path, fresh_markdown: Option<&str>) -> usize {
     count
 }
 
-fn pack_pairs<'a>(iter: impl Iterator<Item = (&'a str, &'a str)>) -> Vec<u8> {
-    let mut out = Vec::new();
-    for (name, url) in iter {
-        out.extend_from_slice(&(name.len() as u32).to_le_bytes());
-        out.extend_from_slice(name.as_bytes());
-        out.extend_from_slice(&(url.len() as u32).to_le_bytes());
-        out.extend_from_slice(url.as_bytes());
-    }
-    out
-}
-
 /// Searches the loaded catalog for `query` (case-insensitive substring), returning up to `limit` `(name, url)` pairs.
 pub fn search_packed(query: &str, limit: usize) -> Vec<u8> {
     let q = query.trim().to_lowercase();
@@ -271,13 +214,13 @@ pub fn search_packed(query: &str, limit: usize) -> Vec<u8> {
         return Vec::new();
     }
     let guard = CATALOG.lock().unwrap();
-    pack_pairs(
-        guard
-            .iter()
-            .filter(|e| e.lower.contains(&q))
-            .take(limit)
-            .map(|e| (e.name.as_str(), e.url.as_str())),
-    )
+    let flat: Vec<String> = guard
+        .iter()
+        .filter(|e| e.lower.contains(&q))
+        .take(limit)
+        .flat_map(|e| [e.name.clone(), e.url.clone()])
+        .collect();
+    crate::cache::encode(&flat)
 }
 
 #[unsafe(no_mangle)]

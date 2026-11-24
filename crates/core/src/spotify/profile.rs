@@ -4,7 +4,6 @@ use super::image_url;
 use crate::bridge;
 use crate::protos::spotify::profile_esperanto::proto as es;
 use prost::Message;
-use std::sync::mpsc;
 use std::time::Duration;
 
 pub const SERVICE: &str = "spotify.profile_esperanto.proto.v1.ProfileService";
@@ -48,17 +47,9 @@ pub fn decode(bytes: &[u8]) -> Result<Profile, String> {
 /// Opens `SubscribeToProfiles`, waits up to `wait` for the first valid profile reply, then cancels the stream.
 /// Blocks: never call on the UI thread.
 pub fn fetch(username: &str, wait: Duration) -> Result<Profile, String> {
-    let (send, receive) = mpsc::channel::<Result<Vec<u8>, String>>();
-    let id = bridge::subscribe(SERVICE, METHOD, &request(username), move |reply| {
-        let _ = send.send(reply.map(<[u8]>::to_vec).map_err(str::to_string));
-    })?;
-    let result = match receive.recv_timeout(wait) {
-        Ok(Ok(bytes)) => decode(&bytes),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err("Spotify didn't answer profile request".to_string()),
-    };
-    bridge::cancel(id);
-    result
+    bridge::subscribe_until(SERVICE, METHOD, &request(username), wait, "Spotify didn't answer profile request", |b| {
+        (decode(b), true)
+    })
 }
 
 #[cfg(test)]

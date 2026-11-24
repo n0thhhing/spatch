@@ -39,15 +39,11 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     let mut f = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
     let mut h = Sha256::new();
     io::copy(&mut f, &mut h)?;
-    Ok(hex(&h.finalize()))
+    Ok(format!("{:x}", h.finalize()))
 }
 
 pub fn sha256_bytes(bytes: &[u8]) -> String {
-    hex(&Sha256::digest(bytes))
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    format!("{:x}", Sha256::digest(bytes))
 }
 
 /// Rejects any APKM whose hash differs from the one supported build.

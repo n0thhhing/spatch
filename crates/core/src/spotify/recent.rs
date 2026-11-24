@@ -9,8 +9,7 @@ use crate::protos::com::spotify::playlist::policy::proto::PlaylistDecorationPoli
 use crate::protos::com::spotify::recently_played_esperanto::proto as es;
 use es::recently_played_context::Context;
 use prost::Message;
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub const SERVICE: &str = "spotify.recently_played_esperanto.proto.RecentlyPlayedService";
 
@@ -82,35 +81,10 @@ pub fn decode(bytes: &[u8]) -> Result<(Vec<Item>, bool), String> {
 /// Opens the Stream, waits for Spotify to finish loading (at most `wait`), keeps the latest list, and closes it.
 /// Blocks: never on the UI thread.
 pub fn fetch(limit: u32, wait: Duration) -> Result<Vec<Item>, String> {
-    let (send, receive) = mpsc::channel::<Result<Vec<u8>, String>>();
-    let id = bridge::subscribe(SERVICE, "Stream", &request(limit), move |reply| {
-        let _ = send.send(reply.map(<[u8]>::to_vec).map_err(str::to_string));
-    })?;
-    let deadline = Instant::now() + wait;
-    let mut latest: Result<Vec<Item>, String> = Err("Spotify didn’t answer".into());
-    while let Some(left) = deadline.checked_duration_since(Instant::now()) {
-        match receive.recv_timeout(left) {
-            Ok(Ok(bytes)) => match decode(&bytes) {
-                Ok((items, loaded)) => {
-                    latest = Ok(items);
-                    if loaded {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    latest = Err(e);
-                    break;
-                }
-            },
-            Ok(Err(e)) => {
-                latest = latest.or(Err(e));
-                break;
-            }
-            Err(_) => break,
-        }
-    }
-    bridge::cancel(id);
-    latest
+    bridge::subscribe_until(SERVICE, "Stream", &request(limit), wait, "Spotify didn’t answer", |b| match decode(b) {
+        Ok((items, loaded)) => (Ok(items), loaded),
+        Err(e) => (Err(e), true),
+    })
 }
 
 #[cfg(test)]

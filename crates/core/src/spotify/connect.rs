@@ -3,8 +3,7 @@
 use crate::bridge;
 use crate::protos::com::spotify::connect::esperanto::proto as es;
 use prost::Message;
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub const SERVICE: &str = "spotify.connect.esperanto.proto.ConnectService";
 
@@ -56,29 +55,11 @@ pub fn decode_status(bytes: &[u8]) -> Result<(), String> {
 /// Opens the State stream, keeps the first list that has devices (or the last one before `wait` runs
 /// out), and closes it. Blocks: never on the UI thread.
 pub fn devices(wait: Duration) -> Result<Vec<Device>, String> {
-    let (send, receive) = mpsc::channel::<Result<Vec<u8>, String>>();
-    let id = bridge::subscribe(SERVICE, "State", &state_request(), move |reply| {
-        let _ = send.send(reply.map(<[u8]>::to_vec).map_err(str::to_string));
-    })?;
-    let deadline = Instant::now() + wait;
-    let mut latest: Result<Vec<Device>, String> = Err("Spotify didn’t answer".into());
-    while let Some(left) = deadline.checked_duration_since(Instant::now()) {
-        match receive.recv_timeout(left) {
-            Ok(Ok(bytes)) => {
-                latest = decode_state(&bytes);
-                if latest.as_ref().is_ok_and(|d| !d.is_empty()) {
-                    break;
-                }
-            }
-            Ok(Err(e)) => {
-                latest = latest.or(Err(e));
-                break;
-            }
-            Err(_) => break,
-        }
-    }
-    bridge::cancel(id);
-    latest
+    bridge::subscribe_until(SERVICE, "State", &state_request(), wait, "Spotify didn’t answer", |b| {
+        let res = decode_state(b);
+        let done = res.as_ref().is_ok_and(|d| !d.is_empty());
+        (res, done)
+    })
 }
 
 /// Moves playback to `device_id`. Blocks.

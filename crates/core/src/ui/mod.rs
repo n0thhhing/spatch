@@ -689,3 +689,32 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeSave(mut env: JNIEnv, _: JClas
         }
     }
 }
+
+fn shader_source(name: &str) -> Option<&'static str> {
+    match name {
+        "field" => Some(include_str!("../shaders/field.agsl")),
+        "ring" => Some(include_str!("../shaders/ring.agsl")),
+        "grain" => Some(include_str!("../shaders/grain.agsl")),
+        _ => None,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_GpuFx_nativeShader(mut env: JNIEnv, _: JClass, name: JString) -> jstring {
+    let Ok(name) = env.get_string(&name).map(String::from) else { return std::ptr::null_mut() };
+    match shader_source(&name).map(|text| env.new_string(text)) {
+        Some(Ok(text)) => text.into_raw(),
+        _ => std::ptr::null_mut(),
+    }
+}
+
+#[cfg(test)]
+mod shader_tests {
+    #[test]
+    fn every_shader_has_an_entry_point() {
+        for name in ["field", "ring", "grain"] {
+            assert!(super::shader_source(name).unwrap().contains("half4 main(float2 p)"), "{name}");
+        }
+        assert!(super::shader_source("missing").is_none());
+    }
+}

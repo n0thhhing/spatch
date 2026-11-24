@@ -112,50 +112,44 @@ pub fn call_with_timeout(service: &str, method: &str, request: &[u8], wait: std:
 }
 
 /// A playlist's items (playlist4 SelectedListContent) from Spotify's playlist service over the app's web connection.
-pub fn playlist_contents(id: &str) -> Result<Vec<u8>, String> {
+fn call_java_bytes<'a, F>(f: F) -> Result<Vec<u8>, String>
+where
+    F: FnOnce(&mut JNIEnv<'a>, &JClass<'_>) -> jni::errors::Result<jni::objects::JObject<'a>>,
+{
     let session = SESSION.load(Ordering::SeqCst);
     let java = java()?;
     let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
     let result = (|| -> jni::errors::Result<Vec<u8>> {
-        let id = env.new_string(id)?;
         let class: &JClass = java.class.as_obj().into();
-        let reply = env.call_static_method(class, "playlistContents", "(Ljava/lang/String;)[B", &[JValue::Object(&id)])?.l()?;
+        let reply = f(&mut env, class)?;
         env.convert_byte_array(JByteArray::from(reply))
     })();
     let bytes = result.map_err(|e| describe(&mut env, e))?;
     if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
     Ok(bytes)
+}
+
+pub fn playlist_contents(id: &str) -> Result<Vec<u8>, String> {
+    call_java_bytes(|env, class| {
+        let id = env.new_string(id)?;
+        env.call_static_method(class, "playlistContents", "(Ljava/lang/String;)[B", &[JValue::Object(&id)])?.l()
+    })
 }
 
 /// Spotify's extended-metadata service over the app's web connection: BatchedEntityRequest in, BatchedExtensionResponse out.
 pub fn extended_metadata(request: &[u8]) -> Result<Vec<u8>, String> {
-    let session = SESSION.load(Ordering::SeqCst);
-    let java = java()?;
-    let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
-    let result = (|| -> jni::errors::Result<Vec<u8>> {
+    call_java_bytes(|env, class| {
         let body = env.byte_array_from_slice(request)?;
-        let class: &JClass = java.class.as_obj().into();
-        let reply = env.call_static_method(class, "extendedMetadata", "([B)[B", &[JValue::Object(&body)])?.l()?;
-        env.convert_byte_array(JByteArray::from(reply))
-    })();
-    let bytes = result.map_err(|e| describe(&mut env, e))?;
-    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
-    Ok(bytes)
+        env.call_static_method(class, "extendedMetadata", "([B)[B", &[JValue::Object(&body)])?.l()
+    })
 }
 
 /// Public catalog details for a page of track links, using a separate anonymous Spotify session.
 pub fn public_track_metadata(uris: &[String]) -> Result<Vec<String>, String> {
-    let session = SESSION.load(Ordering::SeqCst);
-    let java = java()?;
-    let mut env = java.vm.attach_current_thread_permanently().map_err(|e| e.to_string())?;
-    let result = (|| -> jni::errors::Result<Vec<u8>> {
+    let bytes = call_java_bytes(|env, class| {
         let input = env.byte_array_from_slice(&crate::cache::encode(uris))?;
-        let class: &JClass = java.class.as_obj().into();
-        let reply = env.call_static_method(class, "publicTrackMetadata", "([B)[B", &[JValue::Object(&input)])?.l()?;
-        env.convert_byte_array(JByteArray::from(reply))
-    })();
-    let bytes = result.map_err(|e| describe(&mut env, e))?;
-    if SESSION.load(Ordering::SeqCst) != session { return Err("Account session changed".into()); }
+        env.call_static_method(class, "publicTrackMetadata", "([B)[B", &[JValue::Object(&input)])?.l()
+    })?;
     crate::cache::decode(&bytes).ok_or_else(|| "Invalid public track metadata".into())
 }
 
@@ -205,6 +199,41 @@ pub fn subscribe(
         return Err("Account session changed".into());
     }
     Ok(id)
+}
+
+/// Subscribes to a stream and waits up to `wait` until `on_reply` returns `done == true`.
+pub fn subscribe_until<T>(
+    service: &str,
+    method: &str,
+    body: &[u8],
+    wait: std::time::Duration,
+    timeout_msg: &str,
+    mut on_reply: impl FnMut(&[u8]) -> (Result<T, String>, bool),
+) -> Result<T, String> {
+    let (send, receive) = std::sync::mpsc::channel::<Result<Vec<u8>, String>>();
+    let id = subscribe(service, method, body, move |reply| {
+        let _ = send.send(reply.map(<[u8]>::to_vec).map_err(str::to_string));
+    })?;
+    let deadline = std::time::Instant::now() + wait;
+    let mut latest: Result<T, String> = Err(timeout_msg.to_string());
+    while let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) {
+        match receive.recv_timeout(left) {
+            Ok(Ok(bytes)) => {
+                let (res, done) = on_reply(&bytes);
+                latest = res;
+                if done {
+                    break;
+                }
+            }
+            Ok(Err(e)) => {
+                latest = latest.or(Err(e));
+                break;
+            }
+            Err(_) => break,
+        }
+    }
+    cancel(id);
+    latest
 }
 
 pub fn cancel(id: i64) {
