@@ -67,6 +67,7 @@ final class Dock {
                 ui.pageHost.getLocationInWindow(host);
                 blur.setPosition(0, 0, b.width(), b.height());
                 android.graphics.RecordingCanvas into = blur.beginRecording();
+                into.drawColor(ui.bg);
                 into.translate(host[0] - at[0] - b.left, host[1] - at[1] - b.top);
                 into.drawRenderNode(pageNode);
                 blur.endRecording();
