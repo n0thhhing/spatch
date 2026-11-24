@@ -7,7 +7,6 @@ pub mod audio_tap;
 pub mod autoeq;
 pub mod bridge;
 pub mod cache;
-pub mod eq;
 pub mod lyric_gen;
 pub mod palette;
 pub mod shaders;

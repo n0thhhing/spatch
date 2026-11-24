@@ -183,26 +183,6 @@ public class MacPreviewTest {
             assertEquals(jModels.get(i).url, rModels.get(i).url);
         }
 
-        // 3. EQ 64-band + GraphicEQ + ISO-226 Rust vs Java numerical parity
-        String curveText = "GraphicEQ: 20 -3.5; 125 2.2; 1000 -0.8; 6000 3.1; 20000 -2.0";
-        Audio.GraphicEqProfile rCurve = Audio.GraphicEqProfile.parse(curveText);
-        Audio.GraphicEqProfile jCurve = Audio.GraphicEqProfile.parseJava(curveText);
-        assertArrayEquals(jCurve.freqs, rCurve.freqs, 1e-5f);
-        assertArrayEquals(jCurve.gains, rCurve.gains, 1e-5f);
-        float[] hz64 = Audio.logSpacedFrequencies(64, 20f, 20000f);
-        float[] geq = {2.5f, 1.5f, 0.5f, -0.5f, -1.0f, 0f, 1f, 2f, 1.5f, 0.5f};
-        float[] out = new float[64];
-        float peakRust = Audio.evaluateBands(hz64, true, geq, rCurve, 120f, true, 0.25f, 0.6f, out);
-        float peakJava = 0f;
-        for (int i = 0; i < 64; i++) {
-            float expected = Audio.gainAt(hz64[i], geq)
-                + Audio.evaluateGraphicEq(jCurve, hz64[i], 120f)
-                + Audio.iso226Gain(hz64[i], 0.25f, 0.6f);
-            assertEquals("Band " + i + " parity", expected, out[i], 1e-4f);
-            if (expected > peakJava) peakJava = expected;
-        }
-        assertEquals(peakJava, peakRust, 1e-4f);
-
         // 4. Rust -> Java push callback syncs immediately without advancing the clock
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).create().start().resume().visible().get();
         ShadowLooper.idleMainLooper();
