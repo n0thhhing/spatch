@@ -2204,7 +2204,8 @@ public final class SpatchUi extends FrameLayout {
             list.addView(option, p);
         }
         card.addView(choices, new LinearLayout.LayoutParams(-1, -2));
-        scrim.addView(card, new LayoutParams(-1, -2, Gravity.BOTTOM));
+        int sheetWidth = wide() ? Math.min(dp(520), Math.max(dp(320), getWidth() - dp(48))) : -1;
+        scrim.addView(card, new LayoutParams(sheetWidth, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
         addView(scrim, new LayoutParams(-1, -1));
         close[0] = () -> {
             sheetClose = null;
