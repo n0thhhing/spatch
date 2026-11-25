@@ -432,7 +432,7 @@ final class ArtworkViews {
                 : speed + (target - speed) * (1f - (float) Math.exp(-dt / .18f));
             float travel = dt * speed;
             phase += travel;
-            if (run && ui.pref("audio", true) && Audio.level > 0) travel *= 1f + 3f * Audio.level + 3f * Audio.kick;
+            float beat = run && ui.pref("audio", true) && Audio.level > 0 ? 1f + .35f * Audio.level + .45f * Audio.kick : 1f;
             float w = getWidth(), h = getHeight();
             int count = MOTE_COUNTS[amountIdx];
             int shape = shapeIdx;
@@ -445,11 +445,11 @@ final class ArtworkViews {
                     * (.5f + .5f * (float) Math.sin(phase * 1.3f + ph[i] * 3f)) * Math.max(0f, edge))));
                 float px = x[i] * w + (float) Math.sin(phase * .6f + ph[i]) * ui.dp(10), py = y[i] * h;
                 int kind = MOTE_SHAPES[shape == 3 ? i % MOTE_SHAPES.length : shape];
-                if (kind == Confetti.DOT) c.drawCircle(px, py, ui.dp(sz[i]), paint);
+                if (kind == Confetti.DOT) c.drawCircle(px, py, ui.dp(sz[i] * beat), paint);
                 else {
                     c.save();
                     c.translate(px, py);
-                    float size = ui.dp(Math.max(2.5f, sz[i] * 1.3f));
+                    float size = ui.dp(Math.max(2.5f, sz[i] * 1.3f) * beat);
                     c.scale(size, size);
                     c.rotate((phase * 12 + ph[i] * 30) % 360);
                     c.drawPath(Confetti.shape(kind), paint);
