@@ -80,6 +80,31 @@ final class PlayerScreen {
         ui.popIn(menu);
     }
 
+    private float sheetCornerRadius;
+
+    private void setPlayerDepth(float open) {
+        open = Math.max(0f, Math.min(1f, open));
+        float scale = 1f - 0.05f * open;
+        float alpha = 1f - 0.35f * open;
+        if (ui.pageHost != null) {
+            ui.pageHost.setScaleX(scale);
+            ui.pageHost.setScaleY(scale);
+            ui.pageHost.setAlpha(alpha);
+        }
+        if (ui.dock != null) {
+            ui.dock.setScaleX(scale);
+            ui.dock.setScaleY(scale);
+            ui.dock.setAlpha(alpha);
+        }
+        if (ui.player != null) {
+            float r = (open > 0.01f && open < 0.99f) ? ui.dp(28) * (1f - open) : 0f;
+            if (Math.abs(r - sheetCornerRadius) > 0.5f) {
+                sheetCornerRadius = r;
+                ui.player.invalidateOutline();
+            }
+        }
+    }
+
     void openPlayer(boolean animate) {
         if (ui.playerOpen) return;
         ui.playerOpen = true;
@@ -88,8 +113,13 @@ final class PlayerScreen {
         if (ui.pref("keep_on", true)) ui.activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         ui.refresh();
         if (animate && ui.motion()) {
-            ui.player.setTranslationY(ui.getHeight() > 0 ? ui.getHeight() : ui.dp(800));
-            ui.player.animate().translationY(0).setDuration(440).setInterpolator(SpatchUi.EMPHASIZED).start();
+            int h = ui.getHeight() > 0 ? ui.getHeight() : ui.dp(800);
+            ui.player.setTranslationY(h);
+            setPlayerDepth(0f);
+            ui.player.animate().translationY(0).setDuration(440).setInterpolator(SpatchUi.EMPHASIZED)
+                .setUpdateListener(a -> setPlayerDepth(1f - Math.min(1f, Math.max(0f, ui.player.getTranslationY() / Math.max(1, h)))))
+                .withEndAction(() -> setPlayerDepth(1f))
+                .start();
             // Backdrop first, then each row of the player rises into place a beat after the one above it.
             ui.backdrop.setAlpha(0f);
             ui.backdrop.animate().alpha(1f).setStartDelay(120).setDuration(500).start();
@@ -100,6 +130,8 @@ final class PlayerScreen {
                 row.setTranslationY(ui.dp(28));
                 row.animate().alpha(1f).translationY(0).setStartDelay(140 + i * 55L).setDuration(420).setInterpolator(SpatchUi.EMPHASIZED).start();
             }
+        } else {
+            setPlayerDepth(1f);
         }
     }
 
@@ -122,8 +154,16 @@ final class PlayerScreen {
             if (ic != null) ic.show(android.view.WindowInsets.Type.statusBars());
         }
         View p = ui.player;
-        if (ui.motion()) p.animate().translationY(ui.getHeight()).setDuration(300).setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f)).withEndAction(() -> ui.removeView(p)).start();
-        else ui.removeView(p);
+        if (ui.motion()) {
+            int h = Math.max(1, ui.getHeight());
+            p.animate().translationY(h).setDuration(300).setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f))
+                .setUpdateListener(a -> setPlayerDepth(1f - Math.min(1f, Math.max(0f, p.getTranslationY() / h))))
+                .withEndAction(() -> { setPlayerDepth(0f); ui.removeView(p); })
+                .start();
+        } else {
+            setPlayerDepth(0f);
+            ui.removeView(p);
+        }
         ui.player = null;
         ui.disc = null; ui.wave = null; ui.backdrop = null; ui.motes = null; ui.nextPill = null;
         ui.pTitle = ui.pArtist = ui.pSource = ui.pBadge = ui.pQuality = ui.pSpeed = null;
@@ -293,6 +333,14 @@ final class PlayerScreen {
             }
         };
         ui.player.setClickable(true);
+        sheetCornerRadius = 0f;
+        ui.player.setClipToOutline(true);
+        ui.player.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline outline) {
+                int r = Math.round(sheetCornerRadius);
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight() + r, r);
+            }
+        });
         ui.backdrop = ui.artwork.new Backdrop();
         ui.player.addView(ui.backdrop, new FrameLayout.LayoutParams(-1, -1));
         ui.motes = ui.pref("motes", true) ? ui.artwork.new Motes() : null;
@@ -670,6 +718,7 @@ final class PlayerScreen {
     private void gestures(View v) {
         float[] start = new float[2];
         boolean[] drag = new boolean[1], menuOpened = new boolean[1];
+        android.view.VelocityTracker[] tracker = new android.view.VelocityTracker[1];
         v.setContentDescription("Artwork, hold for song options");
         v.setOnLongClickListener(view -> {
             if (ui.uri.isEmpty()) return false;
@@ -697,8 +746,14 @@ final class PlayerScreen {
             }
             if (ui.player != null && ui.motion()) {
                 switch (e.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN: start[0] = e.getRawX(); start[1] = e.getRawY(); drag[0] = false; break;
+                    case MotionEvent.ACTION_DOWN:
+                        start[0] = e.getRawX(); start[1] = e.getRawY(); drag[0] = false;
+                        if (tracker[0] != null) tracker[0].recycle();
+                        tracker[0] = android.view.VelocityTracker.obtain();
+                        tracker[0].addMovement(e);
+                        break;
                     case MotionEvent.ACTION_MOVE: {
+                        if (tracker[0] != null) tracker[0].addMovement(e);
                         float dy = e.getRawY() - start[1], dx = e.getRawX() - start[0];
                         if (!drag[0] && dy > ui.dp(16) && dy > Math.abs(dx) * 1.4f) {
                             drag[0] = true;
@@ -708,15 +763,31 @@ final class PlayerScreen {
                             taps.onTouchEvent(cancel);
                             cancel.recycle();
                         }
-                        if (drag[0]) { ui.player.setTranslationY(Math.max(0, dy) * .8f); return true; }
+                        if (drag[0]) {
+                            float ty = Math.max(0, dy) * .8f;
+                            ui.player.setTranslationY(ty);
+                            setPlayerDepth(1f - Math.min(1f, ty / Math.max(1, ui.getHeight())));
+                            return true;
+                        }
                         break;
                     }
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
+                        float vy = 0f;
+                        if (tracker[0] != null) {
+                            tracker[0].addMovement(e);
+                            tracker[0].computeCurrentVelocity(1000);
+                            vy = tracker[0].getYVelocity();
+                            tracker[0].recycle();
+                            tracker[0] = null;
+                        }
                         if (drag[0]) {
                             drag[0] = false;
-                            if (e.getActionMasked() == MotionEvent.ACTION_UP && e.getRawY() - start[1] > ui.dp(140)) ui.back();
-                            else ui.player.animate().translationY(0).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(.8f)).start();
+                            if (e.getActionMasked() == MotionEvent.ACTION_UP && (e.getRawY() - start[1] > ui.dp(140) || vy > ui.dp(650))) ui.back();
+                            else ui.player.animate().translationY(0).setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(.8f))
+                                .setUpdateListener(a -> setPlayerDepth(1f - Math.min(1f, Math.max(0f, ui.player.getTranslationY() / Math.max(1, ui.getHeight())))))
+                                .withEndAction(() -> setPlayerDepth(1f))
+                                .start();
                             return true;
                         }
                         break;
