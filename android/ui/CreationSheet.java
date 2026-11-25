@@ -176,11 +176,11 @@ final class CreationSheet {
 
     private LinearLayout createMenuOption(String label, String subtitle, String glyph, String kind, boolean betaTag, boolean openComposer, boolean compact) {
         LinearLayout option = ui.row();
-        option.setPadding(ui.dp(8), ui.dp(compact ? 6 : 8), ui.dp(8), ui.dp(compact ? 6 : 8));
+        option.setPadding(ui.dp(8), ui.dp(compact ? 3 : 8), ui.dp(8), ui.dp(compact ? 3 : 8));
         FrameLayout bubble = new FrameLayout(ui.activity);
-        ui.bgRound(bubble, compact ? 20 : 25, () -> SpatchUi.blend(ui.surfHi, ui.accent2, .12f));
-        bubble.addView(ui.icon(glyph, () -> ui.ink), new LayoutParams(ui.dp(compact ? 20 : 24), ui.dp(compact ? 20 : 24), Gravity.CENTER));
-        option.addView(bubble, ui.lp(ui.dp(compact ? 40 : 48), ui.dp(compact ? 40 : 48)));
+        ui.bgRound(bubble, compact ? 18 : 25, () -> SpatchUi.blend(ui.surfHi, ui.accent2, .12f));
+        bubble.addView(ui.icon(glyph, () -> ui.ink), new LayoutParams(ui.dp(compact ? 18 : 24), ui.dp(compact ? 18 : 24), Gravity.CENTER));
+        option.addView(bubble, ui.lp(ui.dp(compact ? 36 : 48), ui.dp(compact ? 36 : 48)));
         LinearLayout words = ui.column();
         words.setPadding(ui.dp(compact ? 12 : 14), ui.dp(2), 0, ui.dp(2));
         LinearLayout title = ui.row();
