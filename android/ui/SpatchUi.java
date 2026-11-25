@@ -2434,6 +2434,8 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Draws an icon (24-unit grid from Rust) into a `size` square at the canvas origin. */
+    private static final android.graphics.CornerPathEffect GLYPH_CORNER = new android.graphics.CornerPathEffect(1.4f);
+
     static void drawGlyph(Canvas canvas, Paint paint, Path path, String key, int color, float size) {
         float[] points = GLYPHS.get(key);
         if (points == null) return;
@@ -2450,8 +2452,10 @@ public final class SpatchUi extends FrameLayout {
             for (int j = 1; j < Math.abs(count); j++) path.lineTo(points[i++], points[i++]);
             if (count < 0) path.close();
             paint.setStyle(count < 0 ? Paint.Style.FILL : Paint.Style.STROKE);
+            paint.setPathEffect(count < 0 ? GLYPH_CORNER : null);
             canvas.drawPath(path, paint);
         }
+        paint.setPathEffect(null);
         canvas.restore();
     }
 
