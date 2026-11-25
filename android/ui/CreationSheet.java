@@ -59,22 +59,24 @@ final class CreationSheet {
         int available = navAt[1] - rootAt[1];
         if (available <= 0) available = ui.getHeight() - ui.dockRoom();
         LinearLayout card = ui.column();
-        ui.bgRound(card, 24, () -> SpatchUi.blend(ui.surf, ui.accent2, .07f));
         card.setClickable(true);
         createCard = card;
         boolean land = ui.landscape();
-        final int menuMaxHeight = Math.max(ui.dp(120), available - ui.inset.top - ui.dp(land ? 18 : 24));
+        final int menuMaxHeight = Math.max(ui.dp(120), available - ui.inset.top - ui.inset.bottom - ui.dp(land ? 24 : 24));
         ScrollView scroll = new ScrollView(ui.activity) {
             @Override protected void onMeasure(int w, int h) {
                 super.onMeasure(w, MeasureSpec.makeMeasureSpec(menuMaxHeight, MeasureSpec.AT_MOST));
             }
         };
+        ui.bgRound(scroll, 24, () -> SpatchUi.blend(ui.surf, ui.accent2, .07f));
+        scroll.setClipToOutline(true);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(card);
         createScroll = scroll;
-        int menuWidth = land ? Math.min(ui.dp(660), Math.max(ui.dp(320), ui.getWidth() - ui.inset.left - ui.inset.right - ui.dp(32))) : -1;
+        int railOffset = land ? ui.dp(88) : 0;
+        int menuWidth = land ? Math.min(ui.dp(640), Math.max(ui.dp(320), ui.getWidth() - ui.inset.left - ui.inset.right - railOffset - ui.dp(32))) : -1;
         LayoutParams menuParams = new LayoutParams(menuWidth, -2, land ? (Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL) : Gravity.BOTTOM);
-        if (land) menuParams.setMargins(ui.inset.left + ui.dp(12), ui.inset.top + ui.dp(8), ui.inset.right + ui.dp(12), ui.dp(10));
+        if (land) menuParams.setMargins(ui.inset.left + railOffset + ui.dp(12), ui.inset.top + ui.dp(8), ui.inset.right + ui.dp(12), ui.inset.bottom + ui.dp(10));
         else menuParams.setMargins(ui.dp(8), ui.dp(8), ui.dp(8), ui.dp(10));
         overlay.addView(scroll, menuParams);
         overlay.setOnClickListener(v -> closeCreateMenu());
