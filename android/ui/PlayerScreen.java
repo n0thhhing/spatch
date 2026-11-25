@@ -810,6 +810,27 @@ final class PlayerScreen {
         LinearLayout header = ui.row();
         header.addView(ui.iconButton(ui.icon("back", () -> ui.ink), "Close lyrics", this::closeLyrics), ui.lp(ui.dp(48), ui.dp(48)));
         header.addView(ui.text(name, 22, () -> ui.ink, true), ui.weight());
+        LinearLayout nudge = ui.row();
+        nudge.setGravity(Gravity.CENTER_VERTICAL);
+        ui.bgRound(nudge, 16, () -> ui.surfHi);
+        nudge.setPadding(ui.dp(6), ui.dp(2), ui.dp(6), ui.dp(2));
+        TextView offsetLabel = ui.text("", 12, () -> ui.inkDim, true);
+        Runnable refreshOffset = () -> {
+            long ms = lyricOffsetMs(track);
+            offsetLabel.setText(ms == 0 ? "0s" : String.format(java.util.Locale.ROOT, "%+.1fs", ms / 1000f));
+        };
+        refreshOffset.run();
+        TextView minus = ui.text("−", 16, () -> ui.ink, true);
+        minus.setPadding(ui.dp(8), ui.dp(4), ui.dp(8), ui.dp(4));
+        minus.setOnClickListener(v -> { nudgeLyricOffset(track, -500); refreshOffset.run(); });
+        TextView plus = ui.text("+", 16, () -> ui.ink, true);
+        plus.setPadding(ui.dp(8), ui.dp(4), ui.dp(8), ui.dp(4));
+        plus.setOnClickListener(v -> { nudgeLyricOffset(track, 500); refreshOffset.run(); });
+        offsetLabel.setOnClickListener(v -> { ui.prefs.edit().remove("lyric_offset_" + track).apply(); refreshOffset.run(); });
+        nudge.addView(minus);
+        nudge.addView(offsetLabel);
+        nudge.addView(plus);
+        header.addView(nudge, ui.lp(-2, -2));
         body.addView(header, ui.fill(ui.dp(64)));
         FrameLayout host = new FrameLayout(ui.activity);
         body.addView(host, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -909,6 +930,16 @@ final class PlayerScreen {
     /**
      * Keeps the sung line large, bright and centred while the lyrics screen is open (the others dim and shrink); `shown` holds the current line, -2 before the first pass, which snaps instead of animating.
      */
+    private long lyricOffsetMs(String track) {
+        return track == null || track.isEmpty() ? 0L : ui.prefs.getLong("lyric_offset_" + track, 0L);
+    }
+
+    private void nudgeLyricOffset(String track, long deltaMs) {
+        if (track == null || track.isEmpty()) return;
+        long next = Math.max(-10_000L, Math.min(10_000L, lyricOffsetMs(track) + deltaMs));
+        ui.prefs.edit().putLong("lyric_offset_" + track, next).apply();
+    }
+
     private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, CoreBridge.Lyrics lyrics, int[] shown, long[] touched) {
         if (!alive.getAsBoolean()) return;
         long[] starts = lyrics.starts;
@@ -916,7 +947,8 @@ final class PlayerScreen {
             ui.postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), 30);
             return;
         }
-        long now = ui.playhead();
+        String track = ui.uri.contains(":") ? ui.uri.substring(ui.uri.lastIndexOf(':') + 1) : "";
+        long now = ui.playhead() + lyricOffsetMs(track);
         int current = -1;
         for (int i = 0; i < starts.length; i++) if (starts[i] > 0 && starts[i] <= now) current = i;
         if (current != shown[0]) {
@@ -1046,6 +1078,42 @@ final class PlayerScreen {
             View options = ui.iconButton(ui.icon("more", () -> ui.inkDim), "Queue options for " + entry.title, .90f, () -> queueActions(index, entry));
             line.addView(options, ui.lp(ui.dp(48), ui.dp(48)));
             song.setOnLongClickListener(v -> { queueActions(index, entry); return true; });
+            if (entry.editable) {
+                float[] startX = { 0f };
+                boolean[] swiping = { false };
+                line.setOnTouchListener((v, e) -> {
+                    switch (e.getActionMasked()) {
+                        case android.view.MotionEvent.ACTION_DOWN:
+                            startX[0] = e.getRawX();
+                            swiping[0] = false;
+                            return false;
+                        case android.view.MotionEvent.ACTION_MOVE:
+                            float dx = e.getRawX() - startX[0];
+                            if (!swiping[0] && Math.abs(dx) > ui.dp(14)) {
+                                swiping[0] = true;
+                                v.getParent().requestDisallowInterceptTouchEvent(true);
+                            }
+                            if (swiping[0]) {
+                                line.setTranslationX(dx);
+                                line.setAlpha(1f - Math.min(1f, Math.abs(dx) / ui.dp(160)));
+                                return true;
+                            }
+                            return false;
+                        case android.view.MotionEvent.ACTION_UP:
+                        case android.view.MotionEvent.ACTION_CANCEL:
+                            if (!swiping[0]) return false;
+                            float endDx = e.getRawX() - startX[0];
+                            if (Math.abs(endDx) > ui.dp(96)) {
+                                line.animate().translationX(Math.signum(endDx) * ui.dp(240)).alpha(0f).setDuration(160)
+                                    .withEndAction(() -> ui.command(10, index, entry.queueKey)).start();
+                            } else {
+                                line.animate().translationX(0f).alpha(1f).setDuration(180).start();
+                            }
+                            return true;
+                    }
+                    return false;
+                });
+            }
             tracks.addView(line, ui.fill(-2));
             if (cascade && ui.motion() && i < 12) { // the first rows cascade in when the queue opens
                 line.setAlpha(0f);
