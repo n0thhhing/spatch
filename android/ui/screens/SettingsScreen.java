@@ -329,10 +329,10 @@ final class SettingsScreen {
             } else ensureSpotifySettings();
             return;
         }
-        // Spotify's scale: 1 Low, 2 Normal, 3 High, 4 Very high, 5 Lossless (Premium where offered).
-        String[] qualities = {"Low", "Normal", "High", "Very high", "Lossless"};
+        // Spotify's scale: 0 Auto, 1 Low, 2 Normal, 3 High, 4 Very high, 5 Lossless (Premium where offered).
+        String[] qualities = {"Auto", "Low", "Normal", "High", "Very high", "Lossless"};
         int streaming = spotifyValue("stream_quality");
-        segmented(box, "Streaming quality", qualities, streaming >= 1 && streaming <= 5 ? streaming - 1 : -1, i -> setSpotify("stream_quality", i + 1));
+        segmented(box, "Streaming quality", qualities, streaming >= 0 && streaming <= 5 ? streaming : 0, i -> setSpotify("stream_quality", i));
         spotifySwitch(box, "Allow quality downgrade", "Lower the quality when your connection is slow", "allow_audio_quality_downgrade");
         spotifySwitch(box, "Download over cellular", "Let downloads use mobile data", "download_over_3g");
         spotifySwitch(box, "Normalise volume", "Play songs at the same level", "normalize");
@@ -482,7 +482,7 @@ final class SettingsScreen {
         for (int i = 0; i < n; i++) {
             final int pick = i;
             boolean on = i == current;
-            TextView option = ui.text(names[i], n > 4 ? 12 : 13, on ? ui.onAccent : ui.ink, true);
+            TextView option = ui.text(names[i], n >= 6 ? 11 : n > 4 ? 12 : 13, on ? ui.onAccent : ui.ink, true);
             option.setGravity(Gravity.CENTER);
             option.setSingleLine(true);
             option.setBackground(null);
