@@ -210,6 +210,7 @@ final class LibraryScreen {
                 shownView = listBox;
             }
             contentHost.addView(shownView, new FrameLayout.LayoutParams(-1, -1));
+            if (azState[0] && ui.libraryList != null && shown.size() > 12) addLetterRail(contentHost, ui.libraryList, shown);
             if (dir != 0 && ui.motion()) {
                 shownView.setAlpha(0f);
                 shownView.setTranslationX(dir * ui.dp(28));
@@ -324,5 +325,93 @@ final class LibraryScreen {
             grid.setLayoutAnimation(new android.view.animation.GridLayoutAnimationController(rise, tiles ? .12f : .07f, tiles ? .1f : .08f));
         }
         return grid;
+    }
+
+    private static final String LETTERS = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    /** The rail letter a title files under: its first letter, or # for anything else (digits, symbols, accents). */
+    static char letterOf(String title) {
+        char c = title.isEmpty() ? '#' : Character.toUpperCase(title.charAt(0));
+        return c >= 'A' && c <= 'Z' ? c : '#';
+    }
+
+    /** Where the list jumps for `letter`: its first title, else the first title of the next letter that has one. */
+    static int jumpFor(List<MediaEntry> shown, char letter) {
+        int want = LETTERS.indexOf(letter), best = -1, bestRank = Integer.MAX_VALUE;
+        for (int i = 0; i < shown.size(); i++) {
+            int rank = LETTERS.indexOf(letterOf(shown.get(i).title));
+            if (rank == want) return i;
+            if (rank > want && rank < bestRank) { best = i; bestRank = rank; }
+        }
+        return best;
+    }
+
+    /**
+     * A–Z sorting gets a letter rail down the list's right edge. Dragging along it floats a big letter beside your
+     * finger and jumps the list to that letter as you go, with a light tick per letter; letters with nothing under
+     * them are dimmed.
+     */
+    private void addLetterRail(FrameLayout host, android.widget.AbsListView list, List<MediaEntry> shown) {
+        TextView bubble = ui.text("", 34, () -> ui.onAccent, true);
+        bubble.setGravity(Gravity.CENTER);
+        ui.bgRound(bubble, 32, () -> ui.accent);
+        bubble.setElevation(ui.dp(6));
+        bubble.setAlpha(0f);
+        bubble.setScaleX(.6f);
+        bubble.setScaleY(.6f);
+        View rail = new View(ui.activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private int letter = -1;
+            private final boolean[] has = new boolean[LETTERS.length()];
+            { paint.setTextAlign(Paint.Align.CENTER); paint.setTextSize(ui.dp(10)); paint.setFakeBoldText(true); setContentDescription("Letter index"); }
+            private float top() { return getPaddingTop(); }
+            private float step() { return (getHeight() - getPaddingTop() - getPaddingBottom()) / (float) LETTERS.length(); }
+            @Override protected void onDraw(Canvas c) {
+                java.util.Arrays.fill(has, false);
+                for (MediaEntry e : shown) has[LETTERS.indexOf(letterOf(e.title))] = true;
+                float x = getWidth() / 2f, step = step();
+                for (int i = 0; i < LETTERS.length(); i++) {
+                    paint.setColor(i == letter ? ui.accent : has[i] ? ui.ink : (ui.ink & 0x00ffffff) | 0x40000000);
+                    c.drawText(LETTERS, i, i + 1, x, top() + step * (i + .5f) + paint.getTextSize() / 3f, paint);
+                }
+            }
+            @Override public boolean onTouchEvent(android.view.MotionEvent e) {
+                int action = e.getActionMasked();
+                if (action == android.view.MotionEvent.ACTION_DOWN) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                    bubble.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(140).setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
+                }
+                if (action == android.view.MotionEvent.ACTION_DOWN || action == android.view.MotionEvent.ACTION_MOVE) {
+                    int at = Math.max(0, Math.min(LETTERS.length() - 1, (int) ((e.getY() - top()) / step())));
+                    float y = getTop() + Math.max(top(), Math.min(getHeight() - getPaddingBottom(), e.getY())) - bubble.getHeight() / 2f;
+                    bubble.setTranslationY(y);
+                    if (at != letter) {
+                        letter = at;
+                        bubble.setText(String.valueOf(LETTERS.charAt(at)));
+                        int jump = jumpFor(shown, LETTERS.charAt(at));
+                        if (jump >= 0) {
+                            if (list instanceof android.widget.ListView) ((android.widget.ListView) list).setSelectionFromTop(jump, 0);
+                            else list.setSelection(jump);
+                        }
+                        ui.tick(this);
+                        invalidate();
+                    }
+                    return true;
+                }
+                if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+                    letter = -1;
+                    invalidate();
+                    bubble.animate().alpha(0f).scaleX(.6f).scaleY(.6f).setDuration(180).start();
+                    return true;
+                }
+                return super.onTouchEvent(e);
+            }
+        };
+        rail.setPadding(0, ui.dp(8), 0, ui.dockRoom());
+        ui.colored(rail, rail::invalidate);
+        host.addView(rail, new FrameLayout.LayoutParams(ui.dp(26), -1, Gravity.END));
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(ui.dp(64), ui.dp(64), Gravity.END | Gravity.TOP);
+        bp.rightMargin = ui.dp(40); // beside the finger on the rail, not under it
+        host.addView(bubble, bp);
     }
 }

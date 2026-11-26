@@ -77,6 +77,65 @@ public class HomeEffectsTest {
         activity.finish();
     }
 
+    @Test public void letterRailJumpsTheListAndShowsTheLetter() throws Exception {
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
+        ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
+        settle();
+        SpatchUi ui = find(root, SpatchUi.class);
+        activity.getSharedPreferences("spatch_ui", 0).edit().putBoolean("library_az", true).apply();
+        Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "LIBRARY"));
+        settle();
+        View rail = described(root, "Letter index");
+        assertNotNull("A–Z sorting shows the letter rail", rail);
+        android.widget.AbsListView list = (android.widget.AbsListView) Reflect.get(ui, "libraryList");
+        int[] at = new int[2];
+        rail.getLocationOnScreen(at);
+        float x = at[0] + rail.getWidth() / 2f, top = at[1] + rail.getPaddingTop(), step = (rail.getHeight() - rail.getPaddingTop() - rail.getPaddingBottom()) / 27f;
+        long down = android.os.SystemClock.uptimeMillis();
+        float y = top + step * ("#ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf('S') + .5f);
+        touch(rail, down, android.view.MotionEvent.ACTION_DOWN, x, y);
+        ShadowLooper.idleMainLooper(200, java.util.concurrent.TimeUnit.MILLISECONDS);
+        shot(root, "library-letter-rail");
+        View bubble = text(root, "S");
+        assertNotNull("The floating letter shows S", bubble);
+        assertTrue("It's visible", bubble.getAlpha() > .5f);
+        // The first title filed under S (or the next letter after it) is now on screen; a short list may not be able
+        // to scroll it right to the top.
+        int target = -1;
+        for (int i = 0; i < list.getCount() && target < 0; i++) {
+            String t = (String) titleOf(list.getItemAtPosition(i));
+            char c = t.isEmpty() ? '#' : Character.toUpperCase(t.charAt(0));
+            if (c >= 'S' && c <= 'Z') target = i;
+        }
+        assertTrue("The demo library has a title from S on", target >= 0);
+        assertTrue("The list shows it", list.getFirstVisiblePosition() <= target && target <= list.getLastVisiblePosition());
+        assertTrue("And it moved from the top", list.getFirstVisiblePosition() > 0 || target < list.getChildCount());
+        touch(rail, down, android.view.MotionEvent.ACTION_UP, x, y);
+        activity.finish();
+    }
+
+    private static Object titleOf(Object entry) throws Exception {
+        for (Class<?> c = entry.getClass(); c != null; c = c.getSuperclass()) {
+            try { java.lang.reflect.Field f = c.getDeclaredField("title"); f.setAccessible(true); return f.get(entry); } catch (NoSuchFieldException next) { }
+        }
+        return null;
+    }
+
+    private static void touch(View view, long down, int action, float x, float y) {
+        android.view.MotionEvent e = android.view.MotionEvent.obtain(down, android.os.SystemClock.uptimeMillis(), action, x, y, 0);
+        view.getRootView().dispatchTouchEvent(e);
+        e.recycle();
+    }
+
+    private static View described(View view, String label) {
+        if (label.contentEquals(view.getContentDescription() == null ? "" : view.getContentDescription())) return view;
+        if (view instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) view).getChildCount(); i++) {
+            View found = described(((ViewGroup) view).getChildAt(i), label);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     private static void shot(View root, String name) throws Exception {
         Bitmap bitmap = Bitmap.createBitmap(root.getWidth(), root.getHeight(), Bitmap.Config.ARGB_8888);
         root.draw(new Canvas(bitmap));
