@@ -100,56 +100,20 @@ final class LibraryScreen {
         chips.addView(ui.space(ui.dp(8), 1));
 
         int count = SpatchUi.SECTIONS.length + 2;
-        TextView[] filterChips = new TextView[count];
-        LinearLayout filterRow = ui.row();
-        // The selected chip's colour is a pill drawn behind the chips. Its two edges each ride a spring, the leading one
-        // stiffer, so it stretches toward the new chip and settles there (like the dock's tab indicator) without
-        // laying anything out while it moves.
-        float[] pillEdges = new float[2];
-        FrameLayout[] trackRef = new FrameLayout[1];
-        Controls.Spring[] pillSprings = {
-            new Controls.Spring(0f, 20f, .62f, v -> { pillEdges[0] = v; if (trackRef[0] != null) trackRef[0].invalidate(); }),
-            new Controls.Spring(0f, 20f, .62f, v -> { pillEdges[1] = v; if (trackRef[0] != null) trackRef[0].invalidate(); }) };
-        Paint pillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        FrameLayout filterTrack = new FrameLayout(ui.activity) {
-            private boolean placed;
-            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
-                super.onLayout(changed, l, t, r, b);
-                TextView target = filterChips[Math.max(0, Math.min(count - 1, ui.filter + 1))];
-                if (!placed && target != null && target.getWidth() > 0) {
-                    placed = true;
-                    pillSprings[0].snap(target.getLeft());
-                    pillSprings[1].snap(target.getRight());
-                }
-            }
-            @Override protected void dispatchDraw(Canvas c) {
-                if (placed) {
-                    float h = getHeight();
-                    pillPaint.setColor(ui.accent);
-                    c.drawRoundRect(pillEdges[0], 0, Math.max(pillEdges[0] + h, pillEdges[1]), h, h / 2f, h / 2f, pillPaint);
-                }
-                super.dispatchDraw(c);
-            }
-        };
-        trackRef[0] = filterTrack;
-        ui.bgRound(filterTrack, 19, () -> ui.surf);
-        ui.colored(filterTrack, filterTrack::invalidate);
-        filterTrack.addView(filterRow, new FrameLayout.LayoutParams(-2, ui.dp(38)));
-
+        String[] filterLabels = new String[count];
         for (int i = -1; i <= SpatchUi.SECTIONS.length; i++) {
-            final int index = i, slot = i + 1;
-            String labelText = i == -1 ? "All" : i == SpatchUi.DOWNLOADED ? "Downloaded" : SpatchUi.SECTIONS[i];
-            TextView chip = ui.text(labelText, 14, () -> ui.filter == index ? ui.onAccent : ui.ink, true);
-            chip.setGravity(Gravity.CENTER);
-            chip.setPadding(ui.dp(16), 0, ui.dp(16), 0);
-            chip.setBackground(null);
-            filterChips[slot] = chip;
-            filterRow.addView(chip, ui.lp(-2, ui.dp(38)));
+            filterLabels[i + 1] = i == -1 ? "All" : i == SpatchUi.DOWNLOADED ? "Downloaded" : SpatchUi.SECTIONS[i];
         }
+        java.util.function.IntConsumer[] filterPick = new java.util.function.IntConsumer[1];
+        Controls.SlidingTabs filterTrack = ui.controls.new SlidingTabs(
+            filterLabels, Math.max(0, Math.min(count - 1, ui.filter + 1)), 0, 19, 14, false,
+            () -> ui.surf, () -> ui.ink, null,
+            slot -> { if (filterPick[0] != null) filterPick[0].accept(slot); }
+        );
         chips.addView(filterTrack, ui.lp(-2, ui.dp(38)));
         chipScroll.addView(chips);
         if (ui.filter >= 0) {
-            final View picked = filterChips[Math.min(count - 1, ui.filter + 1)];
+            final View picked = filterTrack.items[Math.min(count - 1, ui.filter + 1)];
             chipScroll.post(() -> ensureChipVisible(chipScroll, picked, filterTrack));
         }
 
@@ -234,29 +198,15 @@ final class LibraryScreen {
             renderContent.accept(0);
         });
 
-        for (int i = -1; i <= SpatchUi.SECTIONS.length; i++) {
-            final int index = i, slot = i + 1;
-            TextView chip = filterChips[slot];
-            ui.tappable(chip, chip.getText().toString(), () -> {
-                if (ui.filter == index) return;
-                int prev = ui.filter;
-                ui.filter = index;
-                for (TextView c : filterChips) SpatchUi.recolorView(c);
-                if (chip.getWidth() > 0 && ui.motion()) {
-                    boolean right = index > prev;
-                    // The edge moving toward the new chip leads; the other follows a little looser.
-                    pillSprings[right ? 1 : 0].tune(26f, .62f);
-                    pillSprings[right ? 0 : 1].tune(17f, .66f);
-                    pillSprings[0].to(chip.getLeft());
-                    pillSprings[1].to(chip.getRight());
-                } else if (chip.getWidth() > 0) {
-                    pillSprings[0].snap(chip.getLeft());
-                    pillSprings[1].snap(chip.getRight());
-                }
-                ensureChipVisible(chipScroll, chip, filterTrack);
-                renderContent.accept(ui.filter > prev ? 1 : -1);
-            });
-        }
+        filterPick[0] = slot -> {
+            int index = slot - 1;
+            if (ui.filter == index) return;
+            int prev = ui.filter;
+            ui.filter = index;
+            filterTrack.select(slot, true);
+            ensureChipVisible(chipScroll, filterTrack.items[slot], filterTrack);
+            renderContent.accept(ui.filter > prev ? 1 : -1);
+        };
 
         renderContent.accept(0);
         field.addTextChangedListener(new android.text.TextWatcher() {

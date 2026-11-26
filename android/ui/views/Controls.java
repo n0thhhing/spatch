@@ -350,6 +350,129 @@ final class Controls {
         }
     }
 
+    /**
+     * Shared sliding-pill tab/segmented bar used across Settings, Search, Library filters, and landscape Player.
+     * Its two edges each ride a spring (leading edge stiffer, trailing edge looser) and clamp cleanly to the
+     * track's inner bounds so edge tabs get an elastic squish without ever clipping outside the track.
+     */
+    final class SlidingTabs extends android.widget.FrameLayout {
+        final android.widget.TextView[] items;
+        private final Paint pillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final float[] edges = new float[2];
+        private final Spring leftSpring, rightSpring;
+        private final SpatchUi.ColorOf unselectedColor;
+        private int selected, pendingFrom = -1, lastW;
+        private boolean placed;
+
+        SlidingTabs(String[] labels, int initial, int padDp, int radiusDp, int textSp, boolean equalWidth,
+                SpatchUi.ColorOf trackColor, SpatchUi.ColorOf unselectedColor, String descPrefix, SettingsScreen.Pick onPick) {
+            super(ui.activity);
+            this.selected = initial;
+            this.unselectedColor = unselectedColor;
+            this.items = new android.widget.TextView[labels.length];
+            this.leftSpring = new Spring(0f, 20f, .62f, v -> { edges[0] = v; invalidate(); });
+            this.rightSpring = new Spring(0f, 20f, .62f, v -> { edges[1] = v; invalidate(); });
+            int pad = ui.dp(padDp);
+            setPadding(pad, pad, pad, pad);
+            ui.bgRound(this, radiusDp, trackColor);
+            ui.colored(this, () -> { syncTextColors(); invalidate(); });
+            android.widget.LinearLayout row = ui.row();
+            for (int i = 0; i < labels.length; i++) {
+                final int pick = i;
+                android.widget.TextView opt = ui.text(labels[i], textSp, i == selected ? ui.onAccent : unselectedColor.get(), true);
+                opt.setGravity(Gravity.CENTER);
+                opt.setSingleLine(true);
+                opt.setBackground(null);
+                if (!equalWidth) opt.setPadding(ui.dp(16), 0, ui.dp(16), 0);
+                items[i] = opt;
+                String desc = descPrefix == null || descPrefix.isEmpty() ? labels[i] : descPrefix + ": " + labels[i];
+                ui.tappable(opt, desc, .94f, () -> {
+                    if (onPick != null) onPick.picked(pick);
+                });
+                row.addView(opt, equalWidth ? new android.widget.LinearLayout.LayoutParams(0, -1, 1) : ui.lp(-2, -1));
+            }
+            addView(row, new android.widget.FrameLayout.LayoutParams(equalWidth ? -1 : -2, -1));
+        }
+
+        void animateFrom(int prev) {
+            pendingFrom = prev;
+        }
+
+        void select(int index, boolean animate) {
+            int prev = selected;
+            selected = index;
+            syncTextColors();
+            if (!placed || index < 0 || index >= items.length) { invalidate(); return; }
+            android.widget.TextView target = items[index];
+            if (target.getWidth() <= 0) return;
+            float l = getPaddingLeft() + target.getLeft(), r = getPaddingLeft() + target.getRight();
+            if (animate && ui.motion() && prev != index) {
+                boolean right = index > prev;
+                (right ? rightSpring : leftSpring).tune(26f, .60f);
+                (right ? leftSpring : rightSpring).tune(16f, .64f);
+                leftSpring.to(l);
+                rightSpring.to(r);
+            } else {
+                leftSpring.snap(l);
+                rightSpring.snap(r);
+            }
+            invalidate();
+        }
+
+        private void syncTextColors() {
+            int dim = unselectedColor.get();
+            for (int i = 0; i < items.length; i++) {
+                if (items[i] != null) items[i].setTextColor(i == selected ? ui.onAccent : dim);
+            }
+        }
+
+        @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+            super.onLayout(changed, l, t, r, b);
+            int width = getWidth();
+            if (selected < 0 || selected >= items.length) return;
+            android.widget.TextView target = items[selected];
+            if (target == null || target.getWidth() <= 0) return;
+            if (!placed || lastW != width) {
+                placed = true;
+                lastW = width;
+                float tl = getPaddingLeft() + target.getLeft(), tr = getPaddingLeft() + target.getRight();
+                int from = pendingFrom;
+                pendingFrom = -1;
+                if (from >= 0 && from < items.length && from != selected && items[from].getWidth() > 0 && ui.motion()) {
+                    float fl = getPaddingLeft() + items[from].getLeft(), fr = getPaddingLeft() + items[from].getRight();
+                    leftSpring.snap(fl);
+                    rightSpring.snap(fr);
+                    boolean right = selected > from;
+                    (right ? rightSpring : leftSpring).tune(26f, .60f);
+                    (right ? leftSpring : rightSpring).tune(16f, .64f);
+                    leftSpring.to(tl);
+                    rightSpring.to(tr);
+                } else {
+                    leftSpring.snap(tl);
+                    rightSpring.snap(tr);
+                }
+            }
+        }
+
+        @Override protected void dispatchDraw(Canvas c) {
+            float padL = getPaddingLeft(), padR = getPaddingRight(), padT = getPaddingTop(), padB = getPaddingBottom();
+            float w = getWidth(), h = getHeight() - padT - padB;
+            if (placed && selected >= 0 && selected < items.length && h > 0) {
+                float cl = Math.max(padL, Math.min(w - padR - h, edges[0]));
+                float cr = Math.min(w - padR, Math.max(cl + h, edges[1]));
+                pillPaint.setColor(ui.accent);
+                c.drawRoundRect(cl, padT, cr, padT + h, h / 2f, h / 2f, pillPaint);
+            }
+            super.dispatchDraw(c);
+        }
+
+        @Override protected void onDetachedFromWindow() {
+            leftSpring.cancel();
+            rightSpring.cancel();
+            super.onDetachedFromWindow();
+        }
+    }
+
     /** The scallop play button: five lobes at rest, nine while playing, turning slowly. */
     final class PlayButton extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);

@@ -628,62 +628,22 @@ final class PlayerScreen {
         if (land) {
             ui.sideTabManual = false;
             ui.sideTab = (ui.uri.isEmpty() || ui.uri.equals(ui.noLyricsUri)) ? 1 : 0;
-            View pillInd = new View(ui.activity);
-            GradientDrawable indBg = ui.round(ui.accent, 15);
-            pillInd.setBackground(indBg);
-            FrameLayout tabContainer = new FrameLayout(ui.activity) {
-                private int lastHalf = -1;
-                @Override protected void onMeasure(int wSpec, int hSpec) {
-                    int innerW = MeasureSpec.getSize(wSpec) - getPaddingLeft() - getPaddingRight();
-                    int halfW = Math.max(0, innerW / 2);
-                    if (halfW > 0 && halfW != lastHalf) {
-                        lastHalf = halfW;
-                        pillInd.getLayoutParams().width = halfW;
-                        pillInd.setTranslationX(ui.sideTab * (float) halfW);
-                    }
-                    super.onMeasure(wSpec, hSpec);
+            Controls.SlidingTabs tabContainer = ui.controls.new SlidingTabs(
+                new String[]{ "Lyrics", "Up next" }, ui.sideTab, 3, 18, 13, true,
+                () -> (ui.ink & 0x00ffffff) | 0x16000000, () -> ui.inkDim, null,
+                pick -> {
+                    if (ui.sideTab == pick) return;
+                    ui.sideTabManual = true;
+                    if (ui.sideTabSelect != null) ui.sideTabSelect.accept(pick, true);
                 }
-            };
-            tabContainer.setPadding(ui.dp(3), ui.dp(3), ui.dp(3), ui.dp(3));
-            tabContainer.setClipChildren(false);
-            tabContainer.setClipToPadding(false);
-            sideColumn.setClipChildren(false);
-            sideColumn.setClipToPadding(false);
-            GradientDrawable tabTrack = ui.round((ui.ink & 0x00ffffff) | 0x16000000, 18);
-            tabContainer.setBackground(tabTrack);
-            tabContainer.addView(pillInd, new FrameLayout.LayoutParams(0, -1));
-            LinearLayout tabRow = ui.row();
-            TextView[] tabViews = new TextView[2];
-            String[] tabNames = { "Lyrics", "Up next" };
-            Runnable syncTabs = () -> {
-                tabTrack.setColor((ui.ink & 0x00ffffff) | 0x16000000);
-                indBg.setColor(ui.accent);
-                for (int i = 0; i < 2; i++) tabViews[i].setTextColor(ui.sideTab == i ? ui.onAccent : ui.inkDim);
-            };
+            );
             ui.sideTabSelect = (target, animate) -> {
                 if (ui.sideTab == target && !animate) return;
                 int prev = ui.sideTab;
                 ui.sideTab = target;
-                syncTabs.run();
-                int halfW = pillInd.getWidth() > 0 ? pillInd.getWidth() : Math.max(0, (tabContainer.getWidth() - ui.dp(6)) / 2);
-                float targetX = ui.sideTab * (float) halfW;
-                if (animate && ui.motion()) pillInd.animate().translationX(targetX).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(.85f)).start();
-                else pillInd.setTranslationX(targetX);
+                tabContainer.select(target, animate);
                 loadSidePanel(animate, prev != target ? (target > prev ? 1 : -1) : 0);
             };
-            for (int i = 0; i < 2; i++) {
-                final int pick = i;
-                tabViews[i] = ui.text(tabNames[i], 13, () -> ui.sideTab == pick ? ui.onAccent : ui.inkDim, true);
-                tabViews[i].setGravity(Gravity.CENTER);
-                ui.tappable(tabViews[i], tabNames[i], .94f, () -> {
-                    if (ui.sideTab == pick) return;
-                    ui.sideTabManual = true;
-                    if (ui.sideTabSelect != null) ui.sideTabSelect.accept(pick, true);
-                });
-                tabRow.addView(tabViews[i], new LinearLayout.LayoutParams(0, -1, 1));
-            }
-            tabContainer.addView(tabRow, new FrameLayout.LayoutParams(-1, -1));
-            ui.colored(tabContainer, syncTabs);
             LinearLayout.LayoutParams tp = ui.lp(-1, ui.dp(36));
             tp.topMargin = ui.dp(2);
             tp.bottomMargin = ui.dp(6);

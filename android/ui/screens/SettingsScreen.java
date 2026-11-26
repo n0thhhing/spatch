@@ -490,63 +490,17 @@ final class SettingsScreen {
         TextView label = ui.text(name, 16, () -> ui.ink, true);
         label.setPadding(ui.dp(18), ui.dp(12), ui.dp(18), ui.dp(8));
         box.addView(label);
-        final int current = selected, n = names.length;
-        View pill = new View(ui.activity);
-        ui.bgRound(pill, 19, () -> ui.accent);
-        pill.setVisibility(current >= 0 && current < n ? View.VISIBLE : View.GONE);
-        FrameLayout track = new FrameLayout(ui.activity) {
-            private boolean placed;
-            private int lastW;
-            private float slotStep(int innerW, int slotW) { return n > 1 ? (innerW - slotW) / (float) (n - 1) : 0f; }
-            @Override protected void onMeasure(int wSpec, int hSpec) {
-                int innerW = Math.max(0, MeasureSpec.getSize(wSpec) - getPaddingLeft() - getPaddingRight());
-                int slotW = n > 0 ? innerW / n : 0;
-                if (pill.getLayoutParams().width != slotW) pill.getLayoutParams().width = slotW;
-                super.onMeasure(wSpec, hSpec);
-            }
-            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
-                super.onLayout(changed, l, t, r, b);
-                int innerW = Math.max(0, (r - l) - getPaddingLeft() - getPaddingRight());
-                int slotW = n > 0 ? innerW / n : 0;
-                if (slotW <= 0 || current < 0 || current >= n) return;
-                int width = getWidth();
-                if (!placed || lastW != width) {
-                    placed = true;
-                    lastW = width;
-                    float step = slotStep(innerW, slotW), targetX = current * step;
-                    Integer prev = segPrev.remove(name);
-                    if (prev != null && prev != current && prev >= 0 && prev < n && ui.motion()) {
-                        pill.setTranslationX(prev * step);
-                        pill.animate().cancel();
-                        pill.animate().translationX(targetX).setDuration(240)
-                            .setInterpolator(new android.view.animation.OvershootInterpolator(.85f)).start();
-                    } else {
-                        pill.setTranslationX(targetX);
-                    }
-                }
-            }
-        };
-        ui.bgRound(track, 22, () -> ui.surfHi);
-        track.setPadding(ui.dp(3), ui.dp(3), ui.dp(3), ui.dp(3));
-        track.setClipChildren(false);
-        track.setClipToPadding(false);
-        track.addView(pill, new FrameLayout.LayoutParams(0, -1));
-        LinearLayout group = ui.row();
-        for (int i = 0; i < n; i++) {
-            final int pick = i;
-            boolean on = i == current;
-            TextView option = ui.text(names[i], n >= 6 ? 11 : n > 4 ? 12 : 13, on ? ui.onAccent : ui.ink, true);
-            option.setGravity(Gravity.CENTER);
-            option.setSingleLine(true);
-            option.setBackground(null);
-            ui.colored(option, () -> option.setTextColor(on ? ui.onAccent : ui.ink));
-            ui.tappable(option, name + ": " + names[i], () -> { segPrev.put(name, current); onPick.picked(pick); });
-            group.addView(option, new LinearLayout.LayoutParams(0, -1, 1));
-        }
-        track.addView(group, new FrameLayout.LayoutParams(-1, -1));
+        int textSp = names.length >= 6 ? 11 : names.length > 4 ? 12 : 13;
+        Controls.SlidingTabs tabs = ui.controls.new SlidingTabs(
+            names, selected, 3, 22, textSp, true,
+            () -> ui.surfHi, () -> ui.ink, name,
+            pick -> { segPrev.put(name, selected); onPick.picked(pick); }
+        );
+        Integer prev = segPrev.remove(name);
+        if (prev != null) tabs.animateFrom(prev);
         LinearLayout.LayoutParams tp = ui.fill(ui.dp(46));
         tp.setMargins(ui.dp(14), 0, ui.dp(14), ui.dp(12));
-        box.addView(track, tp);
+        box.addView(tabs, tp);
     }
 
     /** Multi-select filter chips in a wrapping row; each item is {label, prefKey, "1"|"0" default}. */

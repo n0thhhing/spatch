@@ -67,13 +67,10 @@ public class HomeEffectsTest {
         settle();
         shot(root, "library-chips-after");
         View track = (View) albums.getParent().getParent();
-        float[] edges = null;
-        for (java.lang.reflect.Field f : track.getClass().getDeclaredFields()) {
-            if (f.getName().contains("pillEdges")) { f.setAccessible(true); edges = (float[]) f.get(track); }
-        }
+        float[] edges = (float[]) field(track, "edges");
         assertNotNull("The track holds the pill's edges", edges);
-        assertEquals("Settled on the chip's left edge", albums.getLeft(), edges[0], 1f);
-        assertEquals("And its right edge", albums.getRight(), edges[1], 1f);
+        assertEquals("Settled on the chip's left edge", track.getPaddingLeft() + albums.getLeft(), edges[0], 1f);
+        assertEquals("And its right edge", track.getPaddingLeft() + albums.getRight(), edges[1], 1f);
         activity.finish();
     }
 
@@ -206,8 +203,8 @@ public class HomeEffectsTest {
         long down = android.os.SystemClock.uptimeMillis();
         touch(host, down, android.view.MotionEvent.ACTION_DOWN, x, y);
         for (int i = 1; i <= 10; i++) touch(host, down, android.view.MotionEvent.ACTION_MOVE, x, y + 30 * i);
-        float stretch = (float) field(blob, "stretch");
-        assertTrue("Pulling stretches it like a drop", stretch > .5f);
+        float progress = (float) field(blob, "progress");
+        assertTrue("Pulling morphs and reveals the loader", progress > .5f);
         shot(root, "library-pull");
         touch(host, down, android.view.MotionEvent.ACTION_UP, x, y + 300);
         assertTrue("Letting go reloads the library", (Boolean) Reflect.get(ui, "fetching") || (boolean) field(blob, "spinning"));
