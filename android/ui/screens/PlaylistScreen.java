@@ -670,7 +670,11 @@ final class PlaylistScreen {
         PlayButton fab = ui.controls.new PlayButton();
         ui.playButtons.remove(fab);
         fab.set(listIsPlaying() && ui.playing);
-        ui.tappable(fab, "Play", () -> { if (listIsPlaying()) ui.playerScreen.togglePlay(); else ui.command(PlayerScreen.PLAY, listShuffle > 0 ? 1 : 2, ui.playUri()); });
+        ui.tappable(fab, "Play", () -> {
+            if (listIsPlaying()) { ui.playerScreen.togglePlay(); return; }
+            ui.command(PlayerScreen.PLAY, listShuffle > 0 ? 1 : 2, ui.playUri());
+            highlightWave(); // the button's own confetti burst goes first; then this runs down the songs
+        });
         listFab = fab;
         // Portrait pushes the play button to the far end; sideways it follows the other buttons, so the row reads as one.
         actions.addView(land ? ui.space(actionGap, 1) : ui.space(0, 1), land ? ui.lp(actionGap, 1) : ui.weight());
@@ -919,6 +923,35 @@ final class PlaylistScreen {
 
     /** Pushes the current state into whichever views exist. */
     PlayButton listFab;
+
+    /**
+     * Playing a whole list sends a wave of highlight down its songs: each row on screen swells with a soft accent tint
+     * and fades, a beat after the one above. Drawn on each row's overlay, so nothing is laid out.
+     */
+    private void highlightWave() {
+        android.widget.ListView list = ui.pageList;
+        if (list == null || !ui.motion()) return;
+        int headers = list.getHeaderViewsCount(), first = list.getFirstVisiblePosition(), step = 0;
+        for (int i = 0; i < list.getChildCount(); i++) {
+            if (first + i < headers) continue;
+            View row = list.getChildAt(i);
+            GradientDrawable glow = ui.round((ui.accent & 0x00ffffff) | 0x38000000, 16);
+            glow.setBounds(ui.dp(-6), ui.dp(2), row.getWidth() + ui.dp(6), row.getHeight() - ui.dp(2));
+            glow.setAlpha(0);
+            row.getOverlay().add(glow);
+            android.animation.ValueAnimator swell = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            swell.setStartDelay(260L + step++ * 45L);
+            swell.setDuration(560);
+            swell.addUpdateListener(a -> {
+                float t = (float) a.getAnimatedValue();
+                glow.setAlpha(Math.round(255 * (t < .3f ? t / .3f : 1f - (t - .3f) / .7f))); // quick to light, slow to fade
+            });
+            swell.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(android.animation.Animator a) { row.getOverlay().remove(glow); }
+            });
+            swell.start();
+        }
+    }
     /** The open list's shuffle mode as Spotify keeps it: -1 unknown, 0 off, 1 shuffle, 2 Smart Shuffle. */
     private int listShuffle = -1;
 
