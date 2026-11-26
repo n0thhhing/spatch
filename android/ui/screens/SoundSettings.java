@@ -246,6 +246,8 @@ final class SoundSettings {
         private boolean moved, drawnOnce;
         private final float[] shown = new float[10];
         private final float[] spectrum = new float[Audio.BANDS.length];
+        private final float[] specBins = new float[16];
+        private Shader spectrumShader;
         private final Path spectrumPath = new Path(), correction = new Path(), correctionArea = new Path();
         private Audio.GraphicEqProfile correctionOf;
         private float correctionWidth;
@@ -363,6 +365,32 @@ final class SoundSettings {
                 peak = Math.max(peak, spectrum[i]);
             }
             if (peak < .004f) { lastFrame = 0; return false; }
+            if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
+                if (spectrumShader == null) {
+                    String src = GpuFx.source("spectrum");
+                    if (src != null) spectrumShader = new android.graphics.RuntimeShader(src);
+                }
+                if (spectrumShader != null) {
+                    java.util.Arrays.fill(specBins, 0f);
+                    for (int i = 0; i < spectrum.length; i++) {
+                        int bin = Math.max(0, Math.min(15, Math.round(BAND_AT[i] / 9f * 15f)));
+                        specBins[bin] = Math.max(specBins[bin], spectrum[i] * .8f);
+                    }
+                    android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) spectrumShader;
+                    rs.setFloatUniform("rect", left(), top(), width, h);
+                    rs.setFloatUniform("params", 16f, .15f, .28f, ui.dp(3.5f));
+                    rs.setFloatUniform("v0", specBins[0], specBins[1], specBins[2], specBins[3]);
+                    rs.setFloatUniform("v1", specBins[4], specBins[5], specBins[6], specBins[7]);
+                    rs.setFloatUniform("v2", specBins[8], specBins[9], specBins[10], specBins[11]);
+                    rs.setFloatUniform("v3", specBins[12], specBins[13], specBins[14], specBins[15]);
+                    rs.setColorUniform("tint", SpatchUi.blend(ui.ink, ui.accent, .45f));
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setShader(rs);
+                    c.drawRect(left(), top(), right(), bottom(), paint);
+                    paint.setShader(null);
+                    return true;
+                }
+            }
             spectrumPath.rewind();
             spectrumPath.moveTo(left(), bottom());
             for (int i = 0; i < spectrum.length; i++) spectrumPath.lineTo(left() + width * BAND_AT[i] / 9f, bottom() - spectrum[i] * h * .8f);

@@ -390,6 +390,7 @@ final class HomeScreen {
         private final Path path = new Path(), crest = new Path(); // the filled shape, and just its top edge for the line
         private final float[] targets = new float[POINTS], levels = new float[POINTS];
         private android.graphics.LinearGradient shade;
+        private android.graphics.Shader waveShader;
         private int shadeColor, shadeHeight;
         private long lastFrame;
 
@@ -426,6 +427,27 @@ final class HomeScreen {
                 peak = Math.max(peak, levels[i]);
             }
             if (peak < .004f) { lastFrame = 0; return; } // flat: nothing to draw, and no next frame asked for
+            if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
+                if (waveShader == null) {
+                    String src = GpuFx.source("spectrum");
+                    if (src != null) waveShader = new android.graphics.RuntimeShader(src);
+                }
+                if (waveShader != null) {
+                    android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) waveShader;
+                    rs.setFloatUniform("rect", 0f, 0f, w, h);
+                    rs.setFloatUniform("params", POINTS, .42f, .62f, ui.dp(4));
+                    rs.setFloatUniform("v0", levels[0] * .9f, levels[1] * .9f, levels[2] * .9f, levels[3] * .9f);
+                    rs.setFloatUniform("v1", levels[4] * .9f, levels[5] * .9f, levels[6] * .9f, levels[7] * .9f);
+                    rs.setFloatUniform("v2", levels[8] * .9f, levels[9] * .9f, levels[10] * .9f, levels[11] * .9f);
+                    rs.setFloatUniform("v3", 0f, 0f, 0f, 0f);
+                    rs.setColorUniform("tint", ui.accent);
+                    fill.setShader(rs);
+                    c.drawRect(0, 0, w, h, fill);
+                    fill.setShader(null);
+                    if (isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateOnAnimation();
+                    return;
+                }
+            }
             crest.rewind();
             float px = 0, py = h - levels[0] * h * .9f;
             crest.moveTo(px, py);

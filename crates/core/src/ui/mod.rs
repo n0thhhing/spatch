@@ -698,6 +698,10 @@ fn shader_source(name: &str) -> Option<&'static str> {
         "field" => Some(include_str!("../shaders/field.agsl")),
         "ring" => Some(include_str!("../shaders/ring.agsl")),
         "grain" => Some(include_str!("../shaders/grain.agsl")),
+        "wavy_progress" => Some(include_str!("../shaders/wavy_progress.agsl")),
+        "halo" => Some(include_str!("../shaders/halo.agsl")),
+        "frost" => Some(include_str!("../shaders/frost.agsl")),
+        "spectrum" => Some(include_str!("../shaders/spectrum.agsl")),
         _ => None,
     }
 }
@@ -715,7 +719,7 @@ pub extern "system" fn Java_spatch_GpuFx_nativeShader(mut env: JNIEnv, _: JClass
 mod shader_tests {
     #[test]
     fn every_shader_has_an_entry_point() {
-        for name in ["field", "ring", "grain"] {
+        for name in ["field", "ring", "grain", "wavy_progress", "halo", "frost", "spectrum"] {
             assert!(super::shader_source(name).unwrap().contains("half4 main(float2 p)"), "{name}");
         }
         assert!(super::shader_source("missing").is_none());

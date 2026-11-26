@@ -1,0 +1,57 @@
+// Smooth audio-reactive spectrum wave (Home hero wave and Equalizer live spectrum): interpolates up to 16 band
+// levels smoothly across the width, shades a dithered translucent fill beneath the crest, and adds a soft crest glow.
+uniform float4 rect;   // x = left, y = top, z = width, w = height
+uniform float4 params; // x = count (2..16), y = fillAlpha, z = lineAlpha, w = glowPx
+uniform float4 v0, v1, v2, v3;
+layout(color) uniform half4 tint;
+
+float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+
+float sampleBand(int i) {
+  int v = i / 4;
+  float4 q = v == 0 ? v0 : v == 1 ? v1 : v == 2 ? v2 : v3;
+  int c = i - v * 4;
+  return dot(q, float4(c == 0 ? 1.0 : 0.0, c == 1 ? 1.0 : 0.0, c == 2 ? 1.0 : 0.0, c == 3 ? 1.0 : 0.0));
+}
+
+float heightAt(float u, int n) {
+  float pos = clamp(u, 0.0, 1.0) * float(n - 1);
+  int i0 = int(floor(pos));
+  int i1 = min(n - 1, i0 + 1);
+  float f = pos - float(i0);
+  // Smooth cosine easing between bands produces a silkier crest than linear segments.
+  float s = f * f * (3.0 - 2.0 * f);
+  return mix(sampleBand(i0), sampleBand(i1), s);
+}
+
+half4 main(float2 p) {
+  float w = max(rect.z, 1.0);
+  float h = max(rect.w, 1.0);
+  float lx = p.x - rect.x;
+  float ly = p.y - rect.y;
+  if (lx < 0.0 || lx > w || ly < 0.0 || ly > h) return half4(0.0);
+
+  int n = int(clamp(params.x, 2.0, 16.0));
+  float u = lx / w;
+  float du = 1.0 / w;
+  float lvl = heightAt(u, n);
+  float crestY = h - lvl * h;
+
+  // Slope-corrected distance to the crest curve for clean anti-aliased edge and glow.
+  float lvlNext = heightAt(min(1.0, u + du * 2.0), n);
+  float slope = (lvlNext - lvl) * h / 2.0;
+  float signedDist = (ly - crestY) / sqrt(1.0 + slope * slope);
+
+  float below = clamp(signedDist + 0.5, 0.0, 1.0);
+  float depth = clamp((ly - crestY) / max(h - crestY, 1.0), 0.0, 1.0);
+  float fillA = below * mix(params.y, 0.0, pow(depth, 1.25));
+
+  float lineA = clamp(1.1 - abs(signedDist), 0.0, 1.0) * params.z;
+  float glowR = max(params.w, 1.0);
+  float glowA = exp(-abs(signedDist) / glowR) * params.z * 0.28 * (lvl > 0.01 ? 1.0 : 0.0);
+
+  float a = clamp(fillA + glowA * (1.0 - fillA) + lineA * (1.0 - fillA), 0.0, 1.0);
+  if (a <= 0.001) return half4(0.0);
+  half3 col = clamp(tint.rgb + (hash(p) - 0.5) / 255.0, 0.0, 1.0);
+  return half4(col * a, a);
+}

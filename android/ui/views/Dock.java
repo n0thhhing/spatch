@@ -48,6 +48,7 @@ final class Dock {
         private final RectF box = new RectF();
         private final int[] at = new int[2], host = new int[2];
         private android.graphics.RenderNode blur;
+        private Shader frostShader;
 
         Frost(View pill, float radiusDp, ColorOf color) { this.pill = pill; this.radius = ui.dp(radiusDp); this.color = color; }
 
@@ -77,6 +78,27 @@ final class Dock {
                 c.drawRenderNode(blur);
                 c.restore();
                 tint = (tint & 0x00ffffff) | 0xb8000000; // the glass: the pill's colour, letting the blurred page through
+                if (GpuFx.shaders(ui.prefs)) {
+                    if (frostShader == null) {
+                        String src = GpuFx.source("frost");
+                        if (src != null) frostShader = new android.graphics.RuntimeShader(src);
+                    }
+                    if (frostShader != null) {
+                        android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) frostShader;
+                        rs.setFloatUniform("size", b.width(), b.height());
+                        rs.setFloatUniform("metrics", radius, ui.dark ? 1f : 0f);
+                        rs.setColorUniform("tint", tint);
+                        rs.setColorUniform("rim", (ui.ink & 0x00ffffff) | 0xff000000);
+                        paint.setStyle(Paint.Style.FILL);
+                        paint.setShader(rs);
+                        c.save();
+                        c.translate(b.left, b.top);
+                        c.drawRect(0, 0, b.width(), b.height(), paint);
+                        c.restore();
+                        paint.setShader(null);
+                        return;
+                    }
+                }
             }
             paint.setColor(tint);
             c.drawPath(shape, paint);

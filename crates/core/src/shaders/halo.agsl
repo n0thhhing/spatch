@@ -1,0 +1,48 @@
+// Player disc aura and touch-tilt specular gleam.
+// mode < 0.5: two offset OLED-dithered dual-colour radial pools behind the disc, breathing gently with bass.
+// mode >= 0.5: soft diagonal glass sheen and subtle rim light clipped inside the circular cover while tilted.
+uniform float2 center;
+uniform float4 params; // x = radius, y = breath (mode 0) or strength (mode 1), z = mode, w = dark (1 or 0)
+uniform float2 tilt;   // normalized touch tilt [-1..1]
+layout(color) uniform half4 a;
+layout(color) uniform half4 b;
+
+float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+
+half4 main(float2 p) {
+  float r = max(params.x, 1.0);
+  float2 d = p - center;
+  float dist = length(d);
+
+  if (params.z < 0.5) {
+    if (dist >= r) return half4(0.0);
+    float breath = clamp(params.y, 0.0, 1.0);
+    float2 off = float2(r * 0.10, r * 0.06);
+    float poolR = max(r - length(off), 1.0);
+    float da = length(d - float2(-off.x, off.y)) / poolR;
+    float db = length(d - float2(off.x, -off.y)) / poolR;
+    float ta = 1.0 - smoothstep(0.0, 1.0, da);
+    float tb = 1.0 - smoothstep(0.0, 1.0, db);
+    float gain = (params.w > 0.5 ? 1.0 : 0.72) * (1.0 + breath * 0.35);
+    float aa = ta * ta * ta * 0.30 * gain;
+    float ab = tb * tb * tb * 0.23 * gain;
+    float outA = aa + ab * (1.0 - aa);
+    if (outA <= 0.0005) return half4(0.0);
+    half3 col = (a.rgb * aa + b.rgb * (ab * (1.0 - aa))) / outA;
+    col = clamp(col + (hash(p) - 0.5) / 255.0, 0.0, 1.0);
+    return half4(col * outA, outA);
+  }
+
+  // Specular glass sheen over the circular cover while touched/tilted.
+  float strength = clamp(params.y, 0.0, 1.0);
+  float edge = clamp(r + 0.5 - dist, 0.0, 1.0);
+  if (edge <= 0.001 || strength <= 0.002) return half4(0.0);
+  float2 uv = d / r;
+  float2 lightDir = normalize(float2(-0.55, -0.75) + tilt * 0.9);
+  float band = dot(uv, lightDir) - dot(tilt, float2(0.35, 0.35));
+  float streak = exp(-band * band * 9.5) * 0.22;
+  float rim = smoothstep(0.76, 1.0, length(uv)) * max(0.0, dot(normalize(uv + 0.0001), lightDir)) * 0.24;
+  float shine = (streak + rim) * strength * edge;
+  half3 col = mix(half3(1.0), a.rgb, 0.18);
+  return half4(col * shine, shine);
+}

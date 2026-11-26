@@ -1,0 +1,59 @@
+// Wavy playback progress bar: played sine wave with soft accent glow, straight remaining track, and circular thumb in
+// one analytical SDF pass.
+uniform float4 bounds; // x = x0, y = x1, z = cy, w = tip
+uniform float4 wave;   // x = amplitude, y = wavelength, z = phaseRad, w = thickness
+uniform float4 knob;   // x = thumbRadius, y = gap, z = glowRadius, w = unused
+layout(color) uniform half4 active;
+layout(color) uniform half4 track;
+
+const float TAU = 6.2831853;
+
+half4 main(float2 p) {
+  float x0 = bounds.x;
+  float x1 = bounds.y;
+  float cy = bounds.z;
+  float tip = bounds.w;
+  float amp = wave.x;
+  float wl = max(wave.y, 1.0);
+  float phase = wave.z;
+  float halfT = wave.w * 0.5;
+  float thumbR = knob.x;
+  float gap = knob.y;
+  float glowR = max(knob.z, 1.0);
+
+  // Remaining straight track past the thumb gap.
+  float trackStart = tip + gap;
+  float trackCov = 0.0;
+  if (trackStart < x1) {
+    float tx = clamp(p.x, trackStart, x1);
+    float td = length(float2(p.x - tx, p.y - cy));
+    trackCov = clamp(halfT + 0.5 - td, 0.0, 1.0);
+  }
+
+  // Played sine wave with slope-corrected analytical distance and soft accent glow.
+  float playedCov = 0.0;
+  float playedGlow = 0.0;
+  if (tip > x0) {
+    float wx = clamp(p.x, x0, tip);
+    float ang = TAU * (wx - x0) / wl + phase;
+    float wy = cy + amp * sin(ang);
+    float slope = amp * (TAU / wl) * cos(ang);
+    float wd = length(float2(p.x - wx, (p.y - wy) / sqrt(1.0 + slope * slope)));
+    playedCov = clamp(halfT + 0.5 - wd, 0.0, 1.0);
+    playedGlow = exp(-max(wd - halfT, 0.0) / glowR) * 0.22;
+  }
+
+  // Circular thumb riding the wave tip, with a subtle halo.
+  float tipY = cy + amp * sin(TAU * (tip - x0) / wl + phase);
+  float kd = length(p - float2(tip, tipY));
+  float thumbCov = clamp(thumbR + 0.5 - kd, 0.0, 1.0);
+  float thumbGlow = exp(-max(kd - thumbR, 0.0) / (glowR * 1.15)) * 0.28;
+
+  // Composite in premultiplied alpha: track -> soft glow -> active wave -> thumb.
+  half4 outCol = half4(track.rgb * (track.a * trackCov), track.a * trackCov);
+  float gA = max(playedGlow, thumbGlow);
+  outCol = half4(active.rgb * gA, gA) + outCol * (1.0 - gA);
+  float fg = max(playedCov, thumbCov);
+  outCol = half4(active.rgb * fg, fg) + outCol * (1.0 - fg);
+  return outCol;
+}

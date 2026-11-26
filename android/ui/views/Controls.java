@@ -690,6 +690,7 @@ final class Controls {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
         private final RectF bubble = new RectF();
+        private android.graphics.Shader waveShader;
         float preview = -1, amp = -1, grow = 0;
         private int lastTenth = -1;
         private String scrubUri = "";
@@ -714,23 +715,44 @@ final class Controls {
             // Scrubbing thickens the line; it eases back when you let go.
             float wantGrow = preview >= 0 ? 1f : 0f;
             grow = !ui.motion() ? wantGrow : grow + (wantGrow - grow) * .25f;
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(ui.dp(4 + 3 * grow));
-            paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setColor((ui.ink & 0x00ffffff) | 0x2a000000);
-            if (tip + ui.dp(8) < x1) c.drawLine(tip + ui.dp(8), y, x1, y, paint);
+            float strokeW = ui.dp(4 + 3 * grow);
             float target = ui.playing && preview < 0 && !ui.holdingSeek ? ui.dp(3.2f) : 0;
             amp = amp < 0 || !ui.motion() ? target : amp + (target - amp) * .12f;
-            paint.setColor(ui.accent);
-            path.rewind();
             float phase = (SystemClock.uptimeMillis() % 1600) / 1600f;
-            for (float x = x0; x < tip; x += ui.dp(2)) {
-                float dy = amp * (float) Math.sin(((x - x0) / ui.dp(34) + phase) * 6.283f);
-                if (x == x0) path.moveTo(x, y + dy); else path.lineTo(x, y + dy);
+            float thumbR = ui.dp(preview >= 0 ? 9 : 6);
+            if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
+                if (waveShader == null) {
+                    String src = GpuFx.source("wavy_progress");
+                    if (src != null) waveShader = new android.graphics.RuntimeShader(src);
+                }
             }
-            c.drawPath(path, paint);
-            paint.setStyle(Paint.Style.FILL);
-            c.drawCircle(tip, y + amp * (float) Math.sin(((tip - x0) / ui.dp(34) + phase) * 6.283f), ui.dp(preview >= 0 ? 9 : 6), paint);
+            if (waveShader != null && GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
+                android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) waveShader;
+                rs.setFloatUniform("bounds", x0, x1, y, tip);
+                rs.setFloatUniform("wave", amp, ui.dp(34), phase * 6.2831853f, strokeW);
+                rs.setFloatUniform("knob", thumbR, ui.dp(8), ui.dp(5), 0f);
+                rs.setColorUniform("active", ui.accent);
+                rs.setColorUniform("track", (ui.ink & 0x00ffffff) | 0x2a000000);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setShader(rs);
+                c.drawRect(0, Math.max(0, y - ui.dp(22)), getWidth(), y + ui.dp(22), paint);
+                paint.setShader(null);
+            } else {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(strokeW);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor((ui.ink & 0x00ffffff) | 0x2a000000);
+                if (tip + ui.dp(8) < x1) c.drawLine(tip + ui.dp(8), y, x1, y, paint);
+                paint.setColor(ui.accent);
+                path.rewind();
+                for (float x = x0; x < tip; x += ui.dp(2)) {
+                    float dy = amp * (float) Math.sin(((x - x0) / ui.dp(34) + phase) * 6.283f);
+                    if (x == x0) path.moveTo(x, y + dy); else path.lineTo(x, y + dy);
+                }
+                c.drawPath(path, paint);
+                paint.setStyle(Paint.Style.FILL);
+                c.drawCircle(tip, y + amp * (float) Math.sin(((tip - x0) / ui.dp(34) + phase) * 6.283f), thumbR, paint);
+            }
             long shownTime = preview >= 0 ? Math.round(preview * (double) ui.duration) : el;
             if (preview >= 0) {
                 String seekLabel = SpatchUi.time(shownTime);

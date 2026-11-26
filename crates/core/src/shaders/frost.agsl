@@ -1,0 +1,39 @@
+// Tactile frosted glass finish for dock pills: tinted translucent body, subtle etched micro-grain, soft top-edge
+// specular sheen, and a crisp glass hairline rim that catches slightly more light along the top edge.
+uniform float2 size;
+uniform float2 metrics; // x = cornerRadius, y = dark (1 or 0)
+layout(color) uniform half4 tint;
+layout(color) uniform half4 rim;
+
+float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+
+float sdRoundRect(float2 p, float2 halfSize, float r) {
+  float2 q = abs(p) - (halfSize - float2(r));
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+half4 main(float2 p) {
+  float r = min(metrics.x, min(size.x, size.y) * 0.5);
+  float d = sdRoundRect(p - size * 0.5, size * 0.5, r);
+  float inside = clamp(0.5 - d, 0.0, 1.0);
+  if (inside <= 0.001) return half4(0.0);
+
+  float dark = metrics.y;
+  float yn = clamp(p.y / max(size.y, 1.0), 0.0, 1.0);
+  float noise = (hash(p) - 0.5) * (dark > 0.5 ? 0.022 : 0.015);
+
+  // Subtle top specular sheen fading gently down into the glass.
+  float sheen = (1.0 - smoothstep(0.0, 0.42, yn)) * (dark > 0.5 ? 0.075 : 0.12);
+  half3 bodyRgb = clamp(tint.rgb + half3(sheen + noise), 0.0, 1.0);
+  float bodyA = tint.a;
+
+  // Crisp hairline rim along the pill outline, slightly brighter along the upper lip.
+  float border = clamp(1.0 - abs(d + 0.6) / 1.05, 0.0, 1.0);
+  float lip = mix(dark > 0.5 ? 0.16 : 0.14, dark > 0.5 ? 0.07 : 0.06, yn);
+  float rimA = border * lip;
+  half3 rimRgb = mix(rim.rgb, half3(1.0), dark > 0.5 ? (1.0 - yn) * 0.65 : 0.0);
+
+  float a = (bodyA + rimA * (1.0 - bodyA)) * inside;
+  half3 rgb = (bodyRgb * bodyA + rimRgb * (rimA * (1.0 - bodyA))) * inside;
+  return half4(rgb, a);
+}
