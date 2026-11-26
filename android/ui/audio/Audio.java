@@ -1015,13 +1015,15 @@ public final class Audio {
     static volatile boolean directOn;
     private static final int DIRECT_FFT_N = 1024;
     private static final float[] RING = new float[DIRECT_FFT_N];
+    private static final float[] WINDOW = new float[DIRECT_FFT_N];
     private static int ringAt;
-    private static volatile long fedAt;
+    private static volatile long fedAt, oboeAt;
     private static volatile int fedRate = 44100;
 
     static void setDirect(boolean on) {
         directOn = on;
         fedAt = 0;
+        oboeAt = 0;
         try { nativeSetDirect(on); } catch (UnsatisfiedLinkError ignored) {}
         refreshEqualizer();
     }
@@ -1032,7 +1034,7 @@ public final class Audio {
      * so it only copies the newest window into a ring; it never throws.
      */
     public static void feed(byte[] pcm, int len, int rate, int channelConfig, int encoding) {
-        if (!directOn) return;
+        if (!directOn || (oboeAt != 0 && SystemClock.uptimeMillis() - oboeAt < 400)) return;
         try {
             int channels = channelConfig == 12 ? 2 : 1, width = encoding == 4 ? 4 : 2, frame = channels * width;
             int frames = Math.min(len, pcm.length) / frame, take = Math.min(frames, DIRECT_FFT_N), first = (frames - take) * frame;
@@ -1158,6 +1160,7 @@ public final class Audio {
         float dt = sampled == 0 ? 16 : Math.min(100, now - sampled);
         try {
             if (nativeSampleDirect(dt, now, OUT)) {
+                oboeAt = now;
                 sampled = now;
                 say("Reading Spotify's audio directly (Oboe)");
                 System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
@@ -1168,13 +1171,12 @@ public final class Audio {
             // Preview or standalone build without libspatch_app.
         }
         if (fedAt == 0 || now - fedAt > 400) { say("Waiting for Spotify's audio"); return false; }
-        float[] window = new float[DIRECT_FFT_N];
         synchronized (RING) {
-            for (int i = 0; i < window.length; i++) window[i] = RING[(ringAt + i) % DIRECT_FFT_N];
+            for (int i = 0; i < WINDOW.length; i++) WINDOW[i] = RING[(ringAt + i) % DIRECT_FFT_N];
         }
         say("Reading Spotify's audio directly");
         sampled = now;
-        nativeAnalysePcm(window, fedRate, dt, now, OUT);
+        nativeAnalysePcm(WINDOW, fedRate, dt, now, OUT);
         System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
         bass = OUT[48]; level = OUT[49]; kick = OUT[50];
         return true;

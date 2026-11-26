@@ -71,14 +71,22 @@ final class PublicTrackMetadata {
 
     // synchronized: lookup() already serializes on this monitor, and WebAuth calls this directly.
     static synchronized String anonymousToken() throws IOException, JSONException {
-        if (token != null && expiresAt > System.currentTimeMillis() + 30_000) return token;
-        JSONObject session = getJson(TOKEN_URL, null, null);
-        String access = field(session, "accessToken");
-        if (session == null || !session.optBoolean("isAnonymous") || access.isEmpty()) {
-            throw new IOException("no anonymous catalog session");
+        long now = System.currentTimeMillis();
+        if (token != null && expiresAt > now + 30_000) return token;
+        if (SystemClock.elapsedRealtime() < retryAt) throw new IOException("anonymous token backoff");
+        try {
+            JSONObject session = getJson(TOKEN_URL, null, null);
+            String access = field(session, "accessToken");
+            if (session == null || !session.optBoolean("isAnonymous") || access.isEmpty()) {
+                throw new IOException("no anonymous catalog session");
+            }
+            long rawExpiry = session.optLong("accessTokenExpirationTimestampMs");
+            expiresAt = rawExpiry > now ? rawExpiry : now + 600_000;
+            return token = access;
+        } catch (IOException | JSONException failed) {
+            retryAt = SystemClock.elapsedRealtime() + 60_000;
+            throw failed;
         }
-        expiresAt = session.optLong("accessTokenExpirationTimestampMs");
-        return token = access;
     }
 
     /** Null is returned only for a 401, so lookup can refresh an expired token once. */

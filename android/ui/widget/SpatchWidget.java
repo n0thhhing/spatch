@@ -20,12 +20,10 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.os.Build;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.View;
 import android.widget.RemoteViews;
 
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -185,31 +183,7 @@ public class SpatchWidget extends AppWidgetProvider {
     }
 
     private static Bitmap fetch(String url) {
-        if (!url.startsWith("https://")) return null;
-        try {
-            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-            c.setConnectTimeout(4000);
-            c.setReadTimeout(4000);
-            try (InputStream in = c.getInputStream()) {
-                java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
-                byte[] chunk = new byte[8192];
-                int n, total = 0;
-                while ((n = in.read(chunk)) != -1 && (total += n) <= 4 * 1024 * 1024) buf.write(chunk, 0, n);
-                byte[] data = buf.toByteArray();
-                BitmapFactory.Options opts = new BitmapFactory.Options();
-                opts.inJustDecodeBounds = true;
-                BitmapFactory.decodeByteArray(data, 0, data.length, opts);
-                int maxSide = Math.max(opts.outWidth, opts.outHeight), sample = 1;
-                while (maxSide / (sample * 2) >= 256) sample *= 2;
-                opts.inJustDecodeBounds = false;
-                opts.inSampleSize = sample;
-                return BitmapFactory.decodeByteArray(data, 0, data.length, opts);
-            } finally {
-                c.disconnect();
-            }
-        } catch (java.io.IOException | RuntimeException e) {
-            return null;
-        }
+        return CoreBridge.artwork(url, 256);
     }
 
     /** Deep background and vibrant primary + contrasting secondary accents derived from the cover. */
@@ -437,39 +411,44 @@ public class SpatchWidget extends AppWidgetProvider {
 
     @Override public void onReceive(Context context, Intent intent) {
         attach(context);
-        String action = intent.getAction();
         int cmd = -1;
         long val = 0;
         String target = "", ctxUri = "";
         long seekAfter = -1;
-        if (PREVIOUS.equals(action) || ACT_PREVIOUS.equals(action)) cmd = PREVIOUS_ACTION;
-        else if (NEXT.equals(action) || ACT_NEXT.equals(action)) cmd = NEXT_ACTION;
-        else if (TOGGLE.equals(action) || ACT_TOGGLE.equals(action)) cmd = playing ? PAUSE_ACTION : RESUME_ACTION;
-        else if (ACT_PLAY.equals(action)) cmd = RESUME_ACTION;
-        else if (ACT_PAUSE.equals(action)) cmd = PAUSE_ACTION;
-        else if (ACT_SEEK.equals(action)) {
-            val = longExtra(intent, "position_ms", longExtra(intent, "position", -1L));
-            if (val >= 0) cmd = SEEK_ACTION;
-        } else if (ACT_PLAY_URI.equals(action)) {
-            target = strExtra(intent, "uri");
-            ctxUri = strExtra(intent, "context");
-            if (!target.isEmpty() || !ctxUri.isEmpty()) {
-                cmd = PLAY_ACTION;
-                if (intent.hasExtra("shuffle")) val = intent.getBooleanExtra("shuffle", false) ? 1 : 2;
-                seekAfter = longExtra(intent, "position_ms", -1L);
+        try {
+            String action = intent.getAction();
+            if (PREVIOUS.equals(action) || ACT_PREVIOUS.equals(action)) cmd = PREVIOUS_ACTION;
+            else if (NEXT.equals(action) || ACT_NEXT.equals(action)) cmd = NEXT_ACTION;
+            else if (TOGGLE.equals(action) || ACT_TOGGLE.equals(action)) cmd = playing ? PAUSE_ACTION : RESUME_ACTION;
+            else if (ACT_PLAY.equals(action)) cmd = RESUME_ACTION;
+            else if (ACT_PAUSE.equals(action)) cmd = PAUSE_ACTION;
+            else if (ACT_SEEK.equals(action)) {
+                val = longExtra(intent, "position_ms", longExtra(intent, "position", -1L));
+                if (val >= 0) cmd = SEEK_ACTION;
+            } else if (ACT_PLAY_URI.equals(action)) {
+                target = strExtra(intent, "uri");
+                ctxUri = strExtra(intent, "context");
+                if (!target.isEmpty() || !ctxUri.isEmpty()) {
+                    cmd = PLAY_ACTION;
+                    if (intent.hasExtra("shuffle")) val = intent.getBooleanExtra("shuffle", false) ? 1 : 2;
+                    seekAfter = longExtra(intent, "position_ms", -1L);
+                }
+            } else if (ACT_SHUFFLE.equals(action)) {
+                cmd = SHUFFLE_ACTION;
+                boolean en = intent.hasExtra("enabled") ? intent.getBooleanExtra("enabled", true)
+                    : intent.hasExtra("shuffle") ? intent.getBooleanExtra("shuffle", true)
+                    : intent.getIntExtra("mode", 1) != 0;
+                val = en ? 1 : 0;
+            } else if (ACT_REPEAT.equals(action)) {
+                int mode = intent.getIntExtra("mode", 0);
+                if (mode >= 0 && mode <= 2) { cmd = REPEAT_ACTION; val = mode; }
+            } else if (ACT_QUEUE.equals(action)) {
+                target = strExtra(intent, "uri");
+                if (!target.isEmpty()) cmd = QUEUE_ACTION;
             }
-        } else if (ACT_SHUFFLE.equals(action)) {
-            cmd = SHUFFLE_ACTION;
-            boolean en = intent.hasExtra("enabled") ? intent.getBooleanExtra("enabled", true)
-                : intent.hasExtra("shuffle") ? intent.getBooleanExtra("shuffle", true)
-                : intent.getIntExtra("mode", 1) != 0;
-            val = en ? 1 : 0;
-        } else if (ACT_REPEAT.equals(action)) {
-            int mode = intent.getIntExtra("mode", 0);
-            if (mode >= 0 && mode <= 2) { cmd = REPEAT_ACTION; val = mode; }
-        } else if (ACT_QUEUE.equals(action)) {
-            target = strExtra(intent, "uri");
-            if (!target.isEmpty()) cmd = QUEUE_ACTION;
+        } catch (RuntimeException e) {
+            Log.w("SpatchWidget", "Bad widget intent extras", e);
+            return;
         }
         if (cmd < 0) {
             super.onReceive(context, intent);
