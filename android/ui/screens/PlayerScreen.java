@@ -691,7 +691,7 @@ final class PlayerScreen {
         private final android.graphics.Path path = new android.graphics.Path();
         private android.animation.ValueAnimator anim;
         private boolean pressed, showing;
-        private float alpha, scale = 0.35f, cachedSide = -1f;
+        private float alpha, scale = 0.76f, cachedSide = -1f;
 
         SkipHighlightDrawable(boolean forward) {
             this.forward = forward;
@@ -703,18 +703,19 @@ final class PlayerScreen {
             if (anim != null) anim.cancel();
             if (!ui.motion()) {
                 alpha = want ? 1f : 0f;
-                scale = want ? 1f : 0.35f;
+                scale = 1f;
                 invalidateSelf();
                 return;
             }
             float startA = alpha, endA = want ? 1f : 0f;
-            float startS = scale, endS = want ? 1f : 0.35f;
+            float startS = want ? (alpha <= 0.05f ? 0.76f : Math.min(scale, 1f)) : scale;
+            float endS = want ? 1f : 1.14f;
             anim = android.animation.ValueAnimator.ofFloat(0f, 1f);
-            anim.setDuration(want ? 220 : 280);
-            anim.setInterpolator(want ? new android.view.animation.OvershootInterpolator(1.6f) : new android.view.animation.DecelerateInterpolator());
+            anim.setDuration(want ? 180 : 260);
+            anim.setInterpolator(want ? new android.view.animation.OvershootInterpolator(1.3f) : new android.view.animation.DecelerateInterpolator(1.5f));
             anim.addUpdateListener(a -> {
                 float t = (float) a.getAnimatedValue();
-                alpha = Math.max(0f, Math.min(1f, startA + (endA - startA) * Math.min(1f, t * (want ? 1.6f : 1f))));
+                alpha = Math.max(0f, Math.min(1f, startA + (endA - startA) * Math.min(1f, t * (want ? 1.5f : 1f))));
                 scale = startS + (endS - startS) * t;
                 invalidateSelf();
             });
