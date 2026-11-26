@@ -2820,6 +2820,7 @@ public final class SpatchUi extends FrameLayout {
                     } else failed.remove(key);
                     if (url.equals(image)) refreshPalette();
                     if (playlist != null && (url.equals(playlist.image) || url.equals(playlistScreen.detailImage))) applyColors();
+                    if (tab == SEARCH && playlist == null) searchScreen.recolorTop(url);
                     invalidateArt(SpatchUi.this);
                 });
             });

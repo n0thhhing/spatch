@@ -7,6 +7,17 @@ import static spatch.PackedStrings.unpackStrings;
 
 import spatch.ArtworkViews.Art;
 
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RadialGradient;
+import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -157,7 +168,9 @@ final class SearchScreen {
         scroll.setClipToPadding(true);
         scroll.setPadding(0, 0, 0, imeInset);
         LinearLayout results = ui.column();
-        results.setPadding(ui.dp(18), ui.dp(4), ui.dp(18), ui.dockRoom());
+        results.setPadding(ui.dp(18), ui.dp(6), ui.dp(18), ui.dockRoom());
+        results.setClipChildren(false);
+        results.setClipToPadding(false);
         scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
         scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> ui.dockUi.scrollDock(y - oldY, y <= 0));
         if (ui.landscape()) {
@@ -318,34 +331,196 @@ final class SearchScreen {
         });
     }
 
-    private String topUri = "";
+    private String topUri = "", topImage = "";
+
+    void recolorTop(String url) {
+        if (searchResults != null && !url.isEmpty() && url.equals(topImage)) SpatchUi.recolorView(searchResults);
+    }
 
     /**
-     * The best match as a bigger card over its own blurred cover (blurred on the GPU), with the cover itself and its
-     * name in front. When a new best match arrives the backdrop settles in from a soft zoom.
+     * The best match as a spotlight card over its own blurred cover wash, with a dual-colour ambient glow
+     * around both the card and its cover artwork and a subtle luminous hairline edge.
      */
     private View topResult(MediaEntry e, String kind, int ms) {
+        final String artUrl = e.image;
+        topImage = artUrl;
+        final Integer[] lastSeed = {null};
+        final boolean[] lastDark = {ui.dark};
+        final int[] topPal = {0, 0};
+        Runnable syncPal = () -> {
+            Integer seed = artUrl.isEmpty() ? null : SpatchUi.SEEDS.get(artUrl);
+            Integer seed2 = artUrl.isEmpty() ? null : SpatchUi.SEEDS2.get(artUrl);
+            if (seed != null) {
+                if (!seed.equals(lastSeed[0]) || lastDark[0] != ui.dark || topPal[0] == 0) {
+                    int[] p = SpatchUi.nativePalette2(seed, true, seed2 == null ? 0 : seed2, seed2 != null, ui.dark);
+                    topPal[0] = p[5];
+                    topPal[1] = p[6];
+                    lastSeed[0] = seed;
+                    lastDark[0] = ui.dark;
+                }
+            } else {
+                topPal[0] = ui.accent;
+                topPal[1] = ui.accent2;
+            }
+        };
+        syncPal.run();
+
+        FrameLayout wrap = new FrameLayout(ui.activity) {
+            private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+            private final Matrix m = new Matrix();
+            private RadialGradient ha, hb;
+            private int ca, cb, hw, hh;
+            private boolean hDark;
+            @Override protected void dispatchDraw(Canvas c) {
+                int w = getWidth(), h = getHeight();
+                if (w > 0 && h > 0) {
+                    syncPal.run();
+                    int c1 = topPal[0] != 0 ? topPal[0] : ui.accent;
+                    int c2 = topPal[1] != 0 ? topPal[1] : ui.accent2;
+                    float bleed = ui.dp(16);
+                    if (ha == null || ca != c1 || cb != c2 || hw != w || hh != h || hDark != ui.dark) {
+                        ca = c1; cb = c2; hw = w; hh = h; hDark = ui.dark;
+                        float[] stops = new float[]{0f, .50f, .76f, 1f};
+                        int a1 = (c1 & 0x00ffffff) | ((ui.dark ? 112 : 74) << 24);
+                        int a1m = (c1 & 0x00ffffff) | ((ui.dark ? 66 : 42) << 24);
+                        int a1e = (c1 & 0x00ffffff) | ((ui.dark ? 24 : 14) << 24);
+                        int a2 = (c2 & 0x00ffffff) | ((ui.dark ? 90 : 58) << 24);
+                        int a2m = (c2 & 0x00ffffff) | ((ui.dark ? 52 : 34) << 24);
+                        int a2e = (c2 & 0x00ffffff) | ((ui.dark ? 18 : 10) << 24);
+                        float rx = Math.max(1f, w * .38f + bleed), ry = Math.max(1f, h * .46f + bleed);
+                        ha = new RadialGradient(0, 0, 1f, new int[]{a1, a1m, a1e, 0}, stops, Shader.TileMode.CLAMP);
+                        m.setScale(rx, ry);
+                        m.postTranslate(w * .38f, h * .54f);
+                        ha.setLocalMatrix(m);
+                        hb = new RadialGradient(0, 0, 1f, new int[]{a2, a2m, a2e, 0}, stops, Shader.TileMode.CLAMP);
+                        m.setScale(rx, ry);
+                        m.postTranslate(w * .62f, h * .46f);
+                        hb.setLocalMatrix(m);
+                    }
+                    haloPaint.setShader(ha);
+                    c.drawRect(-bleed, -bleed, w + bleed, h + bleed, haloPaint);
+                    haloPaint.setShader(hb);
+                    c.drawRect(-bleed, -bleed, w + bleed, h + bleed, haloPaint);
+                    haloPaint.setShader(null);
+                }
+                super.dispatchDraw(c);
+            }
+        };
+        wrap.setTag("top");
+        wrap.setClipChildren(false);
+        wrap.setClipToPadding(false);
+        ui.colored(wrap, () -> { syncPal.run(); wrap.invalidate(); });
+
         FrameLayout card = new FrameLayout(ui.activity);
-        card.setTag("top");
         ui.bgRound(card, 24, () -> ui.surfHi);
         card.setClipToOutline(true);
-        Art backdrop = ui.artwork.new Art(Art.WIDE, false);
-        backdrop.bind(e.image);
-        if (GpuFx.blur(ui.prefs)) backdrop.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(ui.dp(26), ui.dp(26), android.graphics.Shader.TileMode.CLAMP));
+
+        float backdropAlpha = ui.dark ? .52f : .36f;
+        View backdrop = new View(ui.activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+            private final Path clip = new Path();
+            private final RectF bounds = new RectF(), dst = new RectF();
+            private final ColorMatrix sat = new ColorMatrix();
+            {
+                sat.setSaturation(1.25f);
+                paint.setColorFilter(new ColorMatrixColorFilter(sat));
+            }
+            @Override protected void onDraw(Canvas c) {
+                int w = getWidth(), h = getHeight();
+                if (w <= 0 || h <= 0 || artUrl.isEmpty()) return;
+                String blurKey = artUrl + ":topblur";
+                Bitmap blur = SpatchUi.IMAGES.get(blurKey);
+                if (blur == null) {
+                    Bitmap raw = ui.art(artUrl, 180);
+                    if (raw == null) return;
+                    blur = Blur.soft(raw, 36, 36, 6);
+                    SpatchUi.IMAGES.put(blurKey, blur);
+                }
+                float r = ui.dp(24);
+                bounds.set(0, 0, w, h);
+                clip.rewind();
+                clip.addRoundRect(bounds, r, r, Path.Direction.CW);
+                c.save();
+                c.clipPath(clip);
+                float k = Math.max((float) w / blur.getWidth(), (float) h / blur.getHeight());
+                float dw = blur.getWidth() * k, dh = blur.getHeight() * k;
+                dst.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);
+                c.drawBitmap(blur, null, dst, paint);
+                c.restore();
+            }
+        };
+        backdrop.setAlpha(backdropAlpha);
+        backdrop.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        ui.colored(backdrop, backdrop::invalidate);
         card.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
+
         View dim = new View(ui.activity);
-        dim.setBackgroundColor((ui.bg & 0x00ffffff) | 0x8c000000);
+        GradientDrawable dimBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{
+            (ui.bg & 0x00ffffff) | ((ui.dark ? 0x2a : 0x18) << 24),
+            (ui.bg & 0x00ffffff) | ((ui.dark ? 0x7c : 0x58) << 24)
+        });
+        dimBg.setCornerRadius(ui.dp(24));
+        dim.setBackground(dimBg);
+        ui.colored(dim, () -> dimBg.setColors(new int[]{
+            (ui.bg & 0x00ffffff) | ((ui.dark ? 0x2a : 0x18) << 24),
+            (ui.bg & 0x00ffffff) | ((ui.dark ? 0x7c : 0x58) << 24)
+        }));
         card.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+
+        // Dual-colour offset artwork glow right behind the cover, clipped cleanly to the card's rounded corners.
+        View coverGlow = new View(ui.activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+            private final Path clip = new Path();
+            private final RectF bounds = new RectF();
+            private RadialGradient ga, gb;
+            private int ca, cb, gw, gh;
+            private boolean gDark;
+            @Override protected void onDraw(Canvas c) {
+                int w = getWidth(), h = getHeight();
+                if (w <= 0 || h <= 0) return;
+                syncPal.run();
+                int c1 = topPal[0] != 0 ? topPal[0] : ui.accent;
+                int c2 = topPal[1] != 0 ? topPal[1] : ui.accent2;
+                if (ga == null || ca != c1 || cb != c2 || gw != w || gh != h || gDark != ui.dark) {
+                    ca = c1; cb = c2; gw = w; gh = h; gDark = ui.dark;
+                    float cx = ui.dp(16 + 52), cy = h / 2f;
+                    float glowR = ui.dp(26), r = ui.dp(52) + glowR * 1.9f;
+                    float[] stops = new float[]{0f, .46f, .78f, 1f};
+                    int a1 = (c1 & 0x00ffffff) | ((ui.dark ? 136 : 92) << 24);
+                    int a1m = (c1 & 0x00ffffff) | ((ui.dark ? 54 : 34) << 24);
+                    int a2 = (c2 & 0x00ffffff) | ((ui.dark ? 104 : 68) << 24);
+                    int a2m = (c2 & 0x00ffffff) | ((ui.dark ? 38 : 24) << 24);
+                    ga = new RadialGradient(cx - 0.22f * glowR, cy + 0.12f * glowR, Math.max(1f, r), new int[]{a1, a1m, c1 & 0x00ffffff, 0}, stops, Shader.TileMode.CLAMP);
+                    gb = new RadialGradient(cx + 0.24f * glowR, cy - 0.08f * glowR, Math.max(1f, r * .88f), new int[]{a2, a2m, c2 & 0x00ffffff, 0}, stops, Shader.TileMode.CLAMP);
+                }
+                float rad = ui.dp(24);
+                bounds.set(0, 0, w, h);
+                clip.rewind();
+                clip.addRoundRect(bounds, rad, rad, Path.Direction.CW);
+                c.save();
+                c.clipPath(clip);
+                paint.setShader(ga);
+                c.drawRect(0, 0, w, h, paint);
+                paint.setShader(gb);
+                c.drawRect(0, 0, w, h, paint);
+                paint.setShader(null);
+                c.restore();
+            }
+        };
+        coverGlow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        ui.colored(coverGlow, coverGlow::invalidate);
+        card.addView(coverGlow, new FrameLayout.LayoutParams(-1, -1));
+
         LinearLayout front = ui.row();
         front.setPadding(ui.dp(16), ui.dp(16), ui.dp(16), ui.dp(16));
         Art cover = ui.artwork.new Art(e.category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
         cover.letter = SpatchUi.initial(e.title);
         cover.bind(e.image);
-        cover.setElevation(ui.dp(6));
+        cover.setElevation(ui.dp(8));
         front.addView(cover, ui.lp(ui.dp(104), ui.dp(104)));
         LinearLayout words = ui.column();
         words.setPadding(ui.dp(16), 0, 0, 0);
-        TextView label = ui.text("Top result · " + (kind.endsWith("s") ? kind.substring(0, kind.length() - 1) : kind), 12, () -> ui.accent, true);
+        TextView label = ui.text("Top result · " + (kind.endsWith("s") ? kind.substring(0, kind.length() - 1) : kind), 12, () -> topPal[0] != 0 ? topPal[0] : ui.accent, true);
         TextView name = ui.text(e.title, 24, () -> ui.ink, true);
         name.setMaxLines(2);
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -357,23 +532,39 @@ final class SearchScreen {
         front.addView(words, ui.weight());
         if (isTrack(e.uri) && ms > 0) front.addView(ui.text(SpatchUi.time(ms), 13, () -> ui.inkDim, false));
         card.addView(front, new FrameLayout.LayoutParams(-1, -2));
-        ui.tappable(card, e.title, .98f, () -> {
+
+        // Crisp hairline edge tinted softly toward the cover's primary colour so the card rim catches the glow.
+        View rim = new View(ui.activity);
+        GradientDrawable rimBg = ui.round(0x00000000, 24);
+        rim.setBackground(rimBg);
+        rim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        Runnable syncRim = () -> {
+            syncPal.run();
+            int tint = SpatchUi.blend(ui.dark ? 0xffffffff : ui.ink, topPal[0] != 0 ? topPal[0] : ui.accent, .45f);
+            rimBg.setStroke(Math.max(1, ui.dp(.9f)), (tint & 0x00ffffff) | ((ui.dark ? 0x36 : 0x26) << 24));
+        };
+        syncRim.run();
+        ui.colored(rim, syncRim);
+        card.addView(rim, new FrameLayout.LayoutParams(-1, -1));
+
+        wrap.addView(card, new FrameLayout.LayoutParams(-1, -2));
+        ui.tappable(wrap, e.title, .98f, () -> {
             rememberSearch(searchQuery);
             if (!isTrack(e.uri)) ui.playlistScreen.captureFlight(cover, e.image, e.category == 2);
             ui.open(e);
         });
-        card.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
+        wrap.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
         if (!e.uri.equals(topUri) && ui.motion()) {
             backdrop.setScaleX(1.18f);
             backdrop.setScaleY(1.18f);
             backdrop.setAlpha(0f);
-            backdrop.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(700).setInterpolator(SpatchUi.EMPHASIZED).start();
+            backdrop.animate().scaleX(1f).scaleY(1f).alpha(backdropAlpha).setDuration(700).setInterpolator(SpatchUi.EMPHASIZED).start();
         }
         topUri = e.uri;
         ViewGroup.MarginLayoutParams spacing = new ViewGroup.MarginLayoutParams(-1, -2);
-        spacing.setMargins(0, ui.dp(6), 0, ui.dp(4));
-        card.setLayoutParams(spacing);
-        return card;
+        spacing.setMargins(0, ui.dp(12), 0, ui.dp(8));
+        wrap.setLayoutParams(spacing);
+        return wrap;
     }
 
     private static final String[] MOODS = {"Chill", "Pop", "Focus", "Hip-hop", "Workout", "Indie", "Sleep", "Rock", "Party", "Lo-fi", "Mood booster", "Jazz"};
