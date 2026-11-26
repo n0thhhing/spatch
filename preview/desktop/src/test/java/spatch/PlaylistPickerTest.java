@@ -25,28 +25,28 @@ public class PlaylistPickerTest {
     @Test public void heartLikesAndHoldingArtworkOffersPlaylists() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
+        Reflect.settle(12, 40);
         SpatchUi ui = findUi(root);
         String uri = (String) field(ui, "uri");
         java.lang.reflect.Method nativeSave = SpatchUi.class.getDeclaredMethod("nativeSave", String.class, boolean.class);
         nativeSave.setAccessible(true);
         assertEquals(true, nativeSave.invoke(null, uri, false));
         Reflect.call(ui, "checkSaved", new Class<?>[]{String.class}, uri);
-        settle();
+        Reflect.settle(12, 40);
         Reflect.call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
-        settle();
+        Reflect.settle(12, 40);
         View save = find(root, "Save to Liked Songs");
         assertNotNull(save);
         assertNull("The top-bar add button is removed", find(root, "Add current song to playlist"));
         assertNull("The heart stays free of a button background", save.getBackground());
         assertSame("Save is next to the title", ((View) field(ui, "pTitle")).getParent().getParent(), save.getParent());
         click(save);
-        settle();
+        Reflect.settle(12, 40);
         assertEquals(Boolean.TRUE, field(ui, "saved"));
         assertEquals("heart", field(field(ui, "pLike"), "symbol"));
         assertNull("Liking is one tap and does not open a picker", find(root, "Search playlists"));
         click(save);
-        settle();
+        Reflect.settle(12, 40);
         assertEquals(Boolean.FALSE, field(ui, "saved"));
         assertEquals("heart-outline", field(field(ui, "pLike"), "symbol"));
         View artwork = (View) field(ui, "disc");
@@ -61,7 +61,7 @@ public class PlaylistPickerTest {
         artwork.dispatchTouchEvent(up);
         up.recycle();
         click(find(root, "Add to playlist"));
-        settle();
+        Reflect.settle(12, 40);
         View card = (View) find(root, "Search playlists").getParent();
         assertNotNull(find(card, "New playlist"));
         java.lang.reflect.Method targets = SpatchUi.class.getDeclaredMethod("nativePlaylistTargets");
@@ -71,7 +71,7 @@ public class PlaylistPickerTest {
         playlist.setAccessible(true);
         int before = PackedStrings.unpackStrings((byte[]) playlist.invoke(null, destination[2], 0)).length;
         click(find(card, destination[0]));
-        settle();
+        Reflect.settle(12, 40);
         int after = PackedStrings.unpackStrings((byte[]) playlist.invoke(null, destination[2], 0)).length;
         assertEquals("Choosing a playlist appends this song to that playlist", before + 12, after);
         assertEquals("Adding to a playlist must not silently like the song", Boolean.FALSE, field(ui, "saved"));
@@ -81,7 +81,7 @@ public class PlaylistPickerTest {
     @Test public void catalogTrackDurationsAreVisible() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
+        Reflect.settle(12, 40);
         SpatchUi ui = findUi(root);
         java.lang.reflect.Field searchTab = SpatchUi.class.getDeclaredField("SEARCH");
         searchTab.setAccessible(true);
@@ -100,7 +100,7 @@ public class PlaylistPickerTest {
     @Test public void trackMenusOpenSearchableEditablePlaylistsAndSeedNewOnes() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
+        Reflect.settle(12, 40);
         SpatchUi ui = findUi(root);
         assertNotNull(ui);
         java.lang.reflect.Method visibility = SpatchUi.class.getDeclaredMethod("onWindowVisibilityChanged", int.class);
@@ -116,11 +116,11 @@ public class PlaylistPickerTest {
         java.lang.reflect.Method actions = SpatchUi.class.getDeclaredMethod("actions", entry);
         actions.setAccessible(true);
         actions.invoke(ui, track);
-        settle();
+        Reflect.settle(12, 40);
         View add = find(root, "Add to playlist");
         assertNotNull("Track actions include adding to playlists outside a playlist page", add);
         click(add);
-        settle();
+        Reflect.settle(12, 40);
         java.lang.reflect.Method targets = SpatchUi.class.getDeclaredMethod("nativePlaylistTargets");
         targets.setAccessible(true);
         String[] fields = PackedStrings.unpackStrings((byte[]) targets.invoke(null));
@@ -134,11 +134,11 @@ public class PlaylistPickerTest {
             .setInsets(android.view.WindowInsets.Type.systemBars(), android.graphics.Insets.of(0, 30, 0, 20)).build());
         assertSame("Insets must preserve an open sheet", search, find(root, "Search playlists"));
         search.setText("no playlist matches this");
-        settle();
+        Reflect.settle(12, 40);
         assertFalse(target.isShown());
         assertTrue(find(root, "New playlist").isShown());
         search.setText("");
-        settle();
+        Reflect.settle(12, 40);
         root.measure(View.MeasureSpec.makeMeasureSpec(412, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(820, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, 412, 820);
         Bitmap bitmap = Bitmap.createBitmap(412, 820, Bitmap.Config.ARGB_8888);
@@ -147,7 +147,7 @@ public class PlaylistPickerTest {
         file.getParentFile().mkdirs();
         try (FileOutputStream out = new FileOutputStream(file)) { bitmap.compress(Bitmap.CompressFormat.PNG, 100, out); }
         click(find(root, "New playlist"));
-        settle();
+        Reflect.settle(12, 40);
         assertNotNull(find(root, "Includes “Picker song”"));
         assertNotNull(find(root, "Create playlist"));
         java.lang.reflect.Method close = CreationSheet.class.getDeclaredMethod("closeCreateMenu");
@@ -157,12 +157,12 @@ public class PlaylistPickerTest {
         pending.setAccessible(true);
         assertNull("Canceling must not seed a later unrelated playlist", pending.get(field(ui, "creation")));
         Reflect.call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
-        settle();
+        Reflect.settle(12, 40);
         View artwork = (View) field(ui, "disc");
         assertTrue(artwork.performLongClick());
-        settle();
+        Reflect.settle(12, 40);
         click(find(root, "Add to playlist"));
-        settle();
+        Reflect.settle(12, 40);
         assertNotNull(find(root, "Search playlists"));
         java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
         java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
@@ -190,13 +190,6 @@ public class PlaylistPickerTest {
 
     private static Object field(Object object, String name) throws Exception {
         return Reflect.get(object, name);
-    }
-
-    private static void settle() throws Exception {
-        for (int i = 0; i < 12; i++) {
-            Thread.sleep(25);
-            ShadowLooper.shadowMainLooper().idleFor(Duration.ofMillis(40));
-        }
     }
 
     private static SpatchUi findUi(View view) {

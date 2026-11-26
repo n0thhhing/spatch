@@ -3,8 +3,8 @@
 # Spatch Manager installs when Nightly patches is on. Builds from a clean copy of the commit, so
 # uncommitted work never ships. Needs the supported Spotify APKM: $SPATCH_APKM, or in the repo root
 # (it is ignored). .github/workflows/nightly.yml runs this on every push, split in parts:
-#   tools/nightly.sh [commit]                          build patches and Manager, then publish
-#   NIGHTLY_BUILD=normal|manager NIGHTLY_OUT=<dir> ...   only build that artifact into <dir>
+#   tools/nightly.sh [commit]                          build patches, then publish
+#   NIGHTLY_OUT=<dir> ...                              only build patches into <dir>
 #   NIGHTLY_BUNDLES=<dir> ...                          only publish the bundles already in <dir>
 #   NIGHTLY_TAG=branch-<name> ...                     publish to that branch's prerelease instead of `nightly`
 set -eu
@@ -53,28 +53,10 @@ if [ -z "${NIGHTLY_BUNDLES:-}" ]; then
     if [ -n "${NIGHTLY_OUT:-}" ]; then exit 0; fi
 fi
 cd "$out"
-assets=""
-for asset in spatch-bundle.zip spatch-manager.apk; do
-    [ ! -f "$asset" ] || assets="$assets $asset"
-done
-[ -n "$assets" ] || { echo "manager and patches are unchanged"; exit 0; }
-mkdir "$work/previous"
-gh release download "$tag" --pattern spatch-bundle.sha256 --dir "$work/previous" 2>/dev/null || true
-: > spatch-bundle.sha256
-if [ -f "$work/previous/spatch-bundle.sha256" ]; then
-    while read -r digest asset; do
-        case "$asset" in spatch-bundle.zip|spatch-manager.apk)
-            [ -f "$asset" ] || printf '%s  %s\n' "$digest" "$asset" >> spatch-bundle.sha256 ;;
-        esac
-    done < "$work/previous/spatch-bundle.sha256"
-fi
-shasum -a 256 $assets >> spatch-bundle.sha256
-# Labels carry immutable component identities; unchanged assets retain their IDs and URLs.
-set --
-for asset in $assets; do
-    case "$asset" in spatch-manager.apk) id=$manager_id ;; *) id=$patch_id ;; esac
-    set -- "$@" "$asset#nightly-$id"
-done
+[ -f spatch-bundle.zip ] || { echo "patches are unchanged"; exit 0; }
+shasum -a 256 spatch-bundle.zip > spatch-bundle.sha256
+# Labels carry immutable component identities.
+set -- "spatch-bundle.zip#nightly-$patch_id"
 
 notes="Spatch nightly through $short, $(git -C "$repo" log -1 --format=%s "$sha"), for Spotify $version. Not released and less tested: turn on Nightly patches in Spatch Manager 0.9.0 or later to use it."
 git -C "$repo" tag -f "$tag" "$sha" >/dev/null

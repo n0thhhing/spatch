@@ -1,7 +1,11 @@
 package spatch;
 
+import android.view.View;
+import android.view.ViewGroup;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.time.Duration;
+import org.robolectric.shadows.ShadowLooper;
 
 /** Reads and calls private members of SpatchUi and of the screen objects it delegates to. */
 final class Reflect {
@@ -59,5 +63,25 @@ final class Reflect {
             }
         }
         return owners;
+    }
+
+    static void settle() throws Exception {
+        settle(20, 25);
+    }
+
+    static void settle(int iterations, int millis) throws Exception {
+        for (int i = 0; i < iterations; i++) {
+            Thread.sleep(25);
+            ShadowLooper.shadowMainLooper().idleFor(Duration.ofMillis(millis));
+        }
+    }
+
+    static <T> T find(View view, Class<T> type) {
+        if (type.isInstance(view)) return type.cast(view);
+        if (view instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) view).getChildCount(); i++) {
+            T found = find(((ViewGroup) view).getChildAt(i), type);
+            if (found != null) return found;
+        }
+        return null;
     }
 }

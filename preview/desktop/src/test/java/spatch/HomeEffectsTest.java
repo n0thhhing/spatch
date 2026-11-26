@@ -24,12 +24,12 @@ public class HomeEffectsTest {
     @Test public void heroWaveFollowsPlaybackAndStopsWhenFlat() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
-        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.settle();
+        SpatchUi ui = Reflect.find(root, SpatchUi.class);
         activity.getSharedPreferences("spatch_ui", 0).edit().putBoolean("hero_wave", true).putBoolean("audio", false).apply();
         Reflect.set(ui, "playing", true);
         Reflect.call(ui, "showPage", new Class<?>[0]);
-        settle();
+        Reflect.settle();
         View wave = byName(root, "HeroWave");
         assertNotNull("The setting adds the wave to the hero", wave);
         Canvas canvas = new Canvas(Bitmap.createBitmap(wave.getWidth(), wave.getHeight(), Bitmap.Config.ARGB_8888));
@@ -53,18 +53,18 @@ public class HomeEffectsTest {
     @Test public void libraryFilterPillSpringsToTheChosenChip() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
-        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.settle();
+        SpatchUi ui = Reflect.find(root, SpatchUi.class);
         Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "LIBRARY"));
-        settle();
+        Reflect.settle();
         shot(root, "library-chips-before");
         View albums = text(root, "Albums");
         assertNotNull(albums);
         albums.performClick();
         ShadowLooper.idleMainLooper(60, java.util.concurrent.TimeUnit.MILLISECONDS);
         shot(root, "library-chips-moving");
-        settle();
-        settle();
+        Reflect.settle();
+        Reflect.settle();
         shot(root, "library-chips-after");
         View track = (View) albums.getParent().getParent();
         float[] edges = (float[]) field(track, "edges");
@@ -77,11 +77,11 @@ public class HomeEffectsTest {
     @Test public void letterRailJumpsTheListAndShowsTheLetter() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
-        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.settle();
+        SpatchUi ui = Reflect.find(root, SpatchUi.class);
         activity.getSharedPreferences("spatch_ui", 0).edit().putBoolean("library_az", true).apply();
         Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "LIBRARY"));
-        settle();
+        Reflect.settle();
         View rail = described(root, "Letter index");
         assertNotNull("A–Z sorting shows the letter rail", rail);
         android.widget.AbsListView list = (android.widget.AbsListView) Reflect.get(ui, "libraryList");
@@ -114,10 +114,10 @@ public class HomeEffectsTest {
     @Test public void searchShowsAMoodBoardThenATopResultAndResultsGlide() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
-        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.settle();
+        SpatchUi ui = Reflect.find(root, SpatchUi.class);
         Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "SEARCH"));
-        settle();
+        Reflect.settle();
         assertNotNull("Empty search shows mood tiles", text(root, "Chill"));
         shot(root, "search-moods");
         String[] first = {"Songs", "Glasshouse", "Northbound", "spotify:track:a", "demo:0", "-1", "201000",
@@ -127,7 +127,7 @@ public class HomeEffectsTest {
         Reflect.set(ui, "searchQuery", "gl");
         Reflect.set(ui, "searchHits", first);
         Reflect.call(ui, "renderSearch", new Class<?>[0]);
-        settle();
+        Reflect.settle();
         assertNotNull("The best match is a top result card", text(root, "Top result · Song"));
         shot(root, "search-top-result");
         View nightBus = text(root, "Night Bus");
@@ -150,15 +150,15 @@ public class HomeEffectsTest {
     @Test public void equalizerShowsTheSpectrumAndDrawsTheHeadphoneCurveIn() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
-        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.settle();
+        SpatchUi ui = Reflect.find(root, SpatchUi.class);
         org.robolectric.Shadows.shadowOf(activity.getApplication()).grantPermissions(Audio.PERMISSION);
         Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "SETTINGS"));
-        settle();
+        Reflect.settle();
         View eqRow = text(root, "Equalizer & sound");
         while (!eqRow.isClickable()) eqRow = (View) eqRow.getParent();
         eqRow.performClick();
-        settle();
+        Reflect.settle();
         StringBuilder curve = new StringBuilder("GraphicEQ: ");
         for (int i = 0; i < 40; i++) {
             float hz = 20f * (float) Math.pow(1000f, i / 39f), gain = 6f * (float) Math.sin(i / 5f) - 2f;
@@ -168,7 +168,7 @@ public class HomeEffectsTest {
         for (int i = 0; i < Audio.BANDS.length; i++) Audio.BANDS[i] = .25f + .5f * (float) Math.abs(Math.sin(i / 4f));
         try {
             Reflect.call(ui, "activateProfile", new Class<?>[]{String.class, String.class}, "Studio Headphones", curve.toString());
-            settle();
+            Reflect.settle();
             View graph = byName(root, "EqualizerCurve");
             assertNotNull(graph);
             Reflect.set(ui, "revealAt", android.os.SystemClock.uptimeMillis() - 450);
@@ -189,10 +189,10 @@ public class HomeEffectsTest {
     @Test public void pullingTheLibraryDownReloadsItWithTheStretchingLoader() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
-        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.settle();
+        SpatchUi ui = Reflect.find(root, SpatchUi.class);
         Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "LIBRARY"));
-        settle();
+        Reflect.settle();
         View host = byName(root, "PullRefresh");
         assertNotNull(host);
         View blob = byName(host, "Blob");
@@ -214,16 +214,16 @@ public class HomeEffectsTest {
     @Test public void confirmationsDropInOnASpringAndTuckAway() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
-        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.settle();
+        SpatchUi ui = Reflect.find(root, SpatchUi.class);
         Reflect.call(ui, "toast", new Class<?>[]{CharSequence.class}, "Added to Liked Songs");
-        settle();
+        Reflect.settle();
         View pill = text(root, "Added to Liked Songs");
         assertNotNull("The confirmation is a pill in the app", pill);
         assertEquals("It settles in place", 0f, pill.getTranslationY(), 1f);
         shot(root, "toast");
         ShadowLooper.idleMainLooper(2600, java.util.concurrent.TimeUnit.MILLISECONDS);
-        settle();
+        Reflect.settle();
         assertTrue("Then it tucks away above the screen", pill.getTranslationY() < 0 || pill.getAlpha() < .1f);
         activity.finish();
     }
@@ -293,19 +293,4 @@ public class HomeEffectsTest {
         return null;
     }
 
-    private static <T> T find(View view, Class<T> type) {
-        if (type.isInstance(view)) return type.cast(view);
-        if (view instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) view).getChildCount(); i++) {
-            T found = find(((ViewGroup) view).getChildAt(i), type);
-            if (found != null) return found;
-        }
-        return null;
-    }
-
-    private static void settle() throws Exception {
-        for (int i = 0; i < 20; i++) {
-            Thread.sleep(25);
-            ShadowLooper.shadowMainLooper().idleFor(Duration.ofMillis(25));
-        }
-    }
 }

@@ -113,7 +113,7 @@ public class MacPreviewTest {
         PreviewActivity activity = controller.get();
         View root = activity.getWindow().getDecorView();
         SpatchUi ui = (SpatchUi) findType(root, SpatchUi.class);
-        settle();
+        Reflect.settle();
         ui.removeCallbacks((Runnable) field(ui, "poll"));
         android.content.SharedPreferences prefs = activity.getSharedPreferences("spatch_ui", 0);
         prefs.edit().putBoolean("home_recent", false).putBoolean("home_shelf_0", false)
@@ -199,12 +199,12 @@ public class MacPreviewTest {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class)
             .create().start().resume().visible().get();
         View root = activity.getWindow().getDecorView();
-        settle();
+        Reflect.settle();
         assertNotNull(find(root, "Here’s your music"));
         View account = find(root, "Account menu");
         assertNotNull(account);
         account.performClick();
-        settle();
+        Reflect.settle();
         java.lang.reflect.Field popupField = SpatchUi.class.getDeclaredField("accountMenu");
         popupField.setAccessible(true);
         View ui = findType(root, SpatchUi.class);
@@ -217,7 +217,7 @@ public class MacPreviewTest {
         // The whole menu row owns the click, while find() can return its text child.
         if (!settings.isClickable()) settings = (View) settings.getParent();
         settings.performClick();
-        settle();
+        Reflect.settle();
         assertNotNull(find(root, "Equalizer & sound"));
         assertNotNull(find(root, "Developer"));
         assertNull("Profile belongs in the account menu", find(root, "Account"));
@@ -239,26 +239,26 @@ public class MacPreviewTest {
         assertNull("Settings is in the account menu, not the bottom navigator", find(nav, "Settings"));
         // Settings -> Profile -> Your playlists -> Back -> Profile -> Back -> Settings
         find(root, "Account menu").performClick();
-        settle();
+        Reflect.settle();
         popup = (android.widget.PopupWindow) popupField.get(ui);
         View profileRow = find(popup.getContentView(), "Profile");
         if (!profileRow.isClickable()) profileRow = (View) profileRow.getParent();
         profileRow.performClick();
-        settle();
+        Reflect.settle();
         assertEquals("Opened Profile from Settings", 5, field(ui, "tab"));
         assertTrue("Profile exposes sign-in/switch-account option",
             find(root, "Sign in or switch account") != null);
         View playlistsRow = find(root, "Your playlists");
         if (!playlistsRow.isClickable()) playlistsRow = (View) playlistsRow.getParent();
         playlistsRow.performClick();
-        settle();
+        Reflect.settle();
         assertEquals("Your playlists opens Library", 2, field(ui, "tab"));
         assertNotNull("Library shows a back link to Profile", find(root, "Back to Profile"));
         ((SpatchUi) ui).back();
-        settle();
+        Reflect.settle();
         assertEquals("Back from Your playlists returns to Profile", 5, field(ui, "tab"));
         ((SpatchUi) ui).back();
-        settle();
+        Reflect.settle();
         assertEquals("Back from Profile returns to Settings", 3, field(ui, "tab"));
         android.content.SharedPreferences prefs = activity.getSharedPreferences("spatch_ui", 0);
         prefs.edit().putBoolean("reduce_motion", true).apply();
@@ -282,7 +282,7 @@ public class MacPreviewTest {
         assertNotNull(find(menu, "Playlist name"));
         assertNotNull(find(menu, "Cancel"));
         assertNotNull(find(menu, "Create playlist"));
-        settle();
+        Reflect.settle();
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
         screenshot(root, width, height, "create-playlist");
@@ -294,7 +294,7 @@ public class MacPreviewTest {
         drag(nav, 20, -30);
         assertEquals("Releasing outside the bar cancels navigation", 3, field(ui, "tab"));
         find(nav, "Library").performClick();
-        settle();
+        Reflect.settle();
         prefs.edit().putBoolean("reduce_motion", false).apply();
         java.lang.reflect.Field position = nav.getClass().getDeclaredField("indicatorX"); position.setAccessible(true);
         float before = position.getFloat(nav);
@@ -315,12 +315,12 @@ public class MacPreviewTest {
         touch(nav, gesture, 3, 45, -10);
         prefs.edit().putBoolean("reduce_motion", true).apply();
         find(root, "Account menu").performClick();
-        settle();
+        Reflect.settle();
         popup = (android.widget.PopupWindow) popupField.get(ui);
         View backToSettings = find(popup.getContentView(), "Settings");
         if (!backToSettings.isClickable()) backToSettings = (View) backToSettings.getParent();
         backToSettings.performClick();
-        settle();
+        Reflect.settle();
         Class<?>[] scrollTypes = {int.class, boolean.class};
         Reflect.call(ui, "scrollDock", scrollTypes, 100, false);
         assertEquals(false, field(ui, "dockHidden"));
@@ -332,7 +332,7 @@ public class MacPreviewTest {
         View appearance = find(root, "Appearance");
         if (!appearance.isClickable()) appearance = (View) appearance.getParent();
         appearance.performClick();
-        settle();
+        Reflect.settle();
         find(root, "Mote amount: Many").performClick();
         find(root, "Mote shapes: Stars").performClick();
         find(root, "Backdrop blur: Streaks").performClick();
@@ -343,7 +343,7 @@ public class MacPreviewTest {
         root.layout(0, 0, width, height);
         android.widget.ScrollView appearanceScroll = (android.widget.ScrollView) field(ui, "pageScroll");
         appearanceScroll.scrollTo(0, 760);
-        settle();
+        Reflect.settle();
         screenshot(root, width, height, "player-visuals-settings");
         find(root, "Floating motes").performClick();
         assertNull("Mote choices hide when disabled", find(root, "Mote amount"));
@@ -353,12 +353,12 @@ public class MacPreviewTest {
         assertNull("Blur choices hide when disabled", find(root, "Backdrop blur"));
         find(root, "Blurred backdrop").performClick();
         ((SpatchUi) ui).back();
-        settle();
+        Reflect.settle();
         View eqRow = find(root, "Equalizer & sound");
         assertNotNull(eqRow);
         if (!eqRow.isClickable()) eqRow = (View) eqRow.getParent();
         eqRow.performClick();
-        settle();
+        Reflect.settle();
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
         View curve = findClass(root, "EqualizerCurve");
@@ -377,7 +377,7 @@ public class MacPreviewTest {
         find(root, "Equalizer presets").performClick();
         find(root, "Saved curve").performClick();
         assertEquals(adjusted, Audio.gain(prefs, 5), .001f);
-        settle();
+        Reflect.settle();
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
         screenshot(root, width, height, "equalizer");
@@ -405,13 +405,6 @@ public class MacPreviewTest {
         File file = new File("build/reports/preview/" + name + ".png");
         file.getParentFile().mkdirs();
         try (FileOutputStream stream = new FileOutputStream(file)) { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)); }
-    }
-
-    private static void settle() throws Exception {
-        for (int i = 0; i < 20; i++) {
-            Thread.sleep(25);
-            ShadowLooper.shadowMainLooper().idleFor(Duration.ofMillis(25));
-        }
     }
 
     private static Object field(Object object, String name) throws Exception {

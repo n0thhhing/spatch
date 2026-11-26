@@ -25,7 +25,7 @@ public class LandscapeLayoutTest {
     @Test public void playlistFitsBesideItsTracks() throws Exception {
         PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
         ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
-        settle();
+        Reflect.settle();
         SpatchUi ui = findUi(root);
         ((Rect) field(ui, "inset")).set(55, 24, 0, 20);
         java.lang.reflect.Method targets = SpatchUi.class.getDeclaredMethod("nativePlaylistTargets");
@@ -37,7 +37,7 @@ public class LandscapeLayoutTest {
         build.setAccessible(true);
         build.invoke(ui);
         Reflect.call(ui, "openPlaylist", new Class<?>[]{MediaEntry.class}, entry.newInstance(playlist[0], "", playlist[2], "demo:1", 1));
-        settle();
+        Reflect.settle();
         int width = root.getWidth(), height = root.getHeight();
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
@@ -55,7 +55,7 @@ public class LandscapeLayoutTest {
     @Test public void recreatingKeepsThePlaylistAndPlayer() throws Exception {
         org.robolectric.android.controller.ActivityController<PreviewActivity> controller = Robolectric.buildActivity(PreviewActivity.class).setup().visible();
         ViewGroup root = (ViewGroup) controller.get().getWindow().getDecorView();
-        settle();
+        Reflect.settle();
         SpatchUi ui = findUi(root);
         java.lang.reflect.Method targets = SpatchUi.class.getDeclaredMethod("nativePlaylistTargets");
         targets.setAccessible(true);
@@ -64,9 +64,9 @@ public class LandscapeLayoutTest {
         entry.setAccessible(true);
         Reflect.call(ui, "openPlaylist", new Class<?>[]{MediaEntry.class}, entry.newInstance(playlist[0], "", playlist[2], "demo:1", 1));
         Reflect.call(ui, "openPlayer", new Class<?>[]{boolean.class}, false);
-        settle();
+        Reflect.settle();
         controller.recreate();
-        settle();
+        Reflect.settle();
         SpatchUi again = findUi((ViewGroup) controller.get().getWindow().getDecorView());
         assertNotSame("Android made a new screen", ui, again);
         assertEquals("The player is still open", Boolean.TRUE, field(again, "playerOpen"));
@@ -79,13 +79,6 @@ public class LandscapeLayoutTest {
         File file = new File("build/reports/preview/" + name + ".png");
         file.getParentFile().mkdirs();
         try (FileOutputStream stream = new FileOutputStream(file)) { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)); }
-    }
-
-    private static void settle() throws Exception {
-        for (int i = 0; i < 20; i++) {
-            Thread.sleep(25);
-            ShadowLooper.shadowMainLooper().idleFor(Duration.ofMillis(25));
-        }
     }
 
     private static Object field(Object object, String name) throws Exception {

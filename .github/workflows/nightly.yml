@@ -32,7 +32,6 @@ jobs:
       contents: read
     outputs:
       patches: ${{ steps.inputs.outputs.patches }}
-      manager: ${{ steps.inputs.outputs.manager }}
     steps:
       - uses: actions/checkout@v4
       - id: inputs

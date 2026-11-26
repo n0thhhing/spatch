@@ -27,10 +27,9 @@ cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked --features 
 
 mkdir -p "$work/classes" "$work/dex" "$(dirname "$out")"
 helpers=()
-for file in $(find "$repo/android/ui" -name '*.java' | sort); do
-    case "${file##*/}" in CoreBridge.java|DevIntegrity.java|SpatchApp.java|Subscriptions.java|SpotifyWeb.java) continue ;; esac
+while IFS= read -r file; do
     helpers+=("$file")
-done
+done < <(find "$repo/android/ui" -name '*.java' | sort | grep -vEf <(sed 's|.*|/&\\.java$|' "$here/excluded-sources.txt"))
 javac --release 11 -cp "$android" -d "$work/classes" "$here/src/spatch/PreviewActivity.java" "$here/src/spatch/CoreBridge.java" "${helpers[@]}"
 "$bt/d8" --release --min-api 29 --lib "$android" --output "$work/dex" "$work/classes"/spatch/*.class
 "$bt/aapt2" link -I "$android" --manifest "$here/AndroidManifest.xml" --min-sdk-version 29     --target-sdk-version 35 --version-code 1 --version-name 0.1 -o "$work/app.apk"

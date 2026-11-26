@@ -1,0 +1,5 @@
+CoreBridge
+DevIntegrity
+SpatchApp
+Subscriptions
+SpotifyWeb
