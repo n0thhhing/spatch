@@ -205,12 +205,12 @@ final class Controls {
     }
 
     /**
-     * The lobed loader: while `spinning` it turns and morphs from four to six to eight lobes; `stretch` (0..1) pulls it
-     * long and narrow from its top, like a drop about to fall, for pull to refresh.
+     * The Material 3 Expressive lobed loader: turns and morphs smoothly through four, six and eight lobes.
      */
     final class Blob extends View {
         boolean spinning;
-        float stretch;
+        float progress;
+        boolean accentFill;
         private final float[][] shapes = {SpatchUi.nativeGeometry("badge4"), SpatchUi.nativeGeometry("badge6"), SpatchUi.nativeGeometry("badge8")};
         private final long born = SystemClock.uptimeMillis();
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -219,27 +219,26 @@ final class Controls {
         Blob() { super(ui.activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
 
         @Override protected void onDraw(Canvas c) {
-            float r = getWidth() / 2f, t = spinning && ui.motion() ? (SystemClock.uptimeMillis() - born) / 700f : 0f;
-            int k = (int) t % 3;
+            float w = getWidth(), h = getHeight(), r = Math.min(w, h) * 0.44f;
+            if (r <= 0) return;
+            float t = spinning && ui.motion() ? (SystemClock.uptimeMillis() - born) / 680f : progress * 2f;
+            int k = ((int) t) % 3;
+            if (k < 0) k += 3;
             float f = t - (int) t;
-            f = f * f * (3 - 2 * f); // ease each morph, then hold briefly at the next shape
+            f = f * f * (3 - 2 * f);
             float[] a = shapes[k], b = shapes[(k + 1) % 3];
-            double turn = Math.toRadians(spinning ? t * 60f : stretch * 140f);
+            double turn = Math.toRadians(spinning ? t * 72f : progress * 220f);
             float cos = (float) Math.cos(turn), sin = (float) Math.sin(turn);
             path.rewind();
             for (int i = 0; i + 1 < a.length && i + 1 < b.length; i += 2) {
                 float px = a[i] + (b[i] - a[i]) * f, py = a[i + 1] + (b[i + 1] - a[i + 1]) * f;
-                float x = px * cos - py * sin, y = px * sin + py * cos; // the lobes turn inside the drop
-                // Stretched, it hangs from its top like a drop: longer, and narrow near the top, full and round below.
-                float down = (y + 1f) / 2f;
-                x *= 1f - stretch * .6f * (1f - down);
-                y = -1f + (y + 1f) * (1f + .95f * stretch);
+                float x = px * cos - py * sin, y = px * sin + py * cos;
                 if (i == 0) path.moveTo(x * r, y * r); else path.lineTo(x * r, y * r);
             }
             path.close();
             c.save();
-            c.translate(getWidth() / 2f, r); // the shape sits at the top; a taller view leaves room for it to hang
-            paint.setColor(SpatchUi.blend(ui.surfHi, ui.accent, .5f));
+            c.translate(w / 2f, h / 2f);
+            paint.setColor(accentFill ? ui.accent : SpatchUi.blend(ui.surfHi, ui.accent, .5f));
             c.drawPath(path, paint);
             c.restore();
             if (spinning && ui.motion() && isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateOnAnimation();
@@ -247,17 +246,15 @@ final class Controls {
     }
 
     /**
-     * Pull to refresh around a scrolling view. At the top, dragging down brings the loader down after the finger,
-     * stretching like a drop; let go past the mark and it snaps round, spins and morphs while `refresh` runs (until
-     * `busy` turns false), then shrinks away. Short of the mark it just goes back up.
+     * Pull to refresh around a scrolling view: a contained tonal circle holding the morphing Expressive loader.
      */
     final class PullRefresh extends android.widget.FrameLayout {
         private final java.util.function.Supplier<View> scrolling;
         private final Runnable refresh;
         private final java.util.function.BooleanSupplier busy;
+        private final android.widget.FrameLayout badge = new android.widget.FrameLayout(ui.activity);
         private final Blob blob = new Blob();
-        private final int size = ui.dp(40), tall = ui.dp(40) * 2, slop = android.view.ViewConfiguration.get(ui.activity).getScaledTouchSlop();
-        private final Spring settle = new Spring(0f, 18f, .4f, v -> { blob.stretch = v; blob.invalidate(); });
+        private final int size = ui.dp(44), hideY = -ui.dp(56), slop = android.view.ViewConfiguration.get(ui.activity).getScaledTouchSlop();
         private float downY;
         private boolean pulling, refreshing;
 
@@ -266,21 +263,31 @@ final class Controls {
             this.scrolling = scrolling;
             this.refresh = refresh;
             this.busy = busy;
-            blob.setAlpha(0f);
-            blob.setTranslationY(-tall);
+            blob.accentFill = true;
+            android.graphics.drawable.GradientDrawable badgeBg = ui.round(ui.surfHi, 22);
+            badge.setBackground(badgeBg);
+            ui.colored(badge, () -> {
+                badgeBg.setColor(ui.surfHi);
+                badgeBg.setStroke(Math.max(1, ui.dp(1f)), (ui.ink & 0x00ffffff) | 0x1a000000);
+                blob.invalidate();
+            });
+            badge.setElevation(ui.dp(6));
+            badge.addView(blob, new android.widget.FrameLayout.LayoutParams(ui.dp(28), ui.dp(28), Gravity.CENTER));
+            badge.setAlpha(0f);
+            badge.setTranslationY(hideY);
             setClipChildren(true);
-            addView(blob, new android.widget.FrameLayout.LayoutParams(size, tall, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+            addView(badge, new android.widget.FrameLayout.LayoutParams(size, size, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
         }
 
         // The page swaps its content in and out of this view; the loader stays, above whatever is shown.
         @Override public void removeAllViews() {
             super.removeAllViews();
-            addView(blob, new android.widget.FrameLayout.LayoutParams(size, tall, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+            addView(badge, new android.widget.FrameLayout.LayoutParams(size, size, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
         }
 
         @Override public void onViewAdded(View child) {
             super.onViewAdded(child);
-            if (child != blob && blob.getParent() == this) blob.bringToFront();
+            if (child != badge && badge.getParent() == this) badge.bringToFront();
         }
 
         @Override public boolean onInterceptTouchEvent(MotionEvent e) {
@@ -293,15 +300,20 @@ final class Controls {
 
         @Override public boolean onTouchEvent(MotionEvent e) {
             if (!pulling) return super.onTouchEvent(e);
-            float pull = Math.min(ui.dp(150), Math.max(0f, e.getY() - downY - slop) * .5f); // it gets heavier the further it goes
+            float pull = Math.min(ui.dp(140), Math.max(0f, e.getY() - downY - slop) * .5f);
             int action = e.getActionMasked();
             if (action == MotionEvent.ACTION_MOVE) {
-                settle.snap(Math.min(1f, pull / ui.dp(110)));
-                blob.setTranslationY(pull - size * (1f + .95f * blob.stretch)); // the drop's tip follows the finger
-                blob.setAlpha(Math.min(1f, pull / ui.dp(40)));
+                float p = Math.min(1f, pull / ui.dp(90));
+                blob.progress = p;
+                blob.invalidate();
+                float s = 0.65f + 0.35f * p;
+                badge.setScaleX(s);
+                badge.setScaleY(s);
+                badge.setTranslationY(hideY + (ui.dp(14) - hideY) * p + Math.max(0f, pull - ui.dp(90)) * 0.25f);
+                badge.setAlpha(Math.min(1f, pull / ui.dp(32)));
             } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 pulling = false;
-                if (pull > ui.dp(70) && action == MotionEvent.ACTION_UP) start();
+                if (pull > ui.dp(68) && action == MotionEvent.ACTION_UP) start();
                 else retract();
             }
             return true;
@@ -310,28 +322,31 @@ final class Controls {
         private void start() {
             refreshing = true;
             ui.tick(this);
-            settle.to(0f); // snaps round with a little overshoot
             blob.spinning = true;
-            blob.animate().translationY(ui.dp(14)).setDuration(260).setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+            badge.animate().cancel();
+            badge.animate().translationY(ui.dp(14)).scaleX(1f).scaleY(1f).alpha(1f).setDuration(240)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
             blob.invalidate();
             refresh.run();
             postDelayed(new Runnable() {
                 @Override public void run() {
                     if (busy.getAsBoolean() && isAttachedToWindow()) { postDelayed(this, 120); return; }
                     refreshing = false;
-                    blob.animate().scaleX(0f).scaleY(0f).alpha(0f).setDuration(220).withEndAction(() -> {
+                    badge.animate().scaleX(0.5f).scaleY(0.5f).alpha(0f).setDuration(200).withEndAction(() -> {
                         blob.spinning = false;
-                        blob.setScaleX(1f);
-                        blob.setScaleY(1f);
-                        blob.setTranslationY(-tall);
+                        blob.progress = 0f;
+                        badge.setScaleX(1f);
+                        badge.setScaleY(1f);
+                        badge.setTranslationY(hideY);
                     }).start();
                 }
             }, 300);
         }
 
         private void retract() {
-            settle.to(0f);
-            blob.animate().translationY(-tall).alpha(0f).setDuration(200).setInterpolator(SpatchUi.EMPHASIZED).start();
+            badge.animate().cancel();
+            badge.animate().translationY(hideY).scaleX(0.65f).scaleY(0.65f).alpha(0f).setDuration(200)
+                .setInterpolator(SpatchUi.EMPHASIZED).withEndAction(() -> { blob.progress = 0f; }).start();
         }
     }
 
