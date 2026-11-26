@@ -20,6 +20,7 @@ final class LyricsProto {
 
     static Lyrics decode(byte[] bytes) {
         java.util.ArrayList<int[]> lines = new java.util.ArrayList<>();
+        long syncType = -1;
         LyricsProto wrapper = new LyricsProto(bytes, 0, bytes.length);
         while (wrapper.pos < wrapper.end) {
             int tag = (int) wrapper.varint();
@@ -27,16 +28,30 @@ final class LyricsProto {
             LyricsProto lyrics = wrapper.message();
             while (lyrics.pos < lyrics.end) {
                 int t = (int) lyrics.varint();
-                if (t == 18) { LyricsProto m = lyrics.message(); lines.add(new int[]{m.pos, m.end}); }
+                if (t == 8) syncType = lyrics.varint();
+                else if (t == 18) { LyricsProto m = lyrics.message(); lines.add(new int[]{m.pos, m.end}); }
                 else lyrics.skip(t);
             }
         }
         Lyrics out = new Lyrics(lines.size());
-        for (int i = 0; i < out.words.length; i++) line(new LyricsProto(bytes, lines.get(i)[0], lines.get(i)[1]), out, i);
+        int withSync = 0, wordTimed = 0;
+        for (int i = 0; i < out.words.length; i++) {
+            if (line(new LyricsProto(bytes, lines.get(i)[0], lines.get(i)[1]), out, i)) withSync++;
+            if (out.wordAt[i] != null) wordTimed++;
+        }
+        // Says per song whether Spotify sent word timing at all, and whether the length check kept it, so a song
+        // without word-by-word highlighting can be told apart from a decoding problem in logcat (tag SpatchLyrics).
+        try {
+            android.util.Log.i("SpatchLyrics", "spotify lyrics: lines=" + lines.size() + " syncType=" + syncType
+                + " linesWithSyncData=" + withSync + " wordTimed=" + wordTimed);
+        } catch (RuntimeException noAndroidLog) {
+            // Plain JVM tests have no Android log.
+        }
         return out;
     }
 
-    private static void line(LyricsProto in, Lyrics out, int i) {
+    /** Fills line i; true when the line carried word timing (whether or not it passed the length check). */
+    private static boolean line(LyricsProto in, Lyrics out, int i) {
         java.util.ArrayList<long[]> syllables = new java.util.ArrayList<>();
         out.words[i] = "";
         while (in.pos < in.end) {
@@ -56,7 +71,7 @@ final class LyricsProto {
                 syllables.add(one);
             } else in.skip(tag);
         }
-        if (syllables.isEmpty()) return;
+        if (syllables.isEmpty()) return false;
         int[] at = new int[syllables.size()];
         long[] when = new long[at.length];
         int offset = 0;
@@ -66,6 +81,7 @@ final class LyricsProto {
             offset += (int) syllables.get(k)[1];
         }
         if (offset <= out.words[i].length()) { out.wordAt[i] = at; out.wordStart[i] = when; }
+        return true;
     }
 
     private long varint() {
