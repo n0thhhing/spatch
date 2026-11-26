@@ -140,12 +140,31 @@ pub fn edit_queue<T>(tracks: &mut Vec<T>, index: usize, action: i32, editable: i
     }
 }
 
+/// Moves the track at `from` to `to` (a dragged queue row), one step at a time so every place it passes must be
+/// editable too. All or nothing: a move that can't finish leaves `tracks` as it was.
+pub fn move_in_queue<T: Clone>(tracks: &mut Vec<T>, from: usize, to: usize, editable: impl Fn(&T) -> bool + Copy) -> bool {
+    let mut moved = tracks.clone();
+    let mut at = from;
+    while at != to {
+        let (step, next) = if to > at { (12, at + 1) } else { (11, at - 1) };
+        if !edit_queue(&mut moved, at, step, editable) {
+            return false;
+        }
+        at = next;
+    }
+    *tracks = moved;
+    from != to
+}
+
 #[cfg(not(feature = "preview"))]
-pub fn queue_edit_request(queue: &es::Queue, index: usize, action: i32) -> Option<es::SetQueueRequest> {
+pub fn queue_edit_request(queue: &es::Queue, index: usize, action: i32, to: usize) -> Option<es::SetQueueRequest> {
     let mut next_tracks = queue.next_tracks.clone();
-    let (raw_index, _) = next_tracks.iter().enumerate()
-        .filter(|(_, track)| visible_track(track)).nth(index)?;
-    if !edit_queue(&mut next_tracks, raw_index, action, |track| track.provider == "queue" && visible_track(track)) {
+    let raw = |visible: usize| next_tracks.iter().enumerate().filter(|(_, track)| visible_track(track)).nth(visible).map(|(i, _)| i);
+    let raw_index = raw(index)?;
+    let raw_to = if action == 15 { raw(to)? } else { raw_index };
+    let editable = |track: &es::ProvidedTrack| track.provider == "queue" && visible_track(track);
+    let done = if action == 15 { move_in_queue(&mut next_tracks, raw_index, raw_to, editable) } else { edit_queue(&mut next_tracks, raw_index, action, editable) };
+    if !done {
         return None;
     }
     Some(es::SetQueueRequest {
@@ -392,6 +411,19 @@ mod tests {
         assert_eq!(queue, ["first", "context"]);
     }
 
+    #[test]
+    fn a_dragged_track_moves_across_queued_tracks_only() {
+        let queued = |track: &&str| *track != "context";
+        let mut queue = vec!["a", "b", "c", "context"];
+        assert!(move_in_queue(&mut queue, 0, 2, queued));
+        assert_eq!(queue, ["b", "c", "a", "context"]);
+        assert!(move_in_queue(&mut queue, 2, 0, queued));
+        assert_eq!(queue, ["a", "b", "c", "context"]);
+        assert!(!move_in_queue(&mut queue, 1, 3, queued), "past the queued tracks");
+        assert_eq!(queue, ["a", "b", "c", "context"], "a refused move changes nothing");
+        assert!(!move_in_queue(&mut queue, 1, 1, queued));
+    }
+
     #[cfg(not(feature = "preview"))]
     #[test]
     fn queue_edit_preserves_revision_history_and_delimiters() {
@@ -404,11 +436,11 @@ mod tests {
             prev_tracks: vec![provided("spotify:track:1", "Previous", "")],
             ..Default::default()
         };
-        let request = queue_edit_request(&queue, 0, 10).unwrap();
+        let request = queue_edit_request(&queue, 0, 10, 0).unwrap();
         assert_eq!(request.queue_revision, 42);
         assert_eq!(request.prev_tracks, queue.prev_tracks);
         assert_eq!(request.next_tracks, [delimiter, context]);
-        assert!(queue_edit_request(&queue, 1, 10).is_none());
+        assert!(queue_edit_request(&queue, 1, 10, 0).is_none());
     }
 
     #[test]

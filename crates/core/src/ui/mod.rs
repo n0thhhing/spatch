@@ -570,8 +570,10 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
             uri: target,
             shuffle: match value { 1 => Some(true), 2 => Some(false), _ => None },
         },
-        8 | 10..=12 => {
+        8 | 10..=12 | 15 => {
             let key = target;
+            // A drag (15) packs where the row ends up in the high 32 bits and where it started in the low ones.
+            let (value, to) = if action == 15 { (value & 0xffff_ffff, (value >> 32) as usize) } else { (value, 0) };
             let Ok(index) = usize::try_from(value) else { return JNI_FALSE };
             let mut state = PLAYER.lock().unwrap();
             let Some(now) = state.1.as_mut() else { return JNI_FALSE };
@@ -587,7 +589,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
             } else {
                 #[cfg(feature = "preview")]
                 {
-                    if !player::edit_queue(&mut now.up_next, index, action, |t| t.queued) {
+                    let done = if action == 15 { player::move_in_queue(&mut now.up_next, index, to, |t| t.queued) } else { player::edit_queue(&mut now.up_next, index, action, |t| t.queued) };
+                    if !done {
                         return JNI_FALSE;
                     }
                     now.queue_revision += 1;
@@ -599,7 +602,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
                 }
                 #[cfg(not(feature = "preview"))]
                 {
-                    let Some(request) = full_queue.and_then(|q| player::queue_edit_request(q, index, action)) else {
+                    let Some(request) = full_queue.and_then(|q| player::queue_edit_request(q, index, action, to)) else {
                         return JNI_FALSE;
                     };
                     let request = request.encode_to_vec();

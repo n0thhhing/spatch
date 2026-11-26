@@ -1325,50 +1325,15 @@ final class PlayerScreen {
         for (int i = 0; i < ui.upcoming.size(); i++) {
             final int index = i;
             MediaEntry entry = ui.upcoming.get(i);
-            LinearLayout line = ui.row();
+            LinearLayout line = entry.editable ? new QueueRow(tracks, index, entry) : ui.row();
             Row song = ui.new Row();
             song.bind(entry);
             song.setOnClickListener(v -> ui.command(SKIP_TO, index, entry.queueKey));
             line.addView(song, ui.weight());
             View options = ui.iconButton(ui.icon("more", () -> ui.inkDim), "Queue options for " + entry.title, .90f, () -> queueActions(index, entry));
             line.addView(options, ui.lp(ui.dp(48), ui.dp(48)));
-            song.setOnLongClickListener(v -> { queueActions(index, entry); return true; });
-            if (entry.editable) {
-                float[] startX = { 0f };
-                boolean[] swiping = { false };
-                line.setOnTouchListener((v, e) -> {
-                    switch (e.getActionMasked()) {
-                        case android.view.MotionEvent.ACTION_DOWN:
-                            startX[0] = e.getRawX();
-                            swiping[0] = false;
-                            return false;
-                        case android.view.MotionEvent.ACTION_MOVE:
-                            float dx = e.getRawX() - startX[0];
-                            if (!swiping[0] && Math.abs(dx) > ui.dp(14)) {
-                                swiping[0] = true;
-                                v.getParent().requestDisallowInterceptTouchEvent(true);
-                            }
-                            if (swiping[0]) {
-                                line.setTranslationX(dx);
-                                line.setAlpha(1f - Math.min(1f, Math.abs(dx) / ui.dp(160)));
-                                return true;
-                            }
-                            return false;
-                        case android.view.MotionEvent.ACTION_UP:
-                        case android.view.MotionEvent.ACTION_CANCEL:
-                            if (!swiping[0]) return false;
-                            float endDx = e.getRawX() - startX[0];
-                            if (Math.abs(endDx) > ui.dp(96)) {
-                                line.animate().translationX(Math.signum(endDx) * ui.dp(240)).alpha(0f).setDuration(160)
-                                    .withEndAction(() -> ui.command(10, index, entry.queueKey)).start();
-                            } else {
-                                line.animate().translationX(0f).alpha(1f).setDuration(180).start();
-                            }
-                            return true;
-                    }
-                    return false;
-                });
-            }
+            // Editable rows lift on a long press instead (QueueRow): a press and release there opens these same options.
+            if (!entry.editable) song.setOnLongClickListener(v -> { queueActions(index, entry); return true; });
             tracks.addView(line, ui.fill(-2));
             if (cascade && ui.motion() && i < 12) { // the first rows cascade in when the queue opens
                 line.setAlpha(0f);
@@ -1377,6 +1342,162 @@ final class PlayerScreen {
             }
         }
         if (ui.upcoming.isEmpty()) tracks.addView(ui.emptyState("queue", "badge4", "Nothing queued after this", "Add songs from any list with Add to queue"), ui.fill(-2));
+    }
+
+    /**
+     * A song you queued yourself. Swipe it sideways and it slides off while the rows below close the gap. Hold it and it
+     * lifts (a shadow and a slight tilt); drag it and the rows it passes slide out of its way, and letting go moves it
+     * there. Hold and let go without moving opens its options. It intercepts the touch only once one of these starts,
+     * so taps still play the song.
+     */
+    private final class QueueRow extends LinearLayout {
+        private static final int NONE = 0, SWIPE = 1, LIFTED = 2, DRAG = 3;
+        private final LinearLayout tracks;
+        private final int index;
+        private final MediaEntry entry;
+        private float startX, startY;
+        private int mode, target;
+        private final int slop = android.view.ViewConfiguration.get(ui.activity).getScaledTouchSlop();
+        private final Runnable lift = this::lift;
+
+        QueueRow(LinearLayout tracks, int index, MediaEntry entry) {
+            super(ui.activity);
+            this.tracks = tracks;
+            this.index = index;
+            this.entry = entry;
+            setGravity(Gravity.CENTER_VERTICAL);
+        }
+
+        @Override public boolean onInterceptTouchEvent(android.view.MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    startX = e.getRawX();
+                    startY = e.getRawY();
+                    mode = NONE;
+                    postDelayed(lift, android.view.ViewConfiguration.getLongPressTimeout());
+                    return false;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    float dx = e.getRawX() - startX, dy = e.getRawY() - startY;
+                    if (mode == LIFTED) { mode = DRAG; return true; }
+                    if (mode == NONE && Math.abs(dx) > slop && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                        removeCallbacks(lift);
+                        mode = SWIPE;
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                        return true;
+                    }
+                    if (mode == NONE && Math.abs(dy) > slop) removeCallbacks(lift); // the list is scrolling
+                    return false;
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    removeCallbacks(lift);
+                    if (mode == LIFTED) { drop(false); return true; } // a long press without a drag: the options
+                    return false;
+            }
+            return false;
+        }
+
+        @Override public boolean onTouchEvent(android.view.MotionEvent e) {
+            int action = e.getActionMasked();
+            if (mode == SWIPE) {
+                float dx = e.getRawX() - startX;
+                if (action == android.view.MotionEvent.ACTION_MOVE) {
+                    setTranslationX(dx);
+                    setAlpha(1f - Math.min(1f, Math.abs(dx) / ui.dp(160)));
+                } else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+                    if (Math.abs(dx) > ui.dp(96) && action == android.view.MotionEvent.ACTION_UP) swipeAway(dx);
+                    else animate().translationX(0f).alpha(1f).setDuration(180).start();
+                    mode = NONE;
+                }
+                return true;
+            }
+            if (mode == LIFTED || mode == DRAG) {
+                if (action == android.view.MotionEvent.ACTION_MOVE) {
+                    mode = DRAG;
+                    drag(e.getRawY() - startY);
+                } else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+                    drop(mode == DRAG && action == android.view.MotionEvent.ACTION_UP);
+                }
+                return true;
+            }
+            return super.onTouchEvent(e);
+        }
+
+        private void lift() {
+            if (mode != NONE) return;
+            mode = LIFTED;
+            target = index;
+            getParent().requestDisallowInterceptTouchEvent(true);
+            if (ui.pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            setBackground(ui.round(ui.surfHi, 18)); // gives the shadow an outline to fall from
+            animate().scaleX(1.03f).scaleY(1.03f).rotation(-1.2f).translationZ(ui.dp(10)).setDuration(180)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+        }
+
+        /** Follows the finger; the rows between where it was and where it would land slide one row the other way. */
+        private void drag(float dy) {
+            setTranslationY(dy);
+            float h = getHeight();
+            if (h <= 0) return;
+            int first = index, last = index;
+            while (first > 0 && ui.upcoming.get(first - 1).editable) first--;
+            while (last + 1 < ui.upcoming.size() && ui.upcoming.get(last + 1).editable) last++;
+            int next = Math.max(first, Math.min(last, index + Math.round(dy / h)));
+            if (next == target) return;
+            target = next;
+            if (ui.pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+            for (int i = 0; i < tracks.getChildCount(); i++) {
+                View child = tracks.getChildAt(i);
+                if (!(child instanceof QueueRow) || child == this) continue;
+                int at = ((QueueRow) child).index;
+                float shift = index < at && at <= target ? -h : target <= at && at < index ? h : 0f;
+                if (child.getTag() == null || (Float) child.getTag() != shift) {
+                    child.setTag(shift);
+                    child.animate().translationY(shift).setDuration(180).setInterpolator(SpatchUi.EMPHASIZED).start();
+                }
+            }
+        }
+
+        private void drop(boolean moved) {
+            int to = target;
+            boolean moving = moved && to != index;
+            mode = NONE;
+            float h = getHeight();
+            animate().scaleX(1f).scaleY(1f).rotation(0f).translationZ(0f).translationY(moving ? (to - index) * h : 0f).setDuration(200)
+                .setInterpolator(SpatchUi.EMPHASIZED).withEndAction(() -> setBackground(null)).start();
+            if (!moving) {
+                settleOthers();
+                if (!moved) queueActions(index, entry);
+                return;
+            }
+            ui.command(15, ((long) to << 32) | index, entry.queueKey);
+            // The queue redraws when the moved queue arrives; if it doesn't (the move was refused), everything eases back.
+            postDelayed(() -> {
+                if (!isAttachedToWindow()) return;
+                animate().translationY(0f).setDuration(200).start();
+                settleOthers();
+            }, 900);
+        }
+
+        private void settleOthers() {
+            for (int i = 0; i < tracks.getChildCount(); i++) {
+                View child = tracks.getChildAt(i);
+                if (child instanceof QueueRow && child != this) { child.setTag(null); child.animate().translationY(0f).setDuration(180).start(); }
+            }
+        }
+
+        /** Slides off the side, then the rows below rise to close the gap before the queue is redrawn without it. */
+        private void swipeAway(float dx) {
+            float h = getHeight();
+            animate().translationX(Math.signum(dx) * getWidth()).alpha(0f).setDuration(160).withEndAction(() -> {
+                boolean below = false;
+                for (int i = 0; i < tracks.getChildCount(); i++) {
+                    View child = tracks.getChildAt(i);
+                    if (child == this) { below = true; continue; }
+                    if (below) child.animate().translationY(-h).setDuration(200).setInterpolator(SpatchUi.EMPHASIZED).start();
+                }
+                postDelayed(() -> ui.command(10, index, entry.queueKey), 200);
+            }).start();
+        }
     }
 
     private void queueActions(int index, MediaEntry entry) {
