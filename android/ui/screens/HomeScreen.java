@@ -428,10 +428,7 @@ final class HomeScreen {
             }
             if (peak < .004f) { lastFrame = 0; return; } // flat: nothing to draw, and no next frame asked for
             if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
-                if (waveShader == null) {
-                    String src = GpuFx.source("spectrum");
-                    if (src != null) waveShader = new android.graphics.RuntimeShader(src);
-                }
+                if (waveShader == null) waveShader = GpuFx.shader("spectrum");
                 if (waveShader != null) {
                     android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) waveShader;
                     rs.setFloatUniform("rect", 0f, 0f, w, h);

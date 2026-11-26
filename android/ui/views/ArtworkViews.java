@@ -532,10 +532,7 @@ final class ArtworkViews {
         /** Two soft offset pools of the palette's colours behind the cover; dithered shader on GPU, radial gradients as fallback. */
         private void glow(Canvas c, float cx, float cy, float half) {
             if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
-                if (haloShader == null) {
-                    String src = GpuFx.source("halo");
-                    if (src != null) haloShader = new android.graphics.RuntimeShader(src);
-                }
+                if (haloShader == null) haloShader = GpuFx.shader("halo");
                 if (haloShader != null) {
                     android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) haloShader;
                     rs.setFloatUniform("center", cx, cy);
@@ -569,10 +566,7 @@ final class ArtworkViews {
         private void tiltSheen(Canvas c, float cx, float cy, float radius) {
             if (tiltStrength <= .004f) return;
             if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
-                if (haloShader == null) {
-                    String src = GpuFx.source("halo");
-                    if (src != null) haloShader = new android.graphics.RuntimeShader(src);
-                }
+                if (haloShader == null) haloShader = GpuFx.shader("halo");
                 if (haloShader != null) {
                     android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) haloShader;
                     rs.setFloatUniform("center", cx, cy);

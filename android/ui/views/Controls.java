@@ -721,10 +721,7 @@ final class Controls {
             float phase = (SystemClock.uptimeMillis() % 1600) / 1600f;
             float thumbR = ui.dp(preview >= 0 ? 9 : 6);
             if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
-                if (waveShader == null) {
-                    String src = GpuFx.source("wavy_progress");
-                    if (src != null) waveShader = new android.graphics.RuntimeShader(src);
-                }
+                if (waveShader == null) waveShader = GpuFx.shader("wavy_progress");
             }
             if (waveShader != null && GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
                 android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) waveShader;

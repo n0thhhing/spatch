@@ -79,10 +79,7 @@ final class Dock {
                 c.restore();
                 tint = (tint & 0x00ffffff) | 0xb8000000; // the glass: the pill's colour, letting the blurred page through
                 if (GpuFx.shaders(ui.prefs)) {
-                    if (frostShader == null) {
-                        String src = GpuFx.source("frost");
-                        if (src != null) frostShader = new android.graphics.RuntimeShader(src);
-                    }
+                    if (frostShader == null) frostShader = GpuFx.shader("frost");
                     if (frostShader != null) {
                         android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) frostShader;
                         rs.setFloatUniform("size", b.width(), b.height());

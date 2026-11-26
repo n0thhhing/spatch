@@ -15,8 +15,24 @@ final class GpuFx {
 
     static boolean blur(SharedPreferences prefs) { return Build.VERSION.SDK_INT >= 31 && prefs.getBoolean("gpu_fx", true); }
 
+    private static final java.util.Set<String> FAILED = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
     /** A shader's AGSL source, by name (field, ring, grain, wavy_progress, halo, frost, spectrum): the .agsl files live with the Rust library. */
     static String source(String name) { return nativeShader(name); }
+
+    /** Compiles an AGSL RuntimeShader by name, returning null (and remembering the failure) so callers fall back cleanly. */
+    static android.graphics.Shader shader(String name) {
+        if (Build.VERSION.SDK_INT < 33 || FAILED.contains(name)) return null;
+        String src = source(name);
+        if (src == null) { FAILED.add(name); return null; }
+        try {
+            return new android.graphics.RuntimeShader(src);
+        } catch (RuntimeException e) {
+            FAILED.add(name);
+            android.util.Log.w("SpatchUi", "AGSL shader '" + name + "' failed to compile; using Canvas fallback", e);
+            return null;
+        }
+    }
 
     private static native String nativeShader(String name);
 

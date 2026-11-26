@@ -17,7 +17,7 @@ float sampleBand(int i) {
 float heightAt(float u, int n) {
   float pos = clamp(u, 0.0, 1.0) * float(n - 1);
   int i0 = int(floor(pos));
-  int i1 = min(n - 1, i0 + 1);
+  int i1 = i0 + 1 < n ? i0 + 1 : n - 1;
   float f = pos - float(i0);
   // Smooth cosine easing between bands produces a silkier crest than linear segments.
   float s = f * f * (3.0 - 2.0 * f);

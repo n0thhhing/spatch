@@ -366,10 +366,7 @@ final class SoundSettings {
             }
             if (peak < .004f) { lastFrame = 0; return false; }
             if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
-                if (spectrumShader == null) {
-                    String src = GpuFx.source("spectrum");
-                    if (src != null) spectrumShader = new android.graphics.RuntimeShader(src);
-                }
+                if (spectrumShader == null) spectrumShader = GpuFx.shader("spectrum");
                 if (spectrumShader != null) {
                     java.util.Arrays.fill(specBins, 0f);
                     for (int i = 0; i < spectrum.length; i++) {
