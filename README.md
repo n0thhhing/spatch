@@ -82,17 +82,7 @@ DEX. Signed patches and Manager bundles also include the ARM64 Rust library. See
 
 ## Integrity diagnostics
 
-Settings → Developer has two default-off experiments: **Skip integrity attestation** and
-**Trace signature reads**. The integrity choice selects either suppressing the verification request
-with a default protobuf reply or forwarding a copy with an empty token. Restart after changing a
-setting and confirm a new `SpatchIntegrity` verification log before comparing playback; Spotify's
-session plugin may run only once per day. No account data needs clearing.
-
-These controls test an unproven explanation for free-account metadata and playback failures.
-They do not establish that free accounts need an integrity workaround. Tracing logs certificate
-digests, request sizes, caller types and matching event/request bodies, never tokens or full bodies.
-A missing match is inconclusive: streamed/compressed bodies and traffic inside the native core
-are outside the byte scanner's coverage. See [the diagnostic hook map](docs/spotify-map.md#integrity-diagnostics).
+The diagnostics were removed and live in the tag `integrity-diagnostics-2026-11-26`.
 
 ## Checks
 
@@ -101,7 +91,6 @@ cargo test --locked
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --manifest-path crates/core/Cargo.toml --features preview --locked
 python3 android/tests/nightly-inputs.py
-JAVA_HOME=/path/to/jdk python3 android/tests/integrity-diagnostics.py
 JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 android/tests/java-contracts.py
 preview/mac.sh --check
 ```

@@ -17,7 +17,7 @@ the earlier Spotify-UI patch. Start changes from `fresh`; keep the pinned input 
 | `crates/core/src/eq.rs`, `spectrum.rs`, `autoeq.rs` | DSP math, FFT analysis and headphone catalog parsing |
 | `android/ui/views/` | Shared views (`SpatchUi.java`, `Dock.java`, `ArtworkViews.java`, `Controls.java`, `MediaEntry.java`, `ProgressMotion.java`, `Blur.java`, `Confetti.java`, `GpuFx.java`) |
 | `android/ui/screens/` | App screens (`HomeScreen.java`, `PlayerScreen.java`, `PlaylistScreen.java`, `LibraryScreen.java`, `SearchScreen.java`, `SettingsScreen.java`, `SoundSettings.java`, `Downloads.java`, `CreationSheet.java`, `AboutScreen.java`) |
-| `android/ui/bridge/` | Spotify bridge (`CoreBridge.java`, `Subscriptions.java`, `SpatchApp.java`, `PackedStrings.java`, `PublicTrackMetadata.java`, `WebAuth.java`, `DevIntegrity.java`, `SpotifyWeb.java`) |
+| `android/ui/bridge/` | Spotify bridge (`CoreBridge.java`, `Subscriptions.java`, `SpatchApp.java`, `PackedStrings.java`, `PublicTrackMetadata.java`, `WebAuth.java`, `SpotifyWeb.java`) |
 | `android/ui/audio/` | Android audio sessions/effects (`Audio.java`, `OfficialPlayback.java`) |
 | `android/ui/lyrics/` | Synced lyrics (`Lyrics.java`, `LyricGen.java`) |
 | `android/ui/widget/` | Home-screen widgets, persisted last-played state, background resume, exported `spatch.action.*` intents and Quick Settings tile (`SpatchWidget.java`, `SpatchWidgetSmall.java`, `PlaybackTile.java`) |
@@ -25,7 +25,7 @@ the earlier Spotify-UI patch. Start changes from `fresh`; keep the pinned input 
 | `android/stubs/` | Compile-only Spotify/RxJava signatures; never package them |
 | `preview/src/spatch/` | Shared Android preview host and offline Spotify boundary adapter |
 | `preview/desktop/` | Native Mac host build and rendered UI tests |
-| `android/tests/`, `preview/desktop/src/test/` | Java contract/math tests, desktop contract runners (`nightly-inputs.py`, `java-contracts.py`, `integrity-diagnostics.py`) and rendered UI regression checks |
+| `android/tests/`, `preview/desktop/src/test/` | Java contract/math tests, desktop contract runners (`nightly-inputs.py`, `java-contracts.py`) and rendered UI regression checks |
 | `tools/` | Nightly build script (`tools/nightly.sh`) and version-porting helpers (`tools/port/`) |
 
 Register production Java helpers in `crates/patcher/src/helpers.rs`. The preview excludes Spotify-only bridges

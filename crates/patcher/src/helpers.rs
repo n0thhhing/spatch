@@ -4,20 +4,6 @@ include!(concat!(env!("OUT_DIR"), "/helpers.rs"));
 
 /// Stand-ins used by javac, never packaged in the helper DEX.
 pub const STUBS: &[(&str, &str)] = &[
-    ("dmt0.java", include_str!("../../../android/stubs/p/dmt0.java")),
-    ("osm.java", include_str!("../../../android/stubs/p/osm.java")),
-    (
-        "VerifyRequest.java",
-        include_str!(
-            "../../../android/stubs/com/spotify/integrity/integrityimpl/proto/VerifyRequest.java"
-        ),
-    ),
-    (
-        "VerifyResponse.java",
-        include_str!(
-            "../../../android/stubs/com/spotify/integrity/integrityimpl/proto/VerifyResponse.java"
-        ),
-    ),
     ("x740.java", include_str!("../../../android/stubs/p/x740.java")),
     ("brs0.java", include_str!("../../../android/stubs/p/brs0.java")),
     ("gf60.java", include_str!("../../../android/stubs/p/gf60.java")),

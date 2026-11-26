@@ -284,11 +284,6 @@ final class SettingsScreen {
         }
         case 5: {
             LinearLayout developer = ui.controls.card(page, "Developer");
-            ui.controls.toggle(developer, "Skip integrity attestation", "Experiment only. Restart Spotify after changing; verification may run only once a day.",
-                "integrity_skip", false, false);
-            ui.controls.choice(developer, "Integrity experiment", new String[]{"Skip call", "Empty token"}, "integrity_variant", 0, false);
-            ui.controls.toggle(developer, "Trace signature reads", "Log certificate digests and matching request bodies. Restart to trace startup reads.",
-                "integrity_trace", false, false);
             ui.controls.settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
                 String report = "Build " + SpatchUi.nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
                     + "\nPlaying " + ui.playing + " · buffering " + ui.buffering
