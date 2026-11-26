@@ -481,43 +481,9 @@ final class ArtworkViews {
         private String shownUrl = ui.lastCoverUrl;
         private long fadeAt, lastFrame;
         private float bassBreath;
-        private float tiltX, tiltY, tiltStrength;
-        private final Controls.Spring springTiltX = new Controls.Spring(0f, 18f, .58f, v -> { tiltX = v; applyTilt(); });
-        private final Controls.Spring springTiltY = new Controls.Spring(0f, 18f, .58f, v -> { tiltY = v; applyTilt(); });
-        private final Controls.Spring springTiltOn = new Controls.Spring(0f, 20f, .72f, v -> { tiltStrength = v; invalidate(); });
         private final float[] level = new float[36], ringTargets = new float[36];
 
-        Disc() {
-            super(ui.activity);
-            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-            setCameraDistance(ui.getResources().getDisplayMetrics().density * 4800f);
-        }
-
-        private void applyTilt() {
-            setRotationY(tiltX * 4.5f);
-            setRotationX(-tiltY * 4.5f);
-            invalidate();
-        }
-
-        void tilt(float nx, float ny) {
-            if (!ui.motion()) return;
-            springTiltX.to(Math.max(-1f, Math.min(1f, nx)));
-            springTiltY.to(Math.max(-1f, Math.min(1f, ny)));
-            springTiltOn.to(1f);
-        }
-
-        void releaseTilt() {
-            springTiltX.to(0f);
-            springTiltY.to(0f);
-            springTiltOn.to(0f);
-        }
-
-        @Override protected void onDetachedFromWindow() {
-            springTiltX.cancel();
-            springTiltY.cancel();
-            springTiltOn.cancel();
-            super.onDetachedFromWindow();
-        }
+        Disc() { super(ui.activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
 
         private void cover(Canvas c, Bitmap b, float cx, float cy, float radius, int alpha) {
             float k = Math.max(radius * 2 / b.getWidth(), radius * 2 / b.getHeight());
@@ -537,7 +503,6 @@ final class ArtworkViews {
                     android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) haloShader;
                     rs.setFloatUniform("center", cx, cy);
                     rs.setFloatUniform("params", half, bassBreath, 0f, ui.dark ? 1f : 0f);
-                    rs.setFloatUniform("tilt", tiltX, tiltY);
                     rs.setColorUniform("a", ui.accent);
                     rs.setColorUniform("b", ui.accent2);
                     paint.setStyle(Paint.Style.FILL);
@@ -560,32 +525,6 @@ final class ArtworkViews {
             c.drawCircle(cx, cy, half, paint);
             paint.setShader(glowB);
             c.drawCircle(cx, cy, half, paint);
-            paint.setShader(null);
-        }
-
-        private void tiltSheen(Canvas c, float cx, float cy, float radius) {
-            if (tiltStrength <= .004f) return;
-            if (GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
-                if (haloShader == null) haloShader = GpuFx.shader("halo");
-                if (haloShader != null) {
-                    android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) haloShader;
-                    rs.setFloatUniform("center", cx, cy);
-                    rs.setFloatUniform("params", radius, tiltStrength, 1f, ui.dark ? 1f : 0f);
-                    rs.setFloatUniform("tilt", tiltX, tiltY);
-                    rs.setColorUniform("a", ui.accent);
-                    rs.setColorUniform("b", ui.accent2);
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setShader(rs);
-                    c.drawCircle(cx, cy, radius, paint);
-                    paint.setShader(null);
-                    return;
-                }
-            }
-            float gx = cx + tiltX * radius * .45f, gy = cy + tiltY * radius * .45f;
-            int hi = (0x00ffffff) | (Math.round(52 * tiltStrength) << 24);
-            paint.setStyle(Paint.Style.FILL);
-            paint.setShader(new RadialGradient(gx, gy, Math.max(1f, radius * 1.15f), hi, 0x00ffffff, Shader.TileMode.CLAMP));
-            c.drawCircle(cx, cy, radius, paint);
             paint.setShader(null);
         }
 
@@ -673,7 +612,6 @@ final class ArtworkViews {
                 paint.setShader(null);
                 if (previous != null) cover(c, previous, cx, cy, pulseR, 255);
                 cover(c, shown, cx, cy, pulseR, Math.round(255 * fade));
-                tiltSheen(c, cx, cy, pulseR);
             } else {
                 paint.setColor(ui.surfHi);
                 c.drawCircle(cx, cy, pulseR, paint);

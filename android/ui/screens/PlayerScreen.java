@@ -859,7 +859,6 @@ final class PlayerScreen {
         v.setOnLongClickListener(view -> {
             if (ui.uri.isEmpty()) return false;
             menuOpened[0] = true;
-            if (view instanceof ArtworkViews.Disc) ((ArtworkViews.Disc) view).releaseTilt();
             view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
             ui.currentSongActions();
             return true;
@@ -882,13 +881,9 @@ final class PlayerScreen {
                 return true;
             }
             if (ui.player != null && ui.motion()) {
-                ArtworkViews.Disc disc = view instanceof ArtworkViews.Disc ? (ArtworkViews.Disc) view : null;
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
                         start[0] = e.getRawX(); start[1] = e.getRawY(); drag[0] = false;
-                        if (disc != null && view.getWidth() > 0 && view.getHeight() > 0) {
-                            disc.tilt((e.getX() - view.getWidth() * .5f) / (view.getWidth() * .5f), (e.getY() - view.getHeight() * .5f) / (view.getHeight() * .5f));
-                        }
                         if (tracker[0] != null) tracker[0].recycle();
                         tracker[0] = android.view.VelocityTracker.obtain();
                         tracker[0].addMovement(e);
@@ -898,7 +893,6 @@ final class PlayerScreen {
                         float dy = e.getRawY() - start[1], dx = e.getRawX() - start[0];
                         if (!drag[0] && dy > ui.dp(16) && dy > Math.abs(dx) * 1.4f) {
                             drag[0] = true;
-                            if (disc != null) disc.releaseTilt();
                             view.getParent().requestDisallowInterceptTouchEvent(true);
                             MotionEvent cancel = MotionEvent.obtain(e);
                             cancel.setAction(MotionEvent.ACTION_CANCEL);
@@ -911,14 +905,10 @@ final class PlayerScreen {
                             setPlayerDepth(1f - Math.min(1f, ty / Math.max(1, ui.getHeight())));
                             return true;
                         }
-                        if (disc != null && view.getWidth() > 0 && view.getHeight() > 0) {
-                            disc.tilt((e.getX() - view.getWidth() * .5f) / (view.getWidth() * .5f), (e.getY() - view.getHeight() * .5f) / (view.getHeight() * .5f));
-                        }
                         break;
                     }
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
-                        if (disc != null) disc.releaseTilt();
                         float vy = 0f;
                         if (tracker[0] != null) {
                             tracker[0].addMovement(e);
