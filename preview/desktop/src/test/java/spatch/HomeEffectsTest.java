@@ -150,6 +150,45 @@ public class HomeEffectsTest {
         activity.finish();
     }
 
+    @Test public void equalizerShowsTheSpectrumAndDrawsTheHeadphoneCurveIn() throws Exception {
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
+        ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
+        settle();
+        SpatchUi ui = find(root, SpatchUi.class);
+        org.robolectric.Shadows.shadowOf(activity.getApplication()).grantPermissions(Audio.PERMISSION);
+        Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "SETTINGS"));
+        settle();
+        View eqRow = text(root, "Equalizer & sound");
+        while (!eqRow.isClickable()) eqRow = (View) eqRow.getParent();
+        eqRow.performClick();
+        settle();
+        StringBuilder curve = new StringBuilder("GraphicEQ: ");
+        for (int i = 0; i < 40; i++) {
+            float hz = 20f * (float) Math.pow(1000f, i / 39f), gain = 6f * (float) Math.sin(i / 5f) - 2f;
+            curve.append(i == 0 ? "" : "; ").append(Math.round(hz)).append(' ').append(gain);
+        }
+        Reflect.set(ui, "playing", true);
+        for (int i = 0; i < Audio.BANDS.length; i++) Audio.BANDS[i] = .25f + .5f * (float) Math.abs(Math.sin(i / 4f));
+        try {
+            Reflect.call(ui, "activateProfile", new Class<?>[]{String.class, String.class}, "Studio Headphones", curve.toString());
+            settle();
+            View graph = byName(root, "EqualizerCurve");
+            assertNotNull(graph);
+            Reflect.set(ui, "revealAt", android.os.SystemClock.uptimeMillis() - 450);
+            Canvas canvas = new Canvas(Bitmap.createBitmap(graph.getWidth(), graph.getHeight(), Bitmap.Config.ARGB_8888));
+            for (int i = 0; i < 12; i++) frame(graph, canvas);
+            shot(root, "eq-drawing-in");
+            Reflect.set(ui, "revealAt", android.os.SystemClock.uptimeMillis() - 1300);
+            for (int i = 0; i < 4; i++) frame(graph, canvas);
+            shot(root, "eq-applied");
+            // The live spectrum isn't checked here: asking the audio worker for levels makes it overwrite any fake
+            // bands with the preview's silence. Phone-checked instead.
+        } finally {
+            java.util.Arrays.fill(Audio.BANDS, 0f);
+        }
+        activity.finish();
+    }
+
     private static Object titleOf(Object entry) throws Exception {
         for (Class<?> c = entry.getClass(); c != null; c = c.getSuperclass()) {
             try { java.lang.reflect.Field f = c.getDeclaredField("title"); f.setAccessible(true); return f.get(entry); } catch (NoSuchFieldException next) { }

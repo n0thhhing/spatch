@@ -8,6 +8,7 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -245,7 +246,19 @@ final class SoundSettings {
         private float downY, downGain;
         private boolean moved, drawnOnce;
         private final float[] shown = new float[10];
-        EqualizerCurve() { super(ui.activity); setContentDescription("Equalizer curve. Drag a point to adjust a frequency, or use Fine adjustment below."); }
+        private final float[] spectrum = new float[Audio.BANDS.length];
+        private final Path spectrumPath = new Path(), correction = new Path(), correctionArea = new Path();
+        private Audio.GraphicEqProfile correctionOf;
+        private float correctionWidth;
+        private long lastFrame;
+        /** Read-only, for the AutoEq page: the grid, live spectrum and headphone correction, without your own bands. */
+        private final boolean correctionOnly;
+        EqualizerCurve() { this(false); }
+        EqualizerCurve(boolean correctionOnly) {
+            super(ui.activity);
+            this.correctionOnly = correctionOnly;
+            setContentDescription(correctionOnly ? "Headphone correction curve" : "Equalizer curve. Drag a point to adjust a frequency, or use Fine adjustment below.");
+        }
         void select(int band) { eqSelectedBand = Math.max(0, Math.min(9, band)); if (selection != null) selection.run(); invalidate(); }
         void refresh() { if (selection != null) selection.run(); if (edit != null) edit.run(); invalidate(); }
         private float left() { return ui.dp(36); }
@@ -264,6 +277,21 @@ final class SoundSettings {
                 c.drawLine(left(), y(db), right(), y(db), paint);
                 paint.setAlpha(180); paint.setTextAlign(Paint.Align.RIGHT);
                 c.drawText(db > 0 ? "+" + db : Integer.toString(db), left() - ui.dp(8), y(db) + ui.dp(3), paint);
+            }
+            boolean moving = drawSpectrum(c, width);
+            moving |= drawCorrection(c, width);
+            if (correctionOnly) {
+                paint.setTypeface(labelFace);
+                paint.setTextSize(ui.dp(9));
+                for (int i = 0; i < 10; i++) {
+                    paint.setColor(ui.inkDim);
+                    paint.setAlpha(220);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    String hz = Audio.EQ_HZ[i] < 1000 ? Integer.toString(Audio.EQ_HZ[i]) : (Audio.EQ_HZ[i] / 1000) + "k";
+                    c.drawText(hz, left() + width * i / 9f, bottom() + ui.dp(20), paint);
+                }
+                if (moving && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
+                return;
             }
             // The drawn gains glide to the stored ones, so a preset change sweeps instead of jumping.
             float[] gains = shown;
@@ -316,9 +344,104 @@ final class SoundSettings {
             float selX = left() + width * eqSelectedBand / 9f, selY = y(gains[eqSelectedBand]);
             float by = selY - ui.dp(28) >= ui.dp(4) ? selY - ui.dp(28) : selY + ui.dp(10);
             drawDbPill(c, paint, pill, badgeFace, gains[eqSelectedBand], selX, by, left(), right());
-            if (settling) postInvalidateOnAnimation();
+            if ((settling || moving) && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
+        }
+
+        /**
+         * A faint live spectrum of what's playing behind the curve, on the curve's own frequency axis, so you can see
+         * which bands a change will touch. It runs only while music plays; paused, it sinks away and stops.
+         */
+        private boolean drawSpectrum(Canvas c, float width) {
+            long now = SystemClock.uptimeMillis();
+            float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
+            lastFrame = now;
+            boolean live = ui.playing && ui.motion() && ui.pref("audio", true) && Audio.ready(ui.activity);
+            if (live) Audio.want();
+            float peak = 0f, h = bottom() - top();
+            for (int i = 0; i < spectrum.length; i++) {
+                float want = live ? Math.min(1f, Audio.BANDS[i]) : 0f;
+                spectrum[i] += (want - spectrum[i]) * (1f - (float) Math.exp(-dt / (want > spectrum[i] ? .04f : .18f)));
+                peak = Math.max(peak, spectrum[i]);
+            }
+            if (peak < .004f) { lastFrame = 0; return false; }
+            spectrumPath.rewind();
+            spectrumPath.moveTo(left(), bottom());
+            for (int i = 0; i < spectrum.length; i++) spectrumPath.lineTo(left() + width * BAND_AT[i] / 9f, bottom() - spectrum[i] * h * .8f);
+            spectrumPath.lineTo(left() + width * BAND_AT[spectrum.length - 1] / 9f, bottom());
+            spectrumPath.close();
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor((ui.ink & 0x00ffffff) | 0x1c000000);
+            c.drawPath(spectrumPath, paint);
+            return true;
+        }
+
+        /**
+         * The headphone correction, as its own line in the second accent. Just after a profile is applied it draws
+         * itself from left to right, fills in under it, and a small confirmation pops in above.
+         */
+        private boolean drawCorrection(Canvas c, float width) {
+            Audio.GraphicEqProfile profile = ui.pref("eq_autoeq_enabled", false) ? Audio.loadGraphicEq(ui.prefs) : null;
+            if (profile == null || profile.freqs.length < 2) return false;
+            if (profile != correctionOf || correctionWidth != width) {
+                correctionOf = profile;
+                correctionWidth = width;
+                correction.rewind();
+                boolean started = false;
+                for (int i = 0; i < profile.freqs.length; i++) {
+                    // Only what the axis shows (31 Hz to 16 kHz): points beyond it would pile up on its ends.
+                    if (profile.freqs[i] < Audio.EQ_HZ[0] || profile.freqs[i] > Audio.EQ_HZ[Audio.EQ_HZ.length - 1]) continue;
+                    float x = left() + width * axisAt(profile.freqs[i]) / 9f, yy = y(Math.max(-12f, Math.min(12f, profile.gains[i])));
+                    if (!started) { correction.moveTo(x, yy); started = true; } else correction.lineTo(x, yy);
+                }
+                if (!started) return false;
+                correctionArea.set(correction);
+                correctionArea.lineTo(left() + width, y(0));
+                correctionArea.lineTo(left(), y(0));
+                correctionArea.close();
+            }
+            long since = revealAt == 0 ? Long.MAX_VALUE / 2 : SystemClock.uptimeMillis() - revealAt;
+            float drawn = !ui.motion() ? 1f : Math.min(1f, since / 900f);
+            drawn = 1f - (1f - drawn) * (1f - drawn);
+            float filled = !ui.motion() ? 1f : Math.max(0f, Math.min(1f, (since - 450) / 500f));
+            c.save();
+            c.clipRect(left() - ui.dp(4), 0, left() + width * drawn + ui.dp(4), getHeight());
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor((ui.accent2 & 0x00ffffff) | Math.round(0x26 * filled) << 24);
+            c.drawPath(correctionArea, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeWidth(ui.dp(1.8f));
+            paint.setColor((ui.accent2 & 0x00ffffff) | 0xcc000000);
+            c.drawPath(correction, paint);
+            c.restore();
+            paint.setStyle(Paint.Style.FILL);
+            boolean popping = since < 2800;
+            if (popping && ui.motion()) {
+                float in = Math.max(0f, Math.min(1f, (since - 800) / 320f));
+                float out = Math.max(0f, Math.min(1f, (since - 2400) / 400f));
+                float scale = in < 1f ? POP.getInterpolation(in) : 1f;
+                if (in > 0f) {
+                    String text = revealName;
+                    paint.setTypeface(badgeFace);
+                    paint.setTextSize(ui.dp(12));
+                    float tw = Math.min(paint.measureText(text), right() - left() - ui.dp(24)), cx = (left() + right()) / 2f, cy = top() + ui.dp(2);
+                    c.save();
+                    c.scale(scale, scale, cx, cy);
+                    pill.set(cx - tw / 2f - ui.dp(12), cy - ui.dp(13), cx + tw / 2f + ui.dp(12), cy + ui.dp(13));
+                    int alpha = Math.round(255 * (1f - out));
+                    paint.setColor((ui.accent2 & 0x00ffffff) | alpha << 24);
+                    c.drawRoundRect(pill, ui.dp(13), ui.dp(13), paint);
+                    paint.setColor((ui.onAccent & 0x00ffffff) | alpha << 24);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    c.drawText(text, 0, text.length(), cx, cy + ui.dp(4), paint);
+                    c.restore();
+                }
+            }
+            return ui.motion() && (drawn < 1f || filled < 1f || popping);
         }
         @Override public boolean onTouchEvent(MotionEvent event) {
+            if (correctionOnly) return false; // nothing to drag on the AutoEq page
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
                 downY = event.getY(); moved = false;
@@ -482,6 +605,12 @@ final class SoundSettings {
             graphicEqualizer(page);
         } else if (panel == 1) {
             LinearLayout correction = ui.settingsScreen.card(page, "AutoEq");
+            if (!ui.prefs.getString("eq_autoeq_curve", "").isEmpty()) {
+                // The loaded correction, drawn in from the left just after it's applied, with the confirmation above.
+                LinearLayout.LayoutParams gp = ui.fill(ui.dp(190));
+                gp.setMargins(ui.dp(8), ui.dp(4), ui.dp(8), 0);
+                correction.addView(new EqualizerCurve(true), gp);
+            }
             ui.settingsScreen.toggle(correction, "Headphone correction", "Compensate for your headphone’s measured frequency response", "eq_autoeq_enabled", false, false);
             ui.settingsScreen.settingsAction(correction, "Find your headphones", ui.prefs.getString("eq_autoeq_name", "Search the AutoEq database"), () -> { openPanel(6); loadHeadphones(); });
             ui.settingsScreen.settingsAction(correction, "Import a profile", "Paste GraphicEQ data from a custom measurement", () -> openPanel(7));
@@ -688,8 +817,33 @@ final class SoundSettings {
     private void activateProfile(String name, String curve) {
         Audio.importGraphicEq(ui.prefs, name, curve);
         ui.prefs.edit().putBoolean("eq_autoeq_enabled", true).putBoolean("equalizer", true).apply();
-        Audio.refreshEqualizer(); ui.hideKeyboard(); openPanel(1);
-        Toast.makeText(ui.activity, "Loaded “" + name + "”", Toast.LENGTH_SHORT).show();
+        Audio.refreshEqualizer(); ui.hideKeyboard();
+        // The curve panel draws the new correction in from the left and pops the confirmation in itself.
+        revealAt = SystemClock.uptimeMillis();
+        revealName = "✓  " + name;
+        openPanel(1);
+        if (!ui.motion()) Toast.makeText(ui.activity, "Loaded “" + name + "”", Toast.LENGTH_SHORT).show();
+    }
+
+    /** When a headphone profile was last applied (0 for never), and its name: the curve's draw-in and confirmation. */
+    private long revealAt;
+    private String revealName = "";
+    private static final android.view.animation.Interpolator POP = new android.view.animation.OvershootInterpolator(2.2f);
+
+    /** Each spectrum band's place on the curve's axis (0 at the first EQ band, 9 at the last); log-spaced like the bands. */
+    private static final float[] BAND_AT = new float[Audio.BANDS.length];
+    static {
+        for (int i = 0; i < BAND_AT.length; i++) BAND_AT[i] = axisAt(40f * (float) Math.pow(16000f / 40f, i / (float) (BAND_AT.length - 1)));
+    }
+
+    /** Where a frequency sits on the curve's axis: between the two EQ bands around it, by log frequency. */
+    static float axisAt(float hz) {
+        int[] at = Audio.EQ_HZ;
+        if (hz <= at[0]) return 0f;
+        for (int i = 0; i + 1 < at.length; i++) {
+            if (hz <= at[i + 1]) return i + (float) (Math.log(hz / at[i]) / Math.log(at[i + 1] / (double) at[i]));
+        }
+        return at.length - 1;
     }
 
 }
