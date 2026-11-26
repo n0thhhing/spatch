@@ -744,12 +744,12 @@ final class PlayerScreen {
             if (side <= 0) return;
             if (side != cachedSide) {
                 cachedSide = side;
-                float radius = side * 0.48f;
+                float radius = side * 0.52f;
                 float dir = forward ? 1f : -1f;
                 path.rewind();
                 for (int i = 0; i <= 96; i++) {
                     double a = i * Math.PI / 48.0;
-                    float r = radius * (0.90f + 0.10f * (float) Math.cos(3.0 * a));
+                    float r = radius * (0.84f + 0.16f * (float) Math.cos(3.0 * a));
                     float x = dir * (float) Math.cos(a) * r;
                     float y = (float) Math.sin(a) * r;
                     if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
