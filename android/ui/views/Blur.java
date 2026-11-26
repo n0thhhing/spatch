@@ -18,16 +18,21 @@ final class Blur {
     }
 
     /**
-     * Soft glowing halo of `src`: center-crops `src` into the inner `(w - 2*pad) x (h - 2*pad)` area of a transparent
-     * `w x h` bitmap, blurs both colour and alpha outward into the margin, and un-premultiplies RGB so the fade stays vivid.
+     * Soft glowing halo of `src`: center-crops `src` into a rounded inner `(w - 2*pad) x (h - 2*pad)` shape inside a
+     * transparent `w x h` bitmap, blurs both colour and alpha outward into the margin, softens the falloff curve so
+     * corners never look squared off, and un-premultiplies RGB so the fade stays vivid.
      */
-    static Bitmap halo(Bitmap src, int w, int h, int pad, int radius) {
+    static Bitmap halo(Bitmap src, int w, int h, int pad, int radius, float cornerFrac) {
         int iw = Math.max(4, w - 2 * pad), ih = Math.max(4, h - 2 * pad);
         Bitmap cropped = Bitmap.createBitmap(iw, ih, Bitmap.Config.ARGB_8888);
         android.graphics.Canvas cc = new android.graphics.Canvas(cropped);
+        float cr = Math.min(iw, ih) * cornerFrac;
+        android.graphics.Path clip = new android.graphics.Path();
+        clip.addRoundRect(new android.graphics.RectF(0, 0, iw, ih), cr, cr, android.graphics.Path.Direction.CW);
+        cc.clipPath(clip);
         float k = Math.max((float) iw / Math.max(1, src.getWidth()), (float) ih / Math.max(1, src.getHeight()));
         float dw = src.getWidth() * k, dh = src.getHeight() * k;
-        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
         cc.drawBitmap(src, null, new android.graphics.RectF((iw - dw) / 2f, (ih - dh) / 2f, (iw + dw) / 2f, (ih + dh) / 2f), p);
         int[] srcPx = new int[iw * ih];
         cropped.getPixels(srcPx, 0, iw, 0, 0, iw, ih);

@@ -442,11 +442,11 @@ final class SearchScreen {
                     rs.setInputShader("art", emptyArt());
                     rs.setFloatUniform("hasArt", 0f);
                 }
-                float cardR = ui.dp(22), bleed = ui.dp(16), coverHalf = ui.dp(52);
+                float cardR = ui.dp(22), bleed = ui.dp(22), coverHalf = ui.dp(52);
                 rs.setFloatUniform("size", w, h);
                 rs.setFloatUniform("coverBox", ui.dp(16) + coverHalf, h / 2f, coverHalf, coverHalf);
                 rs.setFloatUniform("metrics", cardR, bleed, circleArt ? coverHalf : ui.dp(14), ui.dark ? 1f : 0f);
-                rs.setColorUniform("base", ui.dark ? SpatchUi.blend(ui.bg, ui.surf, .45f) : ui.surfHi);
+                rs.setColorUniform("base", ui.dark ? SpatchUi.blend(ui.bg, ui.surf, .22f) : ui.surfHi);
                 rs.setColorUniform("scrim", ui.bg);
                 rs.setColorUniform("c0", topPal[0] != 0 ? topPal[0] : ui.accent);
                 rs.setColorUniform("c1", topPal[1] != 0 ? topPal[1] : ui.accent2);
@@ -457,26 +457,26 @@ final class SearchScreen {
 
             private void drawFallback(Canvas c, int w, int h, Bitmap blur) {
                 if (!artUrl.isEmpty()) {
-                    String haloKey = artUrl + ":topcardhalo2";
+                    String haloKey = artUrl + ":topcardhalo3";
                     Bitmap halo = SpatchUi.IMAGES.get(haloKey);
                     if (halo == null) {
                         Bitmap raw = ui.art(artUrl, 180);
                         if (raw != null) {
-                            halo = Blur.halo(raw, 206, 86, 8, 2);
+                            halo = Blur.halo(raw, 220, 96, 16, 5, 0.42f);
                             SpatchUi.IMAGES.put(haloKey, halo);
                         }
                     }
                     if (halo != null) {
-                        float bleed = ui.dp(16);
+                        float bleed = ui.dp(22);
                         dst.set(-bleed, -bleed, w + bleed, h + bleed);
-                        artPaint.setAlpha(ui.dark ? 148 : 94);
+                        artPaint.setAlpha(ui.dark ? 118 : 74);
                         c.drawBitmap(halo, null, dst, artPaint);
                     }
                 }
                 float r = ui.dp(22);
                 bounds.set(0, 0, w, h);
                 basePaint.setShader(null);
-                basePaint.setColor(ui.dark ? SpatchUi.blend(ui.bg, ui.surf, .45f) : ui.surfHi);
+                basePaint.setColor(ui.dark ? SpatchUi.blend(ui.bg, ui.surf, .22f) : ui.surfHi);
                 c.drawRoundRect(bounds, r, r, basePaint);
                 clip.rewind();
                 clip.addRoundRect(bounds, r, r, Path.Direction.CW);
@@ -486,40 +486,40 @@ final class SearchScreen {
                     float k = Math.max((float) w / blur.getWidth(), (float) h / blur.getHeight());
                     float dw = blur.getWidth() * k, dh = blur.getHeight() * k;
                     dst.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);
-                    artPaint.setAlpha(ui.dark ? 144 : 96);
+                    artPaint.setAlpha(ui.dark ? 114 : 78);
                     c.drawBitmap(blur, null, dst, artPaint);
                 }
                 if (scrimGrad == null || scrimW != w || scrimBg != ui.bg || scrimDark != ui.dark) {
                     scrimW = w; scrimBg = ui.bg; scrimDark = ui.dark;
                     scrimGrad = new LinearGradient(0, 0, w, 0,
-                        (ui.bg & 0x00ffffff) | ((ui.dark ? 0x20 : 0x10) << 24),
-                        (ui.bg & 0x00ffffff) | ((ui.dark ? 0x62 : 0x44) << 24),
+                        (ui.bg & 0x00ffffff) | ((ui.dark ? 0x16 : 0x0a) << 24),
+                        (ui.bg & 0x00ffffff) | ((ui.dark ? 0x54 : 0x38) << 24),
                         Shader.TileMode.CLAMP);
                 }
                 basePaint.setShader(scrimGrad);
                 c.drawRect(bounds, basePaint);
                 basePaint.setShader(null);
                 if (!artUrl.isEmpty()) {
-                    String covKey = artUrl + ":tophalo";
+                    String covKey = artUrl + ":tophalo3";
                     Bitmap covHalo = SpatchUi.IMAGES.get(covKey);
                     if (covHalo == null) {
                         Bitmap raw = ui.art(artUrl, 180);
                         if (raw != null) {
-                            covHalo = Blur.halo(raw, 64, 64, 13, 6);
+                            covHalo = Blur.halo(raw, 72, 72, 18, 5, circleArt ? 0.50f : 0.26f);
                             SpatchUi.IMAGES.put(covKey, covHalo);
                         }
                     }
                     if (covHalo != null) {
                         float cx = ui.dp(16 + 52), cy = h / 2f, half = ui.dp(92);
                         dst.set(cx - half, cy - half, cx + half, cy + half);
-                        artPaint.setAlpha(ui.dark ? 156 : 112);
+                        artPaint.setAlpha(ui.dark ? 118 : 82);
                         c.drawBitmap(covHalo, null, dst, artPaint);
                     }
                 }
                 c.restore();
-                int tint = SpatchUi.blend(ui.dark ? 0xffffffff : ui.ink, topPal[0] != 0 ? topPal[0] : ui.accent, .22f);
+                int tint = SpatchUi.blend(ui.dark ? 0xffffffff : ui.ink, topPal[0] != 0 ? topPal[0] : ui.accent, .15f);
                 rimPaint.setStrokeWidth(Math.max(1, ui.dp(.8f)));
-                rimPaint.setColor((tint & 0x00ffffff) | ((ui.dark ? 0x24 : 0x1c) << 24));
+                rimPaint.setColor((tint & 0x00ffffff) | ((ui.dark ? 0x1e : 0x18) << 24));
                 bounds.inset(.5f, .5f);
                 c.drawRoundRect(bounds, r, r, rimPaint);
             }

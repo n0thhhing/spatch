@@ -1,6 +1,6 @@
 // Spotlight card glow: blurred cover poured inside a rounded card over a deep surface, with two offset SDF
-// rounded-rectangle cover glows, a subtle glass rim, and the cover's own blurred colours bleeding softly outside
-// the card border. Fine dither breaks up dark-gradient banding on OLED displays.
+// rounded-rectangle cover glows, a subtle glass rim, and a wide, pillowy ambient cloud bleeding softly outside
+// the card border in the cover's bright edge colours. Fine dither breaks up dark-gradient banding on OLED screens.
 uniform shader art;
 uniform float2 size;
 uniform float4 coverBox;
@@ -18,6 +18,12 @@ float sdRoundRect(float2 p, float2 halfSize, float r) {
   return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
 
+half3 sampleArt(float2 uv) {
+  half3 c = hasArt > 0.5 ? art.eval(clamp(uv, float2(0.0), size)).rgb : mix(c0.rgb, c1.rgb, clamp(uv.x / max(size.x, 1.0), 0.0, 1.0));
+  half lum = dot(c, half3(0.2126, 0.7152, 0.0722));
+  return clamp(mix(half3(lum), c, 1.28), 0.0, 1.0);
+}
+
 half4 main(float2 p) {
   float cardR = metrics.x;
   float bleed = max(metrics.y, 1.0);
@@ -27,41 +33,51 @@ half4 main(float2 p) {
   float d = sdRoundRect(p - size * 0.5, size * 0.5, cardR);
   if (d >= bleed) return half4(0.0);
 
-  half3 artCol = hasArt > 0.5 ? art.eval(clamp(p, float2(0.0), size)).rgb : mix(c0.rgb, c1.rgb, clamp(p.x / max(size.x, 1.0), 0.0, 1.0));
-  half lum = dot(artCol, half3(0.2126, 0.7152, 0.0722));
-  artCol = clamp(mix(half3(lum), artCol, 1.35), 0.0, 1.0);
+  half3 artCol = sampleArt(p);
 
-  float outT = 1.0 - smoothstep(0.0, bleed, max(d, 0.0));
-  float outA = outT * outT * (dark > 0.5 ? 0.56 : 0.34);
+  // Soft pillowy outer cloud: wider corner radius + recessed core + cubic falloff + luminance weighting,
+  // so bright colour regions bloom organically without forming a squared-off rectangle outline.
+  float spread = bleed * 0.55;
+  half3 cloudCol = (artCol * 2.0
+    + sampleArt(p + float2(spread, 0.0)) + sampleArt(p - float2(spread, 0.0))
+    + sampleArt(p + float2(0.0, spread)) + sampleArt(p - float2(0.0, spread))) / 6.0;
+  float outerR = min(size.y * 0.48, cardR * 1.7);
+  float inset = min(bleed * 0.25, size.y * 0.08);
+  float dCloud = sdRoundRect(p - size * 0.5, size * 0.5 - float2(inset), outerR);
+  float outT = 1.0 - smoothstep(-inset, bleed, dCloud);
+  float vivid = smoothstep(0.06, 0.45, max(cloudCol.r, max(cloudCol.g, cloudCol.b)));
+  float outA = outT * outT * outT * vivid * (dark > 0.5 ? 0.52 : 0.30);
 
   float inside = clamp(0.5 - d, 0.0, 1.0);
   if (inside <= 0.001) {
-    half3 og = clamp(artCol + (hash(p) - 0.5) / 255.0, 0.0, 1.0);
+    half3 og = clamp(cloudCol + (hash(p) - 0.5) / 255.0, 0.0, 1.0);
     return half4(og * outA, outA);
   }
 
-  float washA = dark > 0.5 ? 0.56 : 0.38;
+  float washA = dark > 0.5 ? 0.44 : 0.30;
   half3 col = mix(base.rgb, artCol, washA);
   float tx = clamp(p.x / max(size.x, 1.0), 0.0, 1.0);
-  float scrimA = mix(dark > 0.5 ? 0.14 : 0.06, dark > 0.5 ? 0.44 : 0.28, tx);
+  float scrimA = mix(dark > 0.5 ? 0.08 : 0.04, dark > 0.5 ? 0.34 : 0.22, tx);
   col = mix(col, scrim.rgb, scrimA);
 
-  float glowR = bleed * 1.35;
+  // Two offset SDF rounded-rect glows directly behind the cover artwork.
+  float glowR = bleed * 1.15;
   float2 cd = p - coverBox.xy;
   float d0 = max(sdRoundRect(cd - float2(-0.22 * glowR, 0.12 * glowR), coverBox.zw, coverR), 0.0);
   float d1 = max(sdRoundRect(cd - float2(0.24 * glowR, -0.08 * glowR), coverBox.zw, coverR), 0.0);
   float g0 = 1.0 - smoothstep(0.0, glowR, d0);
   float g1 = 1.0 - smoothstep(0.0, glowR * 0.85, d1);
-  float gi = dark > 0.5 ? 0.46 : 0.30;
+  float gi = dark > 0.5 ? 0.30 : 0.20;
   col = clamp(col + c0.rgb * (g0 * g0 * gi) + c1.rgb * (g1 * g1 * gi * 0.72), 0.0, 1.0);
 
+  // Crisp subtle glass hairline rim right along the card border.
   float rim = clamp(1.0 - abs(d + 0.6) / 1.1, 0.0, 1.0);
-  half3 rimCol = mix(dark > 0.5 ? half3(1.0) : half3(0.0), c0.rgb, 0.25);
-  col = mix(col, rimCol, rim * (dark > 0.5 ? 0.15 : 0.11));
+  half3 rimCol = mix(dark > 0.5 ? half3(1.0) : half3(0.0), c0.rgb, 0.15);
+  col = mix(col, rimCol, rim * (dark > 0.5 ? 0.12 : 0.10));
 
   col = clamp(col + (hash(p) - 0.5) / 255.0, 0.0, 1.0);
 
   float finalA = inside + outA * (1.0 - inside);
-  half3 finalRgb = col * inside + artCol * (outA * (1.0 - inside));
+  half3 finalRgb = col * inside + cloudCol * (outA * (1.0 - inside));
   return half4(finalRgb, finalA);
 }
