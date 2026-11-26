@@ -168,7 +168,7 @@ final class SearchScreen {
         scroll.setClipToPadding(true);
         scroll.setPadding(0, 0, 0, imeInset);
         LinearLayout results = ui.column();
-        results.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), ui.dockRoom());
+        results.setPadding(ui.dp(18), ui.dp(10), ui.dp(18), ui.dockRoom());
         results.setClipChildren(false);
         results.setClipToPadding(false);
         scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
@@ -442,7 +442,7 @@ final class SearchScreen {
                     rs.setInputShader("art", emptyArt());
                     rs.setFloatUniform("hasArt", 0f);
                 }
-                float cardR = ui.dp(22), bleed = ui.dp(18), coverHalf = ui.dp(52);
+                float cardR = ui.dp(22), bleed = ui.dp(16), coverHalf = ui.dp(52);
                 rs.setFloatUniform("size", w, h);
                 rs.setFloatUniform("coverBox", ui.dp(16) + coverHalf, h / 2f, coverHalf, coverHalf);
                 rs.setFloatUniform("metrics", cardR, bleed, circleArt ? coverHalf : ui.dp(14), ui.dark ? 1f : 0f);
@@ -457,19 +457,19 @@ final class SearchScreen {
 
             private void drawFallback(Canvas c, int w, int h, Bitmap blur) {
                 if (!artUrl.isEmpty()) {
-                    String haloKey = artUrl + ":topcardhalo";
+                    String haloKey = artUrl + ":topcardhalo2";
                     Bitmap halo = SpatchUi.IMAGES.get(haloKey);
                     if (halo == null) {
                         Bitmap raw = ui.art(artUrl, 180);
                         if (raw != null) {
-                            halo = Blur.halo(raw, 160, 72, 10, 4);
+                            halo = Blur.halo(raw, 206, 86, 8, 2);
                             SpatchUi.IMAGES.put(haloKey, halo);
                         }
                     }
                     if (halo != null) {
-                        float bx = w * (10f / 140f), by = h * (10f / 52f);
-                        dst.set(-bx, -by, w + bx, h + by);
-                        artPaint.setAlpha(ui.dark ? 155 : 98);
+                        float bleed = ui.dp(16);
+                        dst.set(-bleed, -bleed, w + bleed, h + bleed);
+                        artPaint.setAlpha(ui.dark ? 148 : 94);
                         c.drawBitmap(halo, null, dst, artPaint);
                     }
                 }
