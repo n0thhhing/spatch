@@ -104,6 +104,8 @@ final class Dock {
         ui.dock.removeAllViews();
         LinearLayout mini = ui.row();
         mini.setPadding(ui.dp(8), ui.dp(6), ui.dp(8), ui.dp(6));
+        mini.setClipChildren(false);
+        mini.setClipToPadding(false);
         // A hairline edge instead of an elevation shadow, which drew unevenly under the rounded, tinted pills.
         dockPill(mini, 30, () -> SpatchUi.blend(ui.surfHi, ui.accent, .12f));
         ui.mArt = ui.artwork.new Art(Art.CIRCLE, true);

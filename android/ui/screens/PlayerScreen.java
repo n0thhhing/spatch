@@ -526,6 +526,8 @@ final class PlayerScreen {
         col.addView(ui.wave, wp);
         LinearLayout controls = ui.row();
         controls.setGravity(Gravity.CENTER);
+        controls.setClipChildren(false);
+        controls.setClipToPadding(false);
         ui.pShuffle = ui.new Icon("shuffle", ui.inkDim);
         ui.colored(ui.pShuffle, () -> { ui.pShuffle.color = ui.shuffle ? ui.accent : ui.inkDim; ui.pShuffle.invalidate(); });
         ui.pRepeat = ui.new Icon("repeat", ui.inkDim);
@@ -688,18 +690,35 @@ final class PlayerScreen {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.Path path = new android.graphics.Path();
         private android.animation.ValueAnimator anim;
-        private boolean pressed;
-        private float alpha, scale = 1f, offsetX, cachedSide = -1f;
+        private boolean pressed, showing;
+        private float alpha, scale = 0.35f, cachedSide = -1f;
 
         SkipHighlightDrawable(boolean forward) {
             this.forward = forward;
         }
 
-        void setOffsetX(float x) {
-            if (offsetX != x) {
-                offsetX = x;
+        void show(boolean want) {
+            if (want == showing) return;
+            showing = want;
+            if (anim != null) anim.cancel();
+            if (!ui.motion()) {
+                alpha = want ? 1f : 0f;
+                scale = want ? 1f : 0.35f;
                 invalidateSelf();
+                return;
             }
+            float startA = alpha, endA = want ? 1f : 0f;
+            float startS = scale, endS = want ? 1f : 0.35f;
+            anim = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            anim.setDuration(want ? 220 : 280);
+            anim.setInterpolator(want ? new android.view.animation.OvershootInterpolator(1.6f) : new android.view.animation.DecelerateInterpolator());
+            anim.addUpdateListener(a -> {
+                float t = (float) a.getAnimatedValue();
+                alpha = Math.max(0f, Math.min(1f, startA + (endA - startA) * Math.min(1f, t * (want ? 1.6f : 1f))));
+                scale = startS + (endS - startS) * t;
+                invalidateSelf();
+            });
+            anim.start();
         }
 
         @Override public boolean isStateful() { return true; }
@@ -709,25 +728,7 @@ final class PlayerScreen {
             for (int s : state) if (s == android.R.attr.state_pressed) { nowPressed = true; break; }
             if (nowPressed == pressed) return false;
             pressed = nowPressed;
-            if (anim != null) anim.cancel();
-            if (!ui.motion()) {
-                alpha = pressed ? 1f : 0f;
-                scale = 1f;
-                invalidateSelf();
-                return true;
-            }
-            float startA = alpha, endA = pressed ? 1f : 0f;
-            float startS = pressed ? Math.min(scale, 0.78f) : scale, endS = 1f;
-            anim = android.animation.ValueAnimator.ofFloat(0f, 1f);
-            anim.setDuration(pressed ? 120 : 300);
-            anim.setInterpolator(pressed ? SpatchUi.EMPHASIZED : new android.view.animation.DecelerateInterpolator());
-            anim.addUpdateListener(a -> {
-                float t = (float) a.getAnimatedValue();
-                alpha = startA + (endA - startA) * t;
-                scale = startS + (endS - startS) * t;
-                invalidateSelf();
-            });
-            anim.start();
+            show(pressed);
             return true;
         }
 
@@ -738,21 +739,21 @@ final class PlayerScreen {
             if (side <= 0) return;
             if (side != cachedSide) {
                 cachedSide = side;
-                float r = side * 0.36f;
-                float d = forward ? 1f : -1f;
+                float radius = side * 0.48f;
+                float dir = forward ? 1f : -1f;
                 path.rewind();
-                path.moveTo(d * 0.96f * r, -0.22f * r);
-                path.quadTo(d * 1.18f * r, 0f, d * 0.96f * r, 0.22f * r);
-                path.cubicTo(d * 0.48f * r, 0.62f * r, -d * 0.22f * r, 0.98f * r, -d * 0.68f * r, 0.88f * r);
-                path.quadTo(-d * 0.98f * r, 0.78f * r, -d * 0.96f * r, 0.38f * r);
-                path.quadTo(-d * 1.08f * r, 0f, -d * 0.96f * r, -0.38f * r);
-                path.quadTo(-d * 0.98f * r, -0.78f * r, -d * 0.68f * r, -0.88f * r);
-                path.cubicTo(-d * 0.22f * r, -0.98f * r, d * 0.48f * r, -0.62f * r, d * 0.96f * r, -0.22f * r);
+                for (int i = 0; i <= 96; i++) {
+                    double a = i * Math.PI / 48.0;
+                    float r = radius * (0.90f + 0.10f * (float) Math.cos(3.0 * a));
+                    float x = dir * (float) Math.cos(a) * r;
+                    float y = (float) Math.sin(a) * r;
+                    if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+                }
                 path.close();
             }
-            paint.setColor((ui.ink & 0x00ffffff) | (Math.round(0x2b * alpha) << 24));
+            paint.setColor((ui.ink & 0x00ffffff) | (Math.round(0x2c * alpha) << 24));
             canvas.save();
-            canvas.translate(b.exactCenterX() + offsetX, b.exactCenterY());
+            canvas.translate(b.exactCenterX(), b.exactCenterY());
             canvas.scale(scale, scale);
             canvas.drawPath(path, paint);
             canvas.restore();
@@ -765,17 +766,15 @@ final class PlayerScreen {
 
     void nudge(View button, boolean forward) {
         if (!ui.motion() || button == null) return;
-        View target = button instanceof ViewGroup && ((ViewGroup) button).getChildCount() > 0
-            ? ((ViewGroup) button).getChildAt(0) : button;
         android.graphics.drawable.Drawable bg = button.getBackground();
         SkipHighlightDrawable hl = bg instanceof SkipHighlightDrawable ? (SkipHighlightDrawable) bg : null;
-        android.animation.ValueAnimator.AnimatorUpdateListener sync = hl == null ? null : a -> hl.setOffsetX(target.getTranslationX());
-        target.animate().cancel();
-        target.animate().translationX(ui.dp(forward ? 4 : -4)).setDuration(70).setUpdateListener(sync)
-            .withEndAction(() -> target.animate().translationX(0f).setDuration(180)
-                .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f))
-                .setUpdateListener(sync)
-                .withEndAction(() -> { if (hl != null) hl.setOffsetX(0f); })
+        if (hl != null) hl.show(true);
+        button.animate().cancel();
+        button.animate().translationX(ui.dp(forward ? 4 : -4)).setDuration(90)
+            .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
+            .withEndAction(() -> button.animate().translationX(0f).setDuration(300)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(2.0f))
+                .withEndAction(() -> { if (hl != null && !button.isPressed()) hl.show(false); })
                 .start())
             .start();
     }
