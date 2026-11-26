@@ -1,0 +1,67 @@
+// Spotlight card glow: blurred cover poured inside a rounded card over a deep surface, with two offset SDF
+// rounded-rectangle cover glows, a subtle glass rim, and the cover's own blurred colours bleeding softly outside
+// the card border. Fine dither breaks up dark-gradient banding on OLED displays.
+uniform shader art;
+uniform float2 size;
+uniform float4 coverBox;
+uniform float4 metrics;
+uniform float hasArt;
+layout(color) uniform half4 base;
+layout(color) uniform half4 scrim;
+layout(color) uniform half4 c0;
+layout(color) uniform half4 c1;
+
+float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+
+float sdRoundRect(float2 p, float2 halfSize, float r) {
+  float2 q = abs(p) - (halfSize - float2(r));
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+half4 main(float2 p) {
+  float cardR = metrics.x;
+  float bleed = max(metrics.y, 1.0);
+  float coverR = metrics.z;
+  float dark = metrics.w;
+
+  float d = sdRoundRect(p - size * 0.5, size * 0.5, cardR);
+  if (d >= bleed) return half4(0.0);
+
+  half3 artCol = hasArt > 0.5 ? art.eval(clamp(p, float2(0.0), size)).rgb : mix(c0.rgb, c1.rgb, clamp(p.x / max(size.x, 1.0), 0.0, 1.0));
+  half lum = dot(artCol, half3(0.2126, 0.7152, 0.0722));
+  artCol = clamp(mix(half3(lum), artCol, 1.35), 0.0, 1.0);
+
+  float outT = 1.0 - smoothstep(0.0, bleed, max(d, 0.0));
+  float outA = outT * outT * (dark > 0.5 ? 0.56 : 0.34);
+
+  float inside = clamp(0.5 - d, 0.0, 1.0);
+  if (inside <= 0.001) {
+    half3 og = clamp(artCol + (hash(p) - 0.5) / 255.0, 0.0, 1.0);
+    return half4(og * outA, outA);
+  }
+
+  float washA = dark > 0.5 ? 0.56 : 0.38;
+  half3 col = mix(base.rgb, artCol, washA);
+  float tx = clamp(p.x / max(size.x, 1.0), 0.0, 1.0);
+  float scrimA = mix(dark > 0.5 ? 0.14 : 0.06, dark > 0.5 ? 0.44 : 0.28, tx);
+  col = mix(col, scrim.rgb, scrimA);
+
+  float glowR = bleed * 1.35;
+  float2 cd = p - coverBox.xy;
+  float d0 = max(sdRoundRect(cd - float2(-0.22 * glowR, 0.12 * glowR), coverBox.zw, coverR), 0.0);
+  float d1 = max(sdRoundRect(cd - float2(0.24 * glowR, -0.08 * glowR), coverBox.zw, coverR), 0.0);
+  float g0 = 1.0 - smoothstep(0.0, glowR, d0);
+  float g1 = 1.0 - smoothstep(0.0, glowR * 0.85, d1);
+  float gi = dark > 0.5 ? 0.46 : 0.30;
+  col = clamp(col + c0.rgb * (g0 * g0 * gi) + c1.rgb * (g1 * g1 * gi * 0.72), 0.0, 1.0);
+
+  float rim = clamp(1.0 - abs(d + 0.6) / 1.1, 0.0, 1.0);
+  half3 rimCol = mix(dark > 0.5 ? half3(1.0) : half3(0.0), c0.rgb, 0.25);
+  col = mix(col, rimCol, rim * (dark > 0.5 ? 0.15 : 0.11));
+
+  col = clamp(col + (hash(p) - 0.5) / 255.0, 0.0, 1.0);
+
+  float finalA = inside + outA * (1.0 - inside);
+  half3 finalRgb = col * inside + artCol * (outA * (1.0 - inside));
+  return half4(finalRgb, finalA);
+}

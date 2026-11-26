@@ -15,7 +15,7 @@ final class GpuFx {
 
     static boolean blur(SharedPreferences prefs) { return Build.VERSION.SDK_INT >= 31 && prefs.getBoolean("gpu_fx", true); }
 
-    /** A shader's AGSL source, by name (field, ring, grain): the .agsl files live with the Rust library, which hands them over. */
+    /** A shader's AGSL source, by name (field, ring, grain, glow): the .agsl files live with the Rust library, which hands them over. */
     static String source(String name) { return nativeShader(name); }
 
     private static native String nativeShader(String name);
