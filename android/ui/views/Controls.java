@@ -352,8 +352,8 @@ final class Controls {
 
     /**
      * Shared sliding-pill tab/segmented bar used across Settings, Search, Library filters, and landscape Player.
-     * Its two edges each ride a spring (leading edge stiffer, trailing edge looser) and clamp cleanly to the
-     * track's inner bounds so edge tabs get an elastic squish without ever clipping outside the track.
+     * Its two edges each ride a spring (leading edge stiffer, trailing edge looser) and softly overshoot past
+     * the track edge without clipping before springing cleanly back into place.
      */
     final class SlidingTabs extends android.widget.FrameLayout {
         final android.widget.TextView[] items;
@@ -370,13 +370,17 @@ final class Controls {
             this.selected = initial;
             this.unselectedColor = unselectedColor;
             this.items = new android.widget.TextView[labels.length];
-            this.leftSpring = new Spring(0f, 20f, .62f, v -> { edges[0] = v; invalidate(); });
-            this.rightSpring = new Spring(0f, 20f, .62f, v -> { edges[1] = v; invalidate(); });
+            this.leftSpring = new Spring(0f, 20f, .58f, v -> { edges[0] = v; invalidateOverflow(); });
+            this.rightSpring = new Spring(0f, 20f, .58f, v -> { edges[1] = v; invalidateOverflow(); });
             int pad = ui.dp(padDp);
             setPadding(pad, pad, pad, pad);
+            setClipChildren(false);
+            setClipToPadding(false);
             ui.bgRound(this, radiusDp, trackColor);
             ui.colored(this, () -> { syncTextColors(); invalidate(); });
             android.widget.LinearLayout row = ui.row();
+            row.setClipChildren(false);
+            row.setClipToPadding(false);
             for (int i = 0; i < labels.length; i++) {
                 final int pick = i;
                 android.widget.TextView opt = ui.text(labels[i], textSp, i == selected ? ui.onAccent : unselectedColor.get(), true);
@@ -394,6 +398,30 @@ final class Controls {
             addView(row, new android.widget.FrameLayout.LayoutParams(equalWidth ? -1 : -2, -1));
         }
 
+        private void invalidateOverflow() {
+            invalidate();
+            if ((edges[0] < 0 || edges[1] > getWidth()) && getParent() instanceof View) ((View) getParent()).invalidate();
+        }
+
+        private float rubber(float over, float limit) {
+            return over * limit / (over + limit);
+        }
+
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            // Allow the pill to overshoot slightly past the track border without getting clipped by ancestor wrappers.
+            for (android.view.ViewParent up = getParent(); up instanceof android.view.ViewGroup && up != ui; up = up.getParent()) {
+                android.view.ViewGroup g = (android.view.ViewGroup) up;
+                if (g instanceof android.widget.HorizontalScrollView) {
+                    g.setClipToPadding(false);
+                    break;
+                }
+                if (g instanceof android.widget.ScrollView || g instanceof android.widget.AbsListView) break;
+                g.setClipChildren(false);
+                g.setClipToPadding(false);
+            }
+        }
+
         void animateFrom(int prev) {
             pendingFrom = prev;
         }
@@ -408,8 +436,8 @@ final class Controls {
             float l = getPaddingLeft() + target.getLeft(), r = getPaddingLeft() + target.getRight();
             if (animate && ui.motion() && prev != index) {
                 boolean right = index > prev;
-                (right ? rightSpring : leftSpring).tune(26f, .60f);
-                (right ? leftSpring : rightSpring).tune(16f, .64f);
+                (right ? rightSpring : leftSpring).tune(26f, .54f);
+                (right ? leftSpring : rightSpring).tune(16f, .62f);
                 leftSpring.to(l);
                 rightSpring.to(r);
             } else {
@@ -443,8 +471,8 @@ final class Controls {
                     leftSpring.snap(fl);
                     rightSpring.snap(fr);
                     boolean right = selected > from;
-                    (right ? rightSpring : leftSpring).tune(26f, .60f);
-                    (right ? leftSpring : rightSpring).tune(16f, .64f);
+                    (right ? rightSpring : leftSpring).tune(26f, .54f);
+                    (right ? leftSpring : rightSpring).tune(16f, .62f);
                     leftSpring.to(tl);
                     rightSpring.to(tr);
                 } else {
@@ -458,8 +486,14 @@ final class Controls {
             float padL = getPaddingLeft(), padR = getPaddingRight(), padT = getPaddingTop(), padB = getPaddingBottom();
             float w = getWidth(), h = getHeight() - padT - padB;
             if (placed && selected >= 0 && selected < items.length && h > 0) {
-                float cl = Math.max(padL, Math.min(w - padR - h, edges[0]));
-                float cr = Math.min(w - padR, Math.max(cl + h, edges[1]));
+                float limit = ui.dp(11);
+                float cl = edges[0] < padL ? padL - rubber(padL - edges[0], limit) : edges[0];
+                float cr = edges[1] > w - padR ? (w - padR) + rubber(edges[1] - (w - padR), limit) : edges[1];
+                if (cr - cl < h) {
+                    float mid = (cl + cr) / 2f;
+                    cl = mid - h / 2f;
+                    cr = mid + h / 2f;
+                }
                 pillPaint.setColor(ui.accent);
                 c.drawRoundRect(cl, padT, cr, padT + h, h / 2f, h / 2f, pillPaint);
             }
