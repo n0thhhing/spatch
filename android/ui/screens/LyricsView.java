@@ -20,6 +20,7 @@ final class LyricsView {
     /** The optional one-line lyric under the player's cover, and the lyrics it follows. */
     private LinearLayout pLyric;
     private String lyricsUri = "", lyricKey = "";
+    private int lyricProgress;
     private boolean lyricShown;
     private Lyrics lyricsData;
 
@@ -127,14 +128,37 @@ final class LyricsView {
         if (!ui.uri.equals(lyricsUri)) {
             String forUri = lyricsUri = ui.uri;
             lyricsData = null;
+            lyricProgress = 0;
             if (!forUri.isEmpty()) {
                 String track = forUri.substring(forUri.lastIndexOf(':') + 1), songTitle = ui.title, songArtist = ui.artist;
+                lyricProgress = LyricGen.progressFor(track);
                 long songLength = ui.duration;
                 ui.submit(SpatchUi.ART, () -> {
                     Lyrics got = null;
                     try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); } catch (Throwable none) { /* no lyrics, or offline: the lines just stay empty */ }
                     Lyrics found = got;
                     ui.post(() -> { if (forUri.equals(lyricsUri)) lyricsData = found; });
+                });
+            }
+        } else if (!lyricsUri.isEmpty()) {
+            String forUri = lyricsUri;
+            String track = forUri.substring(forUri.lastIndexOf(':') + 1);
+            int prog = LyricGen.progressFor(track);
+            if (prog != lyricProgress) {
+                lyricProgress = prog;
+                Lyrics currentData = lyricsData;
+                String songTitle = ui.title, songArtist = ui.artist;
+                long songLength = ui.duration;
+                ui.submit(SpatchUi.ART, () -> {
+                    Lyrics fresh = Lyrics.savedWords(track);
+                    if (fresh != null && currentData != null && WordAlign.sameLines(fresh, currentData) && WordAlign.isSynced(fresh)) {
+                        ui.post(() -> { if (forUri.equals(lyricsUri)) lyricsData = fresh; });
+                    } else if (currentData == null) {
+                        Lyrics got = null;
+                        try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); } catch (Throwable ignored) {}
+                        Lyrics found = got;
+                        if (found != null) ui.post(() -> { if (forUri.equals(lyricsUri)) lyricsData = found; });
+                    }
                 });
             }
         }
@@ -475,7 +499,29 @@ final class LyricsView {
                         });
                     }
                 }
-                if (synced) syncLyrics(alive, scroll, views, found, new int[] { -2, -1, 0 }, touched);
+                int initialProg = LyricGen.progressFor(track);
+                if (synced) {
+                    syncLyrics(alive, scroll, views, new Lyrics[] { found }, new int[] { -2, -1, 0, initialProg }, touched);
+                } else {
+                    int[] seenProg = { initialProg };
+                    Runnable watchPlain = new Runnable() {
+                        @Override public void run() {
+                            if (!alive.getAsBoolean()) return;
+                            int p = LyricGen.progressFor(track);
+                            if (p != seenProg[0]) {
+                                seenProg[0] = p;
+                                ui.submit(SpatchUi.ART, () -> {
+                                    Lyrics fresh = Lyrics.savedWords(track);
+                                    if (fresh != null && WordAlign.sameLines(fresh, found) && WordAlign.isSynced(fresh)) {
+                                        ui.post(() -> { if (alive.getAsBoolean()) { host.removeAllViews(); fillLyrics(host, alive, track, onEmpty); } });
+                                    }
+                                });
+                            }
+                            ui.postDelayed(this, 2000);
+                        }
+                    };
+                    ui.postDelayed(watchPlain, 2000);
+                }
             });
         });
     }
@@ -493,14 +539,25 @@ final class LyricsView {
         ui.prefs.edit().putLong("lyric_offset_" + track, next).apply();
     }
 
-    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, Lyrics lyrics, int[] shown, long[] touched) {
+    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, Lyrics[] holder, int[] shown, long[] touched) {
         if (!alive.getAsBoolean()) return;
+        Lyrics lyrics = holder[0];
         long[] starts = lyrics.starts;
         if (shown[0] == -2 && (scroll.getHeight() == 0 || views[0].getHeight() == 0)) { // not laid out yet: the centring needs real sizes
-            ui.postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), 30);
+            ui.postDelayed(() -> syncLyrics(alive, scroll, views, holder, shown, touched), 30);
             return;
         }
         String track = ui.uri.contains(":") ? ui.uri.substring(ui.uri.lastIndexOf(':') + 1) : "";
+        int curProg = LyricGen.progressFor(track);
+        if (curProg != shown[3] && !track.isEmpty()) {
+            shown[3] = curProg;
+            ui.submit(SpatchUi.ART, () -> {
+                Lyrics fresh = Lyrics.savedWords(track);
+                if (fresh != null && WordAlign.sameLines(fresh, lyrics) && WordAlign.isSynced(fresh)) {
+                    ui.post(() -> { if (alive.getAsBoolean()) holder[0] = fresh; });
+                }
+            });
+        }
         long now = ui.playhead() + lyricOffsetMs(track);
         int current = -1;
         for (int i = 0; i < starts.length; i++) if (starts[i] > 0 && starts[i] <= now) current = i;
@@ -541,7 +598,7 @@ final class LyricsView {
         long next = walking ? walkWords(views[current], lyrics, current, now, ui.ink) : 250;
         focusLyrics(views, current, shown, SystemClock.uptimeMillis() - touched[0] < 4000);
         if (!ui.playing || scroll.getWindowVisibility() != View.VISIBLE || !scroll.isShown()) next = 250;
-        ui.postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), next);
+        ui.postDelayed(() -> syncLyrics(alive, scroll, views, holder, shown, touched), next);
     }
 
     private final android.graphics.RenderEffect[] lyricBlurs = new android.graphics.RenderEffect[5];

@@ -14,6 +14,19 @@ public final class Lyrics {
 
     boolean wordSynced() { for (int[] w : wordAt) if (w != null) return true; return false; }
 
+    Lyrics copy() {
+        Lyrics out = new Lyrics(words.length);
+        System.arraycopy(words, 0, out.words, 0, words.length);
+        System.arraycopy(starts, 0, out.starts, 0, starts.length);
+        System.arraycopy(ends, 0, out.ends, 0, ends.length);
+        for (int i = 0; i < words.length; i++) {
+            if (wordAt[i] != null) out.wordAt[i] = wordAt[i].clone();
+            if (wordStart[i] != null) out.wordStart[i] = wordStart[i].clone();
+        }
+        out.generated = generated;
+        return out;
+    }
+
     /** The UI's settings, so the lyrics fallback can honour the toggle (set by the UI). */
     static volatile android.content.SharedPreferences prefs;
     /** Where every song's last-found lyrics are kept, in app files rather than cache so Android doesn't clear them (set by the UI). */
@@ -31,10 +44,7 @@ public final class Lyrics {
         java.io.File f = file(id, ".gen"), cover = file(id, ".cover");
         if (f == null) return;
         save(f, l);
-        StringBuilder ranges = new StringBuilder();
-        for (long[] r : covered) ranges.append(r[0]).append('-').append(r[1]).append('\n');
-        try { java.nio.file.Files.write(cover.toPath(), ranges.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
-        catch (java.io.IOException failed) { android.util.Log.w("Lyrics", "saving lyric coverage failed", failed); }
+        saveCoverage(cover, covered);
     }
 
     static Lyrics savedGenerated(String id) {
@@ -43,9 +53,30 @@ public final class Lyrics {
         return l;
     }
 
-    static java.util.List<long[]> savedCoverage(String id) {
+    static java.util.List<long[]> savedCoverage(String id) { return readCoverage(file(id, ".cover")); }
+
+    /** Word-aligned copies live beside the source lyrics (".words") so the original lyrics stay intact. */
+    static void saveWords(String id, Lyrics l, java.util.List<long[]> covered) {
+        java.io.File f = file(id, ".words"), cover = file(id, ".wcover");
+        if (f == null) return;
+        save(f, l);
+        saveCoverage(cover, covered);
+    }
+
+    static Lyrics savedWords(String id) { return read(file(id, ".words")); }
+
+    static java.util.List<long[]> savedWordsCoverage(String id) { return readCoverage(file(id, ".wcover")); }
+
+    private static void saveCoverage(java.io.File cover, java.util.List<long[]> covered) {
+        if (cover == null) return;
+        StringBuilder ranges = new StringBuilder();
+        for (long[] r : covered) ranges.append(r[0]).append('-').append(r[1]).append('\n');
+        try { java.nio.file.Files.write(cover.toPath(), ranges.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+        catch (java.io.IOException failed) { android.util.Log.w("Lyrics", "saving lyric coverage failed", failed); }
+    }
+
+    private static java.util.List<long[]> readCoverage(java.io.File cover) {
         java.util.List<long[]> out = new java.util.ArrayList<>();
-        java.io.File cover = file(id, ".cover");
         if (cover == null || !cover.isFile()) return out;
         try {
             for (String line : java.nio.file.Files.readAllLines(cover.toPath())) {

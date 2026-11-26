@@ -19,4 +19,8 @@ public class PublicCatalogTest {
     @Test public void decodesLyricsProto() throws Exception {
         LyricsProtoTest.main(new String[0]);
     }
+
+    @Test public void alignsWordsToLyrics() {
+        WordAlignTest.main(new String[0]);
+    }
 }

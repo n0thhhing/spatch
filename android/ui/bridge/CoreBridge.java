@@ -291,38 +291,51 @@ public final class CoreBridge implements Transport {
      * thrown so callers still tell "no lyrics" (HTTP 404) from "offline". `durationMs` is 0 when not known yet.
      */
     public static Lyrics lyrics(String id, String title, String artist, long durationMs) throws Exception {
-        Exception spotify;
+        Lyrics got = null;
+        Exception spotify = null;
         try {
-            Lyrics got = spotifyLyrics(id);
-            if (got.words.length > 0) {
+            Lyrics s = spotifyLyrics(id);
+            if (s.words.length > 0) {
                 // Spotify mostly times whole lines; LRCLIB often has the same song timed word by word, which is preferred.
                 android.content.SharedPreferences p = Lyrics.prefs;
-                if (!got.wordSynced() && got.starts[got.starts.length - 1] > 0 && (p == null || p.getBoolean("lrclib_lyrics", true))) {
+                if (!s.wordSynced() && s.starts[s.starts.length - 1] > 0 && (p == null || p.getBoolean("lrclib_lyrics", true))) {
                     try {
                         Lyrics words = Lrclib.find(title, artist, durationMs);
-                        if (words != null && words.wordSynced()) got = words;
+                        if (words != null && words.wordSynced()) s = words;
                     } catch (Exception failed) {
                         android.util.Log.w("CoreBridge", "lrclib word timing failed", failed);
                     }
                 }
-                Lyrics.save(id, got);
-                return got;
+                Lyrics.save(id, s);
+                got = s;
+            } else {
+                spotify = new IllegalStateException("HTTP 404 empty lyrics");
             }
-            spotify = new IllegalStateException("HTTP 404 empty lyrics");
         } catch (Exception failed) {
             spotify = failed;
         }
         android.content.SharedPreferences p = Lyrics.prefs;
-        if (p == null || p.getBoolean("lrclib_lyrics", true)) {
+        if (got == null && (p == null || p.getBoolean("lrclib_lyrics", true))) {
             try {
-                Lyrics got = Lrclib.find(title, artist, durationMs);
-                if (got != null) { Lyrics.save(id, got); return got; }
+                Lyrics lrc = Lrclib.find(title, artist, durationMs);
+                if (lrc != null) { Lyrics.save(id, lrc); got = lrc; }
             } catch (Exception failed) {
                 android.util.Log.w("CoreBridge", "lrclib failed", failed);
             }
         }
-        Lyrics saved = Lyrics.saved(id);
-        if (saved != null) return saved;
+        if (got == null) got = Lyrics.saved(id);
+        if (got != null) {
+            if (!got.wordSynced() && p != null && p.getBoolean("lyric_words", false)) {
+                Lyrics aligned = Lyrics.savedWords(id);
+                boolean plain = !WordAlign.isSynced(got);
+                if (aligned != null && WordAlign.sameLines(aligned, got) && (plain ? WordAlign.isSynced(aligned) : aligned.wordSynced())) {
+                    if (!WordAlign.allWordSynced(aligned)) LyricGen.wantWords(id, got);
+                    return aligned;
+                }
+                LyricGen.wantWords(id, got);
+            }
+            return got;
+        }
         LyricGen.want(id); // no service has this song: the experimental generator may listen for it
         Lyrics made = Lyrics.savedGenerated(id);
         if (made != null) return made;

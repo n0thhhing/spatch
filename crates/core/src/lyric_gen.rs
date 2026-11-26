@@ -94,15 +94,27 @@ pub extern "system" fn Java_spatch_LyricGen_nativeRead(env: JNIEnv, _: JClass, f
 /// Transcribes 16 kHz samples with the model at `model`: one "startMs\tendMs\ttext" line per segment, or null on failure.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_LyricGen_nativeTranscribe(
-    mut env: JNIEnv, _: JClass, model: JString, pcm: JFloatArray,
+    env: JNIEnv, _: JClass, model: JString, pcm: JFloatArray,
 ) -> jstring {
+    transcribe_jni(env, model, pcm, false)
+}
+
+/// Transcribes 16 kHz samples into one "startMs\tendMs\tword" line per word, or null on failure.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_LyricGen_nativeTranscribeWords(
+    env: JNIEnv, _: JClass, model: JString, pcm: JFloatArray,
+) -> jstring {
+    transcribe_jni(env, model, pcm, true)
+}
+
+fn transcribe_jni(mut env: JNIEnv, model: JString, pcm: JFloatArray, words: bool) -> jstring {
     let Ok(model) = env.get_string(&model).map(String::from) else { return std::ptr::null_mut() };
     let Ok(len) = env.get_array_length(&pcm) else { return std::ptr::null_mut() };
     let mut samples = vec![0f32; len as usize];
     if env.get_float_array_region(&pcm, 0, &mut samples).is_err() {
         return std::ptr::null_mut();
     }
-    match whisper::transcribe(&model, &samples) {
+    match whisper::transcribe(&model, &samples, words) {
         Some(text) => env.new_string(text).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
         None => std::ptr::null_mut(),
     }
@@ -122,7 +134,7 @@ mod whisper {
         }
     }
 
-    pub fn transcribe(model: &str, samples: &[f32]) -> Option<String> {
+    pub fn transcribe(model: &str, samples: &[f32], words: bool) -> Option<String> {
         let mut guard = CONTEXT.lock().ok()?;
         if guard.as_ref().is_none_or(|(path, _)| path != model) {
             let ctx = WhisperContext::new_with_params(model, WhisperContextParameters::default())
@@ -141,6 +153,11 @@ mod whisper {
         params.set_print_realtime(false);
         params.set_print_special(false);
         params.set_print_timestamps(false);
+        if words {
+            params.set_token_timestamps(true);
+            params.set_max_len(1);
+            params.set_split_on_word(true);
+        }
         state.full(params, samples).map_err(|e| log::warn!("lyric_gen: transcription failed: {e}")).ok()?;
         let mut out = String::new();
         for i in 0..state.full_n_segments() {
@@ -160,7 +177,7 @@ mod whisper {
 #[cfg(not(target_os = "android"))]
 mod whisper {
     /// Off the phone (the desktop preview) there is no model: nothing is generated.
-    pub fn transcribe(_: &str, _: &[f32]) -> Option<String> {
+    pub fn transcribe(_: &str, _: &[f32], _: bool) -> Option<String> {
         None
     }
 

@@ -122,21 +122,26 @@ final class SettingsScreen {
             ui.controls.toggle(lyrics, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
             if (ui.pref("player_lyrics", false)) ui.controls.choice(lyrics, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
             ui.controls.toggle(lyrics, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
+            Runnable downloadModel = () -> ui.submit(SpatchUi.ART, () -> {
+                try { LyricGen.download(); }
+                catch (Exception failed) { LyricGen.status = "Couldn’t get the model: " + failed.getMessage() + ". Turn this off and on to retry."; }
+            });
             ui.controls.toggle(lyrics, "Generate missing lyrics", "Experimental: when no service has a song's lyrics, listen to it on the phone and write rough timed lyrics, saved for next time. Downloads a 60 MB speech model once; uses extra battery while it listens", "lyric_gen", false, false, () -> {
-                if (ui.pref("lyric_gen", false)) ui.submit(SpatchUi.ART, () -> {
-                    try { LyricGen.download(); }
-                    catch (Exception failed) { LyricGen.status = "Couldn’t get the model: " + failed.getMessage() + ". Turn this off and on to retry."; }
-                });
+                if (ui.pref("lyric_gen", false)) downloadModel.run();
+            });
+            ui.controls.toggle(lyrics, "Word timing from the song (experimental)", "Listen to the song on the phone to time each word of existing lyrics, saved for next time. Uses the same 60 MB speech model", "lyric_words", false, false, () -> {
+                if (ui.pref("lyric_words", false)) downloadModel.run();
             });
             TextView genStatus = ui.text("", 12, () -> ui.inkDim, false);
             genStatus.setPadding(ui.dp(18), 0, ui.dp(18), ui.dp(10));
             lyrics.addView(genStatus);
             Runnable showGen = new Runnable() {
                 @Override public void run() {
-                    String now = ui.pref("lyric_gen", false) ? (LyricGen.enabled() ? "Model ready" : LyricGen.status) : "";
+                    boolean wantModel = ui.pref("lyric_gen", false) || ui.pref("lyric_words", false);
+                    String now = wantModel ? (LyricGen.modelReady() ? "Model ready" : LyricGen.status) : "";
                     genStatus.setText(now);
                     genStatus.setVisibility(now.isEmpty() ? View.GONE : View.VISIBLE);
-                    if (ui.pref("lyric_gen", false) && !LyricGen.enabled() && genStatus.isAttachedToWindow()) genStatus.postDelayed(this, 500); // follow the download
+                    if (wantModel && !LyricGen.modelReady() && genStatus.isAttachedToWindow()) genStatus.postDelayed(this, 500); // follow the download
                 }
             };
             genStatus.post(showGen);

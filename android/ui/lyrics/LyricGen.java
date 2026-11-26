@@ -32,23 +32,41 @@ final class LyricGen {
 
     static File model() { File d = dir; return d == null ? null : new File(d, "ggml-base-q5_1.bin"); }
 
+    static boolean modelReady() {
+        File m = model();
+        return m != null && m.length() == MODEL_BYTES;
+    }
+
     static boolean enabled() {
         SharedPreferences p = prefs;
-        File m = model();
-        return p != null && p.getBoolean("lyric_gen", false) && m != null && m.length() == MODEL_BYTES;
+        return p != null && p.getBoolean("lyric_gen", false) && modelReady();
+    }
+
+    static boolean wordsEnabled() {
+        SharedPreferences p = prefs;
+        return p != null && p.getBoolean("lyric_words", false) && modelReady();
     }
 
     // What is playing, as the UI last reported it, and a count of the jumps (seek, pause, skip) that break a window.
     private static String track = "", wanted = null;
+    private static Lyrics wantedWords = null;
     private static long position, duration, reportedAt;
     private static boolean playing;
     private static int jumps;
     private static Thread worker;
+    private static volatile String progressId = "";
+    private static volatile int progressSeq = 0;
 
-    /** Called by CoreBridge when no service has lyrics for `id`: generate them if the song plays. */
-    static synchronized void want(String id) {
-        if (id == null || id.equals(wanted) || prefs == null || !prefs.getBoolean("lyric_gen", false)) return;
-        wanted = id;
+    static int progressFor(String id) {
+        return id != null && id.equals(progressId) ? progressSeq : 0;
+    }
+
+    private static void markProgress(String id) {
+        progressId = id;
+        progressSeq++;
+    }
+
+    private static void startWorker() {
         LyricGen.class.notifyAll();
         if (worker == null) {
             worker = new Thread(LyricGen::run, "spatch-lyric-gen");
@@ -56,6 +74,23 @@ final class LyricGen {
             worker.setPriority(Thread.MIN_PRIORITY);
             worker.start();
         }
+    }
+
+    /** Called by CoreBridge when no service has lyrics for `id`: generate them if the song plays. */
+    static synchronized void want(String id) {
+        if (id == null || (id.equals(wanted) && wantedWords == null) || prefs == null || !prefs.getBoolean("lyric_gen", false)) return;
+        wanted = id;
+        wantedWords = null;
+        startWorker();
+    }
+
+    /** Called by CoreBridge when `id` has line-timed or plain lyrics without word timing: align them while the song plays. */
+    static synchronized void wantWords(String id, Lyrics lyrics) {
+        if (id == null || lyrics == null || lyrics.words.length == 0 || prefs == null || !prefs.getBoolean("lyric_words", false)) return;
+        if (id.equals(wanted) && wantedWords != null && WordAlign.sameLines(wantedWords, lyrics)) return;
+        wanted = id;
+        wantedWords = lyrics.copy();
+        startWorker();
     }
 
     /** Every player update from the UI. Only real discontinuities count as jumps, not routine state refreshes. */
@@ -69,7 +104,11 @@ final class LyricGen {
 
     private static void run() {
         String song = null;
+        boolean songWordMode = false;
         TreeMap<Long, String[]> lines = new TreeMap<>(); // start → { end, text }
+        Lyrics aligned = null;
+        boolean plainMode = false;
+        int plainCursor = 0;
         ArrayList<long[]> covered = new ArrayList<>();
         long winFrames = -1, winPos = 0, winWall = 0;
         int winJumps = -1;
@@ -81,12 +120,15 @@ final class LyricGen {
             } catch (InterruptedException stop) { return; }
             try {
             String id;
-            boolean active;
+            boolean active, wordMode;
+            Lyrics sourceWords;
             long songLength;
             int jumpsNow;
             synchronized (LyricGen.class) {
                 id = track;
-                active = enabled() && id.equals(wanted) && playing;
+                wordMode = wantedWords != null;
+                sourceWords = wantedWords;
+                active = (wordMode ? wordsEnabled() : enabled()) && id.equals(wanted) && playing;
                 songLength = duration;
                 jumpsNow = jumps;
             }
@@ -95,14 +137,39 @@ final class LyricGen {
                 nativeCapture(active);
             }
             if (!active) { winFrames = -1; continue; }
-            if (!id.equals(song)) {
+            if (!id.equals(song) || wordMode != songWordMode) {
                 song = id;
+                songWordMode = wordMode;
                 lines.clear();
                 covered.clear();
-                Lyrics before = Lyrics.savedGenerated(id);
-                if (before != null) for (int i = 0; i < before.words.length; i++) lines.put(before.starts[i], new String[] { Long.toString(before.ends[i]), before.words[i] });
-                covered.addAll(Lyrics.savedCoverage(id));
-                if (songLength > 0 && coveredMs(covered) >= songLength * 9 / 10) { finish(id); continue; }
+                aligned = null;
+                plainMode = false;
+                plainCursor = 0;
+                if (wordMode) {
+                    Lyrics before = Lyrics.savedWords(id);
+                    aligned = before != null && WordAlign.sameLines(before, sourceWords) ? before : sourceWords.copy();
+                    plainMode = !WordAlign.isSynced(sourceWords);
+                    if (plainMode) {
+                        for (int i = 0; i < aligned.starts.length; i++) if (aligned.starts[i] > 0) plainCursor = i + 1;
+                    }
+                    covered.addAll(Lyrics.savedWordsCoverage(id));
+                    boolean audioDone = songLength > 0 && coveredMs(covered) >= songLength * 9 / 10;
+                    if (WordAlign.isSynced(aligned) && WordAlign.allWordSynced(aligned)) { finish(id); continue; }
+                    if (audioDone) {
+                        if (plainMode && !WordAlign.isSynced(aligned) && WordAlign.readyToFinalize(aligned, true)) {
+                            WordAlign.interpolateUntimed(aligned, songLength);
+                            Lyrics.saveWords(id, aligned, covered);
+                            markProgress(id);
+                        }
+                        finish(id);
+                        continue;
+                    }
+                } else {
+                    Lyrics before = Lyrics.savedGenerated(id);
+                    if (before != null) for (int i = 0; i < before.words.length; i++) lines.put(before.starts[i], new String[] { Long.toString(before.ends[i]), before.words[i] });
+                    covered.addAll(Lyrics.savedCoverage(id));
+                    if (songLength > 0 && coveredMs(covered) >= songLength * 9 / 10) { finish(id); continue; }
+                }
             }
             if (winFrames < 0 || winJumps != jumpsNow) { winFrames = nativeFrames(); winPos = now(); winWall = SystemClock.uptimeMillis(); winJumps = jumpsNow; continue; }
             long elapsed = SystemClock.uptimeMillis() - winWall, at = now();
@@ -116,20 +183,38 @@ final class LyricGen {
             if (audioMs < 4000 || Math.abs(audioMs - elapsed) > 1500) continue;
             float[] pcm = nativeRead(from, frames);
             File m = model();
-            String found = pcm == null || m == null ? null : nativeTranscribe(m.getPath(), pcm);
-            if (found == null) continue;
-            lines.subMap(start, start + audioMs).clear(); // this listen replaces what an earlier one heard here
-            for (String seg : found.split("\n")) {
-                String[] f = seg.split("\t", 3);
-                if (f.length < 3) continue;
-                String text = f[2].replaceAll("[♪♫]", "").trim();
-                if (INVENTED.matcher(text).matches()) continue;
-                try { lines.put(start + Long.parseLong(f[0]), new String[] { Long.toString(start + Long.parseLong(f[1])), text }); }
-                catch (NumberFormatException bad) { /* skip the segment */ }
+            if (wordMode) {
+                String found = pcm == null || m == null ? null : nativeTranscribeWords(m.getPath(), pcm);
+                if (found == null) continue;
+                java.util.List<WordAlign.Word> heard = WordAlign.parse(found, start);
+                covered.add(new long[] { start, start + audioMs });
+                boolean audioDone = songLength > 0 && coveredMs(covered) >= songLength * 9 / 10;
+                if (plainMode && !WordAlign.isSynced(aligned)) {
+                    plainCursor = WordAlign.alignPlain(aligned, heard, start, start + audioMs, songLength, plainCursor);
+                    if (WordAlign.readyToFinalize(aligned, audioDone)) WordAlign.interpolateUntimed(aligned, songLength);
+                } else {
+                    WordAlign.align(aligned, heard, start, start + audioMs);
+                }
+                Lyrics.saveWords(id, aligned, covered);
+                markProgress(id);
+                if (audioDone || (WordAlign.isSynced(aligned) && WordAlign.allWordSynced(aligned))) finish(id);
+            } else {
+                String found = pcm == null || m == null ? null : nativeTranscribe(m.getPath(), pcm);
+                if (found == null) continue;
+                lines.subMap(start, start + audioMs).clear(); // this listen replaces what an earlier one heard here
+                for (String seg : found.split("\n")) {
+                    String[] f = seg.split("\t", 3);
+                    if (f.length < 3) continue;
+                    String text = f[2].replaceAll("[♪♫]", "").trim();
+                    if (INVENTED.matcher(text).matches()) continue;
+                    try { lines.put(start + Long.parseLong(f[0]), new String[] { Long.toString(start + Long.parseLong(f[1])), text }); }
+                    catch (NumberFormatException bad) { /* skip the segment */ }
+                }
+                covered.add(new long[] { start, start + audioMs });
+                Lyrics.saveGenerated(id, toLyrics(lines), covered);
+                markProgress(id);
+                if (songLength > 0 && coveredMs(covered) >= songLength * 9 / 10) finish(id);
             }
-            covered.add(new long[] { start, start + audioMs });
-            Lyrics.saveGenerated(id, toLyrics(lines), covered);
-            if (songLength > 0 && coveredMs(covered) >= songLength * 9 / 10) finish(id);
             } catch (UnsatisfiedLinkError none) {
                 return; // no native library (the desktop preview)
             } catch (RuntimeException failed) {
@@ -139,7 +224,9 @@ final class LyricGen {
         }
     }
 
-    private static synchronized void finish(String id) { if (id.equals(wanted)) wanted = null; }
+    private static synchronized void finish(String id) {
+        if (id.equals(wanted)) { wanted = null; wantedWords = null; }
+    }
 
     static Lyrics toLyrics(TreeMap<Long, String[]> lines) {
         Lyrics out = new Lyrics(lines.size());
@@ -205,4 +292,5 @@ final class LyricGen {
     private static native int nativeRate();
     private static native float[] nativeRead(long from, long to);
     private static native String nativeTranscribe(String model, float[] pcm);
+    private static native String nativeTranscribeWords(String model, float[] pcm);
 }
