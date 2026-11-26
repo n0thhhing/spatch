@@ -31,7 +31,7 @@ static QUEUE_CONNECTED: AtomicBool = AtomicBool::new(false);
 static QUEUE_STATE: Mutex<Option<es::Queue>> = Mutex::new(None);
 
 fn current_queue(now: &player::NowPlaying, queue: &es::Queue) -> bool {
-    queue.queue_revision == now.queue_revision &&
+    (queue.queue_revision == now.queue_revision || queue.queue_revision == 0 || now.queue_revision == 0) &&
         queue.track.as_ref().and_then(|t| t.context_track.as_ref())
             .map_or(now.uri.is_empty(), |t| t.uri == now.uri)
 }
@@ -260,7 +260,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativePlayer(env: JNIEnv, _: JClass,
     let editable = queue.is_some() || cfg!(feature = "preview");
     for next in queue.as_ref().unwrap_or(&now.up_next) {
         fields.extend([next.title.clone(), next.artist.clone(), next.image.clone(), next.uri.clone(),
-            queue_key(next, now.queue_revision), (editable && next.queued).to_string()]);
+            queue_key(next, now.queue_revision), editable.to_string()]);
     }
     packed_strings(&env, &fields)
 }
@@ -589,7 +589,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeCommand(mut env: JNIEnv, _: JC
             } else {
                 #[cfg(feature = "preview")]
                 {
-                    let done = if action == 15 { player::move_in_queue(&mut now.up_next, index, to, |t| t.queued) } else { player::edit_queue(&mut now.up_next, index, action, |t| t.queued) };
+                    let done = if action == 15 { player::move_in_queue(&mut now.up_next, index, to, |_| true) } else { player::edit_queue(&mut now.up_next, index, action, |_| true) };
                     if !done {
                         return JNI_FALSE;
                     }

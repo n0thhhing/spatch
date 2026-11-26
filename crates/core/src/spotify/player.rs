@@ -159,13 +159,30 @@ pub fn move_in_queue<T: Clone>(tracks: &mut Vec<T>, from: usize, to: usize, edit
 #[cfg(not(feature = "preview"))]
 pub fn queue_edit_request(queue: &es::Queue, index: usize, action: i32, to: usize) -> Option<es::SetQueueRequest> {
     let mut next_tracks = queue.next_tracks.clone();
-    let raw = |visible: usize| next_tracks.iter().enumerate().filter(|(_, track)| visible_track(track)).nth(visible).map(|(i, _)| i);
-    let raw_index = raw(index)?;
-    let raw_to = if action == 15 { raw(to)? } else { raw_index };
-    let editable = |track: &es::ProvidedTrack| track.provider == "queue" && visible_track(track);
-    let done = if action == 15 { move_in_queue(&mut next_tracks, raw_index, raw_to, editable) } else { edit_queue(&mut next_tracks, raw_index, action, editable) };
-    if !done {
-        return None;
+    let raw = |visible: usize, list: &[es::ProvidedTrack]| {
+        list.iter().enumerate().filter(|(_, track)| visible_track(track)).nth(visible).map(|(i, _)| i)
+    };
+    let raw_index = raw(index, &next_tracks)?;
+    if action == 10 {
+        next_tracks.remove(raw_index);
+    } else {
+        let dest = match action {
+            11 => index.checked_sub(1)?,
+            12 => index + 1,
+            15 => to,
+            _ => return None,
+        };
+        let raw_to = raw(dest, &next_tracks)?;
+        if raw_index == raw_to {
+            return None;
+        }
+        let mut item = next_tracks.remove(raw_index);
+        if let Some(delim) = next_tracks.iter().position(|t| !visible_track(t)) {
+            if raw_to <= delim {
+                item.provider = "queue".into();
+            }
+        }
+        next_tracks.insert(raw_to, item);
     }
     Some(es::SetQueueRequest {
         next_tracks,
@@ -439,8 +456,12 @@ mod tests {
         let request = queue_edit_request(&queue, 0, 10, 0).unwrap();
         assert_eq!(request.queue_revision, 42);
         assert_eq!(request.prev_tracks, queue.prev_tracks);
-        assert_eq!(request.next_tracks, [delimiter, context]);
-        assert!(queue_edit_request(&queue, 1, 10, 0).is_none());
+        assert_eq!(request.next_tracks, [delimiter.clone(), context.clone()]);
+        let removed_context = queue_edit_request(&queue, 1, 10, 0).unwrap();
+        assert_eq!(removed_context.next_tracks, [queue.next_tracks[0].clone(), delimiter.clone()]);
+        let promoted = queue_edit_request(&queue, 1, 15, 0).unwrap();
+        assert_eq!(promoted.next_tracks[0].provider, "queue");
+        assert_eq!(promoted.next_tracks[2], delimiter);
     }
 
     #[test]

@@ -1287,14 +1287,16 @@ final class PlayerScreen {
         renderQueue();
     }
 
-    private boolean queueFresh;
+    private boolean queueFresh, queueDragging;
 
     void renderQueue() {
-        if (queuePanel == null) return;
+        if (queuePanel == null || queueDragging) return;
         int offset = queueScroll == null ? 0 : queueScroll.getScrollY();
         queuePanel.removeAllViews();
         queuePanel.setBackgroundColor(ui.bg);
         LinearLayout body = ui.column();
+        body.setClipChildren(false);
+        body.setClipToPadding(false);
         body.setPadding(ui.dp(18), ui.inset.top, ui.dp(18), ui.inset.bottom);
         LinearLayout header = ui.row();
         header.addView(ui.iconButton(ui.icon("back", () -> ui.ink), "Close queue", this::closeQueue), ui.lp(ui.dp(48), ui.dp(48)));
@@ -1303,9 +1305,13 @@ final class PlayerScreen {
         queueScroll = new ScrollView(ui.activity);
         queueScroll.setVerticalScrollBarEnabled(false);
         queueScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        queueScroll.setClipChildren(false);
+        queueScroll.setClipToPadding(false);
         queueScroll.setVerticalFadingEdgeEnabled(true); // rows melt into the top and bottom
         queueScroll.setFadingEdgeLength(ui.dp(56));
         LinearLayout tracks = ui.column();
+        tracks.setClipChildren(false);
+        tracks.setClipToPadding(false);
         tracks.setPadding(0, ui.dp(12), 0, ui.dp(24));
         fillQueueList(tracks, queueFresh, true);
         queueScroll.addView(tracks, new ScrollView.LayoutParams(-1, -2));
@@ -1373,18 +1379,24 @@ final class PlayerScreen {
                     startX = e.getRawX();
                     startY = e.getRawY();
                     mode = NONE;
-                    postDelayed(lift, android.view.ViewConfiguration.getLongPressTimeout());
+                    postDelayed(lift, 300);
                     return false;
                 case android.view.MotionEvent.ACTION_MOVE:
                     float dx = e.getRawX() - startX, dy = e.getRawY() - startY;
-                    if (mode == LIFTED) { mode = DRAG; return true; }
-                    if (mode == NONE && Math.abs(dx) > slop && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                    if (mode == LIFTED) {
+                        mode = DRAG;
+                        startY = e.getRawY();
+                        return true;
+                    }
+                    if (mode == NONE && Math.abs(dx) > slop * 0.7f && Math.abs(dx) > Math.abs(dy)) {
                         removeCallbacks(lift);
                         mode = SWIPE;
+                        queueDragging = true;
+                        if (getChildCount() > 0) getChildAt(0).setPressed(false);
                         getParent().requestDisallowInterceptTouchEvent(true);
                         return true;
                     }
-                    if (mode == NONE && Math.abs(dy) > slop) removeCallbacks(lift); // the list is scrolling
+                    if (mode == NONE && Math.abs(dy) > slop * 1.5f) removeCallbacks(lift); // the list is scrolling
                     return false;
                 case android.view.MotionEvent.ACTION_UP:
                 case android.view.MotionEvent.ACTION_CANCEL:
@@ -1401,17 +1413,21 @@ final class PlayerScreen {
                 float dx = e.getRawX() - startX;
                 if (action == android.view.MotionEvent.ACTION_MOVE) {
                     setTranslationX(dx);
-                    setAlpha(1f - Math.min(1f, Math.abs(dx) / ui.dp(160)));
+                    setAlpha(1f - Math.min(1f, Math.abs(dx) / Math.max(ui.dp(160), getWidth() * 0.55f)));
                 } else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
-                    if (Math.abs(dx) > ui.dp(96) && action == android.view.MotionEvent.ACTION_UP) swipeAway(dx);
-                    else animate().translationX(0f).alpha(1f).setDuration(180).start();
+                    float threshold = Math.max(ui.dp(72), getWidth() * 0.28f);
+                    if (Math.abs(dx) > threshold && action == android.view.MotionEvent.ACTION_UP) swipeAway(dx);
+                    else {
+                        queueDragging = false;
+                        animate().translationX(0f).alpha(1f).setDuration(180).start();
+                    }
                     mode = NONE;
                 }
                 return true;
             }
             if (mode == LIFTED || mode == DRAG) {
                 if (action == android.view.MotionEvent.ACTION_MOVE) {
-                    mode = DRAG;
+                    if (mode == LIFTED) { mode = DRAG; startY = e.getRawY(); }
                     drag(e.getRawY() - startY);
                 } else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
                     drop(mode == DRAG && action == android.view.MotionEvent.ACTION_UP);
@@ -1424,7 +1440,9 @@ final class PlayerScreen {
         private void lift() {
             if (mode != NONE) return;
             mode = LIFTED;
+            queueDragging = true;
             target = index;
+            if (getChildCount() > 0) getChildAt(0).setPressed(false);
             getParent().requestDisallowInterceptTouchEvent(true);
             if (ui.pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
             setBackground(ui.round(ui.surfHi, 18)); // gives the shadow an outline to fall from
@@ -1460,6 +1478,7 @@ final class PlayerScreen {
             int to = target;
             boolean moving = moved && to != index;
             mode = NONE;
+            queueDragging = false;
             float h = getHeight();
             animate().scaleX(1f).scaleY(1f).rotation(0f).translationZ(0f).translationY(moving ? (to - index) * h : 0f).setDuration(200)
                 .setInterpolator(SpatchUi.EMPHASIZED).withEndAction(() -> setBackground(null)).start();
@@ -1494,7 +1513,7 @@ final class PlayerScreen {
                     if (child == this) { below = true; continue; }
                     if (below) child.animate().translationY(-h).setDuration(200).setInterpolator(SpatchUi.EMPHASIZED).start();
                 }
-                postDelayed(() -> ui.command(10, index, entry.queueKey), 200);
+                postDelayed(() -> { queueDragging = false; ui.command(10, index, entry.queueKey); }, 200);
             }).start();
         }
     }
