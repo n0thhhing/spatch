@@ -6,8 +6,11 @@ use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::jbyteArray;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static WRITE_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Default)]
 struct Answers {
@@ -19,6 +22,38 @@ struct Answers {
 
 static ANSWERS: Mutex<Option<Answers>> = Mutex::new(None);
 const MOST: usize = 400;
+
+fn prune_dir(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    let mut files: Vec<_> = entries.flatten().filter_map(|e| {
+        let meta = e.metadata().ok()?;
+        if !meta.is_file() { return None; }
+        Some((meta.modified().ok()?, e.path()))
+    }).collect();
+    files.sort();
+    for (_, path) in files.iter().take(files.len().saturating_sub(MOST)) { let _ = fs::remove_file(path); }
+}
+
+struct PendingWrite {
+    path: PathBuf,
+    account: String,
+    prune_dir: Option<PathBuf>,
+}
+
+impl PendingWrite {
+    fn flush(self, key: &str, value: &[u8]) {
+        // Unique temp file per write so concurrent puts after releasing ANSWERS never collide on the same .new path.
+        let seq = WRITE_SEQ.fetch_add(1, Ordering::Relaxed);
+        let temporary = self.path.with_extension(format!("new.{seq}"));
+        let payload = [crate::packed::encode(&[format!("{}:{key}", self.account)]).as_slice(), value].concat();
+        if fs::write(&temporary, payload).is_ok() {
+            let _ = fs::rename(&temporary, &self.path);
+        }
+        if let Some(dir) = self.prune_dir.as_deref() {
+            prune_dir(dir);
+        }
+    }
+}
 
 impl Answers {
     fn file(&self, key: &str) -> Option<PathBuf> {
@@ -37,36 +72,27 @@ impl Answers {
     }
 
     fn prune(&self) {
-        let Some(dir) = self.dir.as_ref() else { return };
-        let Ok(entries) = fs::read_dir(dir) else { return };
-        let mut files: Vec<_> = entries.flatten().filter_map(|e| {
-            let meta = e.metadata().ok()?;
-            if !meta.is_file() { return None; }
-            Some((meta.modified().ok()?, e.path()))
-        }).collect();
-        files.sort();
-        for (_, path) in files.iter().take(files.len().saturating_sub(MOST)) { let _ = fs::remove_file(path); }
+        if let Some(dir) = self.dir.as_deref() {
+            prune_dir(dir);
+        }
     }
 
-    fn put(&mut self, key: &str, value: &[u8]) {
+    fn stage_put(&mut self, key: &str, value: &[u8]) -> Option<PendingWrite> {
         if self.memory.len() >= MOST && !self.memory.contains_key(key) {
             if let Some(victim) = self.memory.keys().next().cloned() { self.memory.remove(&victim); }
         }
         self.memory.insert(key.to_string(), value.to_vec());
-        let Some(path) = self.file(key) else { return };
-        let temporary = path.with_extension("new");
-        // The cache mutex serializes writes to the same temporary file and account changes.
-        if fs::write(&temporary, [encode(&[format!("{}:{key}", self.account.as_deref().unwrap())]).as_slice(), value].concat()).is_ok() {
-            let _ = fs::rename(&temporary, &path);
-        }
+        let path = self.file(key)?;
+        let account = self.account.clone()?;
         self.writes += 1;
-        if self.writes.is_multiple_of(32) { self.prune(); }
+        let prune_dir = self.writes.is_multiple_of(32).then(|| self.dir.clone()).flatten();
+        Some(PendingWrite { path, account, prune_dir })
     }
 
     fn get(&self, key: &str) -> Option<Vec<u8>> {
         if let Some(value) = self.memory.get(key) { return Some(value.clone()); }
         let bytes = fs::read(self.file(key)?).ok()?;
-        let (stored, used) = decode_one(&bytes)?;
+        let (stored, used) = crate::packed::decode_one(&bytes)?;
         (stored == format!("{}:{key}", self.account.as_deref()?)).then(|| bytes[used..].to_vec())
     }
 }
@@ -86,37 +112,14 @@ pub fn set_account(account: Option<&str>) {
 }
 
 pub fn put(key: &str, value: &[u8]) {
-    ANSWERS.lock().unwrap().get_or_insert_with(Answers::default).put(key, value);
+    let pending = ANSWERS.lock().unwrap().get_or_insert_with(Answers::default).stage_put(key, value);
+    if let Some(pending) = pending {
+        pending.flush(key, value);
+    }
 }
 
 pub fn get(key: &str) -> Option<Vec<u8>> {
     ANSWERS.lock().unwrap().as_ref()?.get(key)
-}
-
-/// Strings as a 4-byte little-endian length and the UTF-8 bytes, one after another.
-pub fn encode(fields: &[String]) -> Vec<u8> {
-    let total: usize = fields.iter().map(|f| 4 + f.len()).sum();
-    let mut out = Vec::with_capacity(total);
-    for f in fields {
-        out.extend_from_slice(&(f.len() as u32).to_le_bytes());
-        out.extend_from_slice(f.as_bytes());
-    }
-    out
-}
-
-fn decode_one(bytes: &[u8]) -> Option<(String, usize)> {
-    let len = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
-    Some((String::from_utf8(bytes.get(4..4 + len)?.to_vec()).ok()?, 4 + len))
-}
-
-pub fn decode(mut bytes: &[u8]) -> Option<Vec<String>> {
-    let mut out = Vec::new();
-    while !bytes.is_empty() {
-        let (field, used) = decode_one(bytes)?;
-        out.push(field);
-        bytes = &bytes[used..];
-    }
-    Some(out)
 }
 
 /// Where the answers live (the app's cache folder).
@@ -147,6 +150,14 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRemember(mut env: JNIEnv, _: J
 mod tests {
     use super::*;
 
+    impl Answers {
+        fn put(&mut self, key: &str, value: &[u8]) {
+            if let Some(pending) = self.stage_put(key, value) {
+                pending.flush(key, value);
+            }
+        }
+    }
+
     #[test]
     fn answers_are_bounded_and_isolated_by_verified_account() {
         let dir = std::env::temp_dir().join(format!("spatch-cache-test-{}", std::process::id()));
@@ -171,7 +182,22 @@ mod tests {
         assert!(fs::read_dir(&dir).unwrap().count() <= MOST);
         cache.account(None);
         assert_eq!(cache.get("library"), None);
-        assert_eq!(decode(&[1, 0, 0]), None);
+        assert_eq!(crate::packed::decode(&[1, 0, 0]), None);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn public_put_flushes_outside_lock_and_prunes_every_32_writes() {
+        let dir = std::env::temp_dir().join(format!("spatch-cache-pub-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        set_dir(dir.clone());
+        set_account(Some("alice"));
+        for n in 0..448 {
+            put(&format!("k{n}"), b"v");
+        }
+        assert_eq!(get("k447").as_deref(), Some(b"v".as_slice()));
+        assert!(fs::read_dir(dir.join("v2")).unwrap().count() <= MOST);
+        set_account(None);
         let _ = fs::remove_dir_all(&dir);
     }
 }

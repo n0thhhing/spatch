@@ -139,7 +139,7 @@ fn learn_username(context: &str) {
 static SAVED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 fn packed_strings(env: &JNIEnv, values: &[String]) -> jbyteArray {
-    let bytes = crate::cache::encode(values);
+    let bytes = crate::packed::encode(values);
     env.byte_array_from_slice(&bytes).map_or(std::ptr::null_mut(), |a| a.into_raw())
 }
 
@@ -354,7 +354,7 @@ static SONGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeSongs(env: JNIEnv, _: JClass, packed: JByteArray) {
     let Ok(bytes) = env.convert_byte_array(&packed) else { return };
-    if let Some(values) = crate::cache::decode(&bytes) {
+    if let Some(values) = crate::packed::decode(&bytes) {
         *SONGS.lock().unwrap() = values;
     }
 }

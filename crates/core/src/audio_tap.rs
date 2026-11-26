@@ -669,6 +669,8 @@ mod native_hook {
             if !stream.is_null() {
                 let slot = slot_for_builder(builder as usize);
                 record_stream_metadata(slot, stream);
+                // Clear the builder address once opened so a later builder at the same freed address cannot overwrite this live stream's callback.
+                slot.builder.store(0, Ordering::Release);
             }
         }
         rc

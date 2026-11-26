@@ -12,7 +12,7 @@ fn downloadable_uris() -> Vec<String> {
         .filter(|i| i.kind != library::Kind::Artist && i.kind != library::Kind::Other && !i.uri.is_empty())
         .map(|i| i.uri.clone())
         .collect();
-    if let Some(fields) = crate::cache::get(DOWNLOAD_ITEMS).and_then(|bytes| crate::cache::decode(&bytes)) {
+    if let Some(fields) = crate::cache::get(DOWNLOAD_ITEMS).and_then(|bytes| crate::packed::decode(&bytes)) {
         uris.extend(fields.as_chunks::<5>().0.iter().map(|e| e[2].clone()));
     }
     uris.sort(); uris.dedup();
@@ -56,7 +56,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeDownloadsSet(_: JNIEnv, _: JCl
 const DOWNLOAD_ITEMS: &str = "download-items";
 
 fn download_metadata(uri: &str, packed: &[u8]) -> Result<Vec<String>, String> {
-    let entry = crate::cache::decode(packed).ok_or("Invalid download details")?;
+    let entry = crate::packed::decode(packed).ok_or("Invalid download details")?;
     if entry.len() != 5 || entry[2] != uri || !matches!(entry[4].parse::<i32>(), Ok(-1..=3)) {
         return Err("Invalid download details".into());
     }
@@ -65,12 +65,12 @@ fn download_metadata(uri: &str, packed: &[u8]) -> Result<Vec<String>, String> {
 
 fn remember_download(uri: &str, action: jint, entry: Option<Vec<String>>) {
     if action == 0 && entry.is_none() { return; }
-    let existing = crate::cache::get(DOWNLOAD_ITEMS).and_then(|bytes| crate::cache::decode(&bytes)).unwrap_or_default();
+    let existing = crate::cache::get(DOWNLOAD_ITEMS).and_then(|bytes| crate::packed::decode(&bytes)).unwrap_or_default();
     let active: std::collections::HashSet<_> = crate::spotify::downloads::snapshot().into_iter().map(|d| d.uri).collect();
     let mut fields: Vec<String> = existing.as_chunks::<5>().0.iter()
         .filter(|e| action != 2 && e[2] != uri && active.contains(&e[2])).flatten().cloned().collect();
     if let Some(entry) = entry { fields.extend(entry); }
-    crate::cache::put(DOWNLOAD_ITEMS, &crate::cache::encode(&fields));
+    crate::cache::put(DOWNLOAD_ITEMS, &crate::packed::encode(&fields));
 }
 
 /// Adds (0), removes (1), or clears (2) downloads. Optional row metadata stays in the account cache.
@@ -138,10 +138,10 @@ mod tests {
     fn metadata_must_match_the_requested_item() {
         let uri = "spotify:track:one";
         let mut entry = vec!["Song".into(), "Artist".into(), uri.into(), "cover".into(), "-1".into()];
-        assert_eq!(download_metadata(uri, &crate::cache::encode(&entry)), Ok(entry.clone()));
-        assert!(download_metadata("spotify:track:other", &crate::cache::encode(&entry)).is_err());
+        assert_eq!(download_metadata(uri, &crate::packed::encode(&entry)), Ok(entry.clone()));
+        assert!(download_metadata("spotify:track:other", &crate::packed::encode(&entry)).is_err());
         entry[4] = "999".into();
-        assert!(download_metadata(uri, &crate::cache::encode(&entry)).is_err());
+        assert!(download_metadata(uri, &crate::packed::encode(&entry)).is_err());
         assert!(download_metadata(uri, &[0xff]).is_err());
     }
 }

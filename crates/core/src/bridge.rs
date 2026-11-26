@@ -147,10 +147,10 @@ pub fn extended_metadata(request: &[u8]) -> Result<Vec<u8>, String> {
 /// Public catalog details for a page of track links, using a separate anonymous Spotify session.
 pub fn public_track_metadata(uris: &[String]) -> Result<Vec<String>, String> {
     let bytes = call_java_bytes(|env, class| {
-        let input = env.byte_array_from_slice(&crate::cache::encode(uris))?;
+        let input = env.byte_array_from_slice(&crate::packed::encode(uris))?;
         env.call_static_method(class, "publicTrackMetadata", "([B)[B", &[JValue::Object(&input)])?.l()
     })?;
-    crate::cache::decode(&bytes).ok_or_else(|| "Invalid public track metadata".into())
+    crate::packed::decode(&bytes).ok_or_else(|| "Invalid public track metadata".into())
 }
 
 /// The phone's two-letter country.

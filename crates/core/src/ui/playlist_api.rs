@@ -261,7 +261,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeWatchPlaylist(mut env: JNIEnv,
         if WATCHED_PLAYLIST.lock().unwrap().as_ref().is_none_or(|(k, _)| k != &watched) {
             return;
         }
-        let encoded = crate::cache::encode(&page_fields(page));
+        let encoded = crate::packed::encode(&page_fields(page));
         if crate::cache::get(&watched).as_deref() != Some(encoded.as_slice()) {
             crate::cache::put(&watched, &encoded);
             PLAYLIST_REVISION.fetch_add(1, Ordering::SeqCst);

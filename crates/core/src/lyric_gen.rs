@@ -64,6 +64,8 @@ pub extern "system" fn Java_spatch_LyricGen_nativeCapture(_: JNIEnv, _: JClass, 
     if on != 0 {
         BUF.get_or_init(|| (0..CAP_N).map(|_| AtomicU32::new(0)).collect());
         crate::audio_tap::install();
+    } else {
+        whisper::release();
     }
     CAPTURE_ON.store(on != 0, Ordering::Relaxed);
 }
@@ -114,6 +116,12 @@ mod whisper {
     /// The loaded model, kept between windows: loading it takes about a second.
     static CONTEXT: Mutex<Option<(String, WhisperContext)>> = Mutex::new(None);
 
+    pub fn release() {
+        if let Ok(mut guard) = CONTEXT.lock() {
+            *guard = None;
+        }
+    }
+
     pub fn transcribe(model: &str, samples: &[f32]) -> Option<String> {
         let mut guard = CONTEXT.lock().ok()?;
         if guard.as_ref().is_none_or(|(path, _)| path != model) {
@@ -155,6 +163,8 @@ mod whisper {
     pub fn transcribe(_: &str, _: &[f32]) -> Option<String> {
         None
     }
+
+    pub fn release() {}
 }
 
 #[cfg(test)]

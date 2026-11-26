@@ -157,11 +157,11 @@ pub fn parse(markdown: &str) -> Vec<Entry> {
 
 fn encode_entries(entries: &[Entry]) -> Vec<u8> {
     let flat: Vec<String> = entries.iter().flat_map(|e| [e.name.clone(), e.url.clone()]).collect();
-    crate::cache::encode(&flat)
+    crate::packed::encode(&flat)
 }
 
 fn decode_entries(bytes: &[u8]) -> Option<Vec<Entry>> {
-    let flat = crate::cache::decode(bytes).filter(|v| !v.is_empty() && v.len().is_multiple_of(2))?;
+    let flat = crate::packed::decode(bytes).filter(|v| !v.is_empty() && v.len().is_multiple_of(2))?;
     Some(
         flat.as_chunks::<2>().0.iter()
             .map(|[name, url]| Entry { name: name.clone(), lower: name.to_lowercase(), url: url.clone() })
@@ -220,7 +220,7 @@ pub fn search_packed(query: &str, limit: usize) -> Vec<u8> {
         .take(limit)
         .flat_map(|e| [e.name.clone(), e.url.clone()])
         .collect();
-    crate::cache::encode(&flat)
+    crate::packed::encode(&flat)
 }
 
 #[unsafe(no_mangle)]
@@ -286,7 +286,7 @@ mod tests {
         // Clear in-memory cache and reload from .bin
         CATALOG.lock().unwrap().clear();
         assert_eq!(load_or_store(&dir, None), 2);
-        let hits = crate::cache::decode(&search_packed("hd 650", 10)).unwrap();
+        let hits = crate::packed::decode(&search_packed("hd 650", 10)).unwrap();
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0], "Sennheiser HD 650");
         assert!(hits[1].ends_with("Sennheiser%20HD%20650/Sennheiser%20HD%20650%20GraphicEQ.txt"));
