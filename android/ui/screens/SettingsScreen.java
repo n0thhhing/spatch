@@ -244,6 +244,35 @@ final class SettingsScreen {
                     }
                 });
             });
+            settingsAction(developer, "Automation & intents", "View and copy broadcast intents for Tasker, MacroDroid and shortcuts", () -> {
+                String pkg = ui.activity.getPackageName();
+                String component = pkg + "/spatch.SpatchWidget";
+                String reference = "Package: " + pkg
+                    + "\nReceiver: " + component
+                    + "\nTarget: Broadcast Receiver"
+                    + "\n\nActions:"
+                    + "\n• spatch.action.PLAY — resume playback (wakes in background if closed)"
+                    + "\n• spatch.action.PAUSE — pause playback"
+                    + "\n• spatch.action.TOGGLE — play / pause"
+                    + "\n• spatch.action.NEXT — next track"
+                    + "\n• spatch.action.PREVIOUS — previous track"
+                    + "\n• spatch.action.SEEK — extra position_ms (long/int)"
+                    + "\n• spatch.action.PLAY_URI — extra uri (String), optional context (String), shuffle (boolean), position_ms (long)"
+                    + "\n• spatch.action.SHUFFLE — extra enabled (boolean) or mode (0/1)"
+                    + "\n• spatch.action.REPEAT — extra mode (0 off, 1 all, 2 one)"
+                    + "\n• spatch.action.QUEUE — extra uri (String)";
+                ui.sheet("Automation & intents", reference, new String[]{"Copy all", "Copy receiver", "Close"}, choice -> {
+                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (clipboard == null) return;
+                    if (choice == 0) {
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch intents", reference));
+                        Toast.makeText(ui.activity, "Intents copied", Toast.LENGTH_SHORT).show();
+                    } else if (choice == 1) {
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch receiver", component));
+                        Toast.makeText(ui.activity, "Receiver copied: " + component, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
             settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
                 ui.submit(SpatchUi.DATA, () -> {
                     SpatchUi.nativeRefreshLibrary();
