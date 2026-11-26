@@ -15,4 +15,8 @@ public class PublicCatalogTest {
     @Test public void parsesLrclibLyrics() throws Exception {
         LrclibTest.main(new String[0]);
     }
+
+    @Test public void decodesLyricsProto() throws Exception {
+        LyricsProtoTest.main(new String[0]);
+    }
 }

@@ -219,7 +219,6 @@ public class CallFallbackCheck {
     'spatch/CatalogRequestCheck.java': """package spatch;
 import java.util.*;
 import com.spotify.extendedmetadata.proto.BatchedExtensionResponse;
-import com.spotify.lyrics.serviceretrofit.proto.v3.LyricsWrapperResponse;
 import com.spotify.playlist4.proto.Playlist4ApiProto;
 import com.spotify.searchview.proto.MainViewResponse;
 import io.reactivex.rxjava3.core.Single;
@@ -229,7 +228,7 @@ public class CatalogRequestCheck {
         Map<String,String> last;
         public Single<Playlist4ApiProto.SelectedListContent> playlist(String playlistId) { throw new UnsupportedOperationException(); }
         public Single<BatchedExtensionResponse> extendedMetadata(com.google.protobuf.Empty request) { throw new UnsupportedOperationException(); }
-        public Single<LyricsWrapperResponse> lyrics(String trackId) { throw new UnsupportedOperationException(); }
+        public Single<p.ii31> lyrics(String trackId) { throw new UnsupportedOperationException(); }
         @SuppressWarnings("unchecked")
         public Single<MainViewResponse> search(Map<String,String> params, Map<String,String> headers) {
             assert headers.isEmpty() : "Query metadata cannot be mixed with partial header metadata";

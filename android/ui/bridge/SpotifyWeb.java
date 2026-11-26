@@ -2,7 +2,6 @@ package spatch;
 
 import com.spotify.extendedmetadata.proto.BatchedExtensionResponse;
 import com.spotify.playlist4.proto.Playlist4ApiProto;
-import com.spotify.lyrics.serviceretrofit.proto.v3.LyricsWrapperResponse;
 import com.spotify.searchview.proto.MainViewResponse;
 import io.reactivex.rxjava3.core.Single;
 import java.util.Map;
@@ -26,7 +25,7 @@ public interface SpotifyWeb {
     /** A song's (time-synced) lyrics: color-lyrics v3, as the lyrics screen asks. */
     @p.x740("color-lyrics/v3/track/{trackId}")
     @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)
-    Single<LyricsWrapperResponse> lyrics(@p.brs0(value = "trackId", encoded = false) String trackId);
+    Single<p.ii31> lyrics(@p.brs0(value = "trackId", encoded = false) String trackId);
 
     /** Catalog search: searchview v3, matching Spotify's own search endpoint. */
     @p.x740("searchview/v3/search")

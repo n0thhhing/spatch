@@ -329,48 +329,15 @@ public final class CoreBridge implements Transport {
         throw spotify;
     }
 
-    /**
-     * Spotify's lyrics endpoint; `id` is the base62 track id. The app's proto classes have no readable getters
-     * (obfuscated), but their field names survive, so the lines are read from lyrics_.lines_[].words_ / startTimeMs_.
-     */
+    /** Spotify's lyrics endpoint; `id` is the base62 track id. The reply body is decoded by LyricsProto. */
     private static Lyrics spotifyLyrics(String id) throws Exception {
-        Object reply;
+        byte[] body;
         try {
-            reply = web().lyrics(id).timeout(15, TimeUnit.SECONDS).blockingGet();
+            body = ((p.ii31) web().lyrics(id).timeout(15, TimeUnit.SECONDS).blockingGet()).c();
         } catch (RuntimeException failed) {
             throw new IllegalStateException(httpDetail(failed), failed);
         }
-        java.util.List<?> lines = (java.util.List<?>) field(field(reply, "lyrics_"), "lines_");
-        Lyrics out = new Lyrics(lines.size());
-        for (int i = 0; i < lines.size(); i++) {
-            out.words[i] = (String) field(lines.get(i), "words_");
-            out.starts[i] = (Long) field(lines.get(i), "startTimeMs_");
-            out.ends[i] = (Long) field(lines.get(i), "endTimeMs_");
-            try {
-                // Syllable-synced songs list each syllable's start and length in characters; most songs leave this empty.
-                java.util.List<?> syllables = (java.util.List<?>) field(lines.get(i), "syllables_");
-                if (syllables != null && !syllables.isEmpty()) {
-                    int[] at = new int[syllables.size()];
-                    long[] when = new long[syllables.size()];
-                    int offset = 0;
-                    for (int k = 0; k < at.length; k++) {
-                        at[k] = offset;
-                        when[k] = ((Number) field(syllables.get(k), "startTimeMs_")).longValue();
-                        offset += ((Number) field(syllables.get(k), "numChars_")).intValue();
-                    }
-                    if (offset <= out.words[i].length()) { out.wordAt[i] = at; out.wordStart[i] = when; }
-                }
-            } catch (ReflectiveOperationException | ClassCastException noSyllables) {
-                // this app version's proto has no syllables: line timing only
-            }
-        }
-        return out;
-    }
-
-    private static Object field(Object owner, String name) throws ReflectiveOperationException {
-        java.lang.reflect.Field f = owner.getClass().getDeclaredField(name);
-        f.setAccessible(true);
-        return f.get(owner);
+        return LyricsProto.decode(body);
     }
 
     public static byte[] publicTrackMetadata(byte[] uris) {

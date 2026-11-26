@@ -6,6 +6,7 @@ include!(concat!(env!("OUT_DIR"), "/helpers.rs"));
 pub const STUBS: &[(&str, &str)] = &[
     ("x740.java", include_str!("../../../android/stubs/p/x740.java")),
     ("brs0.java", include_str!("../../../android/stubs/p/brs0.java")),
+    ("ii31.java", include_str!("../../../android/stubs/p/ii31.java")),
     ("gf60.java", include_str!("../../../android/stubs/p/gf60.java")),
     ("xmb.java", include_str!("../../../android/stubs/p/xmb.java")),
     ("ngr0.java", include_str!("../../../android/stubs/p/ngr0.java")),
@@ -16,12 +17,6 @@ pub const STUBS: &[(&str, &str)] = &[
     ("Disposable.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/disposables/Disposable.java")),
     ("Observable.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/core/Observable.java")),
     ("Single.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/core/Single.java")),
-    (
-        "LyricsWrapperResponse.java",
-        include_str!(
-            "../../../android/stubs/com/spotify/lyrics/serviceretrofit/proto/v3/LyricsWrapperResponse.java"
-        ),
-    ),
     (
         "BatchedExtensionResponse.java",
         include_str!(
