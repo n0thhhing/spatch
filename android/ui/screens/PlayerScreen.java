@@ -540,10 +540,14 @@ final class PlayerScreen {
         shuffleBox.addView(ui.pSparkle, sp);
         boolean modes = ui.pref("player_modes", true);
         if (modes) controls.addView(shuffleBox, ui.lp(ui.dp(land ? 44 : 52), ui.dp(land ? 44 : 52)));
-        controls.addView(skip(holdToSeek(ui.iconButton(ui.icon("previous", () -> ui.ink), "Previous, hold to rewind", ui::previousTrack), false), false), ui.lp(ui.dp(land ? 48 : 60), ui.dp(land ? 48 : 60)));
+        View prevBtn = skip(holdToSeek(ui.iconButton(ui.icon("previous", () -> ui.ink), "Previous, hold to rewind", () -> {}), false), false);
+        prevBtn.setOnClickListener(v -> { nudge(prevBtn, false); ui.previousTrack(); });
+        controls.addView(prevBtn, ui.lp(ui.dp(land ? 48 : 60), ui.dp(land ? 48 : 60)));
         ui.dockUi.pPlay = ui.controls.new PlayButton();
         controls.addView(ui.dockUi.pPlay, ui.lp(ui.dp(land ? 66 : 86), ui.dp(land ? 66 : 86)));
-        controls.addView(skip(holdToSeek(ui.iconButton(ui.icon("next", () -> ui.ink), "Next, hold to fast forward", () -> ui.command(NEXT, 0, "")), true), true), ui.lp(ui.dp(land ? 48 : 60), ui.dp(land ? 48 : 60)));
+        View nextBtn = skip(holdToSeek(ui.iconButton(ui.icon("next", () -> ui.ink), "Next, hold to fast forward", () -> {}), true), true);
+        nextBtn.setOnClickListener(v -> { nudge(nextBtn, true); ui.command(NEXT, 0, ""); });
+        controls.addView(nextBtn, ui.lp(ui.dp(land ? 48 : 60), ui.dp(land ? 48 : 60)));
         if (modes) controls.addView(ui.iconButton(ui.pRepeat, "Repeat", .90f, this::cycleRepeat), ui.lp(ui.dp(land ? 44 : 52), ui.dp(land ? 44 : 52)));
         col.addView(controls, ui.fill(-2));
 
@@ -678,11 +682,23 @@ final class PlayerScreen {
         return button;
     }
 
+    void nudge(View button, boolean forward) {
+        if (!ui.motion() || button == null) return;
+        View target = button instanceof ViewGroup && ((ViewGroup) button).getChildCount() > 0
+            ? ((ViewGroup) button).getChildAt(0) : button;
+        target.animate().cancel();
+        target.animate().translationX(ui.dp(forward ? 4 : -4)).setDuration(70)
+            .withEndAction(() -> target.animate().translationX(0f).setDuration(180)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start())
+            .start();
+    }
+
     private View holdToSeek(View button, boolean forward) {
         boolean[] held = new boolean[1];
         Runnable[] step = new Runnable[1];
         step[0] = () -> {
             if (!held[0] || ui.duration <= 0 || !button.isAttachedToWindow()) return;
+            nudge(button, forward);
             long jump = new long[]{5_000, 10_000, 30_000}[Math.max(0, Math.min(2, ui.prefs.getInt("seek_step", 1)))];
             long target = Math.max(0, Math.min(ui.duration - 1500, ui.playhead() + (forward ? jump : -jump)));
             ui.setPosition(target);

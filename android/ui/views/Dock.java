@@ -117,10 +117,14 @@ final class Dock {
         words.addView(ui.mTitle);
         words.addView(ui.mArtist);
         mini.addView(words, ui.weight());
-        mini.addView(ui.playerScreen.skip(ui.iconButton(ui.icon("previous", () -> ui.ink), "Previous", ui::previousTrack), false), ui.lp(ui.dp(44), ui.dp(44)));
+        View prev = ui.playerScreen.skip(ui.iconButton(ui.icon("previous", () -> ui.ink), "Previous", () -> {}), false);
+        prev.setOnClickListener(v -> { ui.playerScreen.nudge(prev, false); ui.previousTrack(); });
+        mini.addView(prev, ui.lp(ui.dp(44), ui.dp(44)));
         mPlay = ui.controls.new PlayButton();
         mini.addView(mPlay, ui.lp(ui.dp(50), ui.dp(50)));
-        mini.addView(ui.playerScreen.skip(ui.iconButton(ui.icon("next", () -> ui.ink), "Next", () -> ui.command(PlayerScreen.NEXT, 0, "")), true), ui.lp(ui.dp(44), ui.dp(44)));
+        View next = ui.playerScreen.skip(ui.iconButton(ui.icon("next", () -> ui.ink), "Next", () -> {}), true);
+        next.setOnClickListener(v -> { ui.playerScreen.nudge(next, true); ui.command(PlayerScreen.NEXT, 0, ""); });
+        mini.addView(next, ui.lp(ui.dp(44), ui.dp(44)));
         ui.tappable(mini, "Open player", () -> ui.playerScreen.openPlayer(true));
         miniGestures(mini);
         mini.setOnLongClickListener(v -> { ui.currentSongActions(); return true; });

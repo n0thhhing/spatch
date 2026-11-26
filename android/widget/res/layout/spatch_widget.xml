@@ -2,12 +2,12 @@
 <!-- Spatch widget, 4x2, from the old Spatch (ported to the Rust app): blurred-art backdrop, artwork filling the height, title with an equaliser while playing, controls with the animated scallop. Ids are Spotify's own names (src/resources.rs); colours, covers and glyphs are set at run time (SpatchWidget). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/spatch_widget_bg" android:clipToOutline="true">
     <ImageView android:id="@+id/frame" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="centerCrop" android:importantForAccessibility="no" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:padding="14dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:padding="14dp" android:clipChildren="false" android:clipToPadding="false">
         <ViewFlipper android:id="@+id/metadata" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center_vertical" android:inAnimation="@anim/spatch_widget_in" android:outAnimation="@anim/spatch_widget_out" android:measureAllChildren="true">
             <ImageView android:id="@+id/artwork" android:layout_gravity="center" android:layout_width="wrap_content" android:layout_height="wrap_content" android:adjustViewBounds="true" android:maxWidth="120dp" android:clipToOutline="true" android:scaleType="centerCrop" android:src="@drawable/spatch_widget_art" android:contentDescription="Album art" />
             <ImageView android:id="@+id/thumbnail" android:layout_gravity="center" android:layout_width="wrap_content" android:layout_height="wrap_content" android:adjustViewBounds="true" android:maxWidth="120dp" android:clipToOutline="true" android:scaleType="centerCrop" android:src="@drawable/spatch_widget_art" android:contentDescription="Album art" />
         </ViewFlipper>
-        <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="16dp" android:orientation="vertical">
+        <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="16dp" android:orientation="vertical" android:clipChildren="false" android:clipToPadding="false">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="top">
                 <ViewFlipper android:id="@+id/text_container" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:inAnimation="@anim/spatch_widget_in" android:outAnimation="@anim/spatch_widget_out" android:measureAllChildren="true">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
@@ -27,7 +27,7 @@
                 </LinearLayout>
             </LinearLayout>
             <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:clipChildren="false" android:clipToPadding="false">
             <ImageView android:id="@+id/previous_button" android:stateListAnimator="@animator/spatch_widget_nudge_prev" android:background="@drawable/spatch_widget_skip_prev" android:layout_width="40dp" android:layout_height="40dp" android:padding="7dp" android:src="@android:drawable/ic_media_previous" android:contentDescription="Previous" />
             <FrameLayout android:id="@+id/play_button" android:stateListAnimator="@animator/spatch_widget_press" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginHorizontal="4dp" android:contentDescription="Play or pause">
                 <ProgressBar android:id="@+id/image" android:layout_width="match_parent" android:layout_height="match_parent" android:indeterminateOnly="true" android:indeterminateDrawable="@drawable/spatch_widget_to_pause" android:importantForAccessibility="no" />
