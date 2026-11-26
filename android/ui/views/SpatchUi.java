@@ -1802,6 +1802,9 @@ public final class SpatchUi extends FrameLayout {
         final Art art = artwork.new Art(Art.ROUNDED, false);
         final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
         private final Bars bars = controls.new Bars();
+        private final FrameLayout lead = new FrameLayout(activity);
+        private final View artScrim = new View(activity);
+        private final GradientDrawable artScrimBg = round(0x88000000, 14);
         private final GradientDrawable pressedBg = round(surfHi, 16), badgeBg = round(inkDim, 3);
         private final TextView explicitBadge = text("E", 10, bg, true);
         private final Icon dlBadge = new Icon("download", inkDim);
@@ -1815,10 +1818,15 @@ public final class SpatchUi extends FrameLayout {
             super(activity);
             setGravity(Gravity.CENTER_VERTICAL);
             setPadding(dp(4), dp(7), dp(2), dp(7));
-            addView(art, lp(dp(52), dp(52)));
+            lead.addView(art, new FrameLayout.LayoutParams(-1, -1));
+            artScrim.setBackground(artScrimBg);
+            artScrim.setVisibility(GONE);
+            lead.addView(artScrim, new FrameLayout.LayoutParams(-1, -1));
             trackNumber.setGravity(Gravity.CENTER);
             trackNumber.setVisibility(GONE);
-            addView(trackNumber, lp(dp(36), dp(52)));
+            lead.addView(trackNumber, new FrameLayout.LayoutParams(-1, -1));
+            lead.addView(bars, new FrameLayout.LayoutParams(dp(18), dp(16), Gravity.CENTER));
+            addView(lead, lp(dp(52), dp(52)));
             LinearLayout words = column();
             words.setPadding(dp(14), 0, dp(8), 0);
             oneLine(name); oneLine(sub);
@@ -1836,9 +1844,8 @@ public final class SpatchUi extends FrameLayout {
             byline.addView(sub, weight());
             words.addView(byline);
             addView(words, weight());
-            length.setPadding(0, 0, dp(6), 0);
+            length.setPadding(0, 0, dp(4), 0);
             addView(length, lp(-2, -2));
-            addView(bars, lp(dp(18), dp(16)));
             moreBtn.addView(moreIcon, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
             tappable(moreBtn, "More options", .88f, () -> { if (boundEntry != null) actions(boundEntry); });
             moreBtn.setFocusable(false);
@@ -1885,10 +1892,13 @@ public final class SpatchUi extends FrameLayout {
         }
         void bind(MediaEntry e) {
             boundEntry = e;
-            art.setVisibility(number > 0 ? GONE : VISIBLE);
-            trackNumber.setVisibility(number > 0 ? VISIBLE : GONE);
+            boolean numbered = number > 0;
+            int leadW = dp(numbered ? 36 : 52);
+            if (lead.getLayoutParams().width != leadW) { lead.getLayoutParams().width = leadW; lead.requestLayout(); }
+            art.setVisibility(numbered ? GONE : VISIBLE);
             trackNumber.setText(String.valueOf(number));
             art.shapeKind = e.category == 2 ? Art.CIRCLE : Art.ROUNDED;
+            artScrimBg.setCornerRadius(dp(e.category == 2 ? 26 : 14));
             art.letter = initial(e.title);
             art.heart = liked(e.uri) && e.image.isEmpty();
             art.bind(e.image);
@@ -1904,6 +1914,8 @@ public final class SpatchUi extends FrameLayout {
             updateDownloadBadge();
             current = playlist != null ? !uri.isEmpty() && e.uri.equals(uri) : playingFrom(e.uri);
             tint();
+            artScrim.setVisibility(!numbered && current ? VISIBLE : GONE);
+            trackNumber.setVisibility(numbered && !current ? VISIBLE : GONE);
             bars.setVisibility(current ? VISIBLE : GONE);
         }
     }
