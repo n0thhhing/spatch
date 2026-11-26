@@ -1847,7 +1847,19 @@ public final class SpatchUi extends FrameLayout {
             length.setPadding(0, 0, dp(4), 0);
             addView(length, lp(-2, -2));
             moreBtn.addView(moreIcon, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
-            tappable(moreBtn, "More options", .88f, () -> { if (boundEntry != null) actions(boundEntry); });
+            GradientDrawable moreBg = round(0, 18);
+            moreBtn.setBackground(moreBg);
+            tappable(moreBtn, "More options", .88f, () -> {
+                animateMore(moreIcon, motion());
+                if (motion()) {
+                    moreBg.setColor((accent & 0x00ffffff) | 0x30000000);
+                    android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(0x30, 0);
+                    fade.setDuration(320);
+                    fade.addUpdateListener(a -> moreBg.setColor((accent & 0x00ffffff) | (((int) a.getAnimatedValue()) << 24)));
+                    fade.start();
+                }
+                if (boundEntry != null) actions(boundEntry);
+            });
             moreBtn.setFocusable(false);
             moreBtn.setFocusableInTouchMode(false);
             moreBtn.setAlpha(.72f);
@@ -2003,6 +2015,17 @@ public final class SpatchUi extends FrameLayout {
                 if (failure.isEmpty() && playlist != null && playlist.uri.equals(target.uri)) playlistScreen.openPlaylist(target);
             });
         });
+    }
+
+    static void animateMore(View icon, boolean motion) {
+        if (!motion || icon == null) return;
+        icon.animate().cancel();
+        icon.setRotation(0f);
+        icon.animate().rotation(90f).scaleX(1.18f).scaleY(1.18f).setDuration(240)
+            .setInterpolator(new android.view.animation.OvershootInterpolator(2.4f))
+            .withEndAction(() -> icon.animate().rotation(0f).scaleX(1f).scaleY(1f).setStartDelay(120).setDuration(260)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start())
+            .start();
     }
 
     void actions(MediaEntry e) {

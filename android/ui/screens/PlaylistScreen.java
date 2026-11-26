@@ -780,7 +780,7 @@ final class PlaylistScreen {
         if (!land) topBar.addView(backBox, ui.lp(ui.dp(42), ui.dp(42)));
         TextView collapsed = ui.text(headTitle, 18, () -> ui.ink, true);
         ui.oneLine(collapsed);
-        collapsed.setPadding(ui.dp(12), 0, ui.dp(80), 0);
+        collapsed.setPadding(ui.dp(12), 0, ui.dp(74), 0);
         collapsed.setAlpha(0f);
         topBar.addView(collapsed, ui.weight());
         FrameLayout moreBox = new FrameLayout(ui.activity);
@@ -790,8 +790,12 @@ final class PlaylistScreen {
             moreShape.setColor((ui.surf & 0x00ffffff) | 0xc8000000);
             moreShape.setStroke(Math.max(1, ui.dp(.8f)), (ui.ink & 0x00ffffff) | 0x16000000);
         });
-        moreBox.addView(ui.icon("more", () -> ui.ink), new FrameLayout.LayoutParams(ui.dp(20), ui.dp(20), Gravity.CENTER));
-        ui.tappable(moreBox, "More options", () -> playlistActions(headTitle, link));
+        View moreGlyph = ui.icon("more", () -> ui.ink);
+        moreBox.addView(moreGlyph, new FrameLayout.LayoutParams(ui.dp(20), ui.dp(20), Gravity.CENTER));
+        ui.tappable(moreBox, "More options", () -> {
+            SpatchUi.animateMore(moreGlyph, ui.motion());
+            playlistActions(headTitle, link);
+        });
         if (!land) topBar.addView(moreBox, ui.lp(ui.dp(42), ui.dp(42)));
 
         final float pinY = ui.inset.top + ui.dp(25);
@@ -883,7 +887,12 @@ final class PlaylistScreen {
                     barBg.setAlpha(Math.round(255 * barT));
                     barFade.setAlpha(barT);
                     collapsed.setAlpha(barT);
-                    moreBox.setTranslationX(-ui.dp(74) * barT);
+                    float moreAlpha = 1f - barT;
+                    moreBox.setAlpha(moreAlpha);
+                    moreBox.setScaleX(1f - 0.18f * barT);
+                    moreBox.setScaleY(1f - 0.18f * barT);
+                    moreBox.setClickable(moreAlpha > 0.5f);
+                    moreBox.setEnabled(moreAlpha > 0.5f);
                     syncFab.run();
                 }
             });
