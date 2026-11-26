@@ -41,10 +41,13 @@ import java.util.concurrent.Executors;
  */
 public class SpatchWidget extends AppWidgetProvider {
     private static final String PREVIOUS = "spatch.widget.PREVIOUS", TOGGLE = "spatch.widget.TOGGLE", NEXT = "spatch.widget.NEXT";
+    private static final String ACT_PLAY = "spatch.action.PLAY", ACT_PAUSE = "spatch.action.PAUSE", ACT_TOGGLE = "spatch.action.TOGGLE";
+    private static final String ACT_NEXT = "spatch.action.NEXT", ACT_PREVIOUS = "spatch.action.PREVIOUS", ACT_SEEK = "spatch.action.SEEK";
+    private static final String ACT_PLAY_URI = "spatch.action.PLAY_URI", ACT_SHUFFLE = "spatch.action.SHUFFLE", ACT_REPEAT = "spatch.action.REPEAT", ACT_QUEUE = "spatch.action.QUEUE";
     private static final String PREFS = "spatch_widget", COVER_FILE = "spatch_widget_cover.png";
     private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
     private static final ExecutorService WAKE = Executors.newSingleThreadExecutor();
-    private static final int PAUSE_ACTION = 0, RESUME_ACTION = 1, PREVIOUS_ACTION = 2, NEXT_ACTION = 3, SEEK_ACTION = 4, PLAY_ACTION = 7;
+    private static final int PAUSE_ACTION = 0, RESUME_ACTION = 1, PREVIOUS_ACTION = 2, NEXT_ACTION = 3, SEEK_ACTION = 4, SHUFFLE_ACTION = 5, REPEAT_ACTION = 6, PLAY_ACTION = 7, QUEUE_ACTION = 9;
     private static final long FLIP_MS = 420; // the slide animations (320 ms) plus margin
     private static volatile Context app;
     /** True once the UI has started, which means the Rust library is loaded; before that no native method may run. */
@@ -435,27 +438,88 @@ public class SpatchWidget extends AppWidgetProvider {
     @Override public void onReceive(Context context, Intent intent) {
         attach(context);
         String action = intent.getAction();
-        int cmd = PREVIOUS.equals(action) ? PREVIOUS_ACTION
-            : NEXT.equals(action) ? NEXT_ACTION
-            : TOGGLE.equals(action) ? (playing ? PAUSE_ACTION : RESUME_ACTION)
-            : -1;
+        int cmd = -1;
+        long val = 0;
+        String target = "", ctxUri = "";
+        long seekAfter = -1;
+        if (PREVIOUS.equals(action) || ACT_PREVIOUS.equals(action)) cmd = PREVIOUS_ACTION;
+        else if (NEXT.equals(action) || ACT_NEXT.equals(action)) cmd = NEXT_ACTION;
+        else if (TOGGLE.equals(action) || ACT_TOGGLE.equals(action)) cmd = playing ? PAUSE_ACTION : RESUME_ACTION;
+        else if (ACT_PLAY.equals(action)) cmd = RESUME_ACTION;
+        else if (ACT_PAUSE.equals(action)) cmd = PAUSE_ACTION;
+        else if (ACT_SEEK.equals(action)) {
+            val = longExtra(intent, "position_ms", longExtra(intent, "position", -1L));
+            if (val >= 0) cmd = SEEK_ACTION;
+        } else if (ACT_PLAY_URI.equals(action)) {
+            target = strExtra(intent, "uri");
+            ctxUri = strExtra(intent, "context");
+            if (!target.isEmpty() || !ctxUri.isEmpty()) {
+                cmd = PLAY_ACTION;
+                if (intent.hasExtra("shuffle")) val = intent.getBooleanExtra("shuffle", false) ? 1 : 2;
+                seekAfter = longExtra(intent, "position_ms", -1L);
+            }
+        } else if (ACT_SHUFFLE.equals(action)) {
+            cmd = SHUFFLE_ACTION;
+            boolean en = intent.hasExtra("enabled") ? intent.getBooleanExtra("enabled", true)
+                : intent.hasExtra("shuffle") ? intent.getBooleanExtra("shuffle", true)
+                : intent.getIntExtra("mode", 1) != 0;
+            val = en ? 1 : 0;
+        } else if (ACT_REPEAT.equals(action)) {
+            int mode = intent.getIntExtra("mode", 0);
+            if (mode >= 0 && mode <= 2) { cmd = REPEAT_ACTION; val = mode; }
+        } else if (ACT_QUEUE.equals(action)) {
+            target = strExtra(intent, "uri");
+            if (!target.isEmpty()) cmd = QUEUE_ACTION;
+        }
         if (cmd < 0) {
             super.onReceive(context, intent);
             return;
         }
+        final int fCmd = cmd;
+        final long fVal = val, fSeek = seekAfter;
+        final String fTarget = target, fCtx = ctxUri;
         if (ready || OfficialPlayback.enabled()) {
-            SpatchUi.widgetCommand(cmd);
+            if (fCmd == PLAY_ACTION && !fCtx.isEmpty() && !fTarget.isEmpty()) {
+                WAKE.execute(() -> {
+                    SpatchUi.playFrom(fCtx, fTarget);
+                    if (fSeek >= 0) {
+                        try { Thread.sleep(250); } catch (InterruptedException ignored) { return; }
+                        SpatchUi.playerCommand(SEEK_ACTION, fSeek, "");
+                    }
+                });
+            } else if (fCmd == PLAY_ACTION && fSeek >= 0) {
+                WAKE.execute(() -> {
+                    SpatchUi.playerCommand(PLAY_ACTION, fVal, fTarget.isEmpty() ? fCtx : fTarget);
+                    try { Thread.sleep(250); } catch (InterruptedException ignored) { return; }
+                    SpatchUi.playerCommand(SEEK_ACTION, fSeek, "");
+                });
+            } else {
+                SpatchUi.widgetCommand(fCmd, fVal, fTarget.isEmpty() ? fCtx : fTarget);
+            }
             return;
         }
         final PendingResult pending = goAsync();
         final Context appCtx = context.getApplicationContext();
         WAKE.execute(() -> {
             try {
-                wakeAndCommand(appCtx, cmd);
+                wakeAndCommand(appCtx, fCmd, fVal, fTarget, fCtx, fSeek);
             } finally {
                 if (pending != null) pending.finish();
             }
         });
+    }
+
+    private static String strExtra(Intent intent, String key) {
+        String v = intent.getStringExtra(key);
+        return v == null ? "" : v.trim();
+    }
+
+    private static long longExtra(Intent intent, String key, long fallback) {
+        if (!intent.hasExtra(key)) return fallback;
+        Object raw = intent.getExtras() == null ? null : intent.getExtras().get(key);
+        if (raw instanceof Number) return ((Number) raw).longValue();
+        if (raw instanceof String) try { return Long.parseLong((String) raw); } catch (NumberFormatException ignored) {}
+        return fallback;
     }
 
     private static synchronized void loadPersisted(Context context) {
@@ -523,10 +587,11 @@ public class SpatchWidget extends AppWidgetProvider {
         }
     }
 
-    private static void wakeAndCommand(Context context, int cmd) {
+    private static void wakeAndCommand(Context context, int cmd, long val, String target, String ctxUri, long seekAfter) {
         loadPersisted(context);
         // Ask Spotify's own MediaButtonReceiver to spin up playback in the background without opening an activity.
-        OfficialPlayback.sendMediaButton(context, context.getPackageName(), cmd);
+        if (cmd <= NEXT_ACTION) OfficialPlayback.sendMediaButton(context, context.getPackageName(), cmd);
+        else OfficialPlayback.sendMediaButton(context, context.getPackageName(), RESUME_ACTION);
         if (loadCore(context)) ready = true;
         if (!ready) return;
         long deadline = SystemClock.uptimeMillis() + 6000;
@@ -551,8 +616,18 @@ public class SpatchWidget extends AppWidgetProvider {
                     SpatchUi.playerCommand(SEEK_ACTION, positionMs, "");
                 }
             }
+        } else if (cmd == PLAY_ACTION) {
+            boolean started = !ctxUri.isEmpty() && !target.isEmpty()
+                ? SpatchUi.playFrom(ctxUri, target)
+                : SpatchUi.playerCommand(PLAY_ACTION, val, target.isEmpty() ? ctxUri : target);
+            if (started && seekAfter >= 0) {
+                try { Thread.sleep(250); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                SpatchUi.playerCommand(SEEK_ACTION, seekAfter, "");
+            }
         } else if ((cmd == PREVIOUS_ACTION || cmd == NEXT_ACTION) && !isPlaying) {
             SpatchUi.playerCommand(cmd, 0, "");
+        } else if (cmd != RESUME_ACTION && cmd != PREVIOUS_ACTION && cmd != NEXT_ACTION) {
+            SpatchUi.playerCommand(cmd, val, target.isEmpty() ? ctxUri : target);
         }
         refresh(context, true);
     }

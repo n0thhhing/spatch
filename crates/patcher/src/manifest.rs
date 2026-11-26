@@ -275,6 +275,7 @@ pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> R
     let (receiver, filter, action, meta) = (find(&pool, "receiver")?, find(&pool, "intent-filter")?, find(&pool, "action")?, find(&pool, "meta-data")?);
     let update = pool.add("android.appwidget.action.APPWIDGET_UPDATE") as u32;
     let provider_name = pool.add("android.appwidget.provider") as u32;
+    let class_name = class;
     let (class, label) = (pool.add(class) as u32, pool.add(label) as u32);
     let insert = find_end_tag(manifest, after_pool, &pool, "application")?;
 
@@ -283,6 +284,24 @@ pub fn add_widget(manifest: &[u8], class: &str, label: &str, provider: u32) -> R
     element(&mut nodes, START, filter, &[]);
     element(&mut nodes, START, action, &[(ns, name, update, STRING, update)]);
     element(&mut nodes, END, action, &[]);
+    if class_name == "spatch.SpatchWidget" {
+        for act in [
+            "spatch.action.PLAY",
+            "spatch.action.PAUSE",
+            "spatch.action.TOGGLE",
+            "spatch.action.NEXT",
+            "spatch.action.PREVIOUS",
+            "spatch.action.SEEK",
+            "spatch.action.PLAY_URI",
+            "spatch.action.SHUFFLE",
+            "spatch.action.REPEAT",
+            "spatch.action.QUEUE",
+        ] {
+            let act_id = pool.add(act) as u32;
+            element(&mut nodes, START, action, &[(ns, name, act_id, STRING, act_id)]);
+            element(&mut nodes, END, action, &[]);
+        }
+    }
     element(&mut nodes, END, filter, &[]);
     element(&mut nodes, START, meta, &[(ns, name, provider_name, STRING, provider_name), (ns, resource, NONE, REFERENCE, provider)]);
     element(&mut nodes, END, meta, &[]);

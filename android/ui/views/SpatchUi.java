@@ -850,8 +850,9 @@ public final class SpatchUi extends FrameLayout {
     /** The player's fields when they changed since `revision`, for the home-screen widget. */
     static String[] widgetState(long revision) { return OfficialPlayback.enabled() ? OfficialPlayback.state(revision) : unpackStrings(nativePlayer(revision)); }
 
-    /** A button on the home-screen widget: pause, resume, previous or next. */
-    static void widgetCommand(int action) { COMMANDS.execute(() -> playerCommand(action, 0, "")); }
+    /** A button on the home-screen widget or external control intent. */
+    static void widgetCommand(int action) { widgetCommand(action, 0, ""); }
+    static void widgetCommand(int action, long value, String target) { COMMANDS.execute(() -> playerCommand(action, value, target)); }
     static boolean connectNative() { return nativeConnect(); }
     static boolean playFrom(String context, String track) { return playerPlayFrom(context, track, 0); }
 
