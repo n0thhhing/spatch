@@ -217,6 +217,13 @@ final class PlayerScreen {
     }
 
     /** Keeps the player's three lyric lines on the line being sung: fetches the song's lyrics once, then follows the playhead. */
+    private CharSequence lyricText(String text) {
+        if (text == null || text.isEmpty()) return "";
+        android.text.SpannableString s = new android.text.SpannableString(text);
+        s.setSpan(new android.text.style.LeadingMarginSpan.Standard(ui.dp(10)), 0, text.length(), android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+        return s;
+    }
+
     private void playerLyrics(LinearLayout box) {
         if (ui.player == null || pLyric != box) return;
         TextView[] rows = (TextView[]) box.getTag();
@@ -256,7 +263,7 @@ final class PlayerScreen {
         boolean walking = visible && current >= 0 && l.wordAt[current] != null;
         if (visible && !key.equals(lyricKey)) {
             lyricKey = key;
-            for (int i = 0; i < 3; i++) rows[i].setText(want[i]);
+            for (int i = 0; i < 3; i++) rows[i].setText(lyricText(want[i]));
             float[] from = { 1f, .38f, 0f }, to = { .38f, 1f, .38f };
             if (ui.motion() && !want[1].isEmpty()) {
                 // The lines step up: each fades to the look of the one above it while the block slides up into place.
@@ -315,6 +322,7 @@ final class PlayerScreen {
             w.word = k;
             w.leftAt = SystemClock.uptimeMillis();
             android.text.SpannableString s = new android.text.SpannableString(text);
+            if (!text.isEmpty()) s.setSpan(new android.text.style.LeadingMarginSpan.Standard(ui.dp(10)), 0, text.length(), android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
             int sung = k < 0 ? 0 : k + 1 < at.length ? Math.min(at[k + 1], text.length()) : text.length();
             if (sung < text.length()) s.setSpan(new android.text.style.ForegroundColorSpan((ink & 0x00ffffff) | 0x5c000000), sung, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             if (k >= 0 && at[k] < sung) s.setSpan(w.arriving, at[k], sung, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -506,6 +514,7 @@ final class PlayerScreen {
                 rows[k].setGravity(Gravity.START);
                 rows[k].setSingleLine(true);
                 rows[k].setEllipsize(android.text.TextUtils.TruncateAt.END);
+                rows[k].setPadding(0, ui.dp(4), 0, ui.dp(2));
                 rows[k].setAlpha(sung ? 1f : .38f);
                 box.addView(rows[k], ui.fill(-2));
             }
@@ -518,8 +527,9 @@ final class PlayerScreen {
             // visualizer glow), and rows aren't clipped one by one so the sung word's glow can spill into the padding.
             box.setClipChildren(false);
             box.setClipToOutline(true);
-            // The lines sit on a quiet glass card (rounded, a touch lighter than the backdrop) so they read as a part of the player.
-            box.setPadding(ui.dp(20), ui.dp(14), ui.dp(20), ui.dp(14));
+            // The lines sit on a quiet glass card; left padding is inset 10 dp because LeadingMarginSpan adds 10 dp inside
+            // each TextView's own clip rect so the leftmost sung word's glow never clips on the left.
+            box.setPadding(ui.dp(10), ui.dp(10), ui.dp(20), ui.dp(10));
             ui.bgRound(box, 26, () -> (ui.ink & 0x00ffffff) | 0x16000000);
             ui.tappable(box, "Open lyrics", this::openLyrics);
             LinearLayout.LayoutParams lineParams = ui.lp(-1, 0); // collapsed until the song's lyrics are about to start
@@ -580,6 +590,8 @@ final class PlayerScreen {
         ui.wave = ui.controls.new Wave();
         LinearLayout.LayoutParams wp = ui.fill(ui.dp(land ? 40 : 62));
         wp.topMargin = ui.dp(land ? 2 : 6);
+        wp.leftMargin = -ui.dp(10);
+        wp.rightMargin = -ui.dp(10);
         col.addView(ui.wave, wp);
         LinearLayout controls = ui.row();
         controls.setGravity(Gravity.CENTER);
@@ -1124,9 +1136,13 @@ final class PlayerScreen {
                 TextView[] views = new TextView[found.words.length];
                 for (int i = 0; i < views.length; i++) {
                     String line = found.words[i];
-                    views[i] = ui.text(line.isEmpty() ? " " : line, synced ? 30 : 22, () -> ui.ink, true);
+                    String shownLine = line.isEmpty() ? " " : line;
+                    views[i] = ui.text(shownLine, synced ? 30 : 22, () -> ui.ink, true);
                     views[i].setLineSpacing(0, 1.05f);
-                    if (synced) views[i].setPadding(ui.dp(16), ui.dp(8), ui.dp(16), ui.dp(8));
+                    if (synced) {
+                        views[i].setText(lyricText(shownLine));
+                        views[i].setPadding(ui.dp(6), ui.dp(10), ui.dp(16), ui.dp(10));
+                    }
                     LinearLayout.LayoutParams at = ui.fill(-2);
                     if (synced) at.bottomMargin = ui.dp(14);
                     lines.addView(views[i], at);
@@ -1180,7 +1196,7 @@ final class PlayerScreen {
         for (int i = 0; i < starts.length; i++) if (starts[i] > 0 && starts[i] <= now) current = i;
         if (current != shown[0]) {
             boolean first = shown[0] == -2, glide = ui.motion() && !first;
-            if (shown[0] >= 0 && lyrics.wordAt[shown[0]] != null) views[shown[0]].setText(lyrics.words[shown[0]]); // the line just left is whole again
+            if (shown[0] >= 0 && lyrics.wordAt[shown[0]] != null) views[shown[0]].setText(lyricText(lyrics.words[shown[0]])); // the line just left is whole again
             shown[0] = current;
             shown[1] = -1;
             for (int i = 0; i < views.length; i++) {

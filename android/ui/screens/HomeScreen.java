@@ -122,7 +122,7 @@ final class HomeScreen {
         scrim.setBackground(scrimBg);
         ui.colored(scrim, () -> scrimBg.setColors(new int[]{ui.surf & 0x00ffffff, (ui.surf & 0x00ffffff) | 0xc8000000, ui.surf}));
         hero.addView(scrim, new FrameLayout.LayoutParams(-1, ui.dp(130), Gravity.BOTTOM));
-        if (ui.pref("hero_wave", false)) hero.addView(new HeroWave(), new FrameLayout.LayoutParams(-1, ui.dp(44), Gravity.BOTTOM));
+        if (ui.pref("hero_wave", false)) hero.addView(new HeroWave(), new FrameLayout.LayoutParams(-1, ui.dp(56), Gravity.BOTTOM));
         LinearLayout words = ui.column();
         words.setPadding(ui.dp(18), 0, ui.dp(84), ui.dp(16));
         ui.heroTitle = ui.text("", 26, () -> ui.ink, true);
@@ -415,7 +415,7 @@ final class HomeScreen {
             boolean run = ui.playing && ui.motion();
             boolean audio = run && ui.pref("audio", true);
             if (audio) Audio.want();
-            boolean live = audio && Audio.ready(ui.activity) && Audio.level > 0;
+            boolean live = audio && Audio.ready(ui.activity) && (Audio.level > 0 || Audio.BANDS[0] + Audio.BANDS[8] > 0);
             if (live) SpatchUi.nativeRing(POINTS, targets);
             float t = now / 1000f, peak = 0f;
             for (int i = 0; i < POINTS; i++) {

@@ -44,7 +44,8 @@ half4 main(float2 p) {
 
   float below = clamp(signedDist + 0.5, 0.0, 1.0);
   float depth = clamp((ly - crestY) / max(h - crestY, 1.0), 0.0, 1.0);
-  float fillA = below * mix(params.y, 0.0, pow(depth, 1.25));
+  // Polynomial falloff (avoids pow(0.0, ...) NaN on mobile GPUs when depth == 0 above the crest).
+  float fillA = below * mix(params.y, 0.0, depth * (0.6 + 0.4 * depth));
 
   float lineA = clamp(1.1 - abs(signedDist), 0.0, 1.0) * params.z;
   float glowR = max(params.w, 1.0);

@@ -41,7 +41,8 @@ half4 main(float2 p) {
   float2 lightDir = normalize(float2(-0.55, -0.75) + tilt * 0.9);
   float band = dot(uv, lightDir) - dot(tilt, float2(0.35, 0.35));
   float streak = exp(-band * band * 9.5) * 0.22;
-  float rim = smoothstep(0.76, 1.0, length(uv)) * max(0.0, dot(normalize(uv + 0.0001), lightDir)) * 0.24;
+  float2 uvDir = uv / max(length(uv), 0.0001);
+  float rim = smoothstep(0.76, 1.0, length(uv)) * max(0.0, dot(uvDir, lightDir)) * 0.24;
   float shine = (streak + rim) * strength * edge;
   half3 col = mix(half3(1.0), a.rgb, 0.18);
   return half4(col * shine, shine);

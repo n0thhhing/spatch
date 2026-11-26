@@ -20,6 +20,7 @@ half4 main(float2 p) {
   float thumbR = knob.x;
   float gap = knob.y;
   float glowR = max(knob.z, 1.0);
+  float glowCut = glowR * 2.6;
 
   // Remaining straight track past the thumb gap.
   float trackStart = tip + gap;
@@ -30,7 +31,7 @@ half4 main(float2 p) {
     trackCov = clamp(halfT + 0.5 - td, 0.0, 1.0);
   }
 
-  // Played sine wave with slope-corrected analytical distance and soft accent glow.
+  // Played sine wave with slope-corrected analytical distance and bounded soft accent glow.
   float playedCov = 0.0;
   float playedGlow = 0.0;
   if (tip > x0) {
@@ -40,14 +41,18 @@ half4 main(float2 p) {
     float slope = amp * (TAU / wl) * cos(ang);
     float wd = length(float2(p.x - wx, (p.y - wy) / sqrt(1.0 + slope * slope)));
     playedCov = clamp(halfT + 0.5 - wd, 0.0, 1.0);
-    playedGlow = exp(-max(wd - halfT, 0.0) / glowR) * 0.22;
+    float gd = max(wd - halfT, 0.0);
+    float fade = 1.0 - smoothstep(0.0, glowCut, gd);
+    playedGlow = exp(-gd / glowR) * fade * 0.22;
   }
 
-  // Circular thumb riding the wave tip, with a subtle halo.
+  // Circular thumb riding the wave tip, with a bounded halo that fades cleanly to zero before view edges.
   float tipY = cy + amp * sin(TAU * (tip - x0) / wl + phase);
   float kd = length(p - float2(tip, tipY));
   float thumbCov = clamp(thumbR + 0.5 - kd, 0.0, 1.0);
-  float thumbGlow = exp(-max(kd - thumbR, 0.0) / (glowR * 1.15)) * 0.28;
+  float kgd = max(kd - thumbR, 0.0);
+  float kfade = 1.0 - smoothstep(0.0, glowCut, kgd);
+  float thumbGlow = exp(-kgd / glowR) * kfade * 0.26;
 
   // Composite in premultiplied alpha: track -> soft glow -> active wave -> thumb.
   half4 outCol = half4(track.rgb * (track.a * trackCov), track.a * trackCov);

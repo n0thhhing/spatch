@@ -711,7 +711,7 @@ final class Controls {
         @Override protected void onDraw(Canvas c) {
             long el = ui.playhead();
             float f = ui.shownProgress();
-            float x0 = ui.dp(6), x1 = getWidth() - ui.dp(6), y = ui.dp(26), tip = x0 + (x1 - x0) * f;
+            float x0 = ui.dp(16), x1 = getWidth() - ui.dp(16), y = ui.dp(26), tip = x0 + (x1 - x0) * f;
             // Scrubbing thickens the line; it eases back when you let go.
             float wantGrow = preview >= 0 ? 1f : 0f;
             grow = !ui.motion() ? wantGrow : grow + (wantGrow - grow) * .25f;
@@ -730,12 +730,12 @@ final class Controls {
                 android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) waveShader;
                 rs.setFloatUniform("bounds", x0, x1, y, tip);
                 rs.setFloatUniform("wave", amp, ui.dp(34), phase * 6.2831853f, strokeW);
-                rs.setFloatUniform("knob", thumbR, ui.dp(8), ui.dp(5), 0f);
+                rs.setFloatUniform("knob", thumbR, ui.dp(8), ui.dp(3.5f), 0f);
                 rs.setColorUniform("active", ui.accent);
                 rs.setColorUniform("track", (ui.ink & 0x00ffffff) | 0x2a000000);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setShader(rs);
-                c.drawRect(0, Math.max(0, y - ui.dp(22)), getWidth(), y + ui.dp(22), paint);
+                c.drawRect(0, 0, getWidth(), getHeight(), paint);
                 paint.setShader(null);
             } else {
                 paint.setStyle(Paint.Style.STROKE);
@@ -801,7 +801,7 @@ final class Controls {
                         if (preview >= 0 && !ui.uri.equals(scrubUri)) { cancelScrub(); ui.invalidateProgress(); }
                         return false;
                     }
-                    preview = Math.max(0, Math.min(1, (e.getX() - ui.dp(6)) / Math.max(1, getWidth() - ui.dp(12))));
+                    preview = Math.max(0, Math.min(1, (e.getX() - ui.dp(16)) / Math.max(1, getWidth() - ui.dp(32))));
                     // A light tick each time the drag crosses a tenth of the song.
                     int tenth = (int) (preview * 10);
                     if (e.getActionMasked() == MotionEvent.ACTION_DOWN) lastTenth = tenth;

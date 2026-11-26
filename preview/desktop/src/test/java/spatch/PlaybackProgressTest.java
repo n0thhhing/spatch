@@ -256,7 +256,7 @@ public class PlaybackProgressTest {
 
     private static boolean touch(View wave, int action, float fraction) {
         long now = SystemClock.uptimeMillis();
-        MotionEvent event = MotionEvent.obtain(now, now, action, 6 + (wave.getWidth() - 12) * fraction, 20, 0);
+        MotionEvent event = MotionEvent.obtain(now, now, action, 16 + (wave.getWidth() - 32) * fraction, 20, 0);
         try { return wave.onTouchEvent(event); } finally { event.recycle(); }
     }
 
