@@ -689,10 +689,17 @@ final class PlayerScreen {
         private final android.graphics.Path path = new android.graphics.Path();
         private android.animation.ValueAnimator anim;
         private boolean pressed;
-        private float alpha, scale = 1f, cachedSide = -1f;
+        private float alpha, scale = 1f, offsetX, cachedSide = -1f;
 
         SkipHighlightDrawable(boolean forward) {
             this.forward = forward;
+        }
+
+        void setOffsetX(float x) {
+            if (offsetX != x) {
+                offsetX = x;
+                invalidateSelf();
+            }
         }
 
         @Override public boolean isStateful() { return true; }
@@ -729,23 +736,24 @@ final class PlayerScreen {
             android.graphics.Rect b = getBounds();
             float side = Math.min(b.width(), b.height());
             if (side <= 0) return;
-            float cx = b.exactCenterX(), cy = b.exactCenterY();
             if (side != cachedSide) {
                 cachedSide = side;
-                paint.setPathEffect(new android.graphics.CornerPathEffect(side * 0.18f));
+                float r = side * 0.36f;
+                float d = forward ? 1f : -1f;
+                path.rewind();
+                path.moveTo(d * 0.96f * r, -0.22f * r);
+                path.quadTo(d * 1.18f * r, 0f, d * 0.96f * r, 0.22f * r);
+                path.cubicTo(d * 0.48f * r, 0.62f * r, -d * 0.22f * r, 0.98f * r, -d * 0.68f * r, 0.88f * r);
+                path.quadTo(-d * 0.98f * r, 0.78f * r, -d * 0.96f * r, 0.38f * r);
+                path.quadTo(-d * 1.08f * r, 0f, -d * 0.96f * r, -0.38f * r);
+                path.quadTo(-d * 0.98f * r, -0.78f * r, -d * 0.68f * r, -0.88f * r);
+                path.cubicTo(-d * 0.22f * r, -0.98f * r, d * 0.48f * r, -0.62f * r, d * 0.96f * r, -0.22f * r);
+                path.close();
             }
-            float half = side * 0.5f;
-            float tipX = forward ? cx + half * 0.80f : cx - half * 0.80f;
-            float baseX = forward ? cx - half * 0.68f : cx + half * 0.68f;
-            float topY = cy - half * 0.80f, botY = cy + half * 0.80f;
-            path.rewind();
-            path.moveTo(tipX, cy);
-            path.lineTo(baseX, topY);
-            path.lineTo(baseX, botY);
-            path.close();
             paint.setColor((ui.ink & 0x00ffffff) | (Math.round(0x2b * alpha) << 24));
             canvas.save();
-            canvas.scale(scale, scale, cx, cy);
+            canvas.translate(b.exactCenterX() + offsetX, b.exactCenterY());
+            canvas.scale(scale, scale);
             canvas.drawPath(path, paint);
             canvas.restore();
         }
@@ -759,10 +767,16 @@ final class PlayerScreen {
         if (!ui.motion() || button == null) return;
         View target = button instanceof ViewGroup && ((ViewGroup) button).getChildCount() > 0
             ? ((ViewGroup) button).getChildAt(0) : button;
+        android.graphics.drawable.Drawable bg = button.getBackground();
+        SkipHighlightDrawable hl = bg instanceof SkipHighlightDrawable ? (SkipHighlightDrawable) bg : null;
+        android.animation.ValueAnimator.AnimatorUpdateListener sync = hl == null ? null : a -> hl.setOffsetX(target.getTranslationX());
         target.animate().cancel();
-        target.animate().translationX(ui.dp(forward ? 4 : -4)).setDuration(70)
+        target.animate().translationX(ui.dp(forward ? 4 : -4)).setDuration(70).setUpdateListener(sync)
             .withEndAction(() -> target.animate().translationX(0f).setDuration(180)
-                .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start())
+                .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f))
+                .setUpdateListener(sync)
+                .withEndAction(() -> { if (hl != null) hl.setOffsetX(0f); })
+                .start())
             .start();
     }
 
