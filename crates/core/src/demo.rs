@@ -224,6 +224,11 @@ pub fn apply(now: &mut NowPlaying, command: Command) {
         }
         Command::Shuffle(on) => now.shuffle = on,
         Command::Repeat(mode) => now.repeat = mode,
+        Command::RepeatFlags { context, track } => {
+            if track == Some(true) { now.repeat = 2; }
+            else if context == Some(true) { now.repeat = 1; }
+            else if track == Some(false) || context == Some(false) { now.repeat = 0; }
+        }
         Command::Speed(speed) => now.speed = speed,
         Command::PlayNext(uri) => {
             let mut track = next_track(index_of(&uri));

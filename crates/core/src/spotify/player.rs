@@ -229,6 +229,8 @@ pub enum Command {
     Shuffle(bool),
     /// 0 off, 1 the context, 2 the track.
     Repeat(u8),
+    /// Partial repeat option update used when Spotify restricts toggling one of the two repeat flags.
+    RepeatFlags { context: Option<bool>, track: Option<bool> },
     /// Skips forward to a track in Up Next, as Spotify's queue does.
     SkipTo { uri: String, uid: String },
     AddToQueue(String),
@@ -319,6 +321,16 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
             }
             .encode_to_vec(),
         ),
+        Command::RepeatFlags { context, track } => (
+            "SetOptions",
+            es::SetOptionsRequest {
+                repeating_context: context.map(|value| es::OptionalBoolean { value }),
+                repeating_track: track.map(|value| es::OptionalBoolean { value }),
+                logging_params: log,
+                ..Default::default()
+            }
+            .encode_to_vec(),
+        ),
         Command::SkipTo { uri, uid } => ("SkipNext", es::SkipNextRequest { track: track(uri, uid), logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::Speed(speed) => ("SetOptions", es::SetOptionsRequest { playback_speed: speed, logging_params: log, ..Default::default() }.encode_to_vec()),
         Command::PlayNext(uri) => (
@@ -329,11 +341,24 @@ pub fn command(c: Command) -> (&'static str, Vec<u8>) {
     }
 }
 
-/// Fallback commands when Spotify rejects `c` (for example, `SkipPrev` with `allow_seeking = false` when no previous track exists).
+/// Fallback commands when Spotify rejects `c` (for example, `SkipPrev` with `allow_seeking = false` when no previous track exists,
+/// or `Repeat` when the current context restricts toggling `repeating_context` or `repeating_track`).
 pub fn command_fallbacks(c: &Command) -> Vec<Command> {
     match c {
         Command::Previous(false) => vec![Command::Previous(true), Command::SeekTo(0)],
         Command::Previous(true) => vec![Command::SeekTo(0)],
+        Command::Repeat(0) => vec![
+            Command::RepeatFlags { context: None, track: Some(false) },
+            Command::RepeatFlags { context: Some(false), track: None },
+        ],
+        Command::Repeat(1) => vec![
+            Command::RepeatFlags { context: Some(true), track: None },
+            Command::RepeatFlags { context: None, track: Some(true) },
+        ],
+        Command::Repeat(2) => vec![
+            Command::RepeatFlags { context: None, track: Some(true) },
+            Command::RepeatFlags { context: Some(false), track: Some(true) },
+        ],
         _ => Vec::new(),
     }
 }
@@ -484,5 +509,33 @@ mod tests {
         assert_eq!(command_fallbacks(&Command::Previous(false)), vec![Command::Previous(true), Command::SeekTo(0)]);
         assert_eq!(command_fallbacks(&Command::Previous(true)), vec![Command::SeekTo(0)]);
         assert!(command_fallbacks(&Command::Next).is_empty());
+    }
+
+    #[test]
+    fn repeat_command_fallbacks_handle_restricted_context_or_track_flags() {
+        assert_eq!(
+            command_fallbacks(&Command::Repeat(1)),
+            vec![
+                Command::RepeatFlags { context: Some(true), track: None },
+                Command::RepeatFlags { context: None, track: Some(true) },
+            ]
+        );
+        assert_eq!(
+            command_fallbacks(&Command::Repeat(2)),
+            vec![
+                Command::RepeatFlags { context: None, track: Some(true) },
+                Command::RepeatFlags { context: Some(false), track: Some(true) },
+            ]
+        );
+        assert_eq!(
+            command_fallbacks(&Command::Repeat(0)),
+            vec![
+                Command::RepeatFlags { context: None, track: Some(false) },
+                Command::RepeatFlags { context: Some(false), track: None },
+            ]
+        );
+        let (method, bytes) = command(Command::RepeatFlags { context: None, track: Some(true) });
+        let options = es::SetOptionsRequest::decode(bytes.as_slice()).unwrap();
+        assert_eq!((method, options.repeating_context, options.repeating_track.unwrap().value), ("SetOptions", None, true));
     }
 }
