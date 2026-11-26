@@ -31,7 +31,7 @@ public final class SpatchApp {
     private static final java.util.WeakHashMap<Activity, Boolean> BACK_REGISTERED = new java.util.WeakHashMap<Activity, Boolean>();
 
     /** Copies the Rust library out of the APK on first use and loads it; true once it is loaded. */
-    private static synchronized boolean load(Context context) {
+    static synchronized boolean load(Context context) {
         if (loaded) return true;
         try {
             File dir = new File(context.getFilesDir(), "spatch-app");

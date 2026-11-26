@@ -61,6 +61,8 @@ public final class CoreBridge implements Transport {
         return inner.callSync(service, method, request);
     }
 
+    static boolean hasTransport() { return fallback != null || !ALL.isEmpty(); }
+
     private static Transport transport(String service) {
         Transport t = SERVICES.get(service);
         if (t == null) t = fallback;

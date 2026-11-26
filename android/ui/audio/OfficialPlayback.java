@@ -201,7 +201,11 @@ public final class OfficialPlayback extends NotificationListenerService {
         try {
             if (action == 7) return play(uri);
             PlaybackState state = c == null ? null : c.getPlaybackState();
-            if (state == null || !supports(action, value, state.getActions())) return false;
+            if (state == null) {
+                if (action >= 1 && action <= 3) return sendMediaButton(action);
+                return false;
+            }
+            if (!supports(action, value, state.getActions())) return false;
             MediaController.TransportControls transport = c.getTransportControls();
             switch (action) {
                 case 0: transport.pause(); break;
@@ -232,5 +236,30 @@ public final class OfficialPlayback extends NotificationListenerService {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             return true;
         } catch (android.content.ActivityNotFoundException e) { return false; }
+    }
+    static boolean sendMediaButton(int action) {
+        Context c = app;
+        return c != null && sendMediaButton(c, PACKAGE, action);
+    }
+    static boolean sendMediaButton(Context context, String pkg, int action) {
+        int keyCode;
+        switch (action) {
+            case 0: keyCode = android.view.KeyEvent.KEYCODE_MEDIA_PAUSE; break;
+            case 1: keyCode = android.view.KeyEvent.KEYCODE_MEDIA_PLAY; break;
+            case 2: keyCode = android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS; break;
+            case 3: keyCode = android.view.KeyEvent.KEYCODE_MEDIA_NEXT; break;
+            default: return false;
+        }
+        try {
+            ComponentName receiver = new ComponentName(pkg, "com.spotify.mediasession.mediasession.receiver.MediaButtonReceiver");
+            for (int keyAction : new int[] { android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.ACTION_UP }) {
+                Intent media = new Intent(Intent.ACTION_MEDIA_BUTTON)
+                    .setComponent(receiver)
+                    .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+                    .putExtra(Intent.EXTRA_KEY_EVENT, new android.view.KeyEvent(keyAction, keyCode));
+                context.sendBroadcast(media);
+            }
+            return true;
+        } catch (RuntimeException e) { return false; }
     }
 }

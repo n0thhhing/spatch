@@ -852,6 +852,8 @@ public final class SpatchUi extends FrameLayout {
 
     /** A button on the home-screen widget: pause, resume, previous or next. */
     static void widgetCommand(int action) { COMMANDS.execute(() -> playerCommand(action, 0, "")); }
+    static boolean connectNative() { return nativeConnect(); }
+    static boolean playFrom(String context, String track) { return playerPlayFrom(context, track, 0); }
 
     private final Runnable syncPush = this::syncNativeState;
     private boolean libraryRedrawPending;

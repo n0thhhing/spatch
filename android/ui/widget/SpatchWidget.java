@@ -41,15 +41,18 @@ import java.util.concurrent.Executors;
  */
 public class SpatchWidget extends AppWidgetProvider {
     private static final String PREVIOUS = "spatch.widget.PREVIOUS", TOGGLE = "spatch.widget.TOGGLE", NEXT = "spatch.widget.NEXT";
+    private static final String PREFS = "spatch_widget", COVER_FILE = "spatch_widget_cover.png";
     private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
-    private static final int PAUSE_ACTION = 0, RESUME_ACTION = 1, PREVIOUS_ACTION = 2, NEXT_ACTION = 3;
+    private static final ExecutorService WAKE = Executors.newSingleThreadExecutor();
+    private static final int PAUSE_ACTION = 0, RESUME_ACTION = 1, PREVIOUS_ACTION = 2, NEXT_ACTION = 3, SEEK_ACTION = 4, PLAY_ACTION = 7;
     private static final long FLIP_MS = 420; // the slide animations (320 ms) plus margin
     private static volatile Context app;
     /** True once the UI has started, which means the Rust library is loaded; before that no native method may run. */
     private static volatile boolean ready;
-    private static long seen = -1, checkedAt, flipAt = -FLIP_MS;
+    private static boolean persistedLoaded;
+    private static long seen = -1, checkedAt, flipAt = -FLIP_MS, positionMs;
     private static boolean playing, placed;
-    private static String title = "", artist = "", coverUrl = "", lastPushedKey = "";
+    private static String title = "", artist = "", coverUrl = "", uri = "", trackContext = "", lastPushedKey = "";
     private static Bitmap cover, squareCover, backdrop, cachedPlaceholder;
     private static int placeholderAccent, placeholderAccent2;
     /** Two song slots for the flip: the shown one and the one that slid out. */
@@ -91,20 +94,35 @@ public class SpatchWidget extends AppWidgetProvider {
             int[] small = manager.getAppWidgetIds(new ComponentName(context, SpatchWidgetSmall.class));
             placed = big.length + small.length > 0;
             if (!placed) return;
+            loadPersisted(context);
             String[] s = ready || OfficialPlayback.enabled() ? SpatchUi.widgetState(force ? -1 : seen) : null;
             if (s != null) {
                 seen = Long.parseLong(s[0]);
-                String url = s[5];
-                if (!url.equals(coverUrl)) {
-                    coverUrl = url;
-                    cover = fetch(url);
-                    colors(cover);
-                    squareCover = cover == null ? null : square(cover);
-                    backdrop = squareCover == null ? null : backdrop(squareCover);
-                    cover = squareCover;
+                if (!s[2].isEmpty()) {
+                    String url = s[5];
+                    Bitmap freshCover = null;
+                    if (!url.equals(coverUrl) || cover == null) {
+                        coverUrl = url;
+                        freshCover = fetch(url);
+                        if (freshCover != null) {
+                            cover = freshCover;
+                            colors(cover);
+                            squareCover = square(cover);
+                            backdrop = backdrop(squareCover);
+                            cover = squareCover;
+                        } else if (url.isEmpty()) {
+                            cover = null; squareCover = null; backdrop = null;
+                            colors(null);
+                        }
+                    }
+                    title = s[2]; artist = s[3]; uri = s[1]; trackContext = s[13];
+                    positionMs = parsePos(s[9]);
+                    playing = Boolean.parseBoolean(s[6]);
+                    canNext = Boolean.parseBoolean(s[16]); canPrevious = Boolean.parseBoolean(s[17]);
+                    savePersisted(context, freshCover);
+                } else {
+                    playing = false;
                 }
-                title = s[2]; artist = s[3]; playing = Boolean.parseBoolean(s[6]);
-                canNext = Boolean.parseBoolean(s[16]); canPrevious = Boolean.parseBoolean(s[17]);
             } else if (!force) {
                 return;
             }
@@ -417,10 +435,125 @@ public class SpatchWidget extends AppWidgetProvider {
     @Override public void onReceive(Context context, Intent intent) {
         attach(context);
         String action = intent.getAction();
-        if (!ready && !OfficialPlayback.enabled() && action != null && action.startsWith("spatch.widget.")) return;
-        if (PREVIOUS.equals(action)) SpatchUi.widgetCommand(PREVIOUS_ACTION);
-        else if (NEXT.equals(action)) SpatchUi.widgetCommand(NEXT_ACTION);
-        else if (TOGGLE.equals(action)) SpatchUi.widgetCommand(playing ? PAUSE_ACTION : RESUME_ACTION);
-        else super.onReceive(context, intent);
+        int cmd = PREVIOUS.equals(action) ? PREVIOUS_ACTION
+            : NEXT.equals(action) ? NEXT_ACTION
+            : TOGGLE.equals(action) ? (playing ? PAUSE_ACTION : RESUME_ACTION)
+            : -1;
+        if (cmd < 0) {
+            super.onReceive(context, intent);
+            return;
+        }
+        if (ready || OfficialPlayback.enabled()) {
+            SpatchUi.widgetCommand(cmd);
+            return;
+        }
+        final PendingResult pending = goAsync();
+        final Context appCtx = context.getApplicationContext();
+        WAKE.execute(() -> {
+            try {
+                wakeAndCommand(appCtx, cmd);
+            } finally {
+                if (pending != null) pending.finish();
+            }
+        });
+    }
+
+    private static synchronized void loadPersisted(Context context) {
+        if (persistedLoaded) return;
+        persistedLoaded = true;
+        android.content.SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (!title.isEmpty()) return;
+        title = p.getString("title", "");
+        artist = p.getString("artist", "");
+        coverUrl = p.getString("cover_url", "");
+        uri = p.getString("uri", "");
+        trackContext = p.getString("context", "");
+        positionMs = Math.max(0L, p.getLong("position", 0L));
+        canNext = p.getBoolean("can_next", true);
+        canPrevious = p.getBoolean("can_previous", true);
+        playing = false;
+        java.io.File file = new java.io.File(context.getFilesDir(), COVER_FILE);
+        if (file.isFile()) {
+            Bitmap disk = BitmapFactory.decodeFile(file.getAbsolutePath());
+            if (disk != null) {
+                colors(disk);
+                squareCover = square(disk);
+                backdrop = backdrop(squareCover);
+                cover = squareCover;
+            }
+        }
+    }
+
+    private static void savePersisted(Context context, Bitmap newCover) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("title", title)
+            .putString("artist", artist)
+            .putString("cover_url", coverUrl)
+            .putString("uri", uri)
+            .putString("context", trackContext)
+            .putLong("position", positionMs)
+            .putBoolean("can_next", canNext)
+            .putBoolean("can_previous", canPrevious)
+            .apply();
+        if (newCover != null) {
+            java.io.File file = new java.io.File(context.getFilesDir(), COVER_FILE);
+            java.io.File part = new java.io.File(context.getFilesDir(), COVER_FILE + ".part");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+                square(newCover).compress(Bitmap.CompressFormat.PNG, 100, out);
+            } catch (java.io.IOException ignored) {
+                part.delete();
+                return;
+            }
+            if (!part.renameTo(file)) part.delete();
+        }
+    }
+
+    private static long parsePos(String raw) {
+        try { return Math.max(0L, Long.parseLong(raw)); }
+        catch (NumberFormatException e) { return 0L; }
+    }
+
+    private static boolean loadCore(Context context) {
+        try {
+            java.lang.reflect.Method m = Class.forName("spatch.SpatchApp").getDeclaredMethod("load", Context.class);
+            m.setAccessible(true);
+            return Boolean.TRUE.equals(m.invoke(null, context));
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static void wakeAndCommand(Context context, int cmd) {
+        loadPersisted(context);
+        // Ask Spotify's own MediaButtonReceiver to spin up playback in the background without opening an activity.
+        OfficialPlayback.sendMediaButton(context, context.getPackageName(), cmd);
+        if (loadCore(context)) ready = true;
+        if (!ready) return;
+        long deadline = SystemClock.uptimeMillis() + 6000;
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (CoreBridge.hasTransport() && SpatchUi.connectNative()) break;
+            try { Thread.sleep(150); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+        if (!CoreBridge.hasTransport()) return;
+        String[] s = SpatchUi.widgetState(-1);
+        boolean isPlaying = s != null && Boolean.parseBoolean(s[6]);
+        if (cmd == RESUME_ACTION && !isPlaying) {
+            SpatchUi.playerCommand(RESUME_ACTION, 0, "");
+            try { Thread.sleep(350); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+            s = SpatchUi.widgetState(-1);
+            isPlaying = s != null && Boolean.parseBoolean(s[6]);
+            if (!isPlaying && !uri.isEmpty()) {
+                boolean started = !trackContext.isEmpty() && trackContext.startsWith("spotify:")
+                    ? SpatchUi.playFrom(trackContext, uri)
+                    : SpatchUi.playerCommand(PLAY_ACTION, 0, uri);
+                if (started && positionMs > 0) {
+                    try { Thread.sleep(250); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                    SpatchUi.playerCommand(SEEK_ACTION, positionMs, "");
+                }
+            }
+        } else if ((cmd == PREVIOUS_ACTION || cmd == NEXT_ACTION) && !isPlaying) {
+            SpatchUi.playerCommand(cmd, 0, "");
+        }
+        refresh(context, true);
     }
 }
