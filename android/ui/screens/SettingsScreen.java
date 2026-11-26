@@ -475,6 +475,8 @@ final class SettingsScreen {
         };
         ui.bgRound(track, 22, () -> ui.surfHi);
         track.setPadding(ui.dp(3), ui.dp(3), ui.dp(3), ui.dp(3));
+        track.setClipChildren(false);
+        track.setClipToPadding(false);
         track.addView(pill, new FrameLayout.LayoutParams(0, -1));
         LinearLayout group = ui.row();
         for (int i = 0; i < n; i++) {

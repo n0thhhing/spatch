@@ -588,6 +588,10 @@ final class PlayerScreen {
                 }
             };
             tabContainer.setPadding(ui.dp(3), ui.dp(3), ui.dp(3), ui.dp(3));
+            tabContainer.setClipChildren(false);
+            tabContainer.setClipToPadding(false);
+            sideColumn.setClipChildren(false);
+            sideColumn.setClipToPadding(false);
             GradientDrawable tabTrack = ui.round((ui.ink & 0x00ffffff) | 0x16000000, 18);
             tabContainer.setBackground(tabTrack);
             tabContainer.addView(pillInd, new FrameLayout.LayoutParams(0, -1));
@@ -606,7 +610,7 @@ final class PlayerScreen {
                 syncTabs.run();
                 int halfW = pillInd.getWidth() > 0 ? pillInd.getWidth() : Math.max(0, (tabContainer.getWidth() - ui.dp(6)) / 2);
                 float targetX = ui.sideTab * (float) halfW;
-                if (animate && ui.motion()) pillInd.animate().translationX(targetX).setDuration(280).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start(); // no overshoot: the end tab sits flush with the track, so any overshoot was clipped
+                if (animate && ui.motion()) pillInd.animate().translationX(targetX).setDuration(240).setInterpolator(new android.view.animation.OvershootInterpolator(.85f)).start();
                 else pillInd.setTranslationX(targetX);
                 loadSidePanel(animate, prev != target ? (target > prev ? 1 : -1) : 0);
             };
