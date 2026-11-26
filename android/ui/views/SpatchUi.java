@@ -204,7 +204,7 @@ public final class SpatchUi extends FrameLayout {
     // views that live-update
     FrameLayout pageHost, player;
     LinearLayout dock, nextPill;
-    View dockFade;
+    View dockFade, topScrim;
     int scrollTravel;
     ScrollView pageScroll;
     ListView pageList;
@@ -1121,18 +1121,13 @@ public final class SpatchUi extends FrameLayout {
         colored(fade, () -> fadeBg.setColors(new int[]{bg & 0x00ffffff, (bg & 0x00ffffff) | 0xd8000000, bg, bg}));
         addView(fade, new LayoutParams(-1, dockRoom() + dp(20), Gravity.BOTTOM));
         if (landscape() || dockUi.frosted) fade.setVisibility(GONE); // no fade when frosted glass blurs the page itself
-        // And under the status bar, so scrolled content doesn't collide with the clock and icons: solid behind
-        // the bar itself, then a short fade below it.
-        View topSolid = new View(activity);
-        colored(topSolid, () -> topSolid.setBackgroundColor(bg));
-        addView(topSolid, new LayoutParams(-1, inset.top, Gravity.TOP));
-        View topFade = new View(activity);
-        GradientDrawable topBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg, bg & 0x00ffffff});
-        topFade.setBackground(topBg);
-        colored(topFade, () -> topBg.setColors(new int[]{bg, bg & 0x00ffffff}));
-        LayoutParams tf = new LayoutParams(-1, dp(22), Gravity.TOP);
-        tf.topMargin = inset.top;
-        addView(topFade, tf);
+        // Subtle edge-to-edge top fade so scrolled content softens behind the clock/icons without a hard solid bar.
+        View scrim = new View(activity);
+        topScrim = scrim;
+        GradientDrawable topBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{(bg & 0x00ffffff) | 0x48000000, bg & 0x00ffffff});
+        scrim.setBackground(topBg);
+        colored(scrim, () -> topBg.setColors(new int[]{(bg & 0x00ffffff) | 0x48000000, bg & 0x00ffffff}));
+        addView(scrim, new LayoutParams(-1, inset.top + dp(16), Gravity.TOP));
         dock = column();
         // A swipe nudges the mini player sideways past the dock's padding (and the rail's narrow edge); let it show.
         dock.setClipToPadding(false);
@@ -1632,6 +1627,7 @@ public final class SpatchUi extends FrameLayout {
         pageList = null;
         libraryList = null;
         heroArt = null; heroProgress = null; heroTitle = heroArtist = null;
+        if (topScrim != null) topScrim.setVisibility(playlist == null ? VISIBLE : GONE);
         View page = playlist != null ? playlistScreen.playlistPage() : tab == HOME ? homeScreen.homePage() : tab == SEARCH ? searchScreen.searchPage() : tab == LIBRARY ? libraryScreen.libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : tab == STATS ? statsPage() : settingsScreen.settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         shownKey = pageKey();
