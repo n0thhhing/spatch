@@ -1702,6 +1702,11 @@ final class PlayerScreen {
         if (current) { savedUri = track; ui.saved = want; }
         if (song instanceof Song) ((Song) song).liked = want;
         ui.refresh();
+        if (want && ui.pref("haptics", true)) {
+            // A like is a double tick: the heart's tap gave the first, this is the second a beat later.
+            View felt = ui.pLike != null ? ui.pLike : ui;
+            felt.postDelayed(() -> felt.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK), 90);
+        }
         if (want && current && ui.motion() && ui.pLike != null) {
             ui.pLike.setScaleX(.5f);
             ui.pLike.setScaleY(.5f);

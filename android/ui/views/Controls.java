@@ -614,7 +614,8 @@ final class Controls {
                     if (e.getActionMasked() == MotionEvent.ACTION_DOWN) lastTenth = tenth;
                     else if (tenth != lastTenth) {
                         lastTenth = tenth;
-                        if (ui.pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+                        // Android 14's slider tick where there is one: lighter, and made for exactly this.
+                        if (ui.pref("haptics", true)) performHapticFeedback(android.os.Build.VERSION.SDK_INT >= 34 ? android.view.HapticFeedbackConstants.SEGMENT_FREQUENT_TICK : android.view.HapticFeedbackConstants.CLOCK_TICK);
                     }
                     if (e.getActionMasked() == MotionEvent.ACTION_UP) {
                         long target = Math.round(ui.duration * (double) preview);

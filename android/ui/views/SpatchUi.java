@@ -646,6 +646,8 @@ public final class SpatchUi extends FrameLayout {
 
     void command(int action, long value, String target) {
         if (action == PlayerScreen.NEXT || action == PlayerScreen.PLAY || action == PlayerScreen.SKIP_TO) prevTappedAt = 0;
+        // Every skip, from a button or a swipe anywhere, lands as one firm click.
+        if ((action == PlayerScreen.NEXT || action == PlayerScreen.PREVIOUS) && pref("haptics", true)) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
         submit(COMMANDS, () -> {
             if (!playerCommand(action, value, target)) post(() -> {
                 if (OfficialPlayback.enabled()) { revision = -1; syncNativeState(); }
