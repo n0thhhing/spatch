@@ -27,7 +27,6 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -279,8 +278,8 @@ final class PlaylistScreen {
         List<Option> names = new ArrayList<>();
         List<Runnable> runs = new ArrayList<>();
         names.add(new Option("Play from here", "", "", "play", false)); runs.add(() -> ui.open(song));
-        names.add(new Option("Play next", "", "", "next", false)); runs.add(() -> { ui.command(PlayerScreen.QUEUE_NEXT, 0, song.uri); Toast.makeText(ui.activity, "Playing next", Toast.LENGTH_SHORT).show(); });
-        names.add(new Option("Add to queue", "", "", "queue", false)); runs.add(() -> { ui.command(PlayerScreen.QUEUE_ADD, 0, song.uri); Toast.makeText(ui.activity, "Added to queue", Toast.LENGTH_SHORT).show(); });
+        names.add(new Option("Play next", "", "", "next", false)); runs.add(() -> { ui.command(PlayerScreen.QUEUE_NEXT, 0, song.uri); ui.toast("Playing next"); });
+        names.add(new Option("Add to queue", "", "", "queue", false)); runs.add(() -> { ui.command(PlayerScreen.QUEUE_ADD, 0, song.uri); ui.toast("Added to queue"); });
         names.add(new Option("Add to playlist", "", "", "add", false)); runs.add(() -> ui.addToPlaylist(song));
         names.add(ui.downloadsScreen.songDownloadOption(song)); runs.add(() -> ui.downloadsScreen.downloadTapped(song));
         if (!song.albumUri.isEmpty()) { names.add(new Option("Go to album", song.album, "", "album", false)); runs.add(() -> openPlaylist(new MediaEntry(song.album, song.subtitle, song.albumUri, song.image, -1))); }
@@ -604,7 +603,7 @@ final class PlaylistScreen {
         ui.colored(shuffleBox, paintMode);
         ui.tappable(shuffleBox, "Shuffle: off, on or Smart Shuffle", () -> {
             if (OfficialPlayback.enabled()) {
-                Toast.makeText(ui.activity, "Change shuffle in official Spotify", Toast.LENGTH_SHORT).show();
+                ui.toast("Change shuffle in official Spotify");
                 return;
             }
             // Off → Shuffle → Smart Shuffle (playlists only) → Off, stored with Spotify for this list.
@@ -618,7 +617,7 @@ final class PlaylistScreen {
                 if (error != null && !error.isEmpty()) ui.post(() -> {
                     listShuffle = before;
                     paintMode.run();
-                    Toast.makeText(ui.activity, "Couldn’t change shuffle: " + error, Toast.LENGTH_SHORT).show();
+                    ui.toast("Couldn’t change shuffle: " + error);
                 });
             });
         });
@@ -976,7 +975,7 @@ final class PlaylistScreen {
             } else {
                 android.content.ClipboardManager clip = (android.content.ClipboardManager) ui.activity.getSystemService(Context.CLIPBOARD_SERVICE);
                 if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText(name, link));
-                Toast.makeText(ui.activity, "Link copied", Toast.LENGTH_SHORT).show();
+                ui.toast("Link copied");
             }
         });
     }

@@ -214,6 +214,23 @@ public class HomeEffectsTest {
         activity.finish();
     }
 
+    @Test public void confirmationsDropInOnASpringAndTuckAway() throws Exception {
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
+        ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
+        settle();
+        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.call(ui, "toast", new Class<?>[]{CharSequence.class}, "Added to Liked Songs");
+        settle();
+        View pill = text(root, "Added to Liked Songs");
+        assertNotNull("The confirmation is a pill in the app", pill);
+        assertEquals("It settles in place", 0f, pill.getTranslationY(), 1f);
+        shot(root, "toast");
+        ShadowLooper.idleMainLooper(2600, java.util.concurrent.TimeUnit.MILLISECONDS);
+        settle();
+        assertTrue("Then it tucks away above the screen", pill.getTranslationY() < 0 || pill.getAlpha() < .1f);
+        activity.finish();
+    }
+
     private static Object titleOf(Object entry) throws Exception {
         for (Class<?> c = entry.getClass(); c != null; c = c.getSuperclass()) {
             try { java.lang.reflect.Field f = c.getDeclaredField("title"); f.setAccessible(true); return f.get(entry); } catch (NoSuchFieldException next) { }

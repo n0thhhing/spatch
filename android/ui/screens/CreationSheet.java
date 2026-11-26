@@ -10,7 +10,6 @@ import android.widget.FrameLayout.LayoutParams;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 import spatch.ArtworkViews.Art;
 import static android.view.View.*;
 
@@ -208,7 +207,7 @@ final class CreationSheet {
             } else {
                 closeCreateMenu();
                 String error = CoreBridge.openCreation(ui.activity, kind);
-                if (error != null && !error.isEmpty()) Toast.makeText(ui.activity, error, Toast.LENGTH_LONG).show();
+                if (error != null && !error.isEmpty()) ui.toast(error, true);
             }
         });
         return option;
@@ -445,7 +444,7 @@ final class CreationSheet {
                     createName = createDescription = "";
                     pendingPlaylistSong = null;
                     closeCreateMenu();
-                    Toast.makeText(ui.activity, result[1].isEmpty() ? "Created “" + trimmed + "”" : result[1], result[1].isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
+                    ui.toast(result[1].isEmpty() ? "Created “" + trimmed + "”" : result[1], !result[1].isEmpty());
                     ui.playlistScreen.openPlaylist(new MediaEntry(trimmed, "Your playlist", result[0], "", 0));
                 });
             });

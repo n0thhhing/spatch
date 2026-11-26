@@ -14,7 +14,6 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -119,8 +118,8 @@ final class Downloads {
                 ui.post(() -> {
                     if (ui.closed) return;
                     if (error != null && error.isEmpty()) { pullDownloads(); onDownloadsChanged(true); }
-                    Toast.makeText(ui.activity, error != null && error.isEmpty() ? "Downloading “" + name + "”" : error == null ? "No reply from Spotify" : error,
-                        error != null && error.isEmpty() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
+                    ui.toast(error != null && error.isEmpty() ? "Downloading “" + name + "”" : error == null ? "No reply from Spotify" : error,
+                        !(error != null && error.isEmpty()));
                 });
             });
             return;
@@ -132,7 +131,7 @@ final class Downloads {
         ui.sheet(name, done ? "Removes this download from this phone. It stays in your library." : "Stops the download and removes what’s been saved so far.",
             new Option[]{new Option(done ? "Remove download" : "Cancel download", "", "", "close", false)}, c -> ui.submit(SpatchUi.PLAYLISTS, () -> {
                 String error = SpatchUi.nativeDownload(uri, 1, null);
-                ui.post(() -> Toast.makeText(ui.activity, error == null || error.isEmpty() ? (done ? "Removed download" : "Download cancelled") : error, Toast.LENGTH_LONG).show());
+                ui.post(() -> ui.toast(error == null || error.isEmpty() ? (done ? "Removed download" : "Download cancelled") : error, true));
             }));
     }
 
@@ -184,7 +183,7 @@ final class Downloads {
         TextView clear = ui.pill("Remove all downloads", () -> ui.sheet("Remove all downloads?", "Every downloaded song, episode, playlist and album is removed from this phone. Your library stays as it is.",
             new Option[]{new Option("Remove all downloads", "", "", "close", false)}, c -> ui.submit(SpatchUi.PLAYLISTS, () -> {
                 String error = SpatchUi.nativeDownload("", 2, null);
-                ui.post(() -> Toast.makeText(ui.activity, error == null || error.isEmpty() ? "Removed all downloads" : error, Toast.LENGTH_LONG).show());
+                ui.post(() -> ui.toast(error == null || error.isEmpty() ? "Removed all downloads" : error, true));
             })));
         clear.setTextColor(ui.ink);
         GradientDrawable clearBg = ui.round(ui.surfHi, 22);

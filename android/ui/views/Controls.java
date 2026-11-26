@@ -10,7 +10,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -182,7 +181,7 @@ final class Controls {
                 String error = SpatchUi.nativeSetVolume(level);
                 if (error != null && !error.isEmpty() && !failed) {
                     failed = true;
-                    post(() -> Toast.makeText(ui.activity, "Couldn’t change the volume: " + error, Toast.LENGTH_SHORT).show());
+                    post(() -> ui.toast("Couldn’t change the volume: " + error));
                 }
             });
         }

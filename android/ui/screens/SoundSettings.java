@@ -15,7 +15,6 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -168,7 +167,7 @@ final class SoundSettings {
         toolbar.addView(viewToggle[0], toggleParams);
         TextView save = ui.pill("Save", () -> {
             ui.prefs.edit().putString("eq_saved_curve", graphicEqString()).apply();
-            Toast.makeText(ui.activity, "Curve saved in Presets", Toast.LENGTH_SHORT).show();
+            ui.toast("Curve saved in Presets");
         });
         eqToolbarButton(save);
         LinearLayout.LayoutParams saveParams = ui.lp(ui.dp(54), ui.dp(48)); saveParams.leftMargin = ui.dp(6);
@@ -177,7 +176,7 @@ final class SoundSettings {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Graphic EQ curve", graphicEqString()));
-                Toast.makeText(ui.activity, "Curve copied, to back up or share", Toast.LENGTH_SHORT).show();
+                ui.toast("Curve copied, to back up or share");
             }
         });
         eqToolbarButton(copy);
@@ -622,7 +621,7 @@ final class SoundSettings {
                     android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
                     if (clipboard != null) {
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText(name, curve));
-                        Toast.makeText(ui.activity, "Profile copied", Toast.LENGTH_SHORT).show();
+                        ui.toast("Profile copied");
                     }
                 });
                 ui.settingsScreen.settingsAction(correction, "Remove profile", "Keep your graphic EQ and other sound settings", () -> {
@@ -805,7 +804,7 @@ final class SoundSettings {
                             if (!failure.isEmpty()) throw new IllegalArgumentException(failure);
                             activateProfile(headphone.name, data);
                         } catch (IllegalArgumentException invalid) {
-                            Toast.makeText(ui.activity, invalid.getMessage(), Toast.LENGTH_LONG).show(); renderHeadphones();
+                            ui.toast(invalid.getMessage(), true); renderHeadphones();
                         }
                     });
                 });
@@ -822,7 +821,7 @@ final class SoundSettings {
         revealAt = SystemClock.uptimeMillis();
         revealName = "✓  " + name;
         openPanel(1);
-        if (!ui.motion()) Toast.makeText(ui.activity, "Loaded “" + name + "”", Toast.LENGTH_SHORT).show();
+        if (!ui.motion()) ui.toast("Loaded “" + name + "”");
     }
 
     /** When a headphone profile was last applied (0 for never), and its name: the curve's draw-in and confirmation. */

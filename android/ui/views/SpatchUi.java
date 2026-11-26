@@ -487,6 +487,65 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Re-tints everything once the playing cover's colour is known; true if the palette changed. */
+    private TextView toastView;
+    private Controls.Spring toastDrop;
+    private boolean toastShown;
+    private final Runnable toastAway = this::tuckToast;
+
+    void toast(CharSequence text) { toast(text, false); }
+
+    /**
+     * A short confirmation as a pill that drops in from the top on a spring (overshooting a little, then settling),
+     * holds a moment and tucks away. Frosted over the page when Frosted bars is on, else a translucent pill. A new one
+     * while it shows just takes its place. Off screen (a background error) it falls back to the system toast.
+     */
+    void toast(CharSequence text, boolean longer) {
+        if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) {
+            Toast.makeText(activity, text, longer ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (toastView == null || toastView.getParent() != this) {
+            TextView pill = text("", 14, () -> ink, true);
+            pill.setGravity(Gravity.CENTER);
+            pill.setPadding(dp(18), dp(11), dp(18), dp(11));
+            pill.setMaxLines(3);
+            if (dockUi.frosted) pill.setBackground(dockUi.new Frost(pill, 22, () -> surfHi));
+            else bgRound(pill, 22, () -> (surfHi & 0x00ffffff) | 0xf0000000);
+            pill.setElevation(dp(8));
+            LayoutParams at = new LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            at.topMargin = inset.top + dp(10);
+            at.leftMargin = at.rightMargin = dp(24);
+            addView(pill, at);
+            toastView = pill;
+            toastDrop = new Controls.Spring(-dp(120), 15f, .52f, pill::setTranslationY);
+            toastShown = false;
+        }
+        TextView pill = toastView;
+        pill.bringToFront();
+        pill.setText(text);
+        pill.announceForAccessibility(text);
+        removeCallbacks(toastAway);
+        pill.animate().cancel();
+        pill.setAlpha(1f);
+        if (!motion()) { toastDrop.snap(0f); }
+        else {
+            if (!toastShown) toastDrop.snap(-(inset.top + dp(120)));
+            toastDrop.to(0f);
+        }
+        toastShown = true;
+        postDelayed(toastAway, longer ? 3500 : 2200);
+    }
+
+    private void tuckToast() {
+        TextView pill = toastView;
+        if (pill == null || !toastShown) return;
+        toastShown = false;
+        toastDrop.cancel();
+        float away = -(inset.top + pill.getHeight() + dp(24));
+        pill.animate().translationY(away).alpha(0f).setDuration(motion() ? 240 : 0).setInterpolator(EMPHASIZED)
+            .withEndAction(() -> toastDrop.snap(away)).start();
+    }
+
     /** The next palette change lands at once instead of crossfading: a reveal from the swatch shows it instead. */
     boolean snapPalette;
     /** Where the last touch went down, in window coordinates: where a reveal starts when no view is at hand. */
@@ -651,7 +710,7 @@ public final class SpatchUi extends FrameLayout {
         submit(COMMANDS, () -> {
             if (!playerCommand(action, value, target)) post(() -> {
                 if (OfficialPlayback.enabled()) { revision = -1; syncNativeState(); }
-                if (isAttachedToWindow()) Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show();
+                if (isAttachedToWindow()) toast(playbackFailure());
             });
         });
     }
@@ -1355,7 +1414,7 @@ public final class SpatchUi extends FrameLayout {
                     String msg = profileUsername.isEmpty()
                         ? "Couldn’t read your account yet. Spatch will keep trying."
                         : profileError.isEmpty() ? "Signed in as @" + profileUsername : "Couldn’t refresh profile: " + profileError;
-                    Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show();
+                    toast(msg);
                 }
                 if (tab == PROFILE && playlist == null) showPage();
             });
@@ -1464,13 +1523,13 @@ public final class SpatchUi extends FrameLayout {
      * UI instead; its "Back to Spatch" pill returns here.
      */
     private void openLogin() {
-        Toast.makeText(activity, "Open your profile in Spotify and choose Add account", Toast.LENGTH_LONG).show();
+        toast("Open your profile in Spotify and choose Add account", true);
         openNativeSpotify();
     }
 
     void openNativeSpotify() {
         String error = CoreBridge.openNativeSpotify(activity);
-        if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
+        if (error != null && !error.isEmpty()) toast(error, true);
     }
 
     /** What Spatch knows about the connection to Spotify, with a button to copy it for whoever is helping. */
@@ -1493,7 +1552,7 @@ public final class SpatchUi extends FrameLayout {
         settingsScreen.settingsAction(box, "Copy details", "For troubleshooting: paste it to whoever is helping you", () -> {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch connection details", copy));
-            Toast.makeText(activity, "Details copied", Toast.LENGTH_SHORT).show();
+            toast("Details copied");
         });
     }
 
@@ -1518,7 +1577,7 @@ public final class SpatchUi extends FrameLayout {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
             String link = profileUri.startsWith("spotify:user:") ? "https://open.spotify.com/user/" + android.net.Uri.encode(profileUri.substring(13)) : profileUri;
             if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spotify profile", link));
-            Toast.makeText(activity, "Profile link copied", Toast.LENGTH_SHORT).show();
+            toast("Profile link copied");
         });
         String refreshSubtitle = profileUsername.isEmpty() ? "Spatch is still working out who you are. Tap to check now."
             : profileLoading ? "Checking your Spotify account…"
@@ -1526,13 +1585,13 @@ public final class SpatchUi extends FrameLayout {
             : "Reload your name and photo from Spotify · Updated " + ago(profileAt);
         settingsScreen.settingsAction(identity, "Refresh profile", refreshSubtitle, () -> {
             profileAnnounce = true;
-            Toast.makeText(activity, profileLoading ? "Still checking your Spotify account…" : "Checking your Spotify account…", Toast.LENGTH_SHORT).show();
+            toast(profileLoading ? "Still checking your Spotify account…" : "Checking your Spotify account…");
             loadProfile(true);
         });
         settingsScreen.settingsAction(identity, "Sign in or switch account", "Opens Spotify’s own screens to sign in or add an account. If you’re already signed in, you don’t need this.", this::openLogin);
         settingsScreen.settingsAction(identity, "Sign in here (test)", "Spotify’s own sign-in screen, opened the way Spotify opens it", () -> {
             String error = CoreBridge.openSpotifyLogin(activity);
-            if (error != null && !error.isEmpty()) Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
+            if (error != null && !error.isEmpty()) toast(error, true);
         });
         settingsScreen.settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
         connectionCard(page);
@@ -1969,7 +2028,7 @@ public final class SpatchUi extends FrameLayout {
             int index = e instanceof Song ? ((Song) e).index : Math.max(0, playlistTracks.indexOf(e));
             String context = playUri();
             submit(COMMANDS, () -> {
-                if (!playerPlayFrom(context, e.uri, index)) post(() -> Toast.makeText(activity, playbackFailure(), Toast.LENGTH_SHORT).show());
+                if (!playerPlayFrom(context, e.uri, index)) post(() -> toast(playbackFailure()));
             });
             return;
         }
@@ -2029,7 +2088,7 @@ public final class SpatchUi extends FrameLayout {
             catch (RuntimeException | LinkageError failed) { error = failed.toString(); }
             final String failure = error == null ? "Couldn’t add this song" : error;
             post(() -> {
-                Toast.makeText(activity, failure.isEmpty() ? "Added to “" + target.title + "”" : failure, Toast.LENGTH_LONG).show();
+                toast(failure.isEmpty() ? "Added to “" + target.title + "”" : failure, true);
                 if (failure.isEmpty() && playlist != null && playlist.uri.equals(target.uri)) playlistScreen.openPlaylist(target);
             });
         });
@@ -2056,7 +2115,7 @@ public final class SpatchUi extends FrameLayout {
         sheet(e.title, e.subtitle.isEmpty() ? "Choose what to do" : e.subtitle, options, choice -> {
             if (song) {
                 if (choice == 0) command(PlayerScreen.PLAY, 0, e.uri);
-                else { command(PlayerScreen.QUEUE_ADD, 0, e.uri); Toast.makeText(activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
+                else { command(PlayerScreen.QUEUE_ADD, 0, e.uri); toast("Added to queue"); }
             } else if (choice == 2) open(e);
             else { command(PlayerScreen.SHUFFLE, choice == 1 ? 1 : 0, ""); command(PlayerScreen.PLAY, 0, e.uri); }
         });

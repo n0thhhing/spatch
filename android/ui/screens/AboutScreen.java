@@ -9,7 +9,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 /** Project information and support links using the shared Settings components. */
 final class AboutScreen {
@@ -35,7 +34,7 @@ final class AboutScreen {
             ClipboardManager clipboard = (ClipboardManager) ui.activity.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {
                 clipboard.setPrimaryClip(ClipData.newPlainText("Spatch build details", report));
-                Toast.makeText(ui.activity, "Build details copied", Toast.LENGTH_SHORT).show();
+                ui.toast("Build details copied");
             }
         });
 
@@ -69,6 +68,6 @@ final class AboutScreen {
 
     private static void open(SpatchUi ui, String url) {
         try { ui.activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
-        catch (android.content.ActivityNotFoundException missing) { Toast.makeText(ui.activity, "No app available to open this link", Toast.LENGTH_LONG).show(); }
+        catch (android.content.ActivityNotFoundException missing) { ui.toast("No app available to open this link", true); }
     }
 }

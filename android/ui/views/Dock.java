@@ -39,7 +39,7 @@ final class Dock {
      * Frosted glass for a dock pill: the page behind it, blurred, under the pill's own colour at partial opacity, with
      * the usual hairline edge. Only the pill's area is blurred; a bitmap snapshot gets the solid colour instead.
      */
-    private final class Frost extends android.graphics.drawable.Drawable {
+    final class Frost extends android.graphics.drawable.Drawable {
         private final View pill;
         private final float radius;
         private final ColorOf color;

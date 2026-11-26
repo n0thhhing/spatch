@@ -15,7 +15,6 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 /** The settings hub, its pages and the switch, choice and card rows they are built from. */
 final class SettingsScreen {
@@ -170,7 +169,7 @@ final class SettingsScreen {
                     new String[]{"Built-in player", "Official Spotify fallback"}, selected -> {
                         boolean official = selected == 1;
                         if (official && !OfficialPlayback.installed()) {
-                            Toast.makeText(ui.activity, OfficialPlayback.status(), Toast.LENGTH_LONG).show();
+                            ui.toast(OfficialPlayback.status(), true);
                             return;
                         }
                         if (official) SpatchUi.COMMANDS.execute(() -> SpatchUi.nativeCommand(PlayerScreen.PAUSE, 0, ""));
@@ -186,7 +185,7 @@ final class SettingsScreen {
                 settingsAction(backend, "Open official Spotify", "Sign in or start a session, then return to Spatch", () -> {
                     android.content.Intent launch = ui.activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
                     if (launch != null) ui.activity.startActivity(launch);
-                    else Toast.makeText(ui.activity, OfficialPlayback.status(), Toast.LENGTH_LONG).show();
+                    else ui.toast(OfficialPlayback.status(), true);
                 });
             }
 
@@ -268,17 +267,17 @@ final class SettingsScreen {
                     if (clipboard == null) return;
                     if (choice == 0) {
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch intents", reference));
-                        Toast.makeText(ui.activity, "Intents copied", Toast.LENGTH_SHORT).show();
+                        ui.toast("Intents copied");
                     } else if (choice == 1) {
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch receiver", component));
-                        Toast.makeText(ui.activity, "Receiver copied: " + component, Toast.LENGTH_SHORT).show();
+                        ui.toast("Receiver copied: " + component);
                     }
                 });
             });
             settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
                 ui.submit(SpatchUi.DATA, () -> {
                     SpatchUi.nativeRefreshLibrary();
-                    ui.post(() -> Toast.makeText(ui.activity, "Library refresh finished", Toast.LENGTH_SHORT).show());
+                    ui.post(() -> ui.toast("Library refresh finished"));
                 });
             });
             break;
@@ -408,7 +407,7 @@ final class SettingsScreen {
             String error = SpatchUi.nativeSetSpotifySetting(key, value);
             if (error != null && !error.isEmpty()) ui.post(() -> {
                 spotifySettings.put(key, before);
-                Toast.makeText(ui.activity, "Spotify didn’t change that: " + error, Toast.LENGTH_LONG).show();
+                ui.toast("Spotify didn’t change that: " + error, true);
                 if (ui.tab == SpatchUi.SETTINGS && ui.playlist == null) settingsChanged(false);
             });
         });
@@ -772,7 +771,7 @@ final class SettingsScreen {
                 SpatchUi.IMAGES.evictAll();
                 ui.failed.clear();
                 size.setText("0 KB of saved covers; they download again when needed");
-                Toast.makeText(ui.activity, "Artwork cache cleared", Toast.LENGTH_SHORT).show();
+                ui.toast("Artwork cache cleared");
                 SpatchUi.invalidateArt(ui);
             });
         }));

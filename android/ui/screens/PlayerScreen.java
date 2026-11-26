@@ -28,7 +28,6 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -1020,7 +1019,7 @@ final class PlayerScreen {
             }
             if (!ok) ui.post(() -> {
                 if (ui.shuffle == want) { ui.shuffle = before; ui.smartShuffle = beforeSmart; ui.refresh(); }
-                if (ui.isAttachedToWindow()) Toast.makeText(ui.activity, SpatchUi.playbackFailure(), Toast.LENGTH_SHORT).show();
+                if (ui.isAttachedToWindow()) ui.toast(SpatchUi.playbackFailure());
             });
         });
     }
@@ -1032,7 +1031,7 @@ final class PlayerScreen {
         ui.submit(SpatchUi.COMMANDS, () -> {
             if (!SpatchUi.playerCommand(REPEAT, want, "")) ui.post(() -> {
                 if (ui.repeat == want) { ui.repeat = before; ui.refresh(); }
-                if (ui.isAttachedToWindow()) Toast.makeText(ui.activity, SpatchUi.playbackFailure(), Toast.LENGTH_SHORT).show();
+                if (ui.isAttachedToWindow()) ui.toast(SpatchUi.playbackFailure());
             });
         });
     }
@@ -1544,7 +1543,7 @@ final class PlayerScreen {
         SpatchUi.sleepAt = delayMs <= 0 ? 0 : SystemClock.uptimeMillis() + delayMs;
         if (delayMs > 0) SpatchUi.MAIN.postDelayed(SpatchUi.SLEEP, delayMs);
         if (sleepBadge != null) sleepBadge.run();
-        Toast.makeText(ui.activity, toast, Toast.LENGTH_SHORT).show();
+        ui.toast(toast);
     }
 
     private void openSleepTimer() {
@@ -1583,15 +1582,15 @@ final class PlayerScreen {
     /** Lists the devices Spotify can play on and moves playback to the one you pick. */
     private void openDevices() {
         if (OfficialPlayback.enabled()) {
-            Toast.makeText(ui.activity, "Choose playback devices in official Spotify", Toast.LENGTH_LONG).show();
+            ui.toast("Choose playback devices in official Spotify", true);
             return;
         }
-        Toast.makeText(ui.activity, "Looking for devices…", Toast.LENGTH_SHORT).show();
+        ui.toast("Looking for devices…");
         ui.submit(SpatchUi.PLAYLISTS, () -> {
             String[] f = SpatchUi.nativeDevices();
             final int level = SpatchUi.nativeVolume();
             ui.post(() -> {
-                if (f == null || f.length < 5) { Toast.makeText(ui.activity, "No devices found", Toast.LENGTH_SHORT).show(); return; }
+                if (f == null || f.length < 5) { ui.toast("No devices found"); return; }
                 if (level >= 0) ui.sheetExtra = ui.controls.new VolumeBar(level);
                 int count = f.length / 5;
                 Option[] devices = new Option[count];
@@ -1605,7 +1604,7 @@ final class PlayerScreen {
                     String id = f[i * 5 + 2];
                     ui.submit(SpatchUi.PLAYLISTS, () -> {
                         String error = SpatchUi.nativeTransfer(id);
-                        ui.post(() -> Toast.makeText(ui.activity, error == null || error.isEmpty() ? "Playing on " + f[i * 5] : "Couldn’t switch: " + error, Toast.LENGTH_LONG).show());
+                        ui.post(() -> ui.toast(error == null || error.isEmpty() ? "Playing on " + f[i * 5] : "Couldn’t switch: " + error, true));
                     });
                 });
             });
@@ -1723,7 +1722,7 @@ final class PlayerScreen {
                     if (song instanceof Song && ((Song) song).liked == want) ((Song) song).liked = Boolean.TRUE.equals(before);
                 }
                 ui.refresh();
-                Toast.makeText(ui.activity, !ok ? "Couldn’t update Liked Songs" : want ? "Added to Liked Songs" : "Removed from Liked Songs", Toast.LENGTH_SHORT).show();
+                ui.toast(!ok ? "Couldn’t update Liked Songs" : want ? "Added to Liked Songs" : "Removed from Liked Songs");
             });
         });
     }

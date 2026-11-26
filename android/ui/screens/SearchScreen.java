@@ -14,7 +14,6 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -436,10 +435,10 @@ final class SearchScreen {
         if (!e.uri.startsWith("spotify:track:") && !e.uri.startsWith("spotify:episode:") && !e.uri.startsWith("spotify:preview:")) { ui.actions(e); return; }
         ui.sheet(e.title, e.subtitle, new Option[]{new Option("Play", "", "", "play", false), new Option("Play next", "", "", "next", false), new Option("Add to queue", "", "", "queue", false), new Option("Add to playlist", "", "", "add", false), ui.downloadsScreen.songDownloadOption(e)}, c -> {
             if (c == 0) ui.command(PlayerScreen.PLAY, 0, e.uri);
-            else if (c == 1) { ui.command(PlayerScreen.QUEUE_NEXT, 0, e.uri); Toast.makeText(ui.activity, "Playing next", Toast.LENGTH_SHORT).show(); }
+            else if (c == 1) { ui.command(PlayerScreen.QUEUE_NEXT, 0, e.uri); ui.toast("Playing next"); }
             else if (c == 3) ui.addToPlaylist(e);
             else if (c == 4) ui.downloadsScreen.downloadTapped(e);
-            else { ui.command(PlayerScreen.QUEUE_ADD, 0, e.uri); Toast.makeText(ui.activity, "Added to queue", Toast.LENGTH_SHORT).show(); }
+            else { ui.command(PlayerScreen.QUEUE_ADD, 0, e.uri); ui.toast("Added to queue"); }
         });
     }
 }
