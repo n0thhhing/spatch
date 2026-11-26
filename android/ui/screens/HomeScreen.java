@@ -247,6 +247,7 @@ final class HomeScreen {
         }
 
         boolean any = false, hidden = false;
+        cascadeShelf = !cascaded && ui.motion() ? 0 : -1;
         if (!ui.pref("home_recent", true)) hidden = true;
         else if (!recent.isEmpty()) any |= shelf(page, "Recently played", recent, null);
         for (int c = 0; c < SpatchUi.SECTIONS.length; c++) {
@@ -254,6 +255,8 @@ final class HomeScreen {
             if (!ui.pref("home_shelf_" + c, true)) { hidden = true; continue; }
             any |= shelf(page, SpatchUi.SECTIONS[c], ui.entries(c, 14), () -> { ui.filter = category; ui.goFromLink(SpatchUi.LIBRARY); });
         }
+        if (any && cascadeShelf >= 0) cascaded = true;
+        cascadeShelf = -1;
         if (!any && (!hidden || !ui.libraryReady)) {
             TextView note = ui.text(ui.libraryStatus, 14, () -> ui.inkDim, false);
             note.setPadding(ui.dp(4), ui.dp(24), 0, 0);
@@ -314,8 +317,18 @@ final class HomeScreen {
         scroller.setHorizontalScrollBarEnabled(false);
         LinearLayout tiles = ui.row();
         int width = Math.max(120, Math.min(160, (ui.getResources().getConfiguration().screenWidthDp - 50) / 2));
+        int tileIndex = 0;
         for (MediaEntry e : items) {
             LinearLayout tile = ui.column();
+            // The first time Home shows its shelves, the covers rise and fade in a beat apart, shelf after shelf, in
+            // step with the greeting's swell; only those on screen (the first four of a shelf) wait their turn.
+            if (cascadeShelf >= 0 && tileIndex < 4) {
+                tile.setAlpha(0f);
+                tile.setTranslationY(ui.dp(22));
+                tile.animate().alpha(1f).translationY(0f).setStartDelay(220L + cascadeShelf * 110L + tileIndex * 55L).setDuration(460)
+                    .setInterpolator(new android.view.animation.PathInterpolator(.3f, 1.3f, .4f, 1f)).start();
+            }
+            tileIndex++;
             Art art = ui.artwork.new Art(e.category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
             art.letter = SpatchUi.initial(e.title);
             art.heart = SpatchUi.liked(e.uri) && e.image.isEmpty();
@@ -361,8 +374,13 @@ final class HomeScreen {
         sp.leftMargin = -ui.dp(18);
         sp.rightMargin = -ui.dp(18);
         page.addView(scroller, sp);
+        if (cascadeShelf >= 0) cascadeShelf++;
         return true;
     }
+
+    /** Which shelf is being built while Home's first cascade is set up (-1 when it isn't), and whether it has run. */
+    private int cascadeShelf = -1;
+    private static boolean cascaded;
 
     /** Pages opened from another page (an album from a playlist...), so back retraces them. */
     private static boolean greeted;
