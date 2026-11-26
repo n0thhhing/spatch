@@ -1089,7 +1089,8 @@ public final class SpatchUi extends FrameLayout {
             }
         }
         playing = Boolean.parseBoolean(s[6]);
-        if (backdrop != null) backdrop.drifting(playing);
+        if (backdrop != null) backdrop.drifting(playing && playerScreen.lyricsPanel == null);
+        playerScreen.setLyricsDrifting(playing);
         if (pending != null && (changed || (pending == playing && SystemClock.uptimeMillis() >= pendingUntil))) pending = null;
         shuffle = Boolean.parseBoolean(s[7]);
         repeat = Integer.parseInt(s[8]);

@@ -16,6 +16,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
 import org.robolectric.shadows.ShadowLooper;
+import static org.robolectric.Shadows.shadowOf;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -32,12 +33,12 @@ public class LyricsWalkTest {
         Reflect.set(ui, "position", 3000L + 800L + 80L);
         Reflect.call(ui, "openLyrics", new Class<?>[0]);
         settle();
-        PlayerScreen.SungWord word = null;
+        LyricsView.SungWord word = null;
         for (TextView line : texts(root)) {
             if (!(line.getText() instanceof Spanned)) continue;
             Spanned text = (Spanned) line.getText();
-            PlayerScreen.SungWord[] found = text.getSpans(0, text.length(), PlayerScreen.SungWord.class);
-            for (PlayerScreen.SungWord w : found) if (w.lift > 0) word = w;
+            LyricsView.SungWord[] found = text.getSpans(0, text.length(), LyricsView.SungWord.class);
+            for (LyricsView.SungWord w : found) if (w.lift > 0) word = w;
         }
         assertNotNull("The word being sung carries the lift", word);
         assertTrue("It glows", word.glow > 0);
@@ -50,14 +51,43 @@ public class LyricsWalkTest {
         // Past the end of the first line (ends[0] = 8500 ms, next line at 9000 ms), the last word settles back down.
         Reflect.set(ui, "position", 3000L + 5500L + 350L);
         settle();
-        PlayerScreen.SungWord settled = null;
+        LyricsView.SungWord settled = null;
         for (TextView line : texts(root)) {
             if (!(line.getText() instanceof Spanned)) continue;
             Spanned text = (Spanned) line.getText();
-            PlayerScreen.SungWord[] found = text.getSpans(0, text.length(), PlayerScreen.SungWord.class);
-            for (PlayerScreen.SungWord w : found) if (w.lift > .05f || w.glow > .05f) settled = w;
+            LyricsView.SungWord[] found = text.getSpans(0, text.length(), LyricsView.SungWord.class);
+            for (LyricsView.SungWord w : found) if (w.lift > .05f || w.glow > .05f) settled = w;
         }
         assertNull("Past the end of the last word on a line, lift and glow settle back to zero", settled);
+        activity.finish();
+    }
+
+    @Test public void pausedLyricsStopRedrawing() throws Exception {
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
+        ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
+        settle();
+        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.set(ui, "playing", false);
+        Reflect.set(ui, "position", 3000L + 800L + 80L);
+        Reflect.call(ui, "openLyrics", new Class<?>[0]);
+        settle();
+        TextView sung = null;
+        for (TextView line : texts(root)) {
+            if (!(line.getText() instanceof Spanned)) continue;
+            Spanned text = (Spanned) line.getText();
+            for (LyricsView.SungWord w : text.getSpans(0, text.length(), LyricsView.SungWord.class)) {
+                if (w.lift > 0) sung = line;
+            }
+        }
+        assertNotNull("The sung line is on screen", sung);
+        ShadowLooper.shadowMainLooper().idleFor(Duration.ofMillis(300));
+        int redraws = 0;
+        for (int i = 0; i < 40; i++) {
+            shadowOf(sung).clearWasInvalidated();
+            ShadowLooper.shadowMainLooper().idleFor(Duration.ofMillis(25));
+            if (shadowOf(sung).wasInvalidated()) redraws++;
+        }
+        assertEquals("Paused lyrics should not request redraws", 0, redraws);
         activity.finish();
     }
 
