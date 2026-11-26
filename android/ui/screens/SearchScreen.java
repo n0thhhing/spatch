@@ -7,17 +7,6 @@ import static spatch.PackedStrings.unpackStrings;
 
 import spatch.ArtworkViews.Art;
 
-import android.graphics.Bitmap;
-import android.graphics.BitmapShader;
-import android.graphics.Canvas;
-import android.graphics.ColorMatrix;
-import android.graphics.ColorMatrixColorFilter;
-import android.graphics.LinearGradient;
-import android.graphics.Matrix;
-import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.RectF;
-import android.graphics.Shader;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -168,9 +157,7 @@ final class SearchScreen {
         scroll.setClipToPadding(true);
         scroll.setPadding(0, 0, 0, imeInset);
         LinearLayout results = ui.column();
-        results.setPadding(ui.dp(18), ui.dp(10), ui.dp(18), ui.dockRoom());
-        results.setClipChildren(false);
-        results.setClipToPadding(false);
+        results.setPadding(ui.dp(18), ui.dp(4), ui.dp(18), ui.dockRoom());
         scroll.addView(results, new ScrollView.LayoutParams(-1, -2));
         scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> ui.dockUi.scrollDock(y - oldY, y <= 0));
         if (ui.landscape()) {
@@ -331,214 +318,34 @@ final class SearchScreen {
         });
     }
 
-    private String topUri = "", topImage = "";
-
-    void recolorTop(String url) {
-        if (searchResults != null && !url.isEmpty() && url.equals(topImage)) SpatchUi.recolorView(searchResults);
-    }
-
-    private static BitmapShader emptyArtShader;
-    private static BitmapShader emptyArt() {
-        if (emptyArtShader == null) emptyArtShader = new BitmapShader(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-        return emptyArtShader;
-    }
+    private String topUri = "";
 
     /**
-     * The best match as a spotlight card over its own blurred cover wash, with a dual-colour cover glow,
-     * a subtle glass rim, and the cover's blurred colours bleeding softly outside the card border.
-     * Drawn in a single AGSL shader pass on Android 13+ when GPU effects are on, with a Canvas fallback otherwise.
+     * The best match as a bigger card over its own blurred cover (blurred on the GPU), with the cover itself and its
+     * name in front. When a new best match arrives the backdrop settles in from a soft zoom.
      */
     private View topResult(MediaEntry e, String kind, int ms) {
-        final String artUrl = e.image;
-        topImage = artUrl;
-        final boolean circleArt = e.category == 2;
-        final boolean useShader = GpuFx.shaders(ui.prefs);
-        final Integer[] lastSeed = {null};
-        final boolean[] lastDark = {ui.dark};
-        final int[] topPal = {0, 0};
-        Runnable syncPal = () -> {
-            Integer seed = artUrl.isEmpty() ? null : SpatchUi.SEEDS.get(artUrl);
-            Integer seed2 = artUrl.isEmpty() ? null : SpatchUi.SEEDS2.get(artUrl);
-            if (seed != null) {
-                if (!seed.equals(lastSeed[0]) || lastDark[0] != ui.dark || topPal[0] == 0) {
-                    int[] p = SpatchUi.nativePalette2(seed, true, seed2 == null ? 0 : seed2, seed2 != null, ui.dark);
-                    topPal[0] = p[5];
-                    topPal[1] = p[6];
-                    lastSeed[0] = seed;
-                    lastDark[0] = ui.dark;
-                }
-            } else {
-                topPal[0] = ui.accent;
-                topPal[1] = ui.accent2;
-            }
-        };
-        syncPal.run();
-
-        FrameLayout wrap = new FrameLayout(ui.activity) {
-            private final Paint shaderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Paint artPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
-            private final Paint basePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Path clip = new Path();
-            private final RectF bounds = new RectF(), dst = new RectF();
-            private final Matrix mat = new Matrix();
-            private Shader glowShader, artShader;
-            private Bitmap artShaderBmp;
-            private int artShaderW, artShaderH;
-            private LinearGradient scrimGrad;
-            private int scrimW, scrimBg;
-            private boolean scrimDark;
-            {
-                ColorMatrix sat = new ColorMatrix();
-                sat.setSaturation(1.36f);
-                artPaint.setColorFilter(new ColorMatrixColorFilter(sat));
-                rimPaint.setStyle(Paint.Style.STROKE);
-            }
-
-            private Bitmap blurredCover() {
-                if (artUrl.isEmpty()) return null;
-                String key = artUrl + ":topblur2";
-                Bitmap blur = SpatchUi.IMAGES.get(key);
-                if (blur == null) {
-                    Bitmap raw = ui.art(artUrl, 180);
-                    if (raw == null) return null;
-                    blur = Blur.soft(raw, 64, 64, 4);
-                    SpatchUi.IMAGES.put(key, blur);
-                }
-                return blur;
-            }
-
-            @Override protected void dispatchDraw(Canvas c) {
-                int w = getWidth(), h = getHeight();
-                if (w > 0 && h > 0) {
-                    syncPal.run();
-                    Bitmap blur = blurredCover();
-                    if (useShader && c.isHardwareAccelerated()) drawShader(c, w, h, blur);
-                    else drawFallback(c, w, h, blur);
-                }
-                super.dispatchDraw(c);
-            }
-
-            private void drawShader(Canvas c, int w, int h, Bitmap blur) {
-                if (glowShader == null) {
-                    String src = GpuFx.source("glow");
-                    if (src == null) { drawFallback(c, w, h, blur); return; }
-                    glowShader = new android.graphics.RuntimeShader(src);
-                }
-                android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) glowShader;
-                if (blur != null) {
-                    if (artShader == null || artShaderBmp != blur || artShaderW != w || artShaderH != h) {
-                        artShaderBmp = blur; artShaderW = w; artShaderH = h;
-                        BitmapShader bs = new BitmapShader(blur, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                        float k = Math.max((float) w / blur.getWidth(), (float) h / blur.getHeight());
-                        mat.setScale(k, k);
-                        mat.postTranslate((w - blur.getWidth() * k) / 2f, (h - blur.getHeight() * k) / 2f);
-                        bs.setLocalMatrix(mat);
-                        artShader = bs;
-                    }
-                    rs.setInputShader("art", artShader);
-                    rs.setFloatUniform("hasArt", 1f);
-                } else {
-                    rs.setInputShader("art", emptyArt());
-                    rs.setFloatUniform("hasArt", 0f);
-                }
-                float cardR = ui.dp(22), bleed = ui.dp(22), coverHalf = ui.dp(52);
-                rs.setFloatUniform("size", w, h);
-                rs.setFloatUniform("coverBox", ui.dp(16) + coverHalf, h / 2f, coverHalf, coverHalf);
-                rs.setFloatUniform("metrics", cardR, bleed, circleArt ? coverHalf : ui.dp(14), ui.dark ? 1f : 0f);
-                rs.setColorUniform("base", ui.dark ? SpatchUi.blend(ui.bg, ui.surf, .22f) : ui.surfHi);
-                rs.setColorUniform("scrim", ui.bg);
-                rs.setColorUniform("c0", topPal[0] != 0 ? topPal[0] : ui.accent);
-                rs.setColorUniform("c1", topPal[1] != 0 ? topPal[1] : ui.accent2);
-                shaderPaint.setShader(rs);
-                c.drawRect(-bleed, -bleed, w + bleed, h + bleed, shaderPaint);
-                shaderPaint.setShader(null);
-            }
-
-            private void drawFallback(Canvas c, int w, int h, Bitmap blur) {
-                if (!artUrl.isEmpty()) {
-                    String haloKey = artUrl + ":topcardhalo3";
-                    Bitmap halo = SpatchUi.IMAGES.get(haloKey);
-                    if (halo == null) {
-                        Bitmap raw = ui.art(artUrl, 180);
-                        if (raw != null) {
-                            halo = Blur.halo(raw, 220, 96, 16, 5, 0.42f);
-                            SpatchUi.IMAGES.put(haloKey, halo);
-                        }
-                    }
-                    if (halo != null) {
-                        float bleed = ui.dp(22);
-                        dst.set(-bleed, -bleed, w + bleed, h + bleed);
-                        artPaint.setAlpha(ui.dark ? 118 : 74);
-                        c.drawBitmap(halo, null, dst, artPaint);
-                    }
-                }
-                float r = ui.dp(22);
-                bounds.set(0, 0, w, h);
-                basePaint.setShader(null);
-                basePaint.setColor(ui.dark ? SpatchUi.blend(ui.bg, ui.surf, .22f) : ui.surfHi);
-                c.drawRoundRect(bounds, r, r, basePaint);
-                clip.rewind();
-                clip.addRoundRect(bounds, r, r, Path.Direction.CW);
-                c.save();
-                c.clipPath(clip);
-                if (blur != null) {
-                    float k = Math.max((float) w / blur.getWidth(), (float) h / blur.getHeight());
-                    float dw = blur.getWidth() * k, dh = blur.getHeight() * k;
-                    dst.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);
-                    artPaint.setAlpha(ui.dark ? 114 : 78);
-                    c.drawBitmap(blur, null, dst, artPaint);
-                }
-                if (scrimGrad == null || scrimW != w || scrimBg != ui.bg || scrimDark != ui.dark) {
-                    scrimW = w; scrimBg = ui.bg; scrimDark = ui.dark;
-                    scrimGrad = new LinearGradient(0, 0, w, 0,
-                        (ui.bg & 0x00ffffff) | ((ui.dark ? 0x16 : 0x0a) << 24),
-                        (ui.bg & 0x00ffffff) | ((ui.dark ? 0x54 : 0x38) << 24),
-                        Shader.TileMode.CLAMP);
-                }
-                basePaint.setShader(scrimGrad);
-                c.drawRect(bounds, basePaint);
-                basePaint.setShader(null);
-                if (!artUrl.isEmpty()) {
-                    String covKey = artUrl + ":tophalo3";
-                    Bitmap covHalo = SpatchUi.IMAGES.get(covKey);
-                    if (covHalo == null) {
-                        Bitmap raw = ui.art(artUrl, 180);
-                        if (raw != null) {
-                            covHalo = Blur.halo(raw, 72, 72, 18, 5, circleArt ? 0.50f : 0.26f);
-                            SpatchUi.IMAGES.put(covKey, covHalo);
-                        }
-                    }
-                    if (covHalo != null) {
-                        float cx = ui.dp(16 + 52), cy = h / 2f, half = ui.dp(92);
-                        dst.set(cx - half, cy - half, cx + half, cy + half);
-                        artPaint.setAlpha(ui.dark ? 118 : 82);
-                        c.drawBitmap(covHalo, null, dst, artPaint);
-                    }
-                }
-                c.restore();
-                int tint = SpatchUi.blend(ui.dark ? 0xffffffff : ui.ink, topPal[0] != 0 ? topPal[0] : ui.accent, .15f);
-                rimPaint.setStrokeWidth(Math.max(1, ui.dp(.8f)));
-                rimPaint.setColor((tint & 0x00ffffff) | ((ui.dark ? 0x1e : 0x18) << 24));
-                bounds.inset(.5f, .5f);
-                c.drawRoundRect(bounds, r, r, rimPaint);
-            }
-        };
-        wrap.setTag("top");
-        wrap.setClipChildren(false);
-        wrap.setClipToPadding(false);
-        ui.colored(wrap, () -> { syncPal.run(); wrap.invalidate(); });
-
+        FrameLayout card = new FrameLayout(ui.activity);
+        card.setTag("top");
+        ui.bgRound(card, 24, () -> ui.surfHi);
+        card.setClipToOutline(true);
+        Art backdrop = ui.artwork.new Art(Art.WIDE, false);
+        backdrop.bind(e.image);
+        if (GpuFx.blur(ui.prefs)) backdrop.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(ui.dp(26), ui.dp(26), android.graphics.Shader.TileMode.CLAMP));
+        card.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
+        View dim = new View(ui.activity);
+        dim.setBackgroundColor((ui.bg & 0x00ffffff) | 0x8c000000);
+        card.addView(dim, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout front = ui.row();
         front.setPadding(ui.dp(16), ui.dp(16), ui.dp(16), ui.dp(16));
-        Art cover = ui.artwork.new Art(circleArt ? Art.CIRCLE : Art.ROUNDED, false);
+        Art cover = ui.artwork.new Art(e.category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
         cover.letter = SpatchUi.initial(e.title);
         cover.bind(e.image);
-        cover.setElevation(ui.dp(8));
+        cover.setElevation(ui.dp(6));
         front.addView(cover, ui.lp(ui.dp(104), ui.dp(104)));
         LinearLayout words = ui.column();
         words.setPadding(ui.dp(16), 0, 0, 0);
-        TextView label = ui.text("Top result · " + (kind.endsWith("s") ? kind.substring(0, kind.length() - 1) : kind), 12, () -> topPal[0] != 0 ? topPal[0] : ui.accent, true);
+        TextView label = ui.text("Top result · " + (kind.endsWith("s") ? kind.substring(0, kind.length() - 1) : kind), 12, () -> ui.accent, true);
         TextView name = ui.text(e.title, 24, () -> ui.ink, true);
         name.setMaxLines(2);
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -549,23 +356,24 @@ final class SearchScreen {
         words.addView(sub);
         front.addView(words, ui.weight());
         if (isTrack(e.uri) && ms > 0) front.addView(ui.text(SpatchUi.time(ms), 13, () -> ui.inkDim, false));
-        wrap.addView(front, new FrameLayout.LayoutParams(-1, -2));
-
-        ui.tappable(wrap, e.title, .98f, () -> {
+        card.addView(front, new FrameLayout.LayoutParams(-1, -2));
+        ui.tappable(card, e.title, .98f, () -> {
             rememberSearch(searchQuery);
-            if (!isTrack(e.uri)) ui.playlistScreen.captureFlight(cover, e.image, circleArt);
+            if (!isTrack(e.uri)) ui.playlistScreen.captureFlight(cover, e.image, e.category == 2);
             ui.open(e);
         });
-        wrap.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
+        card.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
         if (!e.uri.equals(topUri) && ui.motion()) {
-            wrap.setAlpha(0f);
-            wrap.animate().alpha(1f).setDuration(320).setInterpolator(SpatchUi.EMPHASIZED).start();
+            backdrop.setScaleX(1.18f);
+            backdrop.setScaleY(1.18f);
+            backdrop.setAlpha(0f);
+            backdrop.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(700).setInterpolator(SpatchUi.EMPHASIZED).start();
         }
         topUri = e.uri;
         ViewGroup.MarginLayoutParams spacing = new ViewGroup.MarginLayoutParams(-1, -2);
-        spacing.setMargins(0, ui.dp(12), 0, ui.dp(8));
-        wrap.setLayoutParams(spacing);
-        return wrap;
+        spacing.setMargins(0, ui.dp(6), 0, ui.dp(4));
+        card.setLayoutParams(spacing);
+        return card;
     }
 
     private static final String[] MOODS = {"Chill", "Pop", "Focus", "Hip-hop", "Workout", "Indie", "Sleep", "Rock", "Party", "Lo-fi", "Mood booster", "Jazz"};

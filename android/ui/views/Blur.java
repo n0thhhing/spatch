@@ -17,43 +17,6 @@ final class Blur {
         return out;
     }
 
-    /**
-     * Soft glowing halo of `src`: center-crops `src` into a rounded inner `(w - 2*pad) x (h - 2*pad)` shape inside a
-     * transparent `w x h` bitmap, blurs both colour and alpha outward into the margin, softens the falloff curve so
-     * corners never look squared off, and un-premultiplies RGB so the fade stays vivid.
-     */
-    static Bitmap halo(Bitmap src, int w, int h, int pad, int radius, float cornerFrac) {
-        int iw = Math.max(4, w - 2 * pad), ih = Math.max(4, h - 2 * pad);
-        Bitmap cropped = Bitmap.createBitmap(iw, ih, Bitmap.Config.ARGB_8888);
-        android.graphics.Canvas cc = new android.graphics.Canvas(cropped);
-        float cr = Math.min(iw, ih) * cornerFrac;
-        android.graphics.Path clip = new android.graphics.Path();
-        clip.addRoundRect(new android.graphics.RectF(0, 0, iw, ih), cr, cr, android.graphics.Path.Direction.CW);
-        cc.clipPath(clip);
-        float k = Math.max((float) iw / Math.max(1, src.getWidth()), (float) ih / Math.max(1, src.getHeight()));
-        float dw = src.getWidth() * k, dh = src.getHeight() * k;
-        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
-        cc.drawBitmap(src, null, new android.graphics.RectF((iw - dw) / 2f, (ih - dh) / 2f, (iw + dw) / 2f, (ih + dh) / 2f), p);
-        int[] srcPx = new int[iw * ih];
-        cropped.getPixels(srcPx, 0, iw, 0, 0, iw, ih);
-        int[] px = new int[w * h];
-        for (int y = 0; y < ih; y++) {
-            System.arraycopy(srcPx, y * iw, px, (y + pad) * w + pad, iw);
-        }
-        blur(px, w, h, radius);
-        for (int i = 0; i < px.length; i++) {
-            int c = px[i], a = c >>> 24;
-            if (a == 0) { px[i] = 0; continue; }
-            int r = Math.min(255, (((c >> 16) & 255) * 255) / a);
-            int g = Math.min(255, (((c >> 8) & 255) * 255) / a);
-            int b = Math.min(255, ((c & 255) * 255) / a);
-            px[i] = (a << 24) | (r << 16) | (g << 8) | b;
-        }
-        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-        out.setPixels(px, 0, w, 0, 0, w, h);
-        return out;
-    }
-
     /** Three box blurs (horizontal then vertical) over ARGB pixels in place: close to a Gaussian of the same reach. */
     static void blur(int[] px, int w, int h, int radius) {
         for (int pass = 0; pass < 3; pass++) {
