@@ -1802,12 +1802,15 @@ public final class SpatchUi extends FrameLayout {
 
     final class Row extends LinearLayout {
         private String boundUri = "";
+        private MediaEntry boundEntry;
         final Art art = artwork.new Art(Art.ROUNDED, false);
         final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
         private final Bars bars = controls.new Bars();
         private final GradientDrawable pressedBg = round(surfHi, 16), badgeBg = round(inkDim, 3);
         private final TextView explicitBadge = text("E", 10, bg, true);
         private final Icon dlBadge = new Icon("download", inkDim);
+        private final Icon moreIcon = new Icon("more", inkDim);
+        private final FrameLayout moreBtn = new FrameLayout(activity);
         private int dlState;
         private boolean current;
         int number;
@@ -1815,7 +1818,7 @@ public final class SpatchUi extends FrameLayout {
         Row() {
             super(activity);
             setGravity(Gravity.CENTER_VERTICAL);
-            setPadding(dp(4), dp(7), dp(4), dp(7));
+            setPadding(dp(4), dp(7), dp(2), dp(7));
             addView(art, lp(dp(52), dp(52)));
             trackNumber.setGravity(Gravity.CENTER);
             trackNumber.setVisibility(GONE);
@@ -1837,9 +1840,16 @@ public final class SpatchUi extends FrameLayout {
             byline.addView(sub, weight());
             words.addView(byline);
             addView(words, weight());
-            length.setPadding(0, 0, dp(10), 0);
+            length.setPadding(0, 0, dp(6), 0);
             addView(length, lp(-2, -2));
             addView(bars, lp(dp(18), dp(16)));
+            moreBtn.addView(moreIcon, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
+            tappable(moreBtn, "More options", .88f, () -> { if (boundEntry != null) actions(boundEntry); });
+            moreBtn.setFocusable(false);
+            moreBtn.setFocusableInTouchMode(false);
+            moreBtn.setAlpha(.72f);
+            moreBtn.setVisibility(GONE);
+            addView(moreBtn, lp(dp(34), dp(40)));
             pressedBg.setAlpha(0);
             setBackground(pressedBg);
             colored(this, this::tint);
@@ -1860,6 +1870,8 @@ public final class SpatchUi extends FrameLayout {
             badgeBg.setColor(inkDim);
             dlBadge.color = dlState == Downloads.DL_DONE ? accent : inkDim;
             dlBadge.invalidate();
+            moreIcon.color = inkDim;
+            moreIcon.invalidate();
             explicitBadge.setTextColor(bg);
             explicitBadge.setBackground(badgeBg);
         }
@@ -1876,6 +1888,7 @@ public final class SpatchUi extends FrameLayout {
             fade.start();
         }
         void bind(MediaEntry e) {
+            boundEntry = e;
             art.setVisibility(number > 0 ? GONE : VISIBLE);
             trackNumber.setVisibility(number > 0 ? VISIBLE : GONE);
             trackNumber.setText(String.valueOf(number));
@@ -1888,6 +1901,8 @@ public final class SpatchUi extends FrameLayout {
             long ms = e instanceof Song ? ((Song) e).duration : 0;
             length.setText(ms > 0 ? time(ms) : "");
             length.setVisibility(ms > 0 ? VISIBLE : GONE);
+            boolean hasMenu = e instanceof Song || SearchScreen.isTrack(e.uri);
+            moreBtn.setVisibility(hasMenu ? VISIBLE : GONE);
             explicitBadge.setVisibility(e instanceof Song && ((Song) e).explicit ? VISIBLE : GONE);
             boundUri = e.uri;
             updateDownloadBadge();

@@ -291,6 +291,30 @@ final class PlaylistScreen {
         ui.sheet(song.title, note, names.toArray(new Option[0]), choice -> runs.get(choice).run());
     }
 
+    private void playlistActions(String title, String link) {
+        if (ui.playlist == null) return;
+        List<Option> names = new ArrayList<>();
+        List<Runnable> runs = new ArrayList<>();
+        boolean playingThis = listIsPlaying() && ui.playing;
+        names.add(new Option(playingThis ? "Pause" : "Play", "", "", playingThis ? "pause" : "play", false));
+        runs.add(() -> { if (listIsPlaying()) ui.playerScreen.togglePlay(); else ui.command(PlayerScreen.PLAY, listShuffle > 0 ? 1 : 2, ui.playUri()); });
+        if (!OfficialPlayback.enabled()) {
+            names.add(new Option("Shuffle play", "", "", "shuffle", false));
+            runs.add(() -> ui.command(PlayerScreen.PLAY, 1, ui.playUri()));
+        }
+        if (!ui.playlist.uri.startsWith("spotify:artist:") && ui.downloadsScreen.downloadButton != null) {
+            names.add(new Option("Download", "", "", "download", false));
+            runs.add(() -> ui.downloadsScreen.downloadButton.performClick());
+        }
+        if (!link.isEmpty()) {
+            names.add(new Option("Share link", "", "", "share", false));
+            runs.add(() -> shareLinkSheet(title, link));
+        }
+        names.add(new Option("Refresh", "", "", "repeat", false));
+        runs.add(() -> { playlistLoading = true; playlistFailed = false; ui.showPage(); loadPlaylist(ui.playlist, 0); });
+        ui.sheet(title, ui.playlist.subtitle, names.toArray(new Option[0]), choice -> runs.get(choice).run());
+    }
+
     void captureFlight(View artView, String img, boolean circle) {
         if (!ui.motion() || artView == null || artView.getWidth() <= 0 || artView.getHeight() <= 0 || img.isEmpty()) {
             flightFrom = null;
@@ -730,10 +754,10 @@ final class PlaylistScreen {
             } else nowPlayingChip = null;
         }
 
-        // Collapsing floating top bar: tonal back circle + page title that fades in as the hero scrolls off.
+        // Collapsing floating top bar: tonal back circle + page title that fades in as the hero scrolls off + tonal more circle.
         LinearLayout topBar = ui.row();
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(ui.dp(14), ui.inset.top + ui.dp(6), ui.dp(18), ui.dp(8));
+        topBar.setPadding(ui.dp(14), ui.inset.top + ui.dp(6), ui.dp(14), ui.dp(8));
         GradientDrawable barBg = new GradientDrawable();
         barBg.setColor(ui.bg);
         topBar.setBackground(barBg);
@@ -756,9 +780,19 @@ final class PlaylistScreen {
         if (!land) topBar.addView(backBox, ui.lp(ui.dp(42), ui.dp(42)));
         TextView collapsed = ui.text(headTitle, 18, () -> ui.ink, true);
         ui.oneLine(collapsed);
-        collapsed.setPadding(ui.dp(12), 0, ui.dp(74), 0);
+        collapsed.setPadding(ui.dp(12), 0, ui.dp(80), 0);
         collapsed.setAlpha(0f);
         topBar.addView(collapsed, ui.weight());
+        FrameLayout moreBox = new FrameLayout(ui.activity);
+        GradientDrawable moreShape = ui.round(ui.surf, 21);
+        moreBox.setBackground(moreShape);
+        ui.colored(moreBox, () -> {
+            moreShape.setColor((ui.surf & 0x00ffffff) | 0xc8000000);
+            moreShape.setStroke(Math.max(1, ui.dp(.8f)), (ui.ink & 0x00ffffff) | 0x16000000);
+        });
+        moreBox.addView(ui.icon("more", () -> ui.ink), new FrameLayout.LayoutParams(ui.dp(20), ui.dp(20), Gravity.CENTER));
+        ui.tappable(moreBox, "More options", () -> playlistActions(headTitle, link));
+        if (!land) topBar.addView(moreBox, ui.lp(ui.dp(42), ui.dp(42)));
 
         final float pinY = ui.inset.top + ui.dp(25);
         Runnable syncFab = () -> {
@@ -810,6 +844,9 @@ final class PlaylistScreen {
             FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(ui.dp(42), ui.dp(42), Gravity.TOP | Gravity.START);
             bp.setMargins(ui.dp(14), ui.inset.top + ui.dp(6), 0, 0);
             page.addView(backBox, bp);
+            FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(ui.dp(42), ui.dp(42), Gravity.TOP | Gravity.END);
+            mp.setMargins(0, ui.inset.top + ui.dp(6), ui.dp(14), 0);
+            page.addView(moreBox, mp);
         } else {
             ListView list = ui.entryList(ui.playlistTracks, header);
             list.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
@@ -846,6 +883,7 @@ final class PlaylistScreen {
                     barBg.setAlpha(Math.round(255 * barT));
                     barFade.setAlpha(barT);
                     collapsed.setAlpha(barT);
+                    moreBox.setTranslationX(-ui.dp(74) * barT);
                     syncFab.run();
                 }
             });
