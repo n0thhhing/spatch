@@ -91,6 +91,8 @@ jobs:
           if [ ! -s "$HOME/bin/apktool.jar" ]; then
             curl -fsSL -o "$HOME/bin/apktool.jar" https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
           fi
+          # Pinned so a replaced release file (or a poisoned cache) never runs in the build.
+          echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/bin/apktool.jar" | sha256sum -c -
           printf '#!/bin/sh\nexec java -jar "%s/bin/apktool.jar" "$@"\n' "$HOME" > "$HOME/bin/apktool"
           chmod +x "$HOME/bin/apktool"
           echo "$HOME/bin" >> "$GITHUB_PATH"
