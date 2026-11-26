@@ -365,6 +365,11 @@ public final class SpatchApp {
                 existing.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
                 existing.setVisibility(View.VISIBLE);
                 setBackRegistered(activity, true);
+                if (existing instanceof SpatchUi) {
+                    SpatchUi ui = (SpatchUi) existing;
+                    ui.playerScreen.applyRotation();
+                    ui.post(ui.playerScreen::applyRotation);
+                }
                 return;
             }
             View root;

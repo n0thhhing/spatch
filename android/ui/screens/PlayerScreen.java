@@ -1271,8 +1271,9 @@ final class PlayerScreen {
 
     /** Rotation is opt-in: off locks portrait while on unlocks full landscape rotation. */
     void applyRotation() {
-        if (ui.originalOrientation == -2) return;
-        ui.activity.setRequestedOrientation(ui.pref("rotate", false) ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        ui.activity.setRequestedOrientation(ui.pref("rotate", false)
+            ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+            : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
     void openQueue() {

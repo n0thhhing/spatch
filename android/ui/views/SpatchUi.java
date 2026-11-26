@@ -221,7 +221,6 @@ public final class SpatchUi extends FrameLayout {
     Bitmap lastBlur, lastCover;
     String lastCoverUrl = "", nextKey = "";
     TextView pTitle, pArtist, pSource, pBadge, mTitle, mArtist, heroTitle, heroArtist;
-    int originalOrientation = -2;
     /** In landscape the right panel switches between Lyrics (0) and Up next (1) beside the cover. */
     FrameLayout sideHost;
     int sideTab, sideQueueOffset;
@@ -240,7 +239,6 @@ public final class SpatchUi extends FrameLayout {
         super(activity);
         this.activity = activity;
         SpatchWidget.uiStarted(activity);
-        originalOrientation = activity.getRequestedOrientation();
         post(playerScreen::applyRotation);
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
