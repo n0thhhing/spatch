@@ -18,6 +18,129 @@ final class Controls {
     private final SpatchUi ui;
     Controls(SpatchUi ui) { this.ui = ui; }
 
+    private final java.util.Map<String, Integer> segPrev = new java.util.HashMap<>();
+
+    LinearLayout card(LinearLayout page, String title) {
+        TextView label = ui.text(title, 14, () -> ui.accent, true);
+        label.setPadding(ui.dp(6), ui.dp(18), 0, ui.dp(8));
+        page.addView(label);
+        LinearLayout box = ui.column();
+        ui.bgRound(box, 26, () -> ui.surf);
+        box.setPadding(0, ui.dp(6), 0, ui.dp(6));
+        page.addView(box, ui.fill(-2));
+        return box;
+    }
+
+    LinearLayout row(LinearLayout box, String title, String detail, View trailing) {
+        LinearLayout line = ui.row();
+        line.setPadding(ui.dp(18), ui.dp(12), ui.dp(16), ui.dp(12));
+        LinearLayout words = ui.column();
+        words.addView(ui.text(title, 16, () -> ui.ink, true));
+        TextView hint = ui.text(detail, 13, () -> ui.inkDim, false);
+        hint.setPadding(0, ui.dp(2), ui.dp(8), 0);
+        words.addView(hint);
+        line.addView(words, ui.weight());
+        if (trailing != null) line.addView(trailing);
+        box.addView(line, ui.fill(-2));
+        return line;
+    }
+
+    void settingsAction(LinearLayout box, String title, String detail, Runnable action) {
+        View chevron = ui.icon("chevron", () -> ui.inkDim);
+        chevron.setLayoutParams(ui.lp(ui.dp(24), ui.dp(24)));
+        LinearLayout line = row(box, title, detail, chevron);
+        ui.tappable(line, title, action);
+    }
+
+    /** A title over a connected button group; the pick is stored as an index under `key`. */
+    void choice(LinearLayout box, String name, String[] names, String key, int fallback, boolean palette) {
+        segmented(box, name, names, ui.prefs.getInt(key, fallback), pick -> {
+            ui.prefs.edit().putInt(key, pick).apply();
+            if (key.startsWith("eq_")) Audio.refreshEqualizer();
+            if (palette) ui.settingsScreen.revealPalette(null, () -> ui.settingsScreen.settingsChanged(true));
+            else ui.settingsScreen.settingsChanged(false);
+        });
+    }
+
+    /** A title over a connected sliding pill group with `selected` highlighted (-1 for none). */
+    void segmented(LinearLayout box, String name, String[] names, int selected, SettingsScreen.Pick onPick) {
+        TextView label = ui.text(name, 16, () -> ui.ink, true);
+        label.setPadding(ui.dp(18), ui.dp(12), ui.dp(18), ui.dp(8));
+        box.addView(label);
+        int textSp = names.length >= 6 ? 11 : names.length > 4 ? 12 : 13;
+        SlidingTabs tabs = new SlidingTabs(
+            names, selected, 3, 22, textSp, true,
+            () -> ui.surfHi, () -> ui.ink, name,
+            pick -> { segPrev.put(name, selected); onPick.picked(pick); }
+        );
+        Integer prev = segPrev.remove(name);
+        if (prev != null) tabs.animateFrom(prev);
+        LinearLayout.LayoutParams tp = ui.fill(ui.dp(46));
+        tp.setMargins(ui.dp(14), 0, ui.dp(14), ui.dp(12));
+        box.addView(tabs, tp);
+    }
+
+    /**
+     * Turning a switch on sends a soft ring of the accent out from the switch across its row, a small sign that it
+     * took. Drawn on the row's overlay, so the row clips it and nothing is laid out.
+     */
+    void ripple(View row, View from) {
+        if (!ui.motion() || row.getWidth() == 0) return;
+        float cx = from.getLeft() + from.getWidth() / 2f, cy = from.getTop() + from.getHeight() / 2f;
+        float reach = Math.max(cx, row.getWidth() - cx) + ui.dp(24);
+        int accent = ui.accent;
+        float[] t = {0f};
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
+        ring.setStyle(Paint.Style.STROKE);
+        ring.setStrokeWidth(ui.dp(2));
+        android.graphics.drawable.Drawable wave = new android.graphics.drawable.Drawable() {
+            @Override public void draw(Canvas c) {
+                float r = reach * t[0], fade = 1f - t[0];
+                fill.setColor((accent & 0x00ffffff) | Math.round(0x30 * fade) << 24);
+                ring.setColor((accent & 0x00ffffff) | Math.round(0x90 * fade) << 24);
+                c.drawCircle(cx, cy, r, fill);
+                c.drawCircle(cx, cy, r, ring);
+            }
+            @Override public void setAlpha(int alpha) {}
+            @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
+            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        };
+        wave.setBounds(0, 0, row.getWidth(), row.getHeight());
+        row.getOverlay().add(wave);
+        android.animation.ValueAnimator spread = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        spread.setDuration(620);
+        spread.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
+        spread.addUpdateListener(a -> { t[0] = (float) a.getAnimatedValue(); wave.invalidateSelf(); });
+        spread.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) { row.getOverlay().remove(wave); }
+        });
+        spread.start();
+    }
+
+    void toggle(LinearLayout box, String name, String detail, String key, boolean fallback, boolean rebuild) {
+        toggle(box, name, detail, key, fallback, rebuild, null);
+    }
+
+    void toggle(LinearLayout box, String name, String detail, String key, boolean fallback, boolean rebuild, Runnable onChange) {
+        Switch sw = new Switch(ui.pref(key, fallback));
+        sw.setLayoutParams(ui.lp(ui.dp(52), ui.dp(32)));
+        LinearLayout line = row(box, name, detail, sw);
+        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
+        ui.tappable(line, name, () -> {
+            sw.set(!sw.on);
+            if (sw.on) ripple(line, sw);
+            ui.prefs.edit().putBoolean(key, sw.on).apply();
+            if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
+            if (onChange != null) onChange.run();
+            if (rebuild) {
+                int y = ui.pageScroll != null ? ui.pageScroll.getScrollY() : 0;
+                ui.build();
+                SpatchUi.keepScroll(ui.pageScroll, y);
+            }
+        });
+    }
+
     interface UriOf { String get(); }
 
     /** The page's download button: a ring with an arrow, a filling ring while it downloads, a check once it has. */

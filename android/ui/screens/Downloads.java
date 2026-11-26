@@ -175,7 +175,7 @@ final class Downloads {
         ui.settingsScreen.ensureSpotifySettings();
         if (ui.settingsScreen.spotifySettings != null) {
             int quality = ui.settingsScreen.spotifyValue("download_quality");
-            ui.settingsScreen.segmented(box, "Download quality", new String[]{"Low", "Normal", "High", "Very high", "Lossless"}, quality >= 1 && quality <= 5 ? quality - 1 : -1, i -> ui.settingsScreen.setSpotify("download_quality", i + 1));
+            ui.controls.segmented(box, "Download quality", new String[]{"Low", "Normal", "High", "Very high", "Lossless"}, quality >= 1 && quality <= 5 ? quality - 1 : -1, i -> ui.settingsScreen.setSpotify("download_quality", i + 1));
         }
 
         if (ui.settingsScreen.spotifySettings != null) ui.settingsScreen.offlineModeRow(box);

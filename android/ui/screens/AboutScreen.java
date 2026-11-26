@@ -15,7 +15,7 @@ final class AboutScreen {
     private static final String PROJECT = "https://github.com/n0thhhing/spatch";
 
     static void render(SpatchUi ui, LinearLayout page, String build) {
-        LinearLayout intro = ui.settingsScreen.card(page, "Spatch");
+        LinearLayout intro = ui.controls.card(page, "Spatch");
         note(ui, intro, "Your music, your way. A custom interface over Spotify’s playback, library and Connect services.");
         note(ui, intro, "Spatch is an independent open-source project and is not affiliated with Spotify.");
 
@@ -25,12 +25,12 @@ final class AboutScreen {
             if (info.versionName != null && !info.versionName.isEmpty()) version = info.versionName;
         } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {}
         String android = Build.VERSION.RELEASE + " · API " + Build.VERSION.SDK_INT;
-        LinearLayout details = ui.settingsScreen.card(page, "Build & device");
+        LinearLayout details = ui.controls.card(page, "Build & device");
         detail(ui, details, "Spatch build", build);
         detail(ui, details, "Host app", host + "\nVersion " + version);
         detail(ui, details, "Android", android);
         String report = "Spatch build " + build + "\nHost " + host + "\nHost version " + version + "\nAndroid " + android;
-        ui.settingsScreen.settingsAction(details, "Copy build details", "Include these when reporting a problem", () -> {
+        ui.controls.settingsAction(details, "Copy build details", "Include these when reporting a problem", () -> {
             ClipboardManager clipboard = (ClipboardManager) ui.activity.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {
                 clipboard.setPrimaryClip(ClipData.newPlainText("Spatch build details", report));
@@ -38,17 +38,17 @@ final class AboutScreen {
             }
         });
 
-        LinearLayout project = ui.settingsScreen.card(page, "Project & support");
-        ui.settingsScreen.settingsAction(project, "Source code", "Browse the project on GitHub", () -> open(ui, PROJECT));
-        ui.settingsScreen.settingsAction(project, "Releases & updates", "Download the latest fresh build", () -> open(ui, PROJECT + "/releases/tag/branch-fresh"));
-        ui.settingsScreen.settingsAction(project, "Report a problem", "Check existing issues or describe a bug", () -> open(ui, PROJECT + "/issues"));
-        ui.settingsScreen.settingsAction(project, "License", "MIT License · © 2026 n0thhhing", () -> open(ui, PROJECT + "/blob/fresh/LICENSE"));
+        LinearLayout project = ui.controls.card(page, "Project & support");
+        ui.controls.settingsAction(project, "Source code", "Browse the project on GitHub", () -> open(ui, PROJECT));
+        ui.controls.settingsAction(project, "Releases & updates", "Download the latest fresh build", () -> open(ui, PROJECT + "/releases/tag/branch-fresh"));
+        ui.controls.settingsAction(project, "Report a problem", "Check existing issues or describe a bug", () -> open(ui, PROJECT + "/issues"));
+        ui.controls.settingsAction(project, "License", "MIT License · © 2026 n0thhhing", () -> open(ui, PROJECT + "/blob/fresh/LICENSE"));
 
-        LinearLayout credits = ui.settingsScreen.card(page, "Credits");
+        LinearLayout credits = ui.controls.card(page, "Credits");
         note(ui, credits, "Built with Rust and Android. The native desktop preview uses Robolectric and the same Android screens.");
-        ui.settingsScreen.settingsAction(credits, "AutoEq", "Jaakko Pasanen and the headphone measurement contributors", () -> open(ui, "https://github.com/jaakkopasanen/AutoEq"));
+        ui.controls.settingsAction(credits, "AutoEq", "Jaakko Pasanen and the headphone measurement contributors", () -> open(ui, "https://github.com/jaakkopasanen/AutoEq"));
 
-        LinearLayout privacy = ui.settingsScreen.card(page, "Your account & data");
+        LinearLayout privacy = ui.controls.card(page, "Your account & data");
         note(ui, privacy, "Sign-in and playback use Spotify’s existing session. Saved screen answers are cached on this device and kept separate by verified account identity.");
         note(ui, privacy, "Artwork and headphone profiles are fetched when needed. Manage saved covers and offline music in Downloads & storage. Spotify manages offline playback and account eligibility.");
     }

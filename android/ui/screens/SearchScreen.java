@@ -168,13 +168,13 @@ final class SearchScreen {
             LinearLayout.LayoutParams bp = ui.fill(ui.dp(50));
             bp.setMargins(ui.dp(18), ui.dp(4), ui.dp(10), ui.dp(10));
             left.addView(box, bp);
-            ui.settingsScreen.segmented(left, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
+            ui.controls.segmented(left, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
             split.addView(left, new LinearLayout.LayoutParams(0, -1, .85f));
             results.setPadding(ui.dp(10), ui.dp(4), ui.dp(18), ui.dockRoom());
             split.addView(scroll, new LinearLayout.LayoutParams(0, -1, 1.25f));
             page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1));
         } else {
-            ui.settingsScreen.segmented(page, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
+            ui.controls.segmented(page, "Search in", new String[]{"Spotify", "On this device"}, catalogSearch ? 0 : 1, searchIn);
             LinearLayout.LayoutParams bp = ui.fill(ui.dp(50));
             bp.setMargins(ui.dp(18), 0, ui.dp(18), ui.dp(8));
             page.addView(box, bp);

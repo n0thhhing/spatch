@@ -23,8 +23,6 @@ final class SettingsScreen {
 
     private static final String[] SETTINGS_GROUPS = {"Appearance", "Playback", "Equalizer & sound", "Navigation & gestures", "Downloads & storage", "Developer", "About"};
 
-    private final java.util.Map<String, Integer> segPrev = new java.util.HashMap<>();
-
     private static final String[] ACCENT_NAMES = {"Default", "Lavender", "Rose", "Sky", "Mint", "Amber", "Coral"};
 
     // Fixed palettes from the earlier Spatch: bg, surf, surfHi, ink, accent2 (secondary text), inkDim, accent.
@@ -35,13 +33,13 @@ final class SettingsScreen {
     private View settingsHub() {
         LinearLayout page = ui.column();
         ui.pageHeading(page, "Settings", false);
-        LinearLayout categories = card(page, "Make it yours");
+        LinearLayout categories = ui.controls.card(page, "Make it yours");
         String[] summaries = {"Colour, artwork, motion and celebrations", "Quality, crossfade and listening controls",
             "Headphone correction, tone and dynamics", "Navigation, scroll behaviour and gestures",
             "Downloads, artwork cache and storage", "Diagnostics and connection details", "Version and app information"};
         for (int i = 0; i < SETTINGS_GROUPS.length; i++) {
             final int section = i;
-            settingsAction(categories, SETTINGS_GROUPS[i], summaries[i], () -> { ui.settingsSection = section; ui.sound.panel = -1; ui.showPage(); ui.enter(ui.dp(28), 0); });
+            ui.controls.settingsAction(categories, SETTINGS_GROUPS[i], summaries[i], () -> { ui.settingsSection = section; ui.sound.panel = -1; ui.showPage(); ui.enter(ui.dp(28), 0); });
         }
         return ui.scrolling(page);
     }
@@ -63,40 +61,45 @@ final class SettingsScreen {
         ui.pageHeading(page, ui.settingsSection == 2 && ui.sound.panel >= 0 ? SoundSettings.SOUND_GROUPS[ui.sound.panel] : SETTINGS_GROUPS[ui.settingsSection], false).setTextSize(28);
         switch (ui.settingsSection) {
         case 0: {
-            LinearLayout look = card(page, "Look");
+            LinearLayout look = ui.controls.card(page, "Look");
             paletteRow(look);
             if (ui.fixedPalette() == null) {
-                choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 1, true);
-                toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, true);
+                ui.controls.choice(look, "Theme", new String[]{"System", "Dark", "Light"}, "theme", 1, true);
+                ui.controls.toggle(look, "Artwork colours", "Tint the whole app with the song’s cover", "art_colors", true, false, () -> { ui.paletteKey = "?"; ui.refreshPalette(); });
                 accentRow(look);
             }
-            toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
-            toggle(look, "Material icons", "Use Material Symbols Rounded icons instead of Spatch’s geometric icons", "material_icons", false, true);
+            ui.controls.toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
+            ui.controls.toggle(look, "Material icons", "Use Material Symbols Rounded icons instead of Spatch’s geometric icons", "material_icons", false, true);
 
-            LinearLayout visuals = card(page, "Artwork & visualizer");
-            choice(visuals, "Visualizer", new String[]{"Bars", "Ring", "Off", "Contour"}, "viz", 0, false);
-            toggle(visuals, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
-            toggle(visuals, "Read audio directly", "Experimental: take Spotify’s audio before the volume, so the bars keep moving at volume 0 and no microphone permission is needed", "audio_direct", false, false);
+            LinearLayout visuals = ui.controls.card(page, "Artwork & visualizer");
+            ui.controls.choice(visuals, "Visualizer", new String[]{"Bars", "Ring", "Off", "Contour"}, "viz", 0, false);
+            ui.controls.toggle(visuals, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false,
+                () -> { if (ui.pref("audio", true) && !Audio.directOn && !Audio.permitted(ui.activity)) ui.activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341); });
+            ui.controls.toggle(visuals, "Read audio directly", "Experimental: take Spotify’s audio before the volume, so the bars keep moving at volume 0 and no microphone permission is needed", "audio_direct", false, false,
+                () -> Audio.setDirect(ui.pref("audio_direct", false)));
             TextView audioStatus = ui.text("Status: " + Audio.status, 12, () -> ui.inkDim, false);
             audioStatus.setPadding(ui.dp(18), 0, ui.dp(18), ui.dp(10));
             visuals.addView(audioStatus);
-            toggle(visuals, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
-            toggle(visuals, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
-            toggle(visuals, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
-            toggle(visuals, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
-            if (ui.pref("backdrop", true)) choice(visuals, "Backdrop blur", GpuFx.shaders(ui.prefs) ? new String[]{"Soft", "Deep", "Streaks", "Flowing"} : new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
-            if (android.os.Build.VERSION.SDK_INT >= 31) toggle(visuals, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours and lyrics that focus on the sung line. Off uses the plain look", "gpu_fx", true, false);
-            if (android.os.Build.VERSION.SDK_INT >= 31 && ui.pref("gpu_fx", true)) toggle(visuals, "Frosted bars", "The mini player and tabs as frosted glass over the page. Uses noticeably more battery while scrolling", "frost", false, false);
-            toggle(visuals, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
+            ui.controls.toggle(visuals, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
+            ui.controls.toggle(visuals, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
+            ui.controls.toggle(visuals, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
+            ui.controls.toggle(visuals, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false, () -> settingsChanged(false));
+            if (ui.pref("backdrop", true)) ui.controls.choice(visuals, "Backdrop blur", GpuFx.shaders(ui.prefs) ? new String[]{"Soft", "Deep", "Streaks", "Flowing"} : new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
+            if (android.os.Build.VERSION.SDK_INT >= 31) ui.controls.toggle(visuals, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours and lyrics that focus on the sung line. Off uses the plain look", "gpu_fx", true, true);
+            if (android.os.Build.VERSION.SDK_INT >= 31 && ui.pref("gpu_fx", true)) ui.controls.toggle(visuals, "Frosted bars", "The mini player and tabs as frosted glass over the page. Uses noticeably more battery while scrolling", "frost", false, true);
+            ui.controls.toggle(visuals, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false, () -> settingsChanged(false));
             if (ui.pref("motes", true)) {
-                choice(visuals, "Mote amount", new String[]{"Few", "Normal", "Many"}, "motes_amount", 1, false);
-                choice(visuals, "Mote shapes", new String[]{"Dots", "Stars", "Hearts", "Mix"}, "motes_shape", 0, false);
+                ui.controls.choice(visuals, "Mote amount", new String[]{"Few", "Normal", "Many"}, "motes_amount", 1, false);
+                ui.controls.choice(visuals, "Mote shapes", new String[]{"Dots", "Stars", "Hearts", "Mix"}, "motes_shape", 0, false);
             }
-            toggle(visuals, "Rotating stickers", "The shapes behind playlist headers turn slowly. Keeps the page redrawing, so it uses some battery", "sticker_spin", false, false);
+            ui.controls.toggle(visuals, "Rotating stickers", "The shapes behind playlist headers turn slowly. Keeps the page redrawing, so it uses some battery", "sticker_spin", false, false);
 
-            LinearLayout playerLayout = card(page, "Player layout & buttons");
-            toggle(playerLayout, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
-            toggle(playerLayout, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false);
+            LinearLayout playerLayout = ui.controls.card(page, "Player layout & buttons");
+            ui.controls.toggle(playerLayout, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false, ui.playerScreen::applyRotation);
+            ui.controls.toggle(playerLayout, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false, () -> {
+                if (!ui.pref("idle_hide", false)) { ui.playerScreen.idleHidden = false; for (View v : ui.playerScreen.idleViews) v.setAlpha(1f); }
+                settingsChanged(false);
+            });
             if (ui.pref("idle_hide", false)) {
                 multiChips(playerLayout, "Fade when idle", new String[][]{
                     {"Top bar", "idle_hide_top", "1"},
@@ -106,20 +109,25 @@ final class SettingsScreen {
                     {"Up next", "idle_hide_next", "1"}
                 });
             }
-            toggle(playerLayout, "Quality line", "What Spotify says is playing, under the artist", "player_quality", true, false);
-            toggle(playerLayout, "Heart button", "Save to Liked Songs from the player", "player_heart", true, false);
-            toggle(playerLayout, "Shuffle and repeat", "The buttons on either side of play", "player_modes", true, false);
-            toggle(playerLayout, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
-            toggle(playerLayout, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
-            toggle(playerLayout, "Queue button", "In the player's top bar", "bar_queue", true, false);
-            toggle(playerLayout, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
-            toggle(playerLayout, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
+            ui.controls.toggle(playerLayout, "Quality line", "What Spotify says is playing, under the artist", "player_quality", true, false);
+            ui.controls.toggle(playerLayout, "Heart button", "Save to Liked Songs from the player", "player_heart", true, false);
+            ui.controls.toggle(playerLayout, "Shuffle and repeat", "The buttons on either side of play", "player_modes", true, false);
+            ui.controls.toggle(playerLayout, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
+            ui.controls.toggle(playerLayout, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
+            ui.controls.toggle(playerLayout, "Queue button", "In the player's top bar", "bar_queue", true, false);
+            ui.controls.toggle(playerLayout, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
+            ui.controls.toggle(playerLayout, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
 
-            LinearLayout lyrics = card(page, "Lyrics");
-            toggle(lyrics, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
-            if (ui.pref("player_lyrics", false)) choice(lyrics, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
-            toggle(lyrics, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
-            toggle(lyrics, "Generate missing lyrics", "Experimental: when no service has a song's lyrics, listen to it on the phone and write rough timed lyrics, saved for next time. Downloads a 60 MB speech model once; uses extra battery while it listens", "lyric_gen", false, false);
+            LinearLayout lyrics = ui.controls.card(page, "Lyrics");
+            ui.controls.toggle(lyrics, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
+            if (ui.pref("player_lyrics", false)) ui.controls.choice(lyrics, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
+            ui.controls.toggle(lyrics, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
+            ui.controls.toggle(lyrics, "Generate missing lyrics", "Experimental: when no service has a song's lyrics, listen to it on the phone and write rough timed lyrics, saved for next time. Downloads a 60 MB speech model once; uses extra battery while it listens", "lyric_gen", false, false, () -> {
+                if (ui.pref("lyric_gen", false)) ui.submit(SpatchUi.ART, () -> {
+                    try { LyricGen.download(); }
+                    catch (Exception failed) { LyricGen.status = "Couldn’t get the model: " + failed.getMessage() + ". Turn this off and on to retry."; }
+                });
+            });
             TextView genStatus = ui.text("", 12, () -> ui.inkDim, false);
             genStatus.setPadding(ui.dp(18), 0, ui.dp(18), ui.dp(10));
             lyrics.addView(genStatus);
@@ -138,33 +146,33 @@ final class SettingsScreen {
             });
 
 
-            LinearLayout celebrations = card(page, "Motion & celebrations");
-            toggle(celebrations, "Reduce motion", "A calmer app, without animated transitions or celebrations", "reduce_motion", false, true);
-            toggle(celebrations, "Playback confetti", "A burst of shapes when you tap play or pause", "confetti", true, false);
-            choice(celebrations, "Celebrate", new String[]{"Play & pause", "Play only"}, "confetti_when", 0, false);
-            choice(celebrations, "Amount", new String[]{"Subtle", "Normal", "Festive"}, "confetti_amount", 1, false);
-            choice(celebrations, "Shapes", new String[]{"Mix", "Cookies", "Hearts", "Stars", "Dots"}, "confetti_shape", 0, false);
-            choice(celebrations, "Size", new String[]{"Small", "Normal", "Large"}, "confetti_size", 1, false);
-            choice(celebrations, "Colours", new String[]{"Artwork", "Rainbow", "Solid"}, "confetti_tones", 0, false);
+            LinearLayout celebrations = ui.controls.card(page, "Motion & celebrations");
+            ui.controls.toggle(celebrations, "Reduce motion", "A calmer app, without animated transitions or celebrations", "reduce_motion", false, true);
+            ui.controls.toggle(celebrations, "Playback confetti", "A burst of shapes when you tap play or pause", "confetti", true, false);
+            ui.controls.choice(celebrations, "Celebrate", new String[]{"Play & pause", "Play only"}, "confetti_when", 0, false);
+            ui.controls.choice(celebrations, "Amount", new String[]{"Subtle", "Normal", "Festive"}, "confetti_amount", 1, false);
+            ui.controls.choice(celebrations, "Shapes", new String[]{"Mix", "Cookies", "Hearts", "Stars", "Dots"}, "confetti_shape", 0, false);
+            ui.controls.choice(celebrations, "Size", new String[]{"Small", "Normal", "Large"}, "confetti_size", 1, false);
+            ui.controls.choice(celebrations, "Colours", new String[]{"Artwork", "Rainbow", "Solid"}, "confetti_tones", 0, false);
 
-            LinearLayout home = card(page, "Home");
-            toggle(home, "Recently played", "Spotify’s own listening history", "home_recent", true, false);
-            toggle(home, "Hero visualizer", "A soft wave of the music along the foot of the big now-playing card; it flattens and stops when paused", "hero_wave", false, false);
-            for (int i = 0; i < SpatchUi.SECTIONS.length; i++) toggle(home, SpatchUi.SECTIONS[i], "Show the " + SpatchUi.SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true, false);
+            LinearLayout home = ui.controls.card(page, "Home");
+            ui.controls.toggle(home, "Recently played", "Spotify’s own listening history", "home_recent", true, false);
+            ui.controls.toggle(home, "Hero visualizer", "A soft wave of the music along the foot of the big now-playing card; it flattens and stops when paused", "hero_wave", false, false);
+            for (int i = 0; i < SpatchUi.SECTIONS.length; i++) ui.controls.toggle(home, SpatchUi.SECTIONS[i], "Show the " + SpatchUi.SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true, false);
 
-            LinearLayout library = card(page, "Library");
-            toggle(library, "Sort A to Z", "Alphabetical, with Liked Songs first; off shows Spotify’s recent order", "library_az", false, false);
-            toggle(library, "Show as a grid", "Big covers two to a row instead of a list", "library_grid", false, false);
+            LinearLayout library = ui.controls.card(page, "Library");
+            ui.controls.toggle(library, "Sort A to Z", "Alphabetical, with Liked Songs first; off shows Spotify’s recent order", "library_az", false, false);
+            ui.controls.toggle(library, "Show as a grid", "Big covers two to a row instead of a list", "library_grid", false, false);
             break;
         }
         case 1: {
             if (!OfficialPlayback.enabled()) {
-                LinearLayout spotify = card(page, "Spotify");
+                LinearLayout spotify = ui.controls.card(page, "Spotify");
                 spotifyCard(spotify);
             }
 
-            LinearLayout backend = card(page, "Playback backend");
-            settingsAction(backend, "Playback backend", OfficialPlayback.enabled() ? "Official Spotify fallback" : "Built-in player", () -> {
+            LinearLayout backend = ui.controls.card(page, "Playback backend");
+            ui.controls.settingsAction(backend, "Playback backend", OfficialPlayback.enabled() ? "Official Spotify fallback" : "Built-in player", () -> {
                 ui.sheet("Playback backend", "Official Spotify plays audio while Spatch shows your library and controls. Keep it installed and signed in; normal ads and free-account restrictions apply. Some selections may open Spotify.",
                     new String[]{"Built-in player", "Official Spotify fallback"}, selected -> {
                         boolean official = selected == 1;
@@ -181,11 +189,11 @@ final class SettingsScreen {
                     });
             });
             if (OfficialPlayback.enabled()) {
-                settingsAction(backend, "Notification access", OfficialPlayback.status(), () -> OfficialPlayback.configure(ui.activity));
-                toggle(backend, "Auto-return after handoff", "Bring Spatch back to the front once playback starts in Spotify",
+                ui.controls.settingsAction(backend, "Notification access", OfficialPlayback.status(), () -> OfficialPlayback.configure(ui.activity));
+                ui.controls.toggle(backend, "Auto-return after handoff", "Bring Spatch back to the front once playback starts in Spotify",
                     OfficialPlayback.PREF_AUTO_RETURN, true, false);
                 String cid = AppRemote.clientId();
-                settingsAction(backend, "App Remote Client ID",
+                ui.controls.settingsAction(backend, "App Remote Client ID",
                     cid.isEmpty() ? "Optional · enables seamless control without switching apps" : cid,
                     () -> editRemotePref("App Remote Client ID", "Paste the Client ID from your Spotify Developer dashboard",
                         cid, "", val -> {
@@ -194,21 +202,21 @@ final class SettingsScreen {
                             else AppRemote.connect(ui.activity, true);
                             settingsChanged(false);
                         }));
-                settingsAction(backend, "Redirect URI", AppRemote.redirectUri(),
+                ui.controls.settingsAction(backend, "Redirect URI", AppRemote.redirectUri(),
                     () -> editRemotePref("Redirect URI", "Must match an Android Redirect URI in your Spotify Developer app",
                         AppRemote.redirectUri(), AppRemote.DEFAULT_REDIRECT, val -> {
                             AppRemote.setRedirectUri(val);
                             settingsChanged(false);
                         }));
                 String fingerprint = AppRemote.signingSha1(ui.activity);
-                settingsAction(backend, "Copy package & SHA-1",
+                ui.controls.settingsAction(backend, "Copy package & SHA-1",
                     ui.activity.getPackageName() + (fingerprint.isEmpty() ? "" : " · " + fingerprint),
                     () -> {
                         android.content.ClipboardManager cm = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
                         if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("Spatch App Remote", AppRemote.packageAndSha1(ui.activity)));
                         ui.toast("Copied package name and SHA-1");
                     });
-                settingsAction(backend, "Connect App Remote", AppRemote.statusSummary(), () -> {
+                ui.controls.settingsAction(backend, "Connect App Remote", AppRemote.statusSummary(), () -> {
                     if (!AppRemote.configured()) {
                         ui.toast("Add an App Remote Client ID first", true);
                         return;
@@ -223,21 +231,21 @@ final class SettingsScreen {
                         });
                     });
                 });
-                settingsAction(backend, "Open official Spotify", "Sign in or start a session, then return to Spatch", () -> {
+                ui.controls.settingsAction(backend, "Open official Spotify", "Sign in or start a session, then return to Spatch", () -> {
                     android.content.Intent launch = ui.activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
                     if (launch != null) ui.activity.startActivity(launch);
                     else ui.toast(OfficialPlayback.status(), true);
                 });
             }
 
-            LinearLayout playback = card(page, "Player");
-            toggle(playback, "Keep screen on", "While the player is open", "keep_on", true, false);
+            LinearLayout playback = ui.controls.card(page, "Player");
+            ui.controls.toggle(playback, "Keep screen on", "While the player is open", "keep_on", true, false);
             break;
         }
         case 2: {
             if (OfficialPlayback.enabled()) {
-                LinearLayout note = card(page, "Official Spotify audio");
-                settingsAction(note, "Audio settings", "Manage sound in official Spotify while using the fallback", () -> {
+                LinearLayout note = ui.controls.card(page, "Official Spotify audio");
+                ui.controls.settingsAction(note, "Audio settings", "Manage sound in official Spotify while using the fallback", () -> {
                     android.content.Intent launch = ui.activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
                     if (launch != null) ui.activity.startActivity(launch);
                 });
@@ -245,33 +253,34 @@ final class SettingsScreen {
             break;
         }
         case 3: {
-            LinearLayout navigation = card(page, "Navigation");
-            toggle(navigation, "Slide to switch", "Press and drag across the navigation bar, then release on a destination", "nav_drag", true, false);
-            toggle(navigation, "Hide controls while scrolling", "Hide the navigation bar and mini player on the way down; show them when you scroll up", "auto_hide_dock", false, false);
+            LinearLayout navigation = ui.controls.card(page, "Navigation");
+            ui.controls.toggle(navigation, "Slide to switch", "Press and drag across the navigation bar, then release on a destination", "nav_drag", true, false);
+            ui.controls.toggle(navigation, "Hide controls while scrolling", "Hide the navigation bar and mini player on the way down; show them when you scroll up", "auto_hide_dock", false, false,
+                () -> { if (!ui.pref("auto_hide_dock", false)) ui.dockUi.setDockHidden(false); });
 
-            LinearLayout gestures = card(page, "Gestures and controls");
-            toggle(gestures, "Double-tap to play or pause", "On the artwork in the player", "double_tap", true, false);
-            toggle(gestures, "Swipe artwork to skip", "Flick the artwork left for next, right for previous", "swipe_skip", true, false);
-            choice(gestures, "Hold-to-seek step", new String[]{"5 s", "10 s", "30 s"}, "seek_step", 1, false);
-            toggle(gestures, "Haptics", "Little taps on buttons", "haptics", true, false);
+            LinearLayout gestures = ui.controls.card(page, "Gestures and controls");
+            ui.controls.toggle(gestures, "Double-tap to play or pause", "On the artwork in the player", "double_tap", true, false);
+            ui.controls.toggle(gestures, "Swipe artwork to skip", "Flick the artwork left for next, right for previous", "swipe_skip", true, false);
+            ui.controls.choice(gestures, "Hold-to-seek step", new String[]{"5 s", "10 s", "30 s"}, "seek_step", 1, false);
+            ui.controls.toggle(gestures, "Haptics", "Little taps on buttons", "haptics", true, false);
             break;
         }
         case 4: {
-            LinearLayout downloadsBox = card(page, "Downloads");
+            LinearLayout downloadsBox = ui.controls.card(page, "Downloads");
             ui.downloadsScreen.downloadsCard(downloadsBox);
 
-            LinearLayout storage = card(page, "Storage");
+            LinearLayout storage = ui.controls.card(page, "Storage");
             cacheRow(storage);
             break;
         }
         case 5: {
-            LinearLayout developer = card(page, "Developer");
-            toggle(developer, "Skip integrity attestation", "Experiment only. Restart Spotify after changing; verification may run only once a day.",
+            LinearLayout developer = ui.controls.card(page, "Developer");
+            ui.controls.toggle(developer, "Skip integrity attestation", "Experiment only. Restart Spotify after changing; verification may run only once a day.",
                 "integrity_skip", false, false);
-            choice(developer, "Integrity experiment", new String[]{"Skip call", "Empty token"}, "integrity_variant", 0, false);
-            toggle(developer, "Trace signature reads", "Log certificate digests and matching request bodies. Restart to trace startup reads.",
+            ui.controls.choice(developer, "Integrity experiment", new String[]{"Skip call", "Empty token"}, "integrity_variant", 0, false);
+            ui.controls.toggle(developer, "Trace signature reads", "Log certificate digests and matching request bodies. Restart to trace startup reads.",
                 "integrity_trace", false, false);
-            settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
+            ui.controls.settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
                 String report = "Build " + SpatchUi.nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
                     + "\nPlaying " + ui.playing + " · buffering " + ui.buffering
                     + "\nPosition " + ui.position + " ms · duration " + ui.duration + " ms"
@@ -286,7 +295,7 @@ final class SettingsScreen {
                     }
                 });
             });
-            settingsAction(developer, "Automation & intents", "View and copy broadcast intents for Tasker, MacroDroid and shortcuts", () -> {
+            ui.controls.settingsAction(developer, "Automation & intents", "View and copy broadcast intents for Tasker, MacroDroid and shortcuts", () -> {
                 String pkg = ui.activity.getPackageName();
                 String component = pkg + "/spatch.SpatchWidget";
                 String reference = "Package: " + pkg
@@ -315,7 +324,7 @@ final class SettingsScreen {
                     }
                 });
             });
-            settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
+            ui.controls.settingsAction(developer, "Refresh library", "Reload your saved music from Spotify", () -> {
                 ui.submit(SpatchUi.DATA, () -> {
                     SpatchUi.nativeRefreshLibrary();
                     ui.post(() -> ui.toast("Library refresh finished"));
@@ -373,7 +382,7 @@ final class SettingsScreen {
         // Spotify's scale: 0 Auto, 1 Low, 2 Normal, 3 High, 4 Very high, 5 Lossless (Premium where offered).
         String[] qualities = {"Auto", "Low", "Normal", "High", "Very high", "Lossless"};
         int streaming = spotifyValue("stream_quality");
-        segmented(box, "Streaming quality", qualities, streaming >= 0 && streaming <= 5 ? streaming : 0, i -> setSpotify("stream_quality", i));
+        ui.controls.segmented(box, "Streaming quality", qualities, streaming >= 0 && streaming <= 5 ? streaming : 0, i -> setSpotify("stream_quality", i));
         spotifySwitch(box, "Allow quality downgrade", "Lower the quality when your connection is slow", "allow_audio_quality_downgrade");
         spotifySwitch(box, "Download over cellular", "Let downloads use mobile data", "download_over_3g");
         spotifySwitch(box, "Normalise volume", "Play songs at the same level", "normalize");
@@ -385,7 +394,7 @@ final class SettingsScreen {
         int selected = 0;
         for (int i = 0; i < seconds.length; i++) if (Math.abs(seconds[i] - fade) < Math.abs(seconds[selected] - fade)) selected = i;
         if (fade > 0 && selected == 0) selected = 1;
-        segmented(box, "Crossfade", new String[]{"Off", "3 s", "6 s", "12 s"}, selected, i -> {
+        ui.controls.segmented(box, "Crossfade", new String[]{"Off", "3 s", "6 s", "12 s"}, selected, i -> {
             if (seconds[i] == 0) setSpotify("crossfade", 0, false);
             else { setSpotify("crossfade_time_seconds", seconds[i], false); setSpotify("crossfade", 1, false); }
             settingsChanged(false);
@@ -401,39 +410,23 @@ final class SettingsScreen {
     /** Spotify's offline mode: it stops using the internet and plays only downloads, so turning it on asks first. */
     void offlineModeRow(LinearLayout box) {
         boolean on = spotifyValue("offline_mode") != 0;
-        LinearLayout line = ui.row();
-        line.setPadding(ui.dp(18), ui.dp(12), ui.dp(16), ui.dp(12));
-        LinearLayout words = ui.column();
-        words.addView(ui.text("Offline mode", 16, () -> ui.ink, true));
-        TextView d = ui.text("Play only what’s downloaded, without using the internet", 13, () -> ui.inkDim, false);
-        d.setPadding(0, ui.dp(2), ui.dp(8), 0);
-        words.addView(d);
-        line.addView(words, ui.weight());
         Switch sw = ui.controls.new Switch(on);
-        line.addView(sw, ui.lp(ui.dp(52), ui.dp(32)));
+        sw.setLayoutParams(ui.lp(ui.dp(52), ui.dp(32)));
+        LinearLayout line = ui.controls.row(box, "Offline mode", "Play only what’s downloaded, without using the internet", sw);
         if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(on ? "On" : "Off");
         ui.tappable(line, "Offline mode", () -> {
             if (on) { setSpotify("offline_mode", 0); return; }
             ui.sheet("Turn on offline mode?", "Spotify stops using the internet and plays only what you’ve downloaded. Browsing and search won’t load anything new until you turn it off here.",
                 new Option[]{new Option("Turn on offline mode", "", "", "download", false)}, c -> setSpotify("offline_mode", 1));
         });
-        box.addView(line, ui.fill(-2));
     }
 
     private void spotifySwitch(LinearLayout box, String name, String detail, String key) {
-        LinearLayout line = ui.row();
-        line.setPadding(ui.dp(18), ui.dp(12), ui.dp(16), ui.dp(12));
-        LinearLayout words = ui.column();
-        words.addView(ui.text(name, 16, () -> ui.ink, true));
-        TextView d = ui.text(detail, 13, () -> ui.inkDim, false);
-        d.setPadding(0, ui.dp(2), ui.dp(8), 0);
-        words.addView(d);
-        line.addView(words, ui.weight());
         Switch sw = ui.controls.new Switch(spotifyValue(key) != 0);
-        line.addView(sw, ui.lp(ui.dp(52), ui.dp(32)));
+        sw.setLayoutParams(ui.lp(ui.dp(52), ui.dp(32)));
+        LinearLayout line = ui.controls.row(box, name, detail, sw);
         if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
         ui.tappable(line, name, () -> { sw.set(!sw.on); setSpotify(key, sw.on ? 1 : 0, false); });
-        box.addView(line, ui.fill(-2));
     }
 
     /** Shows the new value at once, asks Spotify to change it, and puts the old one back if it refuses. */
@@ -444,7 +437,7 @@ final class SettingsScreen {
         int before = spotifyValue(key);
         spotifySettings.put(key, value);
         if (redraw) settingsChanged(false);
-        ui.submit(SpatchUi.PLAYLISTS, () -> {
+        ui.submit(SpatchUi.COMMANDS, () -> {
             String error = SpatchUi.nativeSetSpotifySetting(key, value);
             if (error != null && !error.isEmpty()) ui.post(() -> {
                 spotifySettings.put(key, before);
@@ -514,35 +507,7 @@ final class SettingsScreen {
         if (palette) { ui.paletteKey = "?"; ui.refreshPalette(); }
     }
 
-    /** A title over a connected button group; the pick is stored as an index under `key`. */
-    void choice(LinearLayout box, String name, String[] names, String key, int fallback, boolean palette) {
-        segmented(box, name, names, ui.prefs.getInt(key, fallback), pick -> {
-            ui.prefs.edit().putInt(key, pick).apply();
-            if (key.startsWith("eq_")) Audio.refreshEqualizer();
-            if (palette) revealPalette(null, () -> settingsChanged(true)); // theme: from where the finger went down
-            else settingsChanged(false);
-        });
-    }
-
     interface Pick { void picked(int index); }
-
-    /** A title over a connected sliding pill group with `selected` highlighted (-1 for none). */
-    void segmented(LinearLayout box, String name, String[] names, int selected, Pick onPick) {
-        TextView label = ui.text(name, 16, () -> ui.ink, true);
-        label.setPadding(ui.dp(18), ui.dp(12), ui.dp(18), ui.dp(8));
-        box.addView(label);
-        int textSp = names.length >= 6 ? 11 : names.length > 4 ? 12 : 13;
-        Controls.SlidingTabs tabs = ui.controls.new SlidingTabs(
-            names, selected, 3, 22, textSp, true,
-            () -> ui.surfHi, () -> ui.ink, name,
-            pick -> { segPrev.put(name, selected); onPick.picked(pick); }
-        );
-        Integer prev = segPrev.remove(name);
-        if (prev != null) tabs.animateFrom(prev);
-        LinearLayout.LayoutParams tp = ui.fill(ui.dp(46));
-        tp.setMargins(ui.dp(14), 0, ui.dp(14), ui.dp(12));
-        box.addView(tabs, tp);
-    }
 
     /** Multi-select filter chips in a wrapping row; each item is {label, prefKey, "1"|"0" default}. */
     private void multiChips(LinearLayout box, String name, String[][] items) {
@@ -736,22 +701,15 @@ final class SettingsScreen {
 
     /** Shows how much artwork is stored on the phone and clears it when tapped. */
     private void cacheRow(LinearLayout box) {
-        LinearLayout line = ui.row();
-        line.setPadding(ui.dp(18), ui.dp(12), ui.dp(16), ui.dp(12));
-        LinearLayout words = ui.column();
-        words.addView(ui.text("Artwork cache", 16, () -> ui.ink, true));
-        TextView size = ui.text("Counting…", 13, () -> ui.inkDim, false);
-        size.setPadding(0, ui.dp(2), 0, 0);
-        words.addView(size);
-        line.addView(words, ui.weight());
         TextView clear = ui.text("Clear", 14, ui.onAccent, true);
         clear.setGravity(Gravity.CENTER);
         clear.setPadding(ui.dp(18), 0, ui.dp(18), 0);
         GradientDrawable clearBg = ui.round(ui.accent, 20);
         clear.setBackground(clearBg);
         ui.colored(clear, () -> { clear.setTextColor(ui.onAccent); clearBg.setColor(ui.accent); });
-        line.addView(clear, ui.lp(-2, ui.dp(40)));
-        box.addView(line, ui.fill(-2));
+        clear.setLayoutParams(ui.lp(-2, ui.dp(40)));
+        LinearLayout line = ui.controls.row(box, "Artwork cache", "Counting…", clear);
+        TextView size = (TextView) ((LinearLayout) line.getChildAt(0)).getChildAt(1);
         ui.submit(SpatchUi.PLAYLISTS, () -> {
             long bytes = 0;
             java.io.File[] files = CoreBridge.cacheDir == null ? null : CoreBridge.cacheDir.listFiles();
@@ -772,30 +730,9 @@ final class SettingsScreen {
         }));
     }
 
-    LinearLayout card(LinearLayout page, String title) {
-        TextView label = ui.text(title, 14, () -> ui.accent, true);
-        label.setPadding(ui.dp(6), ui.dp(18), 0, ui.dp(8));
-        page.addView(label);
-        LinearLayout box = ui.column();
-        ui.bgRound(box, 26, () -> ui.surf);
-        box.setPadding(0, ui.dp(6), 0, ui.dp(6));
-        page.addView(box, ui.fill(-2));
-        return box;
-    }
+    LinearLayout card(LinearLayout page, String title) { return ui.controls.card(page, title); }
 
-    void settingsAction(LinearLayout box, String title, String detail, Runnable action) {
-        LinearLayout line = ui.row();
-        line.setPadding(ui.dp(18), ui.dp(12), ui.dp(16), ui.dp(12));
-        LinearLayout words = ui.column();
-        words.addView(ui.text(title, 16, () -> ui.ink, true));
-        TextView hint = ui.text(detail, 13, () -> ui.inkDim, false);
-        hint.setPadding(0, ui.dp(2), ui.dp(8), 0);
-        words.addView(hint);
-        line.addView(words, ui.weight());
-        line.addView(ui.icon("chevron", () -> ui.inkDim), ui.lp(ui.dp(24), ui.dp(24)));
-        ui.tappable(line, title, action);
-        box.addView(line, ui.fill(-2));
-    }
+    void settingsAction(LinearLayout box, String title, String detail, Runnable action) { ui.controls.settingsAction(box, title, detail, action); }
 
     private void editRemotePref(String heading, String note, String current, String placeholder, java.util.function.Consumer<String> onSave) {
         android.widget.EditText field = ui.createField(placeholder.isEmpty() ? "Enter value" : placeholder, current, false);
@@ -804,84 +741,4 @@ final class SettingsScreen {
     }
 
     private static String db(int gain) { return (gain > 0 ? "+" : "") + gain + " dB"; }
-
-    /**
-     * Turning a switch on sends a soft ring of the accent out from the switch across its row, a small sign that it
-     * took. Drawn on the row's overlay, so the row clips it and nothing is laid out.
-     */
-    void ripple(View row, View from) {
-        if (!ui.motion() || row.getWidth() == 0) return;
-        float cx = from.getLeft() + from.getWidth() / 2f, cy = from.getTop() + from.getHeight() / 2f;
-        float reach = Math.max(cx, row.getWidth() - cx) + ui.dp(24);
-        int accent = ui.accent;
-        float[] t = {0f};
-        android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        android.graphics.Paint ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        ring.setStyle(android.graphics.Paint.Style.STROKE);
-        ring.setStrokeWidth(ui.dp(2));
-        android.graphics.drawable.Drawable wave = new android.graphics.drawable.Drawable() {
-            @Override public void draw(android.graphics.Canvas c) {
-                float r = reach * t[0], fade = 1f - t[0];
-                fill.setColor((accent & 0x00ffffff) | Math.round(0x30 * fade) << 24);
-                ring.setColor((accent & 0x00ffffff) | Math.round(0x90 * fade) << 24);
-                c.drawCircle(cx, cy, r, fill);
-                c.drawCircle(cx, cy, r, ring);
-            }
-            @Override public void setAlpha(int alpha) {}
-            @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
-            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
-        };
-        wave.setBounds(0, 0, row.getWidth(), row.getHeight());
-        row.getOverlay().add(wave);
-        android.animation.ValueAnimator spread = android.animation.ValueAnimator.ofFloat(0f, 1f);
-        spread.setDuration(620);
-        spread.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
-        spread.addUpdateListener(a -> { t[0] = (float) a.getAnimatedValue(); wave.invalidateSelf(); });
-        spread.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override public void onAnimationEnd(android.animation.Animator a) { row.getOverlay().remove(wave); }
-        });
-        spread.start();
-    }
-
-    void toggle(LinearLayout box, String name, String detail, String key, boolean fallback, boolean rebuild) {
-        LinearLayout line = ui.row();
-        line.setPadding(ui.dp(18), ui.dp(12), ui.dp(16), ui.dp(12));
-        LinearLayout words = ui.column();
-        words.addView(ui.text(name, 16, () -> ui.ink, true));
-        TextView d = ui.text(detail, 13, () -> ui.inkDim, false);
-        d.setPadding(0, ui.dp(2), ui.dp(8), 0);
-        words.addView(d);
-        line.addView(words, ui.weight());
-        Switch sw = ui.controls.new Switch(ui.pref(key, fallback));
-        line.addView(sw, ui.lp(ui.dp(52), ui.dp(32)));
-        if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
-        ui.tappable(line, name, () -> {
-            sw.set(!sw.on);
-            if (sw.on) ripple(line, sw);
-            ui.prefs.edit().putBoolean(key, sw.on).apply();
-            if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
-            if (key.equals("equalizer") || key.startsWith("eq_")) Audio.refreshEqualizer();
-            if (key.equals("auto_hide_dock") && !sw.on) ui.dockUi.setDockHidden(false);
-            if (key.equals("audio_direct")) Audio.setDirect(sw.on);
-            if (key.equals("lyric_gen") && sw.on) ui.submit(SpatchUi.ART, () -> {
-                try { LyricGen.download(); }
-                catch (Exception failed) { LyricGen.status = "Couldn’t get the model: " + failed.getMessage() + ". Turn this off and on to retry."; }
-            });
-            if (key.equals("audio") && sw.on && !Audio.directOn && !Audio.permitted(ui.activity)) ui.activity.requestPermissions(new String[]{Audio.PERMISSION}, 7341);
-            if (key.equals("art_colors")) { ui.paletteKey = "?"; ui.refreshPalette(); }
-            else if (key.equals("gpu_fx") || key.equals("frost")) { // the dock's pills and the page capture are set up by build()
-                int y = ui.pageScroll != null ? ui.pageScroll.getScrollY() : 0;
-                ui.build();
-                SpatchUi.keepScroll(ui.pageScroll, y);
-            }
-            else if (key.equals("motes") || key.equals("backdrop")) settingsChanged(false);
-            else if (key.equals("idle_hide")) {
-                if (!sw.on) { ui.playerScreen.idleHidden = false; for (View v : ui.playerScreen.idleViews) v.setAlpha(1f); }
-                settingsChanged(false);
-            }
-            else if (key.equals("rotate")) ui.playerScreen.applyRotation();
-            else if (rebuild) { int y = ui.pageScroll != null ? ui.pageScroll.getScrollY() : 0; ui.build(); SpatchUi.keepScroll(ui.pageScroll, y); }
-        });
-        box.addView(line, ui.fill(-2));
-    }
 }
