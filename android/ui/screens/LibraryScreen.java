@@ -169,7 +169,8 @@ final class LibraryScreen {
             page.addView(chipScroll, cp);
         }
 
-        FrameLayout contentHost = new FrameLayout(ui.activity);
+        // Pull down at the top of the list to reload the library from Spotify.
+        FrameLayout contentHost = ui.controls.new PullRefresh(() -> ui.libraryList, ui::loadLibrary, () -> ui.fetching);
         page.addView(contentHost, new LinearLayout.LayoutParams(-1, 0, 1));
         Runnable[] onQuery = new Runnable[1];
 

@@ -189,6 +189,31 @@ public class HomeEffectsTest {
         activity.finish();
     }
 
+    @Test public void pullingTheLibraryDownReloadsItWithTheStretchingLoader() throws Exception {
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
+        ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
+        settle();
+        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "LIBRARY"));
+        settle();
+        View host = byName(root, "PullRefresh");
+        assertNotNull(host);
+        View blob = byName(host, "Blob");
+        assertNotNull("The loader waits above the list", blob);
+        int[] at = new int[2];
+        host.getLocationOnScreen(at);
+        float x = at[0] + host.getWidth() / 2f, y = at[1] + 40;
+        long down = android.os.SystemClock.uptimeMillis();
+        touch(host, down, android.view.MotionEvent.ACTION_DOWN, x, y);
+        for (int i = 1; i <= 10; i++) touch(host, down, android.view.MotionEvent.ACTION_MOVE, x, y + 30 * i);
+        float stretch = (float) field(blob, "stretch");
+        assertTrue("Pulling stretches it like a drop", stretch > .5f);
+        shot(root, "library-pull");
+        touch(host, down, android.view.MotionEvent.ACTION_UP, x, y + 300);
+        assertTrue("Letting go reloads the library", (Boolean) Reflect.get(ui, "fetching") || (boolean) field(blob, "spinning"));
+        activity.finish();
+    }
+
     private static Object titleOf(Object entry) throws Exception {
         for (Class<?> c = entry.getClass(); c != null; c = c.getSuperclass()) {
             try { java.lang.reflect.Field f = c.getDeclaredField("title"); f.setAccessible(true); return f.get(entry); } catch (NoSuchFieldException next) { }

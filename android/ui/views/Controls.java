@@ -194,33 +194,8 @@ final class Controls {
         box.setGravity(Gravity.CENTER_HORIZONTAL);
         box.setPadding(0, ui.dp(28), 0, ui.dp(20));
         box.setContentDescription(label);
-        float[][] shapes = {SpatchUi.nativeGeometry("badge4"), SpatchUi.nativeGeometry("badge6"), SpatchUi.nativeGeometry("badge8")};
-        long born = SystemClock.uptimeMillis();
-        View blob = new View(ui.activity) {
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Path path = new Path();
-            @Override protected void onDraw(Canvas c) {
-                float r = Math.min(getWidth(), getHeight()) / 2f, t = ui.motion() ? (SystemClock.uptimeMillis() - born) / 700f : 0f;
-                int k = (int) t % 3;
-                float f = t - (int) t;
-                f = f * f * (3 - 2 * f); // ease each morph, then hold briefly at the next shape
-                float[] a = shapes[k], b = shapes[(k + 1) % 3];
-                path.rewind();
-                for (int i = 0; i + 1 < a.length && i + 1 < b.length; i += 2) {
-                    float x = (a[i] + (b[i] - a[i]) * f) * r, y = (a[i + 1] + (b[i + 1] - a[i + 1]) * f) * r;
-                    if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
-                }
-                path.close();
-                c.save();
-                c.translate(getWidth() / 2f, getHeight() / 2f);
-                c.rotate(t * 60f);
-                paint.setColor(SpatchUi.blend(ui.surfHi, ui.accent, .5f));
-                c.drawPath(path, paint);
-                c.restore();
-                if (ui.motion() && isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateOnAnimation();
-            }
-        };
-        blob.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        Blob blob = new Blob();
+        blob.spinning = true;
         box.addView(blob, ui.lp(ui.dp(44), ui.dp(44)));
         TextView words = ui.text(label + "…", 14, () -> ui.inkDim, false);
         words.setGravity(Gravity.CENTER);
@@ -228,6 +203,137 @@ final class Controls {
         words.setPadding(0, ui.dp(12), 0, 0);
         box.addView(words, ui.lp(-2, -2));
         return box;
+    }
+
+    /**
+     * The lobed loader: while `spinning` it turns and morphs from four to six to eight lobes; `stretch` (0..1) pulls it
+     * long and narrow from its top, like a drop about to fall, for pull to refresh.
+     */
+    final class Blob extends View {
+        boolean spinning;
+        float stretch;
+        private final float[][] shapes = {SpatchUi.nativeGeometry("badge4"), SpatchUi.nativeGeometry("badge6"), SpatchUi.nativeGeometry("badge8")};
+        private final long born = SystemClock.uptimeMillis();
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+
+        Blob() { super(ui.activity); setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); }
+
+        @Override protected void onDraw(Canvas c) {
+            float r = getWidth() / 2f, t = spinning && ui.motion() ? (SystemClock.uptimeMillis() - born) / 700f : 0f;
+            int k = (int) t % 3;
+            float f = t - (int) t;
+            f = f * f * (3 - 2 * f); // ease each morph, then hold briefly at the next shape
+            float[] a = shapes[k], b = shapes[(k + 1) % 3];
+            double turn = Math.toRadians(spinning ? t * 60f : stretch * 140f);
+            float cos = (float) Math.cos(turn), sin = (float) Math.sin(turn);
+            path.rewind();
+            for (int i = 0; i + 1 < a.length && i + 1 < b.length; i += 2) {
+                float px = a[i] + (b[i] - a[i]) * f, py = a[i + 1] + (b[i + 1] - a[i + 1]) * f;
+                float x = px * cos - py * sin, y = px * sin + py * cos; // the lobes turn inside the drop
+                // Stretched, it hangs from its top like a drop: longer, and narrow near the top, full and round below.
+                float down = (y + 1f) / 2f;
+                x *= 1f - stretch * .6f * (1f - down);
+                y = -1f + (y + 1f) * (1f + .95f * stretch);
+                if (i == 0) path.moveTo(x * r, y * r); else path.lineTo(x * r, y * r);
+            }
+            path.close();
+            c.save();
+            c.translate(getWidth() / 2f, r); // the shape sits at the top; a taller view leaves room for it to hang
+            paint.setColor(SpatchUi.blend(ui.surfHi, ui.accent, .5f));
+            c.drawPath(path, paint);
+            c.restore();
+            if (spinning && ui.motion() && isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateOnAnimation();
+        }
+    }
+
+    /**
+     * Pull to refresh around a scrolling view. At the top, dragging down brings the loader down after the finger,
+     * stretching like a drop; let go past the mark and it snaps round, spins and morphs while `refresh` runs (until
+     * `busy` turns false), then shrinks away. Short of the mark it just goes back up.
+     */
+    final class PullRefresh extends android.widget.FrameLayout {
+        private final java.util.function.Supplier<View> scrolling;
+        private final Runnable refresh;
+        private final java.util.function.BooleanSupplier busy;
+        private final Blob blob = new Blob();
+        private final int size = ui.dp(40), tall = ui.dp(40) * 2, slop = android.view.ViewConfiguration.get(ui.activity).getScaledTouchSlop();
+        private final Spring settle = new Spring(0f, 18f, .4f, v -> { blob.stretch = v; blob.invalidate(); });
+        private float downY;
+        private boolean pulling, refreshing;
+
+        PullRefresh(java.util.function.Supplier<View> scrolling, Runnable refresh, java.util.function.BooleanSupplier busy) {
+            super(ui.activity);
+            this.scrolling = scrolling;
+            this.refresh = refresh;
+            this.busy = busy;
+            blob.setAlpha(0f);
+            blob.setTranslationY(-tall);
+            setClipChildren(true);
+            addView(blob, new android.widget.FrameLayout.LayoutParams(size, tall, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        }
+
+        // The page swaps its content in and out of this view; the loader stays, above whatever is shown.
+        @Override public void removeAllViews() {
+            super.removeAllViews();
+            addView(blob, new android.widget.FrameLayout.LayoutParams(size, tall, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        }
+
+        @Override public void onViewAdded(View child) {
+            super.onViewAdded(child);
+            if (child != blob && blob.getParent() == this) blob.bringToFront();
+        }
+
+        @Override public boolean onInterceptTouchEvent(MotionEvent e) {
+            View target = scrolling.get();
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { downY = e.getY(); pulling = false; }
+            else if (e.getActionMasked() == MotionEvent.ACTION_MOVE && !pulling && !refreshing
+                && e.getY() - downY > slop && (target == null || !target.canScrollVertically(-1))) pulling = true;
+            return pulling;
+        }
+
+        @Override public boolean onTouchEvent(MotionEvent e) {
+            if (!pulling) return super.onTouchEvent(e);
+            float pull = Math.min(ui.dp(150), Math.max(0f, e.getY() - downY - slop) * .5f); // it gets heavier the further it goes
+            int action = e.getActionMasked();
+            if (action == MotionEvent.ACTION_MOVE) {
+                settle.snap(Math.min(1f, pull / ui.dp(110)));
+                blob.setTranslationY(pull - size * (1f + .95f * blob.stretch)); // the drop's tip follows the finger
+                blob.setAlpha(Math.min(1f, pull / ui.dp(40)));
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                pulling = false;
+                if (pull > ui.dp(70) && action == MotionEvent.ACTION_UP) start();
+                else retract();
+            }
+            return true;
+        }
+
+        private void start() {
+            refreshing = true;
+            ui.tick(this);
+            settle.to(0f); // snaps round with a little overshoot
+            blob.spinning = true;
+            blob.animate().translationY(ui.dp(14)).setDuration(260).setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+            blob.invalidate();
+            refresh.run();
+            postDelayed(new Runnable() {
+                @Override public void run() {
+                    if (busy.getAsBoolean() && isAttachedToWindow()) { postDelayed(this, 120); return; }
+                    refreshing = false;
+                    blob.animate().scaleX(0f).scaleY(0f).alpha(0f).setDuration(220).withEndAction(() -> {
+                        blob.spinning = false;
+                        blob.setScaleX(1f);
+                        blob.setScaleY(1f);
+                        blob.setTranslationY(-tall);
+                    }).start();
+                }
+            }, 300);
+        }
+
+        private void retract() {
+            settle.to(0f);
+            blob.animate().translationY(-tall).alpha(0f).setDuration(200).setInterpolator(SpatchUi.EMPHASIZED).start();
+        }
     }
 
     /** The scallop play button: five lobes at rest, nine while playing, turning slowly. */
