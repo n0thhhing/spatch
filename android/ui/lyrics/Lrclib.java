@@ -38,13 +38,9 @@ final class Lrclib {
         c.setRequestProperty("User-Agent", "Spatch"); // LRCLIB asks clients to name themselves
         String body;
         try (java.io.InputStream in = c.getInputStream()) {
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[1 << 14];
-            for (int n; (n = in.read(buf)) > 0;) {
-                if (out.size() + n > 4 * 1024 * 1024) return null;
-                out.write(buf, 0, n);
-            }
-            body = new String(out.toByteArray(), StandardCharsets.UTF_8);
+            body = new String(AutoEqCatalog.readBytes(in, 4 * 1024 * 1024), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException tooLarge) {
+            return null;
         } finally {
             c.disconnect();
         }
@@ -110,7 +106,7 @@ final class Lrclib {
         try {
             for (int i = 0; i < lines.size(); i++) {
                 String[] l = lines.get(i);
-                out.starts[i] = Long.parseLong(l[1]);
+                out.starts[i] = Math.max(1, Long.parseLong(l[1]));
                 ArrayList<String[]> ws = words.get(i);
                 StringBuilder text = new StringBuilder();
                 if (!ws.isEmpty()) {
@@ -165,7 +161,7 @@ final class Lrclib {
             int textAt = 0;
             ArrayList<Long> stamps = new ArrayList<>();
             while (m.find() && m.start() == textAt) {
-                stamps.add(Long.parseLong(m.group(1)) * 60000 + Math.round(Double.parseDouble(m.group(2).replace(':', '.')) * 1000));
+                stamps.add(Math.max(1L, Long.parseLong(m.group(1)) * 60000 + Math.round(Double.parseDouble(m.group(2).replace(':', '.')) * 1000)));
                 textAt = m.end();
             }
             String text = line.substring(textAt).trim();

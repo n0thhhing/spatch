@@ -78,35 +78,74 @@ public final class CoreBridge implements Transport {
         return callTimed(service, method, request, 8000);
     }
 
+    private static boolean isRead(String method) {
+        if (method == null) return false;
+        return method.startsWith("Get")
+            || method.startsWith("Stream")
+            || method.startsWith("Subscribe")
+            || method.startsWith("Query")
+            || method.startsWith("Multiget")
+            || method.startsWith("Contains")
+            || method.startsWith("All")
+            || method.startsWith("State")
+            || method.equals("Volume");
+    }
+
     public static byte[] callTimed(String service, String method, byte[] request, long timeoutMs) {
         DevIntegrity.outbound(service + "/" + method, request);
         long wait = Math.max(1, Math.min(8000, timeoutMs));
-        Transport first = pick(service);
-        try {
-            // A guessed transport gets a short wait, so a wrong guess fails fast enough to try another one. The
-            // account service is not really a guess, though: until it's learned, pick() always answers with the
-            // same single candidate (the first native transport seen) regardless of what else is known, so there
-            // is nothing else to usefully try instead; a short timeout here only cuts short the core's own startup.
-            boolean full = SERVICES.containsKey(service) || service.equals(ACCOUNT_SERVICE);
-            return (byte[]) first.callSingle(service, method, request).timeout(full ? wait : Math.min(wait, 2500), TimeUnit.MILLISECONDS).blockingGet();
-        } catch (RuntimeException failed) {
-            // A transport Spotify itself used for this service is the right one; anything else was a guess, so
-            // try the other transports (newest first) and remember the one that answers.
-            if (SERVICES.containsKey(service)) throw failed;
-            for (int i = ALL.size() - 1; i >= 0; i--) {
-                Transport other = ALL.get(i);
-                if (other == first) continue;
-                try {
-                    byte[] reply = (byte[]) other.callSingle(service, method, request).timeout(Math.min(wait, 2500), TimeUnit.MILLISECONDS).blockingGet();
-                    SERVICES.putIfAbsent(service, other);
-                    android.util.Log.i("SpatchCore", "learned the transport for " + service);
-                    return reply;
-                } catch (RuntimeException ignored) {
-                    // not this one
-                }
+        // A read whose transport Spotify hasn't used yet goes to every candidate at once; the first answer wins and
+        // teaches us the transport. Guessing one and waiting on it made the first library load time out after 8 s.
+        if (isRead(method) && !SERVICES.containsKey(service)) return race(service, method, request, wait);
+        // Writes are never re-sent: a slow transport may still apply them, and a second copy would duplicate the change.
+        return (byte[]) pick(service).callSingle(service, method, request).timeout(wait, TimeUnit.MILLISECONDS).blockingGet();
+    }
+
+    private static byte[] race(String service, String method, byte[] request, long wait) {
+        java.util.List<Transport> candidates = new java.util.ArrayList<Transport>();
+        candidates.add(pick(service));
+        for (int i = ALL.size() - 1; i >= 0; i--) if (!candidates.contains(ALL.get(i))) candidates.add(ALL.get(i));
+        java.util.concurrent.BlockingQueue<Object[]> replies = new java.util.concurrent.LinkedBlockingQueue<Object[]>();
+        java.util.List<Disposable> started = new java.util.ArrayList<Disposable>();
+        for (Transport t : candidates) {
+            try {
+                started.add(t.callSingle(service, method, request).subscribe(
+                    value -> replies.add(new Object[] {t, value}), error -> replies.add(new Object[] {t, error})));
+            } catch (RuntimeException failed) {
+                replies.add(new Object[] {t, failed});
             }
-            throw failed;
         }
+        RuntimeException last = null;
+        // An empty reply can come from a transport that isn't this account's (a default message), so a non-empty one
+        // from another transport is preferred; the empty one is used only if nothing better arrives.
+        Object[] empty = null;
+        long deadline = System.currentTimeMillis() + wait;
+        try {
+            for (int left = candidates.size(); left > 0; left--) {
+                Object[] reply = replies.poll(Math.max(0, deadline - System.currentTimeMillis()), TimeUnit.MILLISECONDS);
+                if (reply == null) break;
+                if (reply[1] instanceof byte[] && ((byte[]) reply[1]).length > 0) return learn(service, reply, candidates.size());
+                if (reply[1] instanceof byte[]) {
+                    // A default message is also a real answer (nothing queued, not liked), so wait only briefly.
+                    if (empty == null) { empty = reply; deadline = Math.min(deadline, System.currentTimeMillis() + 300); }
+                    continue;
+                }
+                last = reply[1] instanceof RuntimeException ? (RuntimeException) reply[1] : new IllegalStateException(String.valueOf(reply[1]));
+            }
+        } catch (InterruptedException stopped) {
+            Thread.currentThread().interrupt();
+        } finally {
+            for (Disposable d : started) if (d != null) d.dispose();
+        }
+        if (empty != null) return learn(service, empty, candidates.size());
+        throw last != null ? last : new IllegalStateException(service + "/" + method + ": no transport answered within " + wait + " ms");
+    }
+
+    private static byte[] learn(String service, Object[] reply, int candidates) {
+        if (SERVICES.putIfAbsent(service, (Transport) reply[0]) == null && candidates > 1) {
+            android.util.Log.i("SpatchCore", "learned the transport for " + service);
+        }
+        return (byte[]) reply[1];
     }
 
     /** The transport Spotify used for this service, else the account's (the library's), else the first one seen. */
@@ -183,13 +222,11 @@ public final class CoreBridge implements Transport {
         if (assertion != null && assertion.getClass().getName().equals("p.yt20")) webgate = maker;
     }
 
-    /** Uses the exact catalog interface shipped in the pinned Spotify 9.2.0.2053 APK. */
+    /** Catalog search through SpotifyWeb with Spotify's search feature name. */
     public static byte[] search(String query, String pageToken) throws Exception {
         Object maker = webgate;
         if (maker == null) throw new IllegalStateException("Spotify’s search connection is starting");
-        Class<?> api = Class.forName("p.jx51", true, maker.getClass().getClassLoader());
-        Object service = maker.getClass().getMethod("createWebgateService", Class.class, String.class)
-            .invoke(maker, api, "android-search-onlineproto");
+        SpotifyWeb api = web(maker, "android-search-onlineproto");
         String requestId = java.util.UUID.randomUUID().toString();
         java.util.Map<String, String> params = new java.util.HashMap<>();
         params.put("query", query);
@@ -203,32 +240,10 @@ public final class CoreBridge implements Transport {
         params.put("request_id", requestId);
         params.put("page_token", pageToken);
         params.put("timestamp", Long.toString(System.currentTimeMillis()));
-        java.util.Map<String, String> headers = java.util.Collections.emptyMap();
         try {
-            Single call = (Single) api.getMethod("a", java.util.Map.class, java.util.Map.class).invoke(service, params, headers);
-            Object response = call.timeout(12, TimeUnit.SECONDS).blockingGet();
-            return (byte[]) response.getClass().getMethod("toByteArray").invoke(response);
+            return bytes(api.search(params, java.util.Collections.emptyMap()).timeout(12, TimeUnit.SECONDS).blockingGet());
         } catch (RuntimeException failed) {
-            try {
-                Class<?> httpError = Class.forName("retrofit2.HttpException", true, maker.getClass().getClassLoader());
-                if (httpError.isInstance(failed)) {
-                    Object response = httpError.getField("c").get(failed);
-                    Object body = response == null ? null : response.getClass().getField("c").get(response);
-                    if (body != null) {
-                        Class<?> bodyType = Class.forName("p.ii31", true, maker.getClass().getClassLoader());
-                        String detail = (String) bodyType.getMethod("f").invoke(body);
-                        throw new IllegalStateException("Search " + failed.getMessage() + ": "
-                            + detail.substring(0, Math.min(512, detail.length())), failed);
-                    }
-                }
-            } catch (ReflectiveOperationException ignored) {
-                // Preserve the original network error if its body cannot be read.
-            }
-            throw failed;
-        } catch (java.lang.reflect.InvocationTargetException failed) {
-            Throwable cause = failed.getCause();
-            if (cause instanceof Exception) throw (Exception) cause;
-            throw failed;
+            throw new IllegalStateException(httpDetail(failed), failed);
         }
     }
 
@@ -236,8 +251,12 @@ public final class CoreBridge implements Transport {
     private static SpotifyWeb web() throws Exception {
         Object maker = webgate;
         if (maker == null) throw new IllegalStateException("Spotify’s web connection is starting");
+        return web(maker, "spatch");
+    }
+
+    private static SpotifyWeb web(Object maker, String feature) throws Exception {
         try {
-            return (SpotifyWeb) maker.getClass().getMethod("createWebgateService", Class.class, String.class).invoke(maker, SpotifyWeb.class, "spatch");
+            return (SpotifyWeb) maker.getClass().getMethod("createWebgateService", Class.class, String.class).invoke(maker, SpotifyWeb.class, feature);
         } catch (java.lang.reflect.InvocationTargetException failed) {
             Throwable cause = failed.getCause();
             if (cause instanceof Exception) throw (Exception) cause;
@@ -700,13 +719,7 @@ public final class CoreBridge implements Transport {
                 c.setReadTimeout(20000);
                 c.setInstanceFollowRedirects(false);
                 try (java.io.InputStream in = c.getInputStream()) {
-                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-                    byte[] buf = new byte[1 << 14];
-                    for (int n; (n = in.read(buf)) > 0;) {
-                        if (out.size() + n > 8 * 1024 * 1024) return null;
-                        out.write(buf, 0, n);
-                    }
-                    data = out.toByteArray();
+                    data = AutoEqCatalog.readBytes(in, 8 * 1024 * 1024);
                 } finally {
                     c.disconnect();
                 }

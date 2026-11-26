@@ -2,6 +2,7 @@ package spatch;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -66,7 +67,7 @@ final class AutoEqCatalog {
         } finally { connection.disconnect(); }
     }
 
-    private static byte[] readBytes(InputStream stream, int limit) throws Exception {
+    static byte[] readBytes(InputStream stream, int limit) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
         for (int count; (count = stream.read(buffer)) != -1;) {

@@ -3,12 +3,14 @@ package spatch;
 import com.spotify.extendedmetadata.proto.BatchedExtensionResponse;
 import com.spotify.playlist4.proto.Playlist4ApiProto;
 import com.spotify.lyrics.serviceretrofit.proto.v3.LyricsWrapperResponse;
+import com.spotify.searchview.proto.MainViewResponse;
 import io.reactivex.rxjava3.core.Single;
+import java.util.Map;
 
 /**
  * Spotify's own web services, made by the app's webgate (RetrofitMaker.createWebgateService), which adds the access
  * and client tokens. The annotations are Spotify 9.2.0.2053's obfuscated Retrofit ones: p.x740 @GET, p.ngr0 @POST,
- * p.gf60 @Headers, p.brs0 @Path, p.xmb @Body.
+ * p.gf60 @Headers, p.brs0 @Path, p.xmb @Body, p.pjz0 @QueryMap, p.pc60 @HeaderMap.
  */
 public interface SpotifyWeb {
     /** A playlist's items, straight from the playlist service. */
@@ -25,4 +27,12 @@ public interface SpotifyWeb {
     @p.x740("color-lyrics/v3/track/{trackId}")
     @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)
     Single<LyricsWrapperResponse> lyrics(@p.brs0(value = "trackId", encoded = false) String trackId);
+
+    /** Catalog search: searchview v3, matching Spotify's own search endpoint. */
+    @p.x740("searchview/v3/search")
+    @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)
+    Single<MainViewResponse> search(
+        @p.pjz0(encoded = false) Map<String, String> params,
+        @p.pc60(allowUnsafeNonAsciiValues = false) Map<String, String> headers
+    );
 }

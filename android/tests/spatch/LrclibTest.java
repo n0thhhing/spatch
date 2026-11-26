@@ -52,5 +52,10 @@ public final class LrclibTest {
         heard.put(5000L, new String[] { "7000", "second" });
         CoreBridge.Lyrics made = LyricGen.toLyrics(heard);
         check(made.generated && made.words.length == 2 && made.starts[0] == 1 && made.starts[1] == 5000, "Generated lines stay time-synced, even at 0");
+
+        CoreBridge.Lyrics zeroSynced = Lrclib.synced("[00:00.00] Intro\n[00:02.00] Next", 10000);
+        check(zeroSynced.starts[0] == 1 && zeroSynced.ends[0] == 2000, "Synced line at 0:00 starts at 1 ms so it can be highlighted");
+        CoreBridge.Lyrics zeroWords = Lrclib.wordSynced("lines:\n- text: Intro\n  start_ms: 0\n  end_ms: 2000\n  words:\n  - text: Intro\n    start_ms: 0\n");
+        check(zeroWords != null && zeroWords.starts[0] == 1, "Word-synced line at 0 ms starts at 1 ms so it can be highlighted");
     }
 }

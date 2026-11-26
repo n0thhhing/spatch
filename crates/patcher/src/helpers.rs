@@ -23,6 +23,8 @@ pub const STUBS: &[(&str, &str)] = &[
     ("gf60.java", include_str!("../../../android/stubs/p/gf60.java")),
     ("xmb.java", include_str!("../../../android/stubs/p/xmb.java")),
     ("ngr0.java", include_str!("../../../android/stubs/p/ngr0.java")),
+    ("pjz0.java", include_str!("../../../android/stubs/p/pjz0.java")),
+    ("pc60.java", include_str!("../../../android/stubs/p/pc60.java")),
     ("Action.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/functions/Action.java")),
     ("Consumer.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/functions/Consumer.java")),
     ("Disposable.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/disposables/Disposable.java")),
@@ -38,6 +40,12 @@ pub const STUBS: &[(&str, &str)] = &[
         "BatchedExtensionResponse.java",
         include_str!(
             "../../../android/stubs/com/spotify/extendedmetadata/proto/BatchedExtensionResponse.java"
+        ),
+    ),
+    (
+        "MainViewResponse.java",
+        include_str!(
+            "../../../android/stubs/com/spotify/searchview/proto/MainViewResponse.java"
         ),
     ),
     ("Empty.java", include_str!("../../../android/stubs/com/google/protobuf/Empty.java")),

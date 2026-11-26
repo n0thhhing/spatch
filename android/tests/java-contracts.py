@@ -107,34 +107,131 @@ ANDROID = sorted(
 )[-1]
 
 FIXTURES = {
+    'android/util/Log.java': """package android.util;
+public final class Log {
+    public static int d(String tag, String msg) { return 0; }
+    public static int d(String tag, String msg, Throwable t) { return 0; }
+    public static int i(String tag, String msg) { return 0; }
+    public static int i(String tag, String msg, Throwable t) { return 0; }
+    public static int w(String tag, String msg) { return 0; }
+    public static int w(String tag, String msg, Throwable t) { return 0; }
+    public static int e(String tag, String msg) { return 0; }
+    public static int e(String tag, String msg, Throwable t) { return 0; }
+}""",
     'io/reactivex/rxjava3/core/Single.java': """package io.reactivex.rxjava3.core;
 public class Single<T> {
     private final Object value;
-    public Single(Object value) { this.value = value; }
-    public final Single timeout(long seconds, java.util.concurrent.TimeUnit unit) {
-        assert (seconds == 12 && unit == java.util.concurrent.TimeUnit.SECONDS)
-            || (seconds >= 1 && seconds <= 8000 && unit == java.util.concurrent.TimeUnit.MILLISECONDS);
+    private final RuntimeException error;
+    public long lastTimeout;
+    public java.util.concurrent.TimeUnit lastUnit;
+    public Single(Object value) { this.value = value; this.error = null; }
+    public static <T> Single<T> error(RuntimeException error) { return new Single<>(error, true); }
+    private Single(RuntimeException error, boolean ignored) { this.value = null; this.error = error; }
+    public final Single timeout(long amount, java.util.concurrent.TimeUnit unit) {
+        assert (amount == 12 && unit == java.util.concurrent.TimeUnit.SECONDS)
+            || (amount == 15 && unit == java.util.concurrent.TimeUnit.SECONDS)
+            || (amount >= 1 && amount <= 8000 && unit == java.util.concurrent.TimeUnit.MILLISECONDS);
+        this.lastTimeout = amount;
+        this.lastUnit = unit;
         return this;
     }
-    public final Object blockingGet() { return value; }
-    public final io.reactivex.rxjava3.disposables.Disposable subscribe(io.reactivex.rxjava3.functions.Consumer success, io.reactivex.rxjava3.functions.Consumer error) { return null; }
+    public final Object blockingGet() {
+        if (error != null) throw error;
+        return value;
+    }
+    public final io.reactivex.rxjava3.disposables.Disposable subscribe(io.reactivex.rxjava3.functions.Consumer success, io.reactivex.rxjava3.functions.Consumer error) {
+        try { if (this.error != null) error.accept(this.error); else success.accept(value); }
+        catch (Throwable t) { throw new RuntimeException(t); }
+        return () -> {};
+    }
 }""",
     'p/yt20.java': """package p; public class yt20 {}
 """,
-    'p/jx51.java': """package p;
-public interface jx51 {
-    io.reactivex.rxjava3.core.Single a(java.util.Map<String,String> params, java.util.Map<String,String> headers);
-}""",
     'p/v4p1.java': """package p;
 public class v4p1 { public static String s() { return "zh_TW"; } }""",
+    'spatch/NativeTransport.java': """package spatch;
+import com.spotify.esperanto.esperanto.Transport;
+import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.core.Single;
+public class NativeTransport implements Transport {
+    public int calls;
+    public Single lastSingle;
+    public RuntimeException failWith;
+    public byte[] reply = new byte[0];
+    public Single callSingle(String service, String method, byte[] request) {
+        calls++;
+        lastSingle = failWith != null ? Single.error(failWith) : new Single(reply);
+        return lastSingle;
+    }
+    public Observable callStream(String service, String method, byte[] request) { throw new UnsupportedOperationException(); }
+    public byte[] callSync(String service, String method, byte[] request) { throw new UnsupportedOperationException(); }
+}""",
+    'spatch/OtherTransport.java': """package spatch;
+import com.spotify.esperanto.esperanto.Transport;
+import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.core.Single;
+public class OtherTransport implements Transport {
+    public int calls;
+    public byte[] reply = new byte[]{7, 8};
+    public Single callSingle(String service, String method, byte[] request) {
+        calls++;
+        return new Single(reply);
+    }
+    public Observable callStream(String service, String method, byte[] request) { throw new UnsupportedOperationException(); }
+    public byte[] callSync(String service, String method, byte[] request) { throw new UnsupportedOperationException(); }
+}""",
+    'spatch/CallFallbackCheck.java': """package spatch;
+import java.util.Arrays;
+public class CallFallbackCheck {
+    public static void main(String[] args) {
+        NativeTransport first = new NativeTransport();
+        first.failWith = new RuntimeException("timed out");
+        OtherTransport second = new OtherTransport();
+        CoreBridge.wrap(first);
+        CoreBridge.wrap(second);
+
+        try {
+            CoreBridge.callTimed("spotify.playlist_esperanto.proto.PlaylistService", "Modify", new byte[0], 5000);
+            throw new AssertionError("Write failure must propagate");
+        } catch (RuntimeException expected) {
+            assert expected == first.failWith;
+        }
+        assert first.calls == 1 && second.calls == 0 : "Write must be sent exactly once without fallback";
+        assert first.lastSingle.lastTimeout == 5000 : "Write must wait the full timeout on the first transport";
+
+        try {
+            CoreBridge.callTimed("spotify.volume_esperanto.proto.VolumeService", "VolumeSet", new byte[0], 5000);
+            throw new AssertionError("VolumeSet failure must propagate");
+        } catch (RuntimeException expected) {
+            assert expected == first.failWith;
+        }
+        assert first.calls == 2 && second.calls == 0 : "VolumeSet is a write and must not fall back";
+
+        byte[] readReply = CoreBridge.callTimed("spotify.playlist_esperanto.proto.PlaylistService", "Get", new byte[0], 5000);
+        assert Arrays.equals(readReply, new byte[]{7, 8});
+        assert first.calls == 3 && second.calls == 1 : "A read on an unknown service is asked of every transport at once";
+        byte[] again = CoreBridge.callTimed("spotify.playlist_esperanto.proto.PlaylistService", "Get", new byte[0], 5000);
+        assert Arrays.equals(again, new byte[]{7, 8});
+        assert first.calls == 3 && second.calls == 2 : "Once learned, a read goes only to the transport that answered";
+        System.out.println("Call fallback checks passed: writes sent once with full wait, reads race until learned");
+    }
+}""",
     'spatch/CatalogRequestCheck.java': """package spatch;
 import java.util.*;
+import com.spotify.extendedmetadata.proto.BatchedExtensionResponse;
+import com.spotify.lyrics.serviceretrofit.proto.v3.LyricsWrapperResponse;
+import com.spotify.playlist4.proto.Playlist4ApiProto;
+import com.spotify.searchview.proto.MainViewResponse;
 import io.reactivex.rxjava3.core.Single;
 public class CatalogRequestCheck {
     public static class Reply { public byte[] toByteArray() { return new byte[]{10,0}; } }
-    public static class Api implements p.jx51 {
+    public static class Api implements SpotifyWeb {
         Map<String,String> last;
-        public Single a(Map<String,String> params, Map<String,String> headers) {
+        public Single<Playlist4ApiProto.SelectedListContent> playlist(String playlistId) { throw new UnsupportedOperationException(); }
+        public Single<BatchedExtensionResponse> extendedMetadata(com.google.protobuf.Empty request) { throw new UnsupportedOperationException(); }
+        public Single<LyricsWrapperResponse> lyrics(String trackId) { throw new UnsupportedOperationException(); }
+        @SuppressWarnings("unchecked")
+        public Single<MainViewResponse> search(Map<String,String> params, Map<String,String> headers) {
             assert headers.isEmpty() : "Query metadata cannot be mixed with partial header metadata";
             assert params.containsKey("request_id") && params.containsKey("timestamp");
             assert !params.containsKey("_t") && !params.containsKey("on_demand_sets_enabled");
@@ -151,7 +248,7 @@ public class CatalogRequestCheck {
     public static class Maker {
         public final Api api = new Api();
         public Object createWebgateService(Class<?> type, String feature) {
-            assert type == p.jx51.class && feature.equals("android-search-onlineproto");
+            assert type == SpotifyWeb.class && feature.equals("android-search-onlineproto");
             return api;
         }
     }
@@ -169,7 +266,7 @@ public class CatalogRequestCheck {
         String token = "opaque+/page=2&next";
         CoreBridge.search(query, token);
         assert maker.api.last.get("page_token").equals(token) : "Do not encode Retrofit query values twice";
-        System.out.println("Catalog request checks passed: native API/locale, metadata pair, Unicode, paging, reply bytes, factory selection, missing connection");
+        System.out.println("Catalog request checks passed: SpotifyWeb search/locale, metadata pair, Unicode, paging, reply bytes, factory selection, missing connection");
     }
 }""",
 }
@@ -188,6 +285,6 @@ with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     classes = work / "classes"
     subprocess.run([str(JAVA / "javac"), "--release", "11", "-cp", str(ANDROID),
                     "-d", str(classes), *map(str, sources)], check=True)
-    for check in ("BlurTest", "CatalogRequestCheck", "CreationRouteTest", "SubscriptionsTest"):
+    for check in ("BlurTest", "CallFallbackCheck", "CatalogRequestCheck", "CreationRouteTest", "SubscriptionsTest"):
         subprocess.run([str(JAVA / "java"), "-ea", "-cp", os.pathsep.join([str(classes), str(ANDROID)]),
                         f"spatch.{check}"], check=True)
