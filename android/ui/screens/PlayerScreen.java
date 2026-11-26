@@ -167,7 +167,7 @@ final class PlayerScreen {
         if (ui.mArt != null) ui.mArt.invalidate();
     }
 
-    static int sungUpTo(CoreBridge.Lyrics l, int line, long now) {
+    static int sungUpTo(Lyrics l, int line, long now) {
         return LyricsView.sungUpTo(l, line, now);
     }
 

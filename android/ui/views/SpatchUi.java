@@ -250,8 +250,8 @@ public final class SpatchUi extends FrameLayout {
         CoreBridge.cacheDir = covers;
         java.io.File savedLyrics = new java.io.File(activity.getFilesDir(), "lyrics");
         savedLyrics.mkdirs();
-        CoreBridge.lyricsDir = savedLyrics;
-        CoreBridge.prefs = prefs;
+        Lyrics.dir = savedLyrics;
+        Lyrics.prefs = prefs;
         LyricGen.dir = new java.io.File(activity.getFilesDir(), "whisper");
         LyricGen.prefs = prefs;
         ART.execute(CoreBridge::pruneCache);
@@ -1076,7 +1076,7 @@ public final class SpatchUi extends FrameLayout {
                 String trackId = uri.substring(uri.lastIndexOf(':') + 1);
                 String trackUri = uri, trackTitle = title, trackArtist = artist;
                 submit(ART, () -> {
-                    CoreBridge.Lyrics got = null;
+                    Lyrics got = null;
                     try { got = CoreBridge.lyrics(trackId, trackTitle, trackArtist, 0); } catch (Throwable ignored) {}
                     boolean has = got != null && got.words.length > 0;
                     if (!has) noLyricsUri = trackUri;

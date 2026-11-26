@@ -99,9 +99,9 @@ final class LyricGen {
                 song = id;
                 lines.clear();
                 covered.clear();
-                CoreBridge.Lyrics before = CoreBridge.savedGenerated(id);
+                Lyrics before = Lyrics.savedGenerated(id);
                 if (before != null) for (int i = 0; i < before.words.length; i++) lines.put(before.starts[i], new String[] { Long.toString(before.ends[i]), before.words[i] });
-                covered.addAll(CoreBridge.savedCoverage(id));
+                covered.addAll(Lyrics.savedCoverage(id));
                 if (songLength > 0 && coveredMs(covered) >= songLength * 9 / 10) { finish(id); continue; }
             }
             if (winFrames < 0 || winJumps != jumpsNow) { winFrames = nativeFrames(); winPos = now(); winWall = SystemClock.uptimeMillis(); winJumps = jumpsNow; continue; }
@@ -128,7 +128,7 @@ final class LyricGen {
                 catch (NumberFormatException bad) { /* skip the segment */ }
             }
             covered.add(new long[] { start, start + audioMs });
-            CoreBridge.saveGenerated(id, toLyrics(lines), covered);
+            Lyrics.saveGenerated(id, toLyrics(lines), covered);
             if (songLength > 0 && coveredMs(covered) >= songLength * 9 / 10) finish(id);
             } catch (UnsatisfiedLinkError none) {
                 return; // no native library (the desktop preview)
@@ -141,8 +141,8 @@ final class LyricGen {
 
     private static synchronized void finish(String id) { if (id.equals(wanted)) wanted = null; }
 
-    static CoreBridge.Lyrics toLyrics(TreeMap<Long, String[]> lines) {
-        CoreBridge.Lyrics out = new CoreBridge.Lyrics(lines.size());
+    static Lyrics toLyrics(TreeMap<Long, String[]> lines) {
+        Lyrics out = new Lyrics(lines.size());
         int i = 0;
         for (Map.Entry<Long, String[]> e : lines.entrySet()) {
             out.starts[i] = Math.max(1, e.getKey()); // a start of 0 reads as "not time-synced"

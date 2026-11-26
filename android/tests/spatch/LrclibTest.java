@@ -10,14 +10,14 @@ public final class LrclibTest {
     }
 
     public static void main(String[] args) throws Exception {
-        CoreBridge.Lyrics l = Lrclib.synced("[00:01.50] One\n[00:05.00][00:20.00] Chorus\n[00:10.25]\nno stamp here", 30000);
+        Lyrics l = Lrclib.synced("[00:01.50] One\n[00:05.00][00:20.00] Chorus\n[00:10.25]\nno stamp here", 30000);
         check(l.words.length == 4, "One row per stamp, unstamped lines dropped");
         check(l.starts[0] == 1500 && l.words[0].equals("One"), "Stamps become ms");
         check(l.words[1].equals("Chorus") && l.words[3].equals("Chorus") && l.starts[3] == 20000, "Repeated chorus sorted into place");
         check(l.words[2].equals("♪") && l.ends[1] == 10250, "Empty line is a gap; ends are the next start");
         check(l.ends[3] == 30000, "Last line runs to the song's end");
 
-        CoreBridge.Lyrics p = Lrclib.plain("a\n\nb\n\n");
+        Lyrics p = Lrclib.plain("a\n\nb\n\n");
         check(p.words.length == 3 && p.starts[2] == 0, "Plain lyrics keep inner blanks, drop trailing ones, no times");
 
         JSONArray results = new JSONArray()
@@ -32,7 +32,7 @@ public final class LrclibTest {
         String file = "version: '1.0'\nmetadata:\n  title: T\n  album: '2022: a ''live'' one'\nlines:\n"
             + "- text: I wear it\n  start_ms: 24280\n  end_ms: 25734\n  words:\n  - text: 'I '\n    start_ms: 24280\n  - text: 'wear '\n    start_ms: 24455\n  - text: it\n    start_ms: 25048\n"
             + "- text: \"Say \\\"hi\\\"\"\n  start_ms: 26950\n  words:\n  - text: \"Say \"\n    start_ms: 26950\n  - text: \"\\\"hi\\\"\"\n    start_ms: 27000\n";
-        CoreBridge.Lyrics w = Lrclib.wordSynced(file);
+        Lyrics w = Lrclib.wordSynced(file);
         check(w != null && w.words.length == 2, "Two word-timed lines");
         check(w.words[0].equals("I wear it") && w.starts[0] == 24280 && w.ends[0] == 25734, "Line text and times");
         check(w.wordAt[0][1] == 2 && w.wordStart[0][2] == 25048, "Word offsets index the joined line");
@@ -50,12 +50,12 @@ public final class LrclibTest {
         java.util.TreeMap<Long, String[]> heard = new java.util.TreeMap<>();
         heard.put(0L, new String[] { "2000", "first" });
         heard.put(5000L, new String[] { "7000", "second" });
-        CoreBridge.Lyrics made = LyricGen.toLyrics(heard);
+        Lyrics made = LyricGen.toLyrics(heard);
         check(made.generated && made.words.length == 2 && made.starts[0] == 1 && made.starts[1] == 5000, "Generated lines stay time-synced, even at 0");
 
-        CoreBridge.Lyrics zeroSynced = Lrclib.synced("[00:00.00] Intro\n[00:02.00] Next", 10000);
+        Lyrics zeroSynced = Lrclib.synced("[00:00.00] Intro\n[00:02.00] Next", 10000);
         check(zeroSynced.starts[0] == 1 && zeroSynced.ends[0] == 2000, "Synced line at 0:00 starts at 1 ms so it can be highlighted");
-        CoreBridge.Lyrics zeroWords = Lrclib.wordSynced("lines:\n- text: Intro\n  start_ms: 0\n  end_ms: 2000\n  words:\n  - text: Intro\n    start_ms: 0\n");
+        Lyrics zeroWords = Lrclib.wordSynced("lines:\n- text: Intro\n  start_ms: 0\n  end_ms: 2000\n  words:\n  - text: Intro\n    start_ms: 0\n");
         check(zeroWords != null && zeroWords.starts[0] == 1, "Word-synced line at 0 ms starts at 1 ms so it can be highlighted");
     }
 }

@@ -17,33 +17,21 @@ final class CoreBridge {
     // The preview nativeCatalog adapter reads this query and uses the existing Rust demo data.
     static byte[] search(String query, String pageToken) { return query.getBytes(java.nio.charset.StandardCharsets.UTF_8); }
 
+    private static final String[] SAMPLE_LYRICS = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "Dim lines melt into the edges", "The glow follows the cover", "Take it for a spin" };
+
     /** Demo lyrics for the preview, spread over a whole song with times so the synced view can be tried offline. */
-    public static final class Lyrics {
-        private static final String[] SAMPLE = { "Demo lyrics for the preview", "Each line lights as it is sung", "The column glides to keep it centred", "Tap a line to jump there", "♪", "Dim lines melt into the edges", "The glow follows the cover", "Take it for a spin" };
-        public final String[] words;
-        public final long[] starts, ends;
-        public final int[][] wordAt;
-        public final long[][] wordStart;
-        public boolean generated;
-        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; wordAt = new int[n][]; wordStart = new long[n][]; }
-        boolean wordSynced() { for (int[] w : wordAt) if (w != null) return true; return false; }
-        Lyrics() {
-            this(40);
-            for (int i = 0; i < words.length; i++) {
-                words[i] = SAMPLE[i % SAMPLE.length]; starts[i] = 3000L + i * 6000L; ends[i] = starts[i] + 5500L;
-                String[] split = words[i].split(" "); // every word timed, spread over the first four seconds, to try the word highlight
-                wordAt[i] = new int[split.length]; wordStart[i] = new long[split.length];
-                for (int w = 0, at = 0; w < split.length; at += split[w].length() + 1, w++) { wordAt[i][w] = at; wordStart[i][w] = starts[i] + w * 4000L / split.length; }
-            }
+    private static Lyrics demo() {
+        Lyrics out = new Lyrics(40);
+        for (int i = 0; i < out.words.length; i++) {
+            out.words[i] = SAMPLE_LYRICS[i % SAMPLE_LYRICS.length]; out.starts[i] = 3000L + i * 6000L; out.ends[i] = out.starts[i] + 5500L;
+            String[] split = out.words[i].split(" "); // every word timed, spread over the first four seconds, to try the word highlight
+            out.wordAt[i] = new int[split.length]; out.wordStart[i] = new long[split.length];
+            for (int w = 0, at = 0; w < split.length; at += split[w].length() + 1, w++) { out.wordAt[i][w] = at; out.wordStart[i][w] = out.starts[i] + w * 4000L / split.length; }
         }
+        return out;
     }
 
-    static Lyrics lyrics(String id, String title, String artist, long durationMs) { return new Lyrics(); }
-    static volatile android.content.SharedPreferences prefs;
-    static volatile java.io.File lyricsDir;
-    static void saveGenerated(String id, Lyrics l, java.util.List<long[]> covered) {}
-    static Lyrics savedGenerated(String id) { return null; }
-    static java.util.List<long[]> savedCoverage(String id) { return new java.util.ArrayList<>(); }
+    static Lyrics lyrics(String id, String title, String artist, long durationMs) { return demo(); }
 
     public static String openCreation(android.app.Activity activity, String kind) {
         String normalized = kind == null ? "" : kind.trim().toLowerCase(java.util.Locale.ROOT);

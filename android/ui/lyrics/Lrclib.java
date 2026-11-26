@@ -21,15 +21,15 @@ final class Lrclib {
 
     private Lrclib() {}
 
-    static CoreBridge.Lyrics find(String title, String artist, long durationMs) throws Exception {
+    static Lyrics find(String title, String artist, long durationMs) throws Exception {
         if (title == null || title.isEmpty()) return null;
-        CoreBridge.Lyrics got = search(title, artist, durationMs);
+        Lyrics got = search(title, artist, durationMs);
         // Several artists arrive joined ("A, B"); LRCLIB usually files the song under the first.
         int comma = artist == null ? -1 : artist.indexOf(", ");
         return got != null || comma <= 0 ? got : search(title, artist.substring(0, comma), durationMs);
     }
 
-    private static CoreBridge.Lyrics search(String title, String artist, long durationMs) throws Exception {
+    private static Lyrics search(String title, String artist, long durationMs) throws Exception {
         String url = "https://lrclib.net/api/search?track_name=" + URLEncoder.encode(title, "UTF-8")
             + (artist == null || artist.isEmpty() ? "" : "&artist_name=" + URLEncoder.encode(artist, "UTF-8"));
         HttpURLConnection c = (HttpURLConnection) new java.net.URL(url).openConnection();
@@ -48,7 +48,7 @@ final class Lrclib {
     }
 
     /** The best match: word-timed, then line-timed, then plain lyrics, then the closest length; none if no length is close enough. */
-    static CoreBridge.Lyrics pick(JSONArray results, long durationMs) {
+    static Lyrics pick(JSONArray results, long durationMs) {
         JSONObject best = null;
         long bestScore = Long.MAX_VALUE;
         for (int i = 0; i < results.length(); i++) {
@@ -64,10 +64,10 @@ final class Lrclib {
             if (score < bestScore) { bestScore = score; best = r; }
         }
         if (best == null) return null;
-        CoreBridge.Lyrics timed = best.optBoolean("hasWordSync") && !best.isNull("lyricsfile") ? wordSynced(best.optString("lyricsfile", "")) : null;
+        Lyrics timed = best.optBoolean("hasWordSync") && !best.isNull("lyricsfile") ? wordSynced(best.optString("lyricsfile", "")) : null;
         if (timed != null && timed.words.length > 0) return timed;
         String synced = best.isNull("syncedLyrics") ? "" : best.optString("syncedLyrics", "");
-        CoreBridge.Lyrics out = synced.trim().isEmpty() ? plain(best.optString("plainLyrics", "")) : synced(synced, durationMs);
+        Lyrics out = synced.trim().isEmpty() ? plain(best.optString("plainLyrics", "")) : synced(synced, durationMs);
         return out == null || out.words.length == 0 ? null : out;
     }
 
@@ -76,7 +76,7 @@ final class Lrclib {
      * end_ms and a `words:` list of {text, start_ms}. Read line by line, since the layout is fixed; anything unexpected
      * returns null and the caller falls back to the line-timed lyrics.
      */
-    static CoreBridge.Lyrics wordSynced(String file) {
+    static Lyrics wordSynced(String file) {
         ArrayList<String[]> lines = new ArrayList<>(); // text, start, end
         ArrayList<ArrayList<String[]>> words = new ArrayList<>(); // text, start
         String[] word = null;
@@ -102,7 +102,7 @@ final class Lrclib {
             int slot = key.equals("text") ? 0 : key.equals("start_ms") ? 1 : key.equals("end_ms") && !ofWord ? 2 : -1;
             if (slot >= 0) into[slot] = value;
         }
-        CoreBridge.Lyrics out = new CoreBridge.Lyrics(lines.size());
+        Lyrics out = new Lyrics(lines.size());
         try {
             for (int i = 0; i < lines.size(); i++) {
                 String[] l = lines.get(i);
@@ -153,7 +153,7 @@ final class Lrclib {
     }
 
     /** "[mm:ss.xx] words" lines; one line may carry several stamps when a chorus repeats. Ends are the next line's start. */
-    static CoreBridge.Lyrics synced(String lrc, long durationMs) {
+    static Lyrics synced(String lrc, long durationMs) {
         ArrayList<long[]> times = new ArrayList<>();
         ArrayList<String> words = new ArrayList<>();
         for (String line : lrc.split("\r?\n")) {
@@ -168,7 +168,7 @@ final class Lrclib {
             for (long at : stamps) { times.add(new long[] { at, words.size() }); words.add(text.isEmpty() ? "♪" : text); }
         }
         times.sort((a, b) -> Long.compare(a[0], b[0]));
-        CoreBridge.Lyrics out = new CoreBridge.Lyrics(times.size());
+        Lyrics out = new Lyrics(times.size());
         for (int i = 0; i < times.size(); i++) {
             out.words[i] = words.get((int) times.get(i)[1]);
             out.starts[i] = times.get(i)[0];
@@ -178,11 +178,11 @@ final class Lrclib {
     }
 
     /** Untimed lyrics: one row per line, all times 0, which the screens show as a plain scrolling page. */
-    static CoreBridge.Lyrics plain(String text) {
+    static Lyrics plain(String text) {
         ArrayList<String> lines = new ArrayList<>();
         for (String line : text.split("\r?\n")) lines.add(line.trim());
         while (!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) lines.remove(lines.size() - 1);
-        CoreBridge.Lyrics out = new CoreBridge.Lyrics(lines.size());
+        Lyrics out = new Lyrics(lines.size());
         for (int i = 0; i < lines.size(); i++) out.words[i] = lines.get(i);
         return out;
     }

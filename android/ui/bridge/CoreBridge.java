@@ -290,23 +290,6 @@ public final class CoreBridge implements Transport {
         }
     }
 
-    /** One song's lyrics: the text of each line and when it starts and ends (ms; all 0 when the lyrics aren't time-synced). */
-    public static final class Lyrics {
-        public final String[] words;
-        public final long[] starts, ends;
-        /** Per line, when the source times each word: where each word starts in the line's text, and when it is sung (ms). Null for a line without word timing. */
-        public final int[][] wordAt;
-        public final long[][] wordStart;
-        /** Made on the phone by {@link LyricGen}, not from a lyrics service: shown with a note that it may be wrong. */
-        public boolean generated;
-        Lyrics(int n) { words = new String[n]; starts = new long[n]; ends = new long[n]; wordAt = new int[n][]; wordStart = new long[n][]; }
-        boolean wordSynced() { for (int[] w : wordAt) if (w != null) return true; return false; }
-    }
-
-    /**
-     * A song's lyrics; `id` is the base62 track id. The app's proto classes have no readable getters (obfuscated), but
-     * their field names survive, so the lines are read from lyrics_.lines_[].words_ / startTimeMs_.
-     */
     /**
      * A song's lyrics: Spotify's first, then LRCLIB (free, keyless) when Spotify has none and the setting allows, then
      * the copy saved on the phone the last time either answered. If all three come up empty, Spotify's own error is
@@ -318,7 +301,7 @@ public final class CoreBridge implements Transport {
             Lyrics got = spotifyLyrics(id);
             if (got.words.length > 0) {
                 // Spotify mostly times whole lines; LRCLIB often has the same song timed word by word, which is preferred.
-                android.content.SharedPreferences p = prefs;
+                android.content.SharedPreferences p = Lyrics.prefs;
                 if (!got.wordSynced() && got.starts[got.starts.length - 1] > 0 && (p == null || p.getBoolean("lrclib_lyrics", true))) {
                     try {
                         Lyrics words = Lrclib.find(title, artist, durationMs);
@@ -327,30 +310,34 @@ public final class CoreBridge implements Transport {
                         android.util.Log.w("CoreBridge", "lrclib word timing failed", failed);
                     }
                 }
-                saveLyrics(id, got);
+                Lyrics.save(id, got);
                 return got;
             }
             spotify = new IllegalStateException("HTTP 404 empty lyrics");
         } catch (Exception failed) {
             spotify = failed;
         }
-        android.content.SharedPreferences p = prefs;
+        android.content.SharedPreferences p = Lyrics.prefs;
         if (p == null || p.getBoolean("lrclib_lyrics", true)) {
             try {
                 Lyrics got = Lrclib.find(title, artist, durationMs);
-                if (got != null) { saveLyrics(id, got); return got; }
+                if (got != null) { Lyrics.save(id, got); return got; }
             } catch (Exception failed) {
                 android.util.Log.w("CoreBridge", "lrclib failed", failed);
             }
         }
-        Lyrics saved = savedLyrics(id);
+        Lyrics saved = Lyrics.saved(id);
         if (saved != null) return saved;
         LyricGen.want(id); // no service has this song: the experimental generator may listen for it
-        Lyrics made = savedGenerated(id);
+        Lyrics made = Lyrics.savedGenerated(id);
         if (made != null) return made;
         throw spotify;
     }
 
+    /**
+     * Spotify's lyrics endpoint; `id` is the base62 track id. The app's proto classes have no readable getters
+     * (obfuscated), but their field names survive, so the lines are read from lyrics_.lines_[].words_ / startTimeMs_.
+     */
     private static Lyrics spotifyLyrics(String id) throws Exception {
         Object reply;
         try {
@@ -383,98 +370,6 @@ public final class CoreBridge implements Transport {
             }
         }
         return out;
-    }
-
-    /** The UI's settings, so the bridge can honour the lyrics fallback toggle (set by the UI). */
-    static volatile android.content.SharedPreferences prefs;
-    /** Where every song's last-found lyrics are kept, in app files rather than cache so Android doesn't clear them (set by the UI). */
-    static volatile java.io.File lyricsDir;
-
-    private static java.io.File lyricsFile(String id) { return lyricsFile(id, ""); }
-
-    private static java.io.File lyricsFile(String id, String suffix) {
-        java.io.File dir = lyricsDir;
-        return dir == null || id == null || !id.matches("[A-Za-z0-9]{1,64}") ? null : new java.io.File(dir, id + suffix);
-    }
-
-    /** Generated lyrics live beside the real ones (".gen"), with the song ranges already heard (".cover", "from-to" lines). */
-    static void saveGenerated(String id, Lyrics l, java.util.List<long[]> covered) {
-        java.io.File file = lyricsFile(id, ".gen"), cover = lyricsFile(id, ".cover");
-        if (file == null) return;
-        saveLyrics(file, l);
-        StringBuilder ranges = new StringBuilder();
-        for (long[] r : covered) ranges.append(r[0]).append('-').append(r[1]).append('\n');
-        try { java.nio.file.Files.write(cover.toPath(), ranges.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
-        catch (java.io.IOException failed) { android.util.Log.w("CoreBridge", "saving lyric coverage failed", failed); }
-    }
-
-    static Lyrics savedGenerated(String id) {
-        Lyrics l = readLyrics(lyricsFile(id, ".gen"));
-        if (l != null) l.generated = true;
-        return l;
-    }
-
-    static java.util.List<long[]> savedCoverage(String id) {
-        java.util.List<long[]> out = new java.util.ArrayList<>();
-        java.io.File cover = lyricsFile(id, ".cover");
-        if (cover == null || !cover.isFile()) return out;
-        try {
-            for (String line : java.nio.file.Files.readAllLines(cover.toPath())) {
-                String[] r = line.split("-");
-                if (r.length == 2) out.add(new long[] { Long.parseLong(r[0]), Long.parseLong(r[1]) });
-            }
-        } catch (java.io.IOException | NumberFormatException damaged) { /* start over */ }
-        return out;
-    }
-
-    // shortcut: saved lyrics are never pruned; a few KB per song, add pruning if the folder ever grows large.
-    private static void saveLyrics(String id, Lyrics l) { saveLyrics(lyricsFile(id), l); }
-
-    private static void saveLyrics(java.io.File file, Lyrics l) {
-        if (file == null) return;
-        try {
-            java.io.File part = java.io.File.createTempFile(file.getName(), ".part", file.getParentFile());
-            try {
-                try (java.io.DataOutputStream out = new java.io.DataOutputStream(new java.io.BufferedOutputStream(new java.io.FileOutputStream(part)))) {
-                    out.writeInt(l.words.length);
-                    for (int i = 0; i < l.words.length; i++) { out.writeUTF(l.words[i] == null ? "" : l.words[i]); out.writeLong(l.starts[i]); out.writeLong(l.ends[i]); }
-                    // Word timing follows the lines, so copies saved before it existed still read.
-                    for (int i = 0; i < l.words.length; i++) {
-                        int k = l.wordAt[i] == null ? 0 : l.wordAt[i].length;
-                        out.writeInt(k);
-                        for (int w = 0; w < k; w++) { out.writeInt(l.wordAt[i][w]); out.writeLong(l.wordStart[i][w]); }
-                    }
-                }
-                part.renameTo(file);
-            } finally {
-                part.delete();
-            }
-        } catch (java.io.IOException failed) {
-            android.util.Log.w("CoreBridge", "saving lyrics failed", failed);
-        }
-    }
-
-    static Lyrics savedLyrics(String id) { return readLyrics(lyricsFile(id)); }
-
-    private static Lyrics readLyrics(java.io.File file) {
-        if (file == null || !file.isFile()) return null;
-        try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.BufferedInputStream(new java.io.FileInputStream(file)))) {
-            int n = in.readInt();
-            if (n <= 0 || n > 10000) return null;
-            Lyrics out = new Lyrics(n);
-            for (int i = 0; i < n; i++) { out.words[i] = in.readUTF(); out.starts[i] = in.readLong(); out.ends[i] = in.readLong(); }
-            if (in.available() > 0) for (int i = 0; i < n; i++) {
-                int k = in.readInt();
-                if (k < 0 || k > 1000) return out;
-                if (k == 0) continue;
-                out.wordAt[i] = new int[k];
-                out.wordStart[i] = new long[k];
-                for (int w = 0; w < k; w++) { out.wordAt[i][w] = in.readInt(); out.wordStart[i][w] = in.readLong(); }
-            }
-            return out;
-        } catch (java.io.IOException damaged) {
-            return null;
-        }
     }
 
     private static Object field(Object owner, String name) throws ReflectiveOperationException {

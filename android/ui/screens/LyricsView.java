@@ -21,7 +21,7 @@ final class LyricsView {
     private LinearLayout pLyric;
     private String lyricsUri = "", lyricKey = "";
     private boolean lyricShown;
-    private CoreBridge.Lyrics lyricsData;
+    private Lyrics lyricsData;
 
     FrameLayout panel;
     private Backdrop lyricsBackdrop;
@@ -131,15 +131,15 @@ final class LyricsView {
                 String track = forUri.substring(forUri.lastIndexOf(':') + 1), songTitle = ui.title, songArtist = ui.artist;
                 long songLength = ui.duration;
                 ui.submit(SpatchUi.ART, () -> {
-                    CoreBridge.Lyrics got = null;
+                    Lyrics got = null;
                     try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); } catch (Throwable none) { /* no lyrics, or offline: the lines just stay empty */ }
-                    CoreBridge.Lyrics found = got;
+                    Lyrics found = got;
                     ui.post(() -> { if (forUri.equals(lyricsUri)) lyricsData = found; });
                 });
             }
         }
         String[] want = { "", "", "" };
-        CoreBridge.Lyrics l = lyricsData;
+        Lyrics l = lyricsData;
         boolean visible = false;
         int current = -1;
         long now = ui.playhead();
@@ -181,7 +181,7 @@ final class LyricsView {
     }
 
     /** Keeps a long single-line lyric smoothly scrolled to the active word (or playhead fraction) without ellipsizing it. */
-    private boolean followLyricScroll(TextView view, CoreBridge.Lyrics l, int line, long now, boolean walking) {
+    private boolean followLyricScroll(TextView view, Lyrics l, int line, long now, boolean walking) {
         android.text.Layout layout = view.getLayout();
         if (layout == null || layout.getLineCount() == 0) return false;
         int avail = view.getWidth() - view.getPaddingLeft() - view.getPaddingRight();
@@ -244,7 +244,7 @@ final class LyricsView {
      * lifts and glows (a long held note's glow swells while it lasts) and the word just left settles back. Returns how
      * soon to look again: every frame while something moves, else 40 ms.
      */
-    long walkWords(TextView view, CoreBridge.Lyrics l, int line, long now, int ink) {
+    long walkWords(TextView view, Lyrics l, int line, long now, int ink) {
         Walk w = walks.computeIfAbsent(view, v -> new Walk());
         int[] at = l.wordAt[line];
         long[] when = l.wordStart[line];
@@ -319,7 +319,7 @@ final class LyricsView {
     }
 
     /** How much of a word-timed line has been sung: the text offset where the first word not yet reached begins. */
-    static int sungUpTo(CoreBridge.Lyrics l, int line, long now) {
+    static int sungUpTo(Lyrics l, int line, long now) {
         int[] at = l.wordAt[line];
         long[] when = l.wordStart[line];
         String text = l.words[line] == null ? "" : l.words[line];
@@ -410,7 +410,7 @@ final class LyricsView {
         scroll.addView(lines, new ScrollView.LayoutParams(-1, -2));
         host.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
         ui.submit(SpatchUi.ART, () -> {
-            CoreBridge.Lyrics got = null;
+            Lyrics got = null;
             boolean missing = false;
             try { got = CoreBridge.lyrics(track, songTitle, songArtist, songLength); }
             catch (Throwable failed) {
@@ -418,7 +418,7 @@ final class LyricsView {
                 if (String.valueOf(failed.getMessage()).contains("HTTP 404")) missing = true;
                 else android.util.Log.w("SpatchUi", "lyrics failed", failed);
             }
-            CoreBridge.Lyrics found = got;
+            Lyrics found = got;
             String empty = missing ? "No lyrics for this song" : "Lyrics aren’t available right now",
                 hint = !missing ? "Try again in a moment" : LyricGen.enabled() ? "Being written on this phone as the song plays; they’ll be here next time" : null;
             ui.post(() -> {
@@ -493,7 +493,7 @@ final class LyricsView {
         ui.prefs.edit().putLong("lyric_offset_" + track, next).apply();
     }
 
-    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, CoreBridge.Lyrics lyrics, int[] shown, long[] touched) {
+    private void syncLyrics(java.util.function.BooleanSupplier alive, ScrollView scroll, TextView[] views, Lyrics lyrics, int[] shown, long[] touched) {
         if (!alive.getAsBoolean()) return;
         long[] starts = lyrics.starts;
         if (shown[0] == -2 && (scroll.getHeight() == 0 || views[0].getHeight() == 0)) { // not laid out yet: the centring needs real sizes
