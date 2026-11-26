@@ -257,7 +257,6 @@ final class PlayerScreen {
         boolean walking = visible && current >= 0 && l.wordAt[current] != null;
         if (visible && !key.equals(lyricKey)) {
             lyricKey = key;
-            lyricSung = -1;
             for (int i = 0; i < 3; i++) rows[i].setText(want[i]);
             float[] from = { 1f, .38f, 0f }, to = { .38f, 1f, .38f };
             if (ui.motion() && !want[1].isEmpty()) {
@@ -272,14 +271,80 @@ final class PlayerScreen {
                 for (int i = 0; i < 3; i++) { rows[i].setAlpha(to[i]); rows[i].setTranslationY(0); }
             }
         }
-        if (walking) {
-            int upTo = sungUpTo(l, current, now);
-            if (upTo != lyricSung) { lyricSung = upTo; rows[1].setText(sungWords(want[1], upTo, rows[1].getCurrentTextColor())); }
-        }
-        box.postDelayed(() -> playerLyrics(box), walking ? 40 : 250); // word timing needs a quicker look, only while a timed line is sung
+        long next = walking ? walkWords(rows[1], l, current, now, rows[1].getCurrentTextColor()) : 250;
+        box.postDelayed(() -> playerLyrics(box), next);
     }
 
-    private int lyricSung = -1;
+    /**
+     * The word being sung: raised a couple of pixels and glowing in the accent. Only how it's drawn changes (no new
+     * metrics), so moving it repaints the line without laying it out again.
+     */
+    static final class SungWord extends android.text.style.CharacterStyle implements android.text.style.UpdateAppearance {
+        float lift, glow;
+        int accent;
+        @Override public void updateDrawState(android.text.TextPaint tp) {
+            tp.baselineShift -= Math.round(lift);
+            if (glow > .5f) tp.setShadowLayer(glow, 0, 0, accent);
+        }
+    }
+
+    /** Per lyric line view: the spans of the word arriving and the word leaving, and which word they were built for. */
+    private static final class Walk {
+        final SungWord arriving = new SungWord(), leaving = new SungWord();
+        int line = -1, word = -2;
+        long leftAt;
+        float leftLift, leftGlow; // where the leaving word was when the next one began
+    }
+
+    private final java.util.WeakHashMap<TextView, Walk> walks = new java.util.WeakHashMap<>();
+
+    /**
+     * Walks the highlight along a word-timed line: words already sung are full ink, the rest dimmed, the word being sung
+     * lifts and glows (a long held note's glow swells while it lasts) and the word just left settles back. Returns how
+     * soon to look again: every frame while something moves, else 40 ms.
+     */
+    long walkWords(TextView view, CoreBridge.Lyrics l, int line, long now, int ink) {
+        Walk w = walks.computeIfAbsent(view, v -> new Walk());
+        int[] at = l.wordAt[line];
+        long[] when = l.wordStart[line];
+        String text = l.words[line] == null ? "" : l.words[line];
+        int k = -1;
+        for (int i = 0; i < at.length && i < when.length && when[i] <= now; i++) k = i;
+        if (w.line != line || w.word != k) {
+            int before = w.line == line ? w.word : -1;
+            w.line = line;
+            w.word = k;
+            w.leftAt = SystemClock.uptimeMillis();
+            android.text.SpannableString s = new android.text.SpannableString(text);
+            int sung = k < 0 ? 0 : k + 1 < at.length ? Math.min(at[k + 1], text.length()) : text.length();
+            if (sung < text.length()) s.setSpan(new android.text.style.ForegroundColorSpan((ink & 0x00ffffff) | 0x5c000000), sung, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (k >= 0 && at[k] < sung) s.setSpan(w.arriving, at[k], sung, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            boolean settle = before >= 0 && before < k && at[before] < at[k];
+            if (settle) s.setSpan(w.leaving, at[before], at[before + 1], android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            w.leftLift = settle ? w.arriving.lift : 0;
+            w.leftGlow = settle ? w.arriving.glow : 0;
+            w.arriving.lift = w.arriving.glow = 0;
+            view.setText(s);
+        }
+        boolean motion = ui.motion();
+        float rise = ui.dp(2.5f), shine = ui.dp(4); // at most 8 dp of glow: inside a lyric line's padding
+        long since = k < 0 ? 0 : now - when[k];
+        long held = k < 0 ? 0 : (k + 1 < when.length ? when[k + 1] : l.ends[line]) - when[k];
+        float up = !motion ? 1f : Math.min(1f, since / 160f);
+        up = 1f - (1f - up) * (1f - up) * (1f - up); // ease out: quick to rise, gentle to land
+        // A held note (over 0.6 s) keeps swelling until its end; a quick word just lifts and glows.
+        float swell = held > 600 ? Math.min(1f, since / (float) held) : 0f;
+        w.arriving.accent = (ui.accent & 0x00ffffff) | 0xd0000000;
+        w.arriving.lift = k < 0 ? 0 : rise * up * (1f + .4f * swell);
+        w.arriving.glow = k < 0 ? 0 : shine * up * (1f + swell);
+        float down = !motion ? 1f : Math.min(1f, (SystemClock.uptimeMillis() - w.leftAt) / 200f);
+        w.leaving.accent = w.arriving.accent;
+        w.leaving.lift = w.leftLift * (1f - down);
+        w.leaving.glow = w.leftGlow * (1f - down);
+        view.invalidate();
+        boolean moving = motion && (up < 1f || down < 1f || (swell > 0f && swell < 1f));
+        return moving ? 16 : 40;
+    }
 
     /** How much of a word-timed line has been sung: the text offset where the first word not yet reached begins. */
     static int sungUpTo(CoreBridge.Lyrics l, int line, long now) {
@@ -289,14 +354,6 @@ final class PlayerScreen {
         int upTo = 0;
         for (int w = 0; w < at.length && w < when.length && when[w] <= now; w++) upTo = w + 1 < at.length ? at[w + 1] : text.length();
         return Math.max(0, Math.min(upTo, text.length()));
-    }
-
-    /** A line with the words still to come dimmed, so the highlight walks along it word by word as they are sung. */
-    static CharSequence sungWords(String text, int upTo, int color) {
-        if (text == null || upTo >= text.length()) return text;
-        android.text.SpannableString s = new android.text.SpannableString(text);
-        s.setSpan(new android.text.style.ForegroundColorSpan((color & 0x00ffffff) | 0x5c000000), Math.max(0, upTo), text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        return s;
     }
 
     // Optional idle chrome: the top bar, controls and Next-up pill fade out after a quiet spell while music plays.
@@ -458,8 +515,9 @@ final class PlayerScreen {
             rows[0].setVisibility(shownLines >= 3 ? View.VISIBLE : View.GONE);
             rows[2].setVisibility(shownLines >= 2 ? View.VISIBLE : View.GONE);
             box.setTag(rows);
-            box.setClipChildren(true);
-            // Its rows slide inside it; it clips them to its own card, since the column around it no longer clips (for the visualizer glow).
+            // Its rows slide inside it; the card's outline clips them (the column around it no longer clips, for the
+            // visualizer glow), and rows aren't clipped one by one so the sung word's glow can spill into the padding.
+            box.setClipChildren(false);
             box.setClipToOutline(true);
             // The lines sit on a quiet glass card (rounded, a touch lighter than the backdrop) so they read as a part of the player.
             box.setPadding(ui.dp(20), ui.dp(14), ui.dp(20), ui.dp(14));
@@ -1185,12 +1243,9 @@ final class PlayerScreen {
             }
         }
         boolean walking = current >= 0 && lyrics.wordAt[current] != null;
-        if (walking) {
-            int upTo = sungUpTo(lyrics, current, now);
-            if (upTo != shown[1]) { shown[1] = upTo; views[current].setText(sungWords(lyrics.words[current], upTo, ui.ink)); }
-        }
+        long next = walking ? walkWords(views[current], lyrics, current, now, ui.ink) : 250;
         focusLyrics(views, current, shown, SystemClock.uptimeMillis() - touched[0] < 4000);
-        ui.postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), walking ? 40 : 250);
+        ui.postDelayed(() -> syncLyrics(alive, scroll, views, lyrics, shown, touched), next);
     }
 
     private final android.graphics.RenderEffect[] lyricBlurs = new android.graphics.RenderEffect[5];
