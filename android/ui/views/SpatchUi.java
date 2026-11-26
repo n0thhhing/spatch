@@ -68,7 +68,7 @@ public final class SpatchUi extends FrameLayout {
     private static native float nativePlaybackSpeed();
     static native int nativeVolume();
     static native String nativeSetVolume(int level);
-    private static native String[] nativeConnection();
+    static native String[] nativeConnection();
     static native byte[] nativeSearch(String query);
     static native byte[] nativeCatalog(byte[] response);
     private static native void nativeDownloadsStart();
@@ -97,7 +97,7 @@ public final class SpatchUi extends FrameLayout {
     static native int nativeSaved(String uri);
     static native boolean nativeSave(String uri, boolean save);
     static native float[] nativeGeometry(String kind);
-    private static native String[] nativeProfile();
+    static native String[] nativeProfile();
     static native String[] nativeCreatePlaylist(String name, String description, boolean fromQueue);
     static native String nativeAddToPlaylist(String playlistUri, String[] uris);
 
@@ -146,6 +146,7 @@ public final class SpatchUi extends FrameLayout {
     final Dock dockUi = new Dock(this);
     final Controls controls = new Controls(this);
     final Downloads downloadsScreen = new Downloads(this);
+    final ProfileScreen profileScreen = new ProfileScreen(this);
     final ArtworkViews artwork = new ArtworkViews(this);
     final Activity activity;
     private final float density;
@@ -166,13 +167,6 @@ public final class SpatchUi extends FrameLayout {
     int settingsSection = -1;
     final java.util.ArrayDeque<Integer> tabHistory = new java.util.ArrayDeque<>();
     android.widget.PopupWindow accountMenu;
-    private String profileName = "", profileUsername = "", profileImage = "", profileUri = "", profileError = "";
-    private boolean profileLoading, profileAnnounce;
-    private long profileAt, profileStartedAt;
-    private int profileTicket, profileAttempts;
-    /** Asks again for the account until it's known (the library, which it's learned from, may not be ready yet). */
-    private final Runnable profileRetry = () -> loadProfile(true);
-    private final Set<Art> avatars = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     MediaEntry playlist;
     List<MediaEntry> playlistTracks = new ArrayList<>();
     boolean playerOpen;
@@ -249,10 +243,7 @@ public final class SpatchUi extends FrameLayout {
             prefs.edit().remove("profile_name").remove("profile_user").remove("profile_image").remove("profile_uri").apply();
         }
         // Last launch's account shows at once; the real lookup (which needs the library) replaces it.
-        profileName = prefs.getString("profile_name", "");
-        profileUsername = prefs.getString("profile_user", "");
-        profileImage = prefs.getString("profile_image", "");
-        profileUri = prefs.getString("profile_uri", "");
+        profileScreen.loadSaved();
         Audio.initialize(activity.getApplicationContext(), prefs);
         java.io.File covers = new java.io.File(activity.getCacheDir(), "covers");
         covers.mkdirs();
@@ -818,7 +809,7 @@ public final class SpatchUi extends FrameLayout {
         super.onWindowVisibilityChanged(visibility);
         removeCallbacks(syncPush);
         removeCallbacks(poll);
-        removeCallbacks(profileRetry);
+        removeCallbacks(profileScreen.profileRetry);
         if (visibility == VISIBLE && isAttachedToWindow()) {
             activeUi = new java.lang.ref.WeakReference<>(this);
             nativeAttachUi();
@@ -826,7 +817,7 @@ public final class SpatchUi extends FrameLayout {
                 libraryRetry = 0;
                 lastConnect = 0;
             }
-            if (profileUsername.isEmpty() || (!profileError.isEmpty() && profileAttempts < 12)) loadProfile(true);
+            if (profileScreen.profileUsername.isEmpty() || (!profileScreen.profileError.isEmpty() && profileScreen.profileAttempts < 12)) profileScreen.loadProfile(true);
             post(poll);
         }
     }
@@ -847,12 +838,12 @@ public final class SpatchUi extends FrameLayout {
         if (ref != null && ref.get() == this) activeUi = null;
         playlistRequest++;
         searchScreen.searchRequest++;
-        profileTicket++;
-        profileLoading = false;
+        profileScreen.profileTicket++;
+        profileScreen.profileLoading = false;
         if (watchingPlaylist) { watchingPlaylist = false; WATCHES.execute(SpatchUi::nativeStopPlaylist); }
         removeCallbacks(syncPush);
         removeCallbacks(poll);
-        removeCallbacks(profileRetry);
+        removeCallbacks(profileScreen.profileRetry);
         if (paletteAnim != null) { paletteAnim.cancel(); paletteAnim = null; }
         super.onDetachedFromWindow();
     }
@@ -1011,7 +1002,7 @@ public final class SpatchUi extends FrameLayout {
                     libraryLoadedAt = SystemClock.uptimeMillis() - (cached ? 90_000 : 0);
                     libraryStatus = "Nothing saved here yet";
                     // The username is learned from the library, so ask again now that it's here.
-                    if (profileUsername.isEmpty()) loadProfile(true);
+                    if (profileScreen.profileUsername.isEmpty()) profileScreen.loadProfile(true);
                     if (!downloadsScreen.downloadsStarted) {
                         downloadsScreen.downloadsStarted = true;
                         submit(PLAYLISTS, SpatchUi::nativeDownloadsStart);
@@ -1281,16 +1272,39 @@ public final class SpatchUi extends FrameLayout {
         return android.os.Build.VERSION.SDK_INT >= 30 ? open : focused instanceof android.widget.EditText;
     }
 
+    void onText(android.widget.EditText field, java.util.function.Consumer<String> then) {
+        field.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable e) { then.accept(e.toString()); }
+        });
+    }
+
     /** An × at the end of a search box, shown once there's text, that empties it. */
     void clearButton(LinearLayout box, android.widget.EditText field) {
         View clear = iconButton(icon("close", () -> inkDim), "Clear search", () -> field.setText(""));
         clear.setVisibility(field.length() > 0 ? VISIBLE : GONE);
-        field.addTextChangedListener(new android.text.TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void afterTextChanged(android.text.Editable e) { clear.setVisibility(e.length() > 0 ? VISIBLE : GONE); }
-        });
+        onText(field, t -> clear.setVisibility(t.isEmpty() ? GONE : VISIBLE));
         box.addView(clear, lp(dp(40), dp(40)));
+    }
+
+    android.widget.EditText searchBox(LinearLayout row, String hint, String value, int textSp, int heightDp) {
+        boolean compact = textSp < 16;
+        row.setPadding(dp(compact ? 14 : 16), 0, dp(compact ? 6 : 8), 0);
+        bgRound(row, 26, () -> surf);
+        int iconDp = compact ? 19 : 22;
+        row.addView(icon("search", () -> inkDim), lp(dp(iconDp), dp(iconDp)));
+        android.widget.EditText field = new android.widget.EditText(activity);
+        field.setBackground(null);
+        field.setHint(hint);
+        colored(field, () -> { field.setHintTextColor(inkDim); field.setTextColor(ink); });
+        field.setTextSize(textSp);
+        field.setSingleLine(true);
+        field.setPadding(dp(compact ? 10 : 12), 0, dp(4), 0);
+        field.setText(value);
+        row.addView(field, new LinearLayout.LayoutParams(0, dp(heightDp), 1));
+        clearButton(row, field);
+        return field;
     }
 
     // Spotify's downloads live in its core (Offline service); Rust follows them and these screens show them.
@@ -1336,92 +1350,12 @@ public final class SpatchUi extends FrameLayout {
         head.addView(space(dp(12), 1));
         FrameLayout account = new FrameLayout(activity);
         bgRound(account, 24, () -> surfHi);
-        account.addView(profilePhoto(), new LayoutParams(-1, -1));
+        account.addView(profileScreen.profilePhoto(), new LayoutParams(-1, -1));
         tappable(account, "Account menu", () -> accountMenu(account));
         head.addView(account, lp(dp(42), dp(42)));
         page.addView(head, fill(-2));
-        loadProfile(false);
+        profileScreen.loadProfile(false);
         return label;
-    }
-
-    private Art profilePhoto() {
-        Art photo = artwork.new Art(Art.CIRCLE, false);
-        photo.letter = initial(profileName.isEmpty() ? profileUsername.isEmpty() ? "You" : profileUsername : profileName);
-        photo.bind(profileImage);
-        avatars.add(photo);
-        return photo;
-    }
-
-    /** A short "updated Xs/Xm/Xh ago" style label from an `uptimeMillis()` timestamp. */
-    private static String ago(long at) {
-        long secs = (SystemClock.uptimeMillis() - at) / 1000;
-        if (secs < 5) return "just now";
-        if (secs < 60) return secs + "s ago";
-        long mins = secs / 60;
-        if (mins < 60) return mins + "m ago";
-        return (mins / 60) + "h ago";
-    }
-
-    private void loadProfile(boolean force) {
-        if (closed) return;
-        long now = SystemClock.uptimeMillis();
-        // A load that has hung for 20 s no longer blocks a new one (it used to, so Refresh did nothing).
-        boolean hung = profileLoading && now - profileStartedAt > 20_000;
-        if (profileLoading && !hung) return;
-        if (!force && profileAt != 0 && now - profileAt < (profileUsername.isEmpty() ? 5_000 : 60_000)) return;
-        removeCallbacks(profileRetry);
-        profileLoading = true;
-        profileStartedAt = now;
-        final int ticket = ++profileTicket;
-        submit(PLAYLISTS, () -> {
-            String[] result;
-            try { result = nativeProfile(); }
-            catch (RuntimeException | LinkageError failed) { result = new String[]{"", "", "", "", failed.toString()}; }
-            final String[] info = result;
-            post(() -> {
-                if (closed || ticket != profileTicket) return; // a newer load or detach took over
-                profileLoading = false;
-                profileAt = SystemClock.uptimeMillis();
-                if (info != null && info.length >= 5) {
-                    boolean fallback = !info[4].isEmpty();
-                    if (!info[1].isEmpty()) {
-                        // A failed profile fetch falls back to the username; keep the saved name/photo for that account,
-                        // but let a successful fetch update or clear them, and give a newly discovered username fresh retries.
-                        boolean same = info[1].equals(profileUsername);
-                        if (!same) profileAttempts = 0;
-                        String image = fallback && info[2].isEmpty() && same ? profileImage : info[2];
-                        String name = fallback && same && !profileName.isEmpty() && info[0].equals(info[1]) ? profileName : info[0];
-                        profileName = name; profileUsername = info[1]; profileImage = image; profileUri = info[3];
-                        prefs.edit().putString("profile_name", profileName).putString("profile_user", profileUsername)
-                            .putString("profile_image", profileImage).putString("profile_uri", profileUri).apply();
-                    }
-                    // A failed lookup never blanks the account saved from last time.
-                    profileError = !fallback && info[1].isEmpty() ? "Profile information is not available yet" : info[4];
-                    if (!profileError.isEmpty() && profileUsername.isEmpty()) profileName = "";
-                    for (Art photo : avatars) {
-                        photo.letter = initial(profileName.isEmpty() ? profileUsername.isEmpty() ? "You" : profileUsername : profileName);
-                        photo.bind(profileImage);
-                        photo.invalidate();
-                    }
-                } else profileError = "Profile information is not available yet";
-                if (!profileError.isEmpty() && (profileUsername.isEmpty() || profileAttempts < 12)) {
-                    // Keep trying with a growing pause: 2, 4, 8, 16, then every 30 seconds (twelve times if the
-                    // saved account is already showing).
-                    profileAttempts++;
-                    if (isAttachedToWindow() && getWindowVisibility() == VISIBLE) {
-                        postDelayed(profileRetry, Math.min(30_000, 2_000L << Math.min(profileAttempts - 1, 4)));
-                    }
-                } else if (profileError.isEmpty()) profileAttempts = 0;
-                if (profileAnnounce) {
-                    profileAnnounce = false;
-                    String msg = profileUsername.isEmpty()
-                        ? "Couldn’t read your account yet. Spatch will keep trying."
-                        : profileError.isEmpty() ? "Signed in as @" + profileUsername : "Couldn’t refresh profile: " + profileError;
-                    toast(msg);
-                }
-                if (tab == PROFILE && playlist == null) showPage();
-            });
-        });
     }
 
     private void accountMenu(View anchor) {
@@ -1431,30 +1365,36 @@ public final class SpatchUi extends FrameLayout {
         menu.setPadding(dp(8), dp(8), dp(8), dp(8));
         LinearLayout identity = row();
         identity.setPadding(dp(10), dp(10), dp(10), dp(14));
-        identity.addView(profilePhoto(), lp(dp(42), dp(42)));
+        identity.addView(profileScreen.profilePhoto(), lp(dp(42), dp(42)));
         LinearLayout words = column();
         words.setPadding(dp(12), 0, 0, 0);
-        TextView accountName = text(profileName.isEmpty() ? "Your account" : profileName, 16, () -> ink, true);
-        TextView accountHandle = text(profileUsername.isEmpty() ? "Spotify profile" : "@" + profileUsername, 12, () -> inkDim, false);
+        TextView accountName = text(profileScreen.profileName.isEmpty() ? "Your account" : profileScreen.profileName, 16, () -> ink, true);
+        TextView accountHandle = text(profileScreen.profileUsername.isEmpty() ? "Spotify profile" : "@" + profileScreen.profileUsername, 12, () -> inkDim, false);
         oneLine(accountName);
         oneLine(accountHandle);
         words.addView(accountName);
         words.addView(accountHandle);
         identity.addView(words, weight());
         menu.addView(identity, fill(-2));
-        android.widget.PopupWindow popup = new android.widget.PopupWindow(menu, dp(278), -2, true);
+        menuAction(menu, "Profile", "artist", () -> { if (accountMenu != null) accountMenu.dismiss(); goFromLink(PROFILE); });
+        menuAction(menu, "Queue", "queue", () -> { if (accountMenu != null) accountMenu.dismiss(); playerScreen.openQueue(); });
+        menuAction(menu, "Downloads", "download", () -> { if (accountMenu != null) accountMenu.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); dockUi.updateDock(); } else goFromLink(LIBRARY); });
+        menuAction(menu, "Settings", "settings", () -> { if (accountMenu != null) accountMenu.dismiss(); openSettings(true); });
+        dropMenu(anchor, 278, menu, 8);
+    }
+
+    android.widget.PopupWindow dropMenu(View anchor, int widthDp, LinearLayout menu, int yOffDp) {
+        if (accountMenu != null) accountMenu.dismiss();
+        android.widget.PopupWindow popup = new android.widget.PopupWindow(menu, dp(widthDp), -2, true);
         accountMenu = popup;
         popup.setBackgroundDrawable(round(surf, 24));
         popup.setElevation(dp(14));
         popup.setOutsideTouchable(true);
         popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
         popup.setOnDismissListener(() -> { if (accountMenu == popup) accountMenu = null; });
-        menuAction(menu, "Profile", "artist", () -> { popup.dismiss(); goFromLink(PROFILE); });
-        menuAction(menu, "Queue", "queue", () -> { popup.dismiss(); playerScreen.openQueue(); });
-        menuAction(menu, "Downloads", "download", () -> { popup.dismiss(); filter = DOWNLOADED; if (tab == LIBRARY && playlist == null) { showPage(); dockUi.updateDock(); } else goFromLink(LIBRARY); });
-        menuAction(menu, "Settings", "settings", () -> { popup.dismiss(); openSettings(true); });
-        popup.showAsDropDown(anchor, 0, dp(8), Gravity.END);
+        popup.showAsDropDown(anchor, 0, dp(yOffDp), Gravity.END);
         popIn(menu);
+        return popup;
     }
 
     /** The menu grows out of its corner. */
@@ -1497,18 +1437,6 @@ public final class SpatchUi extends FrameLayout {
         else { tabHistory.clear(); go(SETTINGS, false); }
     }
 
-    private String tabLabel(int t) {
-        switch (t) {
-            case HOME: return "Home";
-            case SEARCH: return "Search";
-            case LIBRARY: return "Library";
-            case SETTINGS: return "Settings";
-            case PROFILE: return "Profile";
-            case STATS: return "Your library";
-            default: return "Back";
-        }
-    }
-
     View backHeader(String label, boolean horizontalPad) {
         LinearLayout row = row();
         row.setPadding(horizontalPad ? dp(16) : dp(2), dp(6), dp(12), dp(2));
@@ -1520,122 +1448,9 @@ public final class SpatchUi extends FrameLayout {
         return row;
     }
 
-    /**
-     * Spotify's own screens do the sign-in. Starting its login activity from here with hand-built extras hung after the
-     * credentials were entered, while Spotify's own Add account (account switching) works, so this reveals Spotify's
-     * UI instead; its "Back to Spatch" pill returns here.
-     */
-    private void openLogin() {
-        toast("Open your profile in Spotify and choose Add account", true);
-        openNativeSpotify();
-    }
-
     void openNativeSpotify() {
         String error = CoreBridge.openNativeSpotify(activity);
         if (error != null && !error.isEmpty()) toast(error, true);
-    }
-
-    /** What Spatch knows about the connection to Spotify, with a button to copy it for whoever is helping. */
-    private void connectionCard(LinearLayout page) {
-        LinearLayout box = settingsScreen.card(page, "Connection");
-        String[] c;
-        try { c = nativeConnection(); } catch (RuntimeException | LinkageError failed) { c = null; }
-        String library = c != null && c.length > 0 ? c[0] : "unknown";
-        String username = !profileUsername.isEmpty() ? "@" + profileUsername : c != null && c.length > 1 && !c[1].isEmpty() ? "@" + c[1] : "not found yet";
-        String lookup = c != null && c.length > 2 ? c[2] : "";
-        StringBuilder report = new StringBuilder("Spatch build ").append(nativeBuild())
-            .append("\nLibrary: ").append(library)
-            .append("\nUsername: ").append(username)
-            .append("\nProfile: ").append(profileError.isEmpty() ? (profileLoading ? "loading" : "ok") : profileError);
-        if (!lookup.isEmpty()) report.append("\nLast lookup: ").append(lookup);
-        TextView facts = text(report.toString(), 13, () -> inkDim, false);
-        facts.setPadding(dp(18), dp(14), dp(18), dp(6));
-        box.addView(facts, fill(-2));
-        final String copy = report.toString();
-        settingsScreen.settingsAction(box, "Copy details", "For troubleshooting: paste it to whoever is helping you", () -> {
-            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-            if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch connection details", copy));
-            toast("Details copied");
-        });
-    }
-
-    private View profilePage() {
-        LinearLayout page = column();
-        page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
-        pageHeading(page, "Your profile", false);
-        LinearLayout identity = settingsScreen.card(page, "Spotify account");
-        LinearLayout photo = row();
-        photo.setPadding(dp(18), dp(16), dp(18), dp(16));
-        photo.addView(profilePhoto(), lp(dp(88), dp(88)));
-        LinearLayout words = column();
-        words.setPadding(dp(18), 0, 0, 0);
-        words.addView(text(profileName.isEmpty() ? "Your profile" : profileName, 24, () -> ink, true));
-        TextView profileUsernameLine = text(profileUsername.isEmpty() ? (profileLoading ? "Connecting to your Spotify account…" : "Couldn’t read your username yet. Still trying.") : "@" + profileUsername, 13, () -> inkDim, false);
-        if (!profileUsername.isEmpty()) oneLine(profileUsernameLine);
-        words.addView(profileUsernameLine);
-        if (profileUsername.isEmpty() && !profileError.isEmpty() && !profileLoading) words.addView(text(profileError, 12, () -> inkDim, false));
-        photo.addView(words, weight());
-        identity.addView(photo, fill(-2));
-        if (!profileUri.isEmpty()) settingsScreen.settingsAction(identity, "Copy profile link", "Share your Spotify profile", () -> {
-            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-            String link = profileUri.startsWith("spotify:user:") ? "https://open.spotify.com/user/" + android.net.Uri.encode(profileUri.substring(13)) : profileUri;
-            if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spotify profile", link));
-            toast("Profile link copied");
-        });
-        String refreshSubtitle = profileUsername.isEmpty() ? "Spatch is still working out who you are. Tap to check now."
-            : profileLoading ? "Checking your Spotify account…"
-            : profileAt == 0 ? "Reload your name and photo from Spotify"
-            : "Reload your name and photo from Spotify · Updated " + ago(profileAt);
-        settingsScreen.settingsAction(identity, "Refresh profile", refreshSubtitle, () -> {
-            profileAnnounce = true;
-            toast(profileLoading ? "Still checking your Spotify account…" : "Checking your Spotify account…");
-            loadProfile(true);
-        });
-        settingsScreen.settingsAction(identity, "Sign in or switch account", "Opens Spotify’s own screens to sign in or add an account. If you’re already signed in, you don’t need this.", this::openLogin);
-        settingsScreen.settingsAction(identity, "Sign in here (test)", "Spotify’s own sign-in screen, opened the way Spotify opens it", () -> {
-            String error = CoreBridge.openSpotifyLogin(activity);
-            if (error != null && !error.isEmpty()) toast(error, true);
-        });
-        settingsScreen.settingsAction(identity, "Open native Spotify", "Temporarily reveal Spotify’s own interface to sign in or manage account", this::openNativeSpotify);
-        connectionCard(page);
-        LinearLayout music = settingsScreen.card(page, "Your music");
-        settingsScreen.settingsAction(music, "Your playlists", "Open your library", () -> { filter = 0; goFromLink(LIBRARY); });
-        settingsScreen.settingsAction(music, "Create a playlist", "Start a new collection", () -> { creation.pendingPlaylistSong = null; creation.openCreatePlaylist(false); });
-        settingsScreen.settingsAction(music, "Your library, at a glance", "What's saved, and what you've played lately", () -> goFromLink(STATS));
-        settingsScreen.settingsAction(music, "Settings", "Personalise Spatch", () -> openSettings(true));
-        return scrolling(page);
-    }
-
-    /** A simple recap built only from what Spatch already has cached: counts by kind, and the recent shelf. */
-    private View statsPage() {
-        LinearLayout page = column();
-        page.addView(backHeader(tabHistory.isEmpty() ? "Back" : tabLabel(tabHistory.peek()), false), lp(-2, dp(36)));
-        pageHeading(page, "Your library", false);
-        int[] counts = new int[4]; // playlists, albums, artists, podcasts, by chip index
-        for (MediaEntry e : entries(-1, "", false, 4000)) if (e.category >= 0 && e.category < counts.length) counts[e.category]++;
-        LinearLayout glance = settingsScreen.card(page, "Saved");
-        if (motion()) {
-            android.view.animation.AnimationSet rise = new android.view.animation.AnimationSet(true);
-            rise.addAnimation(new android.view.animation.AlphaAnimation(0f, 1f));
-            rise.addAnimation(new android.view.animation.TranslateAnimation(0, 0, dp(18), 0));
-            rise.setDuration(320);
-            rise.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
-            glance.setLayoutAnimation(new android.view.animation.LayoutAnimationController(rise, .07f));
-        }
-        String[] kindNames = {"Playlists", "Albums", "Artists", "Podcasts"};
-        for (int i = 0; i < counts.length; i++) {
-            LinearLayout row = row();
-            row.setPadding(dp(18), dp(10), dp(18), dp(10));
-            row.addView(text(kindNames[i], 15, () -> ink, false), weight());
-            row.addView(text(String.valueOf(counts[i]), 15, () -> inkDim, true));
-            glance.addView(row, fill(-2));
-        }
-        int total = counts[0] + counts[1] + counts[2] + counts[3];
-        TextView totalNote = text(total == 1 ? "1 item saved" : total + " items saved, across everything Spatch can see in your library", 12, () -> inkDim, false);
-        totalNote.setPadding(dp(18), dp(4), dp(18), dp(12));
-        glance.addView(totalNote);
-        homeScreen.shelf(page, "Recently played", homeScreen.recent, null);
-        return scrolling(page);
     }
 
     android.widget.EditText createField(String hint, String value, boolean multiline) {
@@ -1708,7 +1523,7 @@ public final class SpatchUi extends FrameLayout {
         libraryList = null;
         heroArt = null; heroProgress = null; heroTitle = heroArtist = null;
         if (topScrim != null) topScrim.setVisibility(playlist == null ? VISIBLE : GONE);
-        View page = playlist != null ? playlistScreen.playlistPage() : tab == HOME ? homeScreen.homePage() : tab == SEARCH ? searchScreen.searchPage() : tab == LIBRARY ? libraryScreen.libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : tab == STATS ? statsPage() : settingsScreen.settingsPage();
+        View page = playlist != null ? playlistScreen.playlistPage() : tab == HOME ? homeScreen.homePage() : tab == SEARCH ? searchScreen.searchPage() : tab == LIBRARY ? libraryScreen.libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profileScreen.profilePage() : tab == STATS ? profileScreen.statsPage() : settingsScreen.settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         shownKey = pageKey();
         restoreScroll();
@@ -1733,13 +1548,19 @@ public final class SpatchUi extends FrameLayout {
 
 
 
-    TextView pill(String label, Runnable action) {
-        TextView v = text(label, 14, onAccent, true);
+    TextView chip(String label, ColorOf ink, ColorOf fill, float radiusDp) {
+        TextView v = text(label, 14, ink.get(), true);
         v.setGravity(Gravity.CENTER);
-        v.setPadding(dp(18), dp(12), dp(18), dp(12));
-        GradientDrawable d = round(accent, 22);
+        v.setPadding(dp(16), 0, dp(16), 0);
+        if (fill == null) return colored(v, () -> v.setTextColor(ink.get()));
+        GradientDrawable d = round(fill.get(), radiusDp);
         v.setBackground(d);
-        colored(v, () -> { v.setTextColor(onAccent); d.setColor(accent); });
+        return colored(v, () -> { v.setTextColor(ink.get()); d.setColor(fill.get()); });
+    }
+
+    TextView pill(String label, Runnable action) {
+        TextView v = chip(label, () -> onAccent, () -> accent, 22);
+        v.setPadding(dp(18), dp(12), dp(18), dp(12));
         tappable(v, label, action);
         LinearLayout.LayoutParams p = lp(-2, -2);
         p.topMargin = dp(12);
@@ -2322,17 +2143,13 @@ public final class SpatchUi extends FrameLayout {
             filter.setContentDescription("Search playlists");
             filter.setPadding(dp(12), dp(8), dp(12), dp(8));
             card.addView(filter, fill(dp(48)));
-            filter.addTextChangedListener(new android.text.TextWatcher() {
-                public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-                public void onTextChanged(CharSequence t, int a, int b, int c) {
-                    String q = t.toString().trim().toLowerCase(java.util.Locale.ROOT);
-                    for (int i = 0; i < list.getChildCount(); i++) {
-                        Option option = options[i];
-                        boolean show = i == 0 || (option.label + " " + option.detail).toLowerCase(java.util.Locale.ROOT).contains(q);
-                        list.getChildAt(i).setVisibility(show ? VISIBLE : GONE);
-                    }
+            onText(filter, t -> {
+                String q = t.trim().toLowerCase(java.util.Locale.ROOT);
+                for (int i = 0; i < list.getChildCount(); i++) {
+                    Option option = options[i];
+                    boolean show = i == 0 || (option.label + " " + option.detail).toLowerCase(java.util.Locale.ROOT).contains(q);
+                    list.getChildAt(i).setVisibility(show ? VISIBLE : GONE);
                 }
-                public void afterTextChanged(android.text.Editable e) {}
             });
         }
         Runnable[] close = new Runnable[1];

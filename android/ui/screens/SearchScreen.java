@@ -135,21 +135,8 @@ final class SearchScreen {
         };
 
         LinearLayout box = ui.row();
-        box.setPadding(ui.dp(16), 0, ui.dp(8), 0);
-        ui.bgRound(box, 26, () -> ui.surf);
-        box.addView(ui.icon("search", () -> ui.inkDim), ui.lp(ui.dp(22), ui.dp(22)));
-        android.widget.EditText field = new android.widget.EditText(ui.activity);
-        field.setBackground(null);
-        field.setHint("Songs, albums, playlists, podcasts");
-        field.setHintTextColor(ui.inkDim);
-        field.setTextColor(ui.ink);
-        field.setTextSize(16);
-        field.setSingleLine(true);
+        android.widget.EditText field = ui.searchBox(box, "Songs, albums, playlists, podcasts", searchQuery, 16, 50);
         field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
-        field.setPadding(ui.dp(12), 0, ui.dp(4), 0);
-        field.setText(searchQuery);
-        box.addView(field, new LinearLayout.LayoutParams(0, ui.dp(50), 1));
-        ui.clearButton(box, field);
         searchField = field;
 
         ScrollView scroll = new ScrollView(ui.activity);
@@ -183,13 +170,9 @@ final class SearchScreen {
         searchScroll = scroll;
         searchResults = results;
 
-        field.addTextChangedListener(new android.text.TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void afterTextChanged(android.text.Editable e) {
-                searchQuery = e.toString();
-                scheduleSearch();
-            }
+        ui.onText(field, text -> {
+            searchQuery = text;
+            scheduleSearch();
         });
         field.setOnEditorActionListener((v, action, event) -> { ui.hideKeyboard(); return true; });
         renderSearch();

@@ -60,19 +60,7 @@ final class LibraryScreen {
 
         boolean land = ui.landscape();
         LinearLayout search = ui.row();
-        search.setPadding(ui.dp(16), 0, ui.dp(8), 0);
-        ui.bgRound(search, 26, () -> ui.surf);
-        search.addView(ui.icon("search", () -> ui.inkDim), ui.lp(ui.dp(22), ui.dp(22)));
-        android.widget.EditText field = new android.widget.EditText(ui.activity);
-        field.setBackground(null);
-        field.setHint("Search your library");
-        ui.colored(field, () -> { field.setHintTextColor(ui.inkDim); field.setTextColor(ui.ink); });
-        field.setTextSize(16);
-        field.setSingleLine(true);
-        field.setPadding(ui.dp(12), 0, ui.dp(4), 0);
-        field.setText(ui.query);
-        search.addView(field, new LinearLayout.LayoutParams(0, ui.dp(land ? 44 : 50), 1));
-        ui.clearButton(search, field);
+        android.widget.EditText field = ui.searchBox(search, "Search your library", ui.query, 16, land ? 44 : 50);
 
         HorizontalScrollView chipScroll = new HorizontalScrollView(ui.activity);
         chipScroll.setHorizontalScrollBarEnabled(false);
@@ -81,21 +69,11 @@ final class LibraryScreen {
         chipScroll.setPadding(ui.dp(land ? 12 : 18), 0, ui.dp(land ? 4 : 18), ui.dp(land ? 0 : 6));
         LinearLayout chips = ui.row();
         boolean[] azState = { ui.pref("library_az", false) };
-        TextView sort = ui.text(azState[0] ? "A–Z" : "Recent", 14, ui.ink, true);
-        sort.setGravity(Gravity.CENTER);
-        sort.setPadding(ui.dp(16), 0, ui.dp(16), 0);
-        GradientDrawable sortBg = ui.round(ui.surfHi, 19);
-        sort.setBackground(sortBg);
-        ui.colored(sort, () -> { sort.setTextColor(ui.ink); sortBg.setColor(ui.surfHi); });
+        TextView sort = ui.chip(azState[0] ? "A–Z" : "Recent", () -> ui.ink, () -> ui.surfHi, 19);
         chips.addView(sort, ui.lp(-2, ui.dp(38)));
         chips.addView(ui.space(ui.dp(8), 1));
         boolean[] gridState = { ui.pref("library_grid", false) };
-        TextView layout = ui.text(gridState[0] ? "Grid" : "List", 14, ui.ink, true);
-        layout.setGravity(Gravity.CENTER);
-        layout.setPadding(ui.dp(16), 0, ui.dp(16), 0);
-        GradientDrawable layoutBg = ui.round(ui.surfHi, 19);
-        layout.setBackground(layoutBg);
-        ui.colored(layout, () -> { layout.setTextColor(ui.ink); layoutBg.setColor(ui.surfHi); });
+        TextView layout = ui.chip(gridState[0] ? "Grid" : "List", () -> ui.ink, () -> ui.surfHi, 19);
         chips.addView(layout, ui.lp(-2, ui.dp(38)));
         chips.addView(ui.space(ui.dp(8), 1));
 
@@ -209,13 +187,9 @@ final class LibraryScreen {
         };
 
         renderContent.accept(0);
-        field.addTextChangedListener(new android.text.TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-            @Override public void afterTextChanged(android.text.Editable e) {
-                ui.query = e.toString();
-                if (onQuery[0] != null) onQuery[0].run();
-            }
+        ui.onText(field, text -> {
+            ui.query = text;
+            if (onQuery[0] != null) onQuery[0].run();
         });
         return page;
     }
@@ -303,9 +277,9 @@ final class LibraryScreen {
      * them are dimmed.
      */
     private void addLetterRail(FrameLayout host, android.widget.AbsListView list, List<MediaEntry> shown) {
-        TextView bubble = ui.text("", 34, () -> ui.onAccent, true);
-        bubble.setGravity(Gravity.CENTER);
-        ui.bgRound(bubble, 32, () -> ui.accent);
+        TextView bubble = ui.chip("", () -> ui.onAccent, () -> ui.accent, 32);
+        bubble.setTextSize(34);
+        bubble.setPadding(0, 0, 0, 0);
         bubble.setElevation(ui.dp(6));
         bubble.setAlpha(0f);
         bubble.setScaleX(.6f);

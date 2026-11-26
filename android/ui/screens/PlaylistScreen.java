@@ -367,21 +367,17 @@ final class PlaylistScreen {
 
     private void wirePlaylistTools(ListView list, android.widget.EditText songSearch, TextView sortPill) {
         if (songSearch != null) {
-            songSearch.addTextChangedListener(new android.text.TextWatcher() {
-                @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) {}
-                @Override public void onTextChanged(CharSequence t, int a, int b, int c) {}
-                @Override public void afterTextChanged(android.text.Editable e) {
-                    songQuery = e.toString();
-                    arrangeSongs();
-                    SpatchUi.notifyList(list);
-                    if (songCount != null) {
-                        String q = songQuery.trim();
-                        songCount.setText(q.isEmpty() ? songCountText : ui.playlistTracks.size() + " of " + allSongs.size() + " songs");
-                    }
-                    if (songsNoMatch != null) {
-                        songsNoMatch.setText("No songs match “" + songQuery.trim() + "”");
-                        songsNoMatch.setVisibility(ui.playlistTracks.isEmpty() && !songQuery.trim().isEmpty() ? View.VISIBLE : View.GONE);
-                    }
+            ui.onText(songSearch, text -> {
+                songQuery = text;
+                arrangeSongs();
+                SpatchUi.notifyList(list);
+                if (songCount != null) {
+                    String q = songQuery.trim();
+                    songCount.setText(q.isEmpty() ? songCountText : ui.playlistTracks.size() + " of " + allSongs.size() + " songs");
+                }
+                if (songsNoMatch != null) {
+                    songsNoMatch.setText("No songs match “" + songQuery.trim() + "”");
+                    songsNoMatch.setVisibility(ui.playlistTracks.isEmpty() && !songQuery.trim().isEmpty() ? View.VISIBLE : View.GONE);
                 }
             });
         }
@@ -423,7 +419,8 @@ final class PlaylistScreen {
             @Override protected void onDraw(Canvas c) {
                 if (!c.isHardwareAccelerated()) { washBg.setBounds(0, 0, getWidth(), getHeight()); washBg.draw(c); return; } // a bitmap snapshot can't run shaders
                 if (washColors[4] == 0) return;
-                if (field == null) field = new android.graphics.RuntimeShader(GpuFx.source("field"));
+                if (field == null) field = GpuFx.shader("field");
+                if (field == null) { washBg.setBounds(0, 0, getWidth(), getHeight()); washBg.draw(c); return; }
                 android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) field;
                 rs.setFloatUniform("size", getWidth(), getHeight());
                 rs.setFloatUniform("time", (washSeed & 0xffff) / 655.35f); // each playlist gets its own still arrangement
@@ -694,39 +691,29 @@ final class PlaylistScreen {
             // Search and sort inside the playlist, done in Rust over the songs already here.
             LinearLayout tools = ui.row();
             LinearLayout search = ui.row();
-            search.setPadding(ui.dp(14), 0, ui.dp(6), 0);
+            songSearch = ui.searchBox(search, "Find in playlist", songQuery, 15, 44);
             GradientDrawable searchBg = ui.round(ui.surfHi, 23);
             search.setBackground(searchBg);
             ui.colored(search, () -> {
                 searchBg.setColor(ui.surfHi);
                 searchBg.setStroke(Math.max(1, ui.dp(.8f)), (ui.ink & 0x00ffffff) | 0x12000000);
             });
-            search.addView(ui.icon("search", () -> ui.inkDim), ui.lp(ui.dp(19), ui.dp(19)));
-            songSearch = new android.widget.EditText(ui.activity);
-            songSearch.setBackground(null);
-            songSearch.setHint("Find in playlist");
-            android.widget.EditText find = songSearch;
-            ui.colored(find, () -> { find.setHintTextColor(ui.inkDim); find.setTextColor(ui.ink); });
-            songSearch.setTextSize(15);
-            songSearch.setSingleLine(true);
-            songSearch.setPadding(ui.dp(10), 0, ui.dp(4), 0);
-            songSearch.setText(songQuery);
-            search.addView(songSearch, new LinearLayout.LayoutParams(0, ui.dp(44), 1));
-            ui.clearButton(search, songSearch);
             tools.addView(search, new LinearLayout.LayoutParams(0, ui.dp(44), 1));
             tools.addView(ui.space(ui.dp(8), 1));
             int sortChoice = Math.max(0, Math.min(SONG_SORTS.length - 1, ui.prefs.getInt("song_sort", 0)));
-            sortPill = ui.text(SONG_SORTS[sortChoice], 14, sortChoice > 0 ? ui.accent : ui.ink, true);
-            sortPill.setGravity(Gravity.CENTER);
+            sortPill = ui.chip(
+                SONG_SORTS[sortChoice],
+                () -> ui.prefs.getInt("song_sort", 0) > 0 ? ui.accent : ui.ink,
+                () -> ui.prefs.getInt("song_sort", 0) > 0 ? SpatchUi.blend(ui.surfHi, ui.accent, .20f) : ui.surfHi,
+                23
+            );
             sortPill.setPadding(ui.dp(15), 0, ui.dp(15), 0);
             sortPill.setSingleLine(true);
-            GradientDrawable sortBg = ui.round(ui.surfHi, 23);
-            sortPill.setBackground(sortBg);
-            TextView pill = sortPill;
-            ui.colored(pill, () -> {
+            GradientDrawable sortBg = (GradientDrawable) sortPill.getBackground();
+            Runnable sortColor = (Runnable) sortPill.getTag(SpatchUi.R_COLOR);
+            ui.colored(sortPill, () -> {
+                sortColor.run();
                 boolean active = ui.prefs.getInt("song_sort", 0) > 0;
-                pill.setTextColor(active ? ui.accent : ui.ink);
-                sortBg.setColor(active ? SpatchUi.blend(ui.surfHi, ui.accent, .20f) : ui.surfHi);
                 sortBg.setStroke(Math.max(1, ui.dp(.8f)), active ? (ui.accent & 0x00ffffff) | 0x40000000 : (ui.ink & 0x00ffffff) | 0x12000000);
             });
             tools.addView(sortPill, ui.lp(-2, ui.dp(44)));
@@ -745,12 +732,10 @@ final class PlaylistScreen {
                 if (!ui.title.isEmpty() && t.title.equals(ui.title) && t.subtitle.equals(ui.artist)) { playingAt = i; break; }
             }
             if (playingAt > 3) {
-                nowPlayingChip = ui.text("Now playing • " + ui.title, 13, () -> ui.onAccent, true);
+                nowPlayingChip = ui.chip("Now playing • " + ui.title, () -> ui.onAccent, () -> ui.accent, 18);
+                nowPlayingChip.setTextSize(13);
                 nowPlayingChip.setSingleLine(true);
                 nowPlayingChip.setEllipsize(TextUtils.TruncateAt.END);
-                nowPlayingChip.setGravity(Gravity.CENTER);
-                nowPlayingChip.setPadding(ui.dp(16), 0, ui.dp(16), 0);
-                ui.bgRound(nowPlayingChip, 18, () -> ui.accent);
                 nowPlayingChip.setTag(R_JUMP, playingAt);
                 LinearLayout.LayoutParams cp = ui.lp(-2, ui.dp(34));
                 cp.topMargin = ui.dp(10);

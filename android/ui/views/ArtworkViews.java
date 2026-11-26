@@ -299,9 +299,11 @@ final class ArtworkViews {
             }
             s.setLocalMatrix(m);
             if (gpu && c.isHardwareAccelerated()) { // a bitmap snapshot can't run shaders
-                if (grain == null) grain = new android.graphics.RuntimeShader(GpuFx.source("grain"));
-                ((android.graphics.RuntimeShader) grain).setInputShader("content", s);
-                s = grain;
+                if (grain == null) grain = GpuFx.shader("grain");
+                if (grain != null) {
+                    ((android.graphics.RuntimeShader) grain).setInputShader("content", s);
+                    s = grain;
+                }
             }
             paint.setShader(s);
             paint.setAlpha(alpha);
@@ -312,7 +314,9 @@ final class ArtworkViews {
 
         @Override protected void onDetachedFromWindow() { if (drift != null) drift.cancel(); if (clock != null) clock.cancel(); super.onDetachedFromWindow(); }
 
-        private void drawField(Canvas c, float w, float h) {
+        private boolean drawField(Canvas c, float w, float h) {
+            if (field == null) field = GpuFx.shader("field");
+            if (field == null) return false;
             long now = SystemClock.uptimeMillis();
             drawnAt = now;
             Bitmap cover = ui.art(ui.image, 440);
@@ -323,7 +327,7 @@ final class ArtworkViews {
                 colorsTo = next;
                 colorAt = colorsFrom != next && ui.motion() ? now : 0;
             }
-            if (colorsTo == null) { c.drawColor(ui.bg); return; }
+            if (colorsTo == null) { c.drawColor(ui.bg); return true; }
             float f = colorAt == 0 ? 1f : Math.min(1f, (now - colorAt) / 700f);
             for (int i = 0; i < 4; i++) colorsNow[i] = SpatchUi.blend(colorsFrom[i], colorsTo[i], f);
             if (f < 1f && isShown() && getWindowVisibility() == VISIBLE) postInvalidateOnAnimation();
@@ -331,7 +335,6 @@ final class ArtworkViews {
             boolean moving = clock != null && clock.isRunning();
             if (moving && phaseAt != 0) phase += Math.min(100, now - phaseAt) / 1000f;
             phaseAt = moving ? now : 0;
-            if (field == null) field = new android.graphics.RuntimeShader(GpuFx.source("field"));
             android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) field;
             rs.setFloatUniform("size", w, h);
             rs.setFloatUniform("time", phase);
@@ -341,6 +344,7 @@ final class ArtworkViews {
             paint.setShader(rs);
             c.drawRect(0, 0, w, h, paint);
             paint.setShader(null);
+            return true;
         }
 
         @Override protected void onWindowVisibilityChanged(int visibility) {
@@ -352,7 +356,7 @@ final class ArtworkViews {
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
             if (!ui.pref("backdrop", true)) { c.drawColor(ui.bg); return; }
-            if (flow && c.isHardwareAccelerated()) { drawField(c, w, h); return; } // a bitmap snapshot can't run shaders
+            if (flow && c.isHardwareAccelerated() && drawField(c, w, h)) return; // a bitmap snapshot can't run shaders
             ui.art(ui.image, 440);
             int chosen = ui.prefs.getInt("backdrop_blur", 0);
             int style = chosen == 3 ? 0 : Math.max(0, Math.min(BLUR_SIZES.length - 1, chosen)); // Flowing falls back to Soft
@@ -532,8 +536,9 @@ final class ArtworkViews {
 
         private final String[] LEVEL_NAMES = {"l0", "l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8"};
 
-        private void ringBars(Canvas c, float cx, float cy, float start, float bar, float stroke) {
-            if (ringShader == null) ringShader = new android.graphics.RuntimeShader(GpuFx.source("ring"));
+        private boolean ringBars(Canvas c, float cx, float cy, float start, float bar, float stroke) {
+            if (ringShader == null) ringShader = GpuFx.shader("ring");
+            if (ringShader == null) return false;
             android.graphics.RuntimeShader rs = (android.graphics.RuntimeShader) ringShader;
             for (int v = 0; v < 9; v++) rs.setFloatUniform(LEVEL_NAMES[v], level[v * 4], level[v * 4 + 1], level[v * 4 + 2], level[v * 4 + 3]);
             float glow = ui.dp(5);
@@ -551,6 +556,7 @@ final class ArtworkViews {
             float outer = start + bar + glow * 4;
             c.drawRect(cx - outer, cy - outer, cx + outer, cy + outer, paint);
             paint.setStyle(was);
+            return true;
         }
 
         @Override protected void onWindowVisibilityChanged(int visibility) {
@@ -656,9 +662,9 @@ final class ArtworkViews {
                     settling = true;
                 }
             }
-            if (style == 0 && GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()) {
-                ringBars(c, cx, cy, ring + ui.dp(10), bar, stroke);
-            } else if (style == 0) {
+            boolean drewRing = style == 0 && GpuFx.shaders(ui.prefs) && c.isHardwareAccelerated()
+                && ringBars(c, cx, cy, ring + ui.dp(10), bar, stroke);
+            if (!drewRing && style == 0) {
                 for (int k = 0; k < bars; k++) {
                     int bi = k < half ? k : bars - 1 - k;
                     double a = -Math.PI / 2 + (k + .5) / bars * Math.PI * 2;

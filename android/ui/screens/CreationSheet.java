@@ -309,11 +309,10 @@ final class CreationSheet {
         for (int i = 0; i < 2; i++) {
             final boolean wantQueue = i == 1;
             boolean active = createFromQueue == wantQueue;
-            TextView chip = ui.text(modes[i], 13, active ? ui.onAccent : ui.ink, true);
-            chip.setGravity(Gravity.CENTER);
+            TextView chip = ui.chip(modes[i], active ? () -> ui.onAccent : () -> ui.ink, active ? () -> ui.accent : null, 16);
+            chip.setTextSize(13);
             chip.setSingleLine(true);
             chip.setPadding(ui.dp(10), ui.dp(8), ui.dp(10), ui.dp(8));
-            if (active) ui.bgRound(chip, 16, () -> ui.accent);
             ui.tappable(chip, modes[i], () -> {
                 if (createFromQueue == wantQueue) return;
                 createFromQueue = wantQueue;
@@ -354,43 +353,32 @@ final class CreationSheet {
         error.setVisibility(GONE);
         createCard.addView(error, ui.fill(-2));
 
-        name.addTextChangedListener(new android.text.TextWatcher() {
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                createName = s.toString();
-                if (createName.isEmpty()) nameCount.setVisibility(GONE);
-                else {
-                    nameCount.setVisibility(VISIBLE);
-                    nameCount.setText(createName.length() + " / 100");
-                    nameCount.setTextColor(createName.length() > 100 ? 0xffff8a80 : ui.inkDim);
-                }
-                if (error.getVisibility() == VISIBLE) { error.setText(""); error.setVisibility(GONE); }
+        ui.onText(name, text -> {
+            createName = text;
+            if (createName.isEmpty()) nameCount.setVisibility(GONE);
+            else {
+                nameCount.setVisibility(VISIBLE);
+                nameCount.setText(createName.length() + " / 100");
+                nameCount.setTextColor(createName.length() > 100 ? 0xffff8a80 : ui.inkDim);
             }
-            public void afterTextChanged(android.text.Editable e) {}
+            if (error.getVisibility() == VISIBLE) { error.setText(""); error.setVisibility(GONE); }
         });
-        description.addTextChangedListener(new android.text.TextWatcher() {
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                createDescription = s.toString();
-                if (error.getVisibility() == VISIBLE) { error.setText(""); error.setVisibility(GONE); }
-            }
-            public void afterTextChanged(android.text.Editable e) {}
+        ui.onText(description, text -> {
+            createDescription = text;
+            if (error.getVisibility() == VISIBLE) { error.setText(""); error.setVisibility(GONE); }
         });
 
         LinearLayout actions = ui.row();
         LinearLayout.LayoutParams ap = ui.fill(-2);
         ap.topMargin = ui.dp(14);
-        TextView cancel = ui.text("Cancel", 14, () -> ui.ink, true);
-        cancel.setGravity(Gravity.CENTER);
-        ui.bgRound(cancel, 23, () -> ui.surfHi).setStroke(Math.max(1, ui.dp(.8f)), (ui.ink & 0x00ffffff) | 0x16000000);
+        TextView cancel = ui.chip("Cancel", () -> ui.ink, () -> ui.surfHi, 23);
+        ((android.graphics.drawable.GradientDrawable) cancel.getBackground()).setStroke(Math.max(1, ui.dp(.8f)), (ui.ink & 0x00ffffff) | 0x16000000);
         ui.tappable(cancel, "Cancel", this::closeCreateMenu);
         LinearLayout.LayoutParams cancelP = new LinearLayout.LayoutParams(0, ui.dp(46), 1f);
         cancelP.rightMargin = ui.dp(10);
         actions.addView(cancel, cancelP);
 
-        TextView make = ui.text(creating ? "Creating…" : "Create", 14, () -> ui.onAccent, true);
-        make.setGravity(Gravity.CENTER);
-        ui.bgRound(make, 23, () -> ui.accent);
+        TextView make = ui.chip(creating ? "Creating…" : "Create", () -> ui.onAccent, () -> ui.accent, 23);
         make.setEnabled(!creating);
         make.setAlpha(creating ? .55f : 1f);
         ui.tappable(make, "Create playlist", () -> {
