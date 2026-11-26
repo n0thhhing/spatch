@@ -209,7 +209,7 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(source)
         for name, original in {
-            'spatch/DevIntegrity.java': 'android/ui/DevIntegrity.java',
+            'spatch/DevIntegrity.java': 'android/ui/bridge/DevIntegrity.java',
             'p/dmt0.java': 'android/stubs/p/dmt0.java',
             'p/osm.java': 'android/stubs/p/osm.java',
         }.items():

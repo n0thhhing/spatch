@@ -27,7 +27,7 @@ cargo ndk -t arm64-v8a -P 29 -o "$work/lib" build --release --locked --features 
 
 mkdir -p "$work/classes" "$work/dex" "$(dirname "$out")"
 helpers=()
-for file in "$repo/android/ui/"*.java; do
+for file in $(find "$repo/android/ui" -name '*.java' | sort); do
     case "${file##*/}" in CoreBridge.java|DevIntegrity.java|SpatchApp.java|Subscriptions.java|SpotifyWeb.java) continue ;; esac
     helpers+=("$file")
 done

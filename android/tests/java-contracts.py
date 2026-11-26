@@ -60,13 +60,13 @@ def _non_private_static_methods(path: Path) -> set[str]:
 
 def check_core_bridge_preview_contract() -> None:
     """Ensure every non-private CoreBridge static method used by UI/preview tests exists in preview."""
-    prod_path = REPO / "android/ui/CoreBridge.java"
+    prod_path = REPO / "android/ui/bridge/CoreBridge.java"
     preview_path = REPO / "preview/src/spatch/CoreBridge.java"
     prod_methods = _non_private_static_methods(prod_path)
     preview_methods = _non_private_static_methods(preview_path)
 
     caller_files = [
-        p for p in (REPO / "android/ui").glob("*.java") if p != prod_path
+        p for p in (REPO / "android/ui").rglob("*.java") if p != prod_path
     ]
     caller_files.extend(
         p for p in (REPO / "preview/src").rglob("*.java") if p != preview_path
@@ -176,7 +176,7 @@ public class CatalogRequestCheck {
 
 with tempfile.TemporaryDirectory(prefix="spatch-catalog-check-") as temporary:
     work = Path(temporary)
-    sources = sorted((REPO / "android/ui").glob("*.java"))
+    sources = sorted((REPO / "android/ui").rglob("*.java"))
     sources += [REPO / f"android/tests/spatch/{name}.java"
                 for name in ("BlurTest", "CreationRouteTest", "SubscriptionsTest")]
     sources += [p for p in (REPO / "android/stubs").rglob("*.java") if p.name != "Single.java"]

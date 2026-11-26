@@ -73,23 +73,32 @@ final class SettingsScreen {
             }
             toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
 
-            LinearLayout player = card(page, "Player visuals");
-            choice(player, "Visualizer", new String[]{"Bars", "Ring", "Off", "Contour"}, "viz", 0, false);
-            toggle(player, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
-            toggle(player, "Read audio directly", "Experimental: take Spotify’s audio before the volume, so the bars keep moving at volume 0 and no microphone permission is needed", "audio_direct", false, false);
+            LinearLayout visuals = card(page, "Artwork & visualizer");
+            choice(visuals, "Visualizer", new String[]{"Bars", "Ring", "Off", "Contour"}, "viz", 0, false);
+            toggle(visuals, "Follow the music", "The bars react to Spotify’s playback; if it can’t be read they pulse on their own. Android lists this as microphone access", "audio", true, false);
+            toggle(visuals, "Read audio directly", "Experimental: take Spotify’s audio before the volume, so the bars keep moving at volume 0 and no microphone permission is needed", "audio_direct", false, false);
             TextView audioStatus = ui.text("Status: " + Audio.status, 12, () -> ui.inkDim, false);
             audioStatus.setPadding(ui.dp(18), 0, ui.dp(18), ui.dp(10));
-            player.addView(audioStatus);
-            toggle(player, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
-            toggle(player, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
-            toggle(player, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
-            toggle(player, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
-            if (android.os.Build.VERSION.SDK_INT >= 31) toggle(player, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours and lyrics that focus on the sung line. Off uses the plain look", "gpu_fx", true, false);
-            if (android.os.Build.VERSION.SDK_INT >= 31 && ui.pref("gpu_fx", true)) toggle(player, "Frosted bars", "The mini player and tabs as frosted glass over the page. Uses noticeably more battery while scrolling", "frost", false, false);
-            toggle(player, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
-            toggle(player, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false);
+            visuals.addView(audioStatus);
+            toggle(visuals, "Spinning artwork", "The cover turns slowly while music plays", "spin", true, false);
+            toggle(visuals, "Artwork pulse", "Let the cover gently breathe with the bass", "cover_pulse", true, false);
+            toggle(visuals, "Cover glow", "A soft pool of the palette's colours behind the cover", "cover_glow", true, false);
+            toggle(visuals, "Blurred backdrop", "The cover, blurred and drifting, behind the player", "backdrop", true, false);
+            if (ui.pref("backdrop", true)) choice(visuals, "Backdrop blur", GpuFx.shaders(ui.prefs) ? new String[]{"Soft", "Deep", "Streaks", "Flowing"} : new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
+            if (android.os.Build.VERSION.SDK_INT >= 31) toggle(visuals, "GPU effects", "Drawn by the graphics chip: a smoother blurred backdrop, glowing visualizer bars, richer playlist colours and lyrics that focus on the sung line. Off uses the plain look", "gpu_fx", true, false);
+            if (android.os.Build.VERSION.SDK_INT >= 31 && ui.pref("gpu_fx", true)) toggle(visuals, "Frosted bars", "The mini player and tabs as frosted glass over the page. Uses noticeably more battery while scrolling", "frost", false, false);
+            toggle(visuals, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
+            if (ui.pref("motes", true)) {
+                choice(visuals, "Mote amount", new String[]{"Few", "Normal", "Many"}, "motes_amount", 1, false);
+                choice(visuals, "Mote shapes", new String[]{"Dots", "Stars", "Hearts", "Mix"}, "motes_shape", 0, false);
+            }
+            toggle(visuals, "Rotating stickers", "The shapes behind playlist headers turn slowly. Keeps the page redrawing, so it uses some battery", "sticker_spin", false, false);
+
+            LinearLayout playerLayout = card(page, "Player layout & buttons");
+            toggle(playerLayout, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
+            toggle(playerLayout, "Hide controls when idle", "While music plays, chosen player elements fade after five seconds; touch to bring them back", "idle_hide", false, false);
             if (ui.pref("idle_hide", false)) {
-                multiChips(player, "Fade when idle", new String[][]{
+                multiChips(playerLayout, "Fade when idle", new String[][]{
                     {"Top bar", "idle_hide_top", "1"},
                     {"Title & artist", "idle_hide_title", "0"},
                     {"Seek bar", "idle_hide_wave", "0"},
@@ -97,13 +106,23 @@ final class SettingsScreen {
                     {"Up next", "idle_hide_next", "1"}
                 });
             }
-            toggle(player, "Allow rotation", "Rotate into landscape with lyrics and Up next beside the cover", "rotate", false, false);
-            if (ui.pref("player_lyrics", false)) choice(player, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
-            toggle(player, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
-            toggle(player, "Generate missing lyrics", "Experimental: when no service has a song's lyrics, listen to it on the phone and write rough timed lyrics, saved for next time. Downloads a 60 MB speech model once; uses extra battery while it listens", "lyric_gen", false, false);
+            toggle(playerLayout, "Quality line", "What Spotify says is playing, under the artist", "player_quality", true, false);
+            toggle(playerLayout, "Heart button", "Save to Liked Songs from the player", "player_heart", true, false);
+            toggle(playerLayout, "Shuffle and repeat", "The buttons on either side of play", "player_modes", true, false);
+            toggle(playerLayout, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
+            toggle(playerLayout, "Lyrics button", "In the player's top bar", "bar_lyrics", true, false);
+            toggle(playerLayout, "Queue button", "In the player's top bar", "bar_queue", true, false);
+            toggle(playerLayout, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
+            toggle(playerLayout, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
+
+            LinearLayout lyrics = card(page, "Lyrics");
+            toggle(lyrics, "Lyrics in the player", "Three lines under the cover, tucked away when a song has none", "player_lyrics", false, false);
+            if (ui.pref("player_lyrics", false)) choice(lyrics, "Lyric lines", new String[]{"One", "Two", "Three"}, "player_lyric_lines", 1, false);
+            toggle(lyrics, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
+            toggle(lyrics, "Generate missing lyrics", "Experimental: when no service has a song's lyrics, listen to it on the phone and write rough timed lyrics, saved for next time. Downloads a 60 MB speech model once; uses extra battery while it listens", "lyric_gen", false, false);
             TextView genStatus = ui.text("", 12, () -> ui.inkDim, false);
             genStatus.setPadding(ui.dp(18), 0, ui.dp(18), ui.dp(10));
-            player.addView(genStatus);
+            lyrics.addView(genStatus);
             Runnable showGen = new Runnable() {
                 @Override public void run() {
                     String now = ui.pref("lyric_gen", false) ? (LyricGen.enabled() ? "Model ready" : LyricGen.status) : "";
@@ -117,21 +136,6 @@ final class SettingsScreen {
                 @Override public void onViewAttachedToWindow(View v) { v.post(showGen); }
                 @Override public void onViewDetachedFromWindow(View v) {}
             });
-            toggle(player, "More lyrics from LRCLIB", "Look songs up on lrclib.net, a free lyrics site, when Spotify has no lyrics or only times whole lines (for word-by-word highlighting)", "lrclib_lyrics", true, false);
-            toggle(player, "Queue button", "In the player's top bar", "bar_queue", true, false);
-            toggle(player, "Sleep timer button", "In the top bar instead of the more menu", "bar_timer", false, false);
-            toggle(player, "Devices button", "In the top bar instead of the more menu", "bar_devices", false, false);
-            toggle(player, "Quality line", "What Spotify says is playing, under the artist", "player_quality", true, false);
-            toggle(player, "Heart button", "Save to Liked Songs from the player", "player_heart", true, false);
-            toggle(player, "Shuffle and repeat", "The buttons on either side of play", "player_modes", true, false);
-            toggle(player, "Next-up pill", "What plays next, under the controls", "player_next", true, false);
-            if (ui.pref("backdrop", true)) choice(player, "Backdrop blur", GpuFx.shaders(ui.prefs) ? new String[]{"Soft", "Deep", "Streaks", "Flowing"} : new String[]{"Soft", "Deep", "Streaks"}, "backdrop_blur", 0, false);
-            toggle(player, "Floating motes", "Particles coast to a quiet stop on pause and drift again on play", "motes", true, false);
-            toggle(player, "Rotating stickers", "The shapes behind playlist headers turn slowly. Keeps the page redrawing, so it uses some battery", "sticker_spin", false, false);
-            if (ui.pref("motes", true)) {
-                choice(player, "Mote amount", new String[]{"Few", "Normal", "Many"}, "motes_amount", 1, false);
-                choice(player, "Mote shapes", new String[]{"Dots", "Stars", "Hearts", "Mix"}, "motes_shape", 0, false);
-            }
 
 
             LinearLayout celebrations = card(page, "Motion & celebrations");

@@ -3,26 +3,28 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
+fn collect_java(dir: &Path, prefix: &str, out: &mut Vec<(String, String)>) {
+    println!("cargo:rerun-if-changed={}", dir.display());
+    for entry in fs::read_dir(dir).expect("failed to read android/ui").flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let rel = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
+        if path.is_dir() {
+            collect_java(&path, &rel, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("java") {
+            let class = path.file_stem().and_then(|s| s.to_str()).unwrap().to_owned();
+            out.push((class, rel));
+        }
+    }
+}
+
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     let spatch_dir = Path::new(&manifest_dir).join("../../android/ui");
-    println!("cargo:rerun-if-changed={}", spatch_dir.display());
 
-    let mut classes: Vec<String> = fs::read_dir(&spatch_dir)
-        .expect("failed to read ../../android/ui")
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("java") {
-                path.file_stem()
-                    .and_then(|s| s.to_str())
-                    .map(ToOwned::to_owned)
-            } else {
-                None
-            }
-        })
-        .collect();
-    classes.sort();
+    let mut classes = Vec::new();
+    collect_java(&spatch_dir, "", &mut classes);
+    classes.sort_by(|a, b| a.0.cmp(&b.0));
 
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR not set");
     let out_path = Path::new(&out_dir).join("helpers.rs");
@@ -34,10 +36,10 @@ fn main() {
     )
     .unwrap();
     writeln!(out, "pub const HELPERS: &[(&str, &str)] = &[").unwrap();
-    for class in &classes {
+    for (class, rel) in &classes {
         writeln!(
             out,
-            "    ({class:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../../android/ui/{class}.java\"))),"
+            "    ({class:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../../android/ui/{rel}\"))),"
         )
         .unwrap();
     }
