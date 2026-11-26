@@ -97,6 +97,8 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeLibrary(mut env: JNIEnv, _: JC
     }
     let status = match fetch_library() {
         Ok(_) => String::new(),
+        // The StreamAll subscription opened above may have delivered the library while this request was timing out.
+        Err(_) if LIBRARY.lock().unwrap().is_some() => String::new(),
         Err(error) => error,
     };
     string(&mut env, &status)

@@ -966,6 +966,9 @@ public final class SpatchUi extends FrameLayout {
         if (libRevision != libraryRevision) {
             libraryRevision = libRevision;
             libraryRedrawPending = true;
+            // The library stream often delivers after the first request has already timed out; without this the page
+            // kept showing the failure until the next backed-off retry, although the library was already here.
+            if (!libraryReady && !fetching) loadLibrary();
         }
         if (libraryRedrawPending && libraryReady && playlist == null && sheetClose == null && !playerOpen
                 && tab != SETTINGS && tab != SEARCH && !(findFocus() instanceof android.widget.EditText)) {
