@@ -673,6 +673,7 @@ final class PlayerScreen {
 
     /** Tap skips; holding the button jumps ten seconds at a time until it is released. */
     View skip(View button, boolean next) {
+        button.setBackground(new SkipHighlightDrawable(next));
         // Previous also restarts the song, which Spotify allows even when skipping back isn't, so only Next dims.
         if (!next) return button;
         ui.skipButtons.put(button, true);
@@ -680,6 +681,78 @@ final class PlayerScreen {
         button.setEnabled(allowed);
         button.setAlpha(allowed ? 1f : .35f);
         return button;
+    }
+
+    private final class SkipHighlightDrawable extends android.graphics.drawable.Drawable {
+        private final boolean forward;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path path = new android.graphics.Path();
+        private android.animation.ValueAnimator anim;
+        private boolean pressed;
+        private float alpha, scale = 1f, cachedSide = -1f;
+
+        SkipHighlightDrawable(boolean forward) {
+            this.forward = forward;
+        }
+
+        @Override public boolean isStateful() { return true; }
+
+        @Override protected boolean onStateChange(int[] state) {
+            boolean nowPressed = false;
+            for (int s : state) if (s == android.R.attr.state_pressed) { nowPressed = true; break; }
+            if (nowPressed == pressed) return false;
+            pressed = nowPressed;
+            if (anim != null) anim.cancel();
+            if (!ui.motion()) {
+                alpha = pressed ? 1f : 0f;
+                scale = 1f;
+                invalidateSelf();
+                return true;
+            }
+            float startA = alpha, endA = pressed ? 1f : 0f;
+            float startS = pressed ? Math.min(scale, 0.78f) : scale, endS = 1f;
+            anim = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            anim.setDuration(pressed ? 120 : 300);
+            anim.setInterpolator(pressed ? SpatchUi.EMPHASIZED : new android.view.animation.DecelerateInterpolator());
+            anim.addUpdateListener(a -> {
+                float t = (float) a.getAnimatedValue();
+                alpha = startA + (endA - startA) * t;
+                scale = startS + (endS - startS) * t;
+                invalidateSelf();
+            });
+            anim.start();
+            return true;
+        }
+
+        @Override public void draw(Canvas canvas) {
+            if (alpha <= 0.01f) return;
+            android.graphics.Rect b = getBounds();
+            float side = Math.min(b.width(), b.height());
+            if (side <= 0) return;
+            float cx = b.exactCenterX(), cy = b.exactCenterY();
+            if (side != cachedSide) {
+                cachedSide = side;
+                paint.setPathEffect(new android.graphics.CornerPathEffect(side * 0.18f));
+            }
+            float half = side * 0.5f;
+            float tipX = forward ? cx + half * 0.80f : cx - half * 0.80f;
+            float baseX = forward ? cx - half * 0.68f : cx + half * 0.68f;
+            float topY = cy - half * 0.80f, botY = cy + half * 0.80f;
+            path.rewind();
+            path.moveTo(tipX, cy);
+            path.lineTo(baseX, topY);
+            path.lineTo(baseX, botY);
+            path.close();
+            paint.setColor((ui.ink & 0x00ffffff) | (Math.round(0x2b * alpha) << 24));
+            canvas.save();
+            canvas.scale(scale, scale, cx, cy);
+            canvas.drawPath(path, paint);
+            canvas.restore();
+        }
+
+        @Override public void setAlpha(int a) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
     }
 
     void nudge(View button, boolean forward) {
