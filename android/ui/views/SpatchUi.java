@@ -234,6 +234,7 @@ public final class SpatchUi extends FrameLayout {
     Art mArt, heroArt;
     View heroProgress;
     Runnable sheetClose;
+    private View activeMoreIcon;
 
     SpatchUi(Activity activity) {
         super(activity);
@@ -1169,6 +1170,7 @@ public final class SpatchUi extends FrameLayout {
         playerScreen.closeQueue();
         removeAllViews();
         sheetClose = null;
+        activeMoreIcon = null;
         nextKey = "";
         setBackgroundColor(bg);
         pageHost = new FrameLayout(activity) {
@@ -1927,7 +1929,7 @@ public final class SpatchUi extends FrameLayout {
             GradientDrawable moreBg = round(0, 18);
             moreBtn.setBackground(moreBg);
             tappable(moreBtn, "More options", .88f, () -> {
-                animateMore(moreIcon, motion());
+                openMore(moreIcon);
                 if (motion()) {
                     moreBg.setColor((accent & 0x00ffffff) | 0x30000000);
                     android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(0x30, 0);
@@ -1998,6 +2000,7 @@ public final class SpatchUi extends FrameLayout {
             length.setVisibility(ms > 0 ? VISIBLE : GONE);
             boolean hasMenu = e instanceof Song || SearchScreen.isTrack(e.uri);
             moreBtn.setVisibility(hasMenu ? VISIBLE : GONE);
+            if (activeMoreIcon != moreIcon) { moreIcon.animate().cancel(); moreIcon.setRotation(0f); moreIcon.setScaleX(1f); moreIcon.setScaleY(1f); }
             explicitBadge.setVisibility(e instanceof Song && ((Song) e).explicit ? VISIBLE : GONE);
             boundUri = e.uri;
             updateDownloadBadge();
@@ -2094,15 +2097,26 @@ public final class SpatchUi extends FrameLayout {
         });
     }
 
-    static void animateMore(View icon, boolean motion) {
-        if (!motion || icon == null) return;
+    void openMore(View icon) {
+        if (activeMoreIcon != null && activeMoreIcon != icon) closeMore();
+        activeMoreIcon = icon;
+        if (icon == null) return;
         icon.animate().cancel();
-        icon.setRotation(0f);
-        icon.animate().rotation(90f).scaleX(1.18f).scaleY(1.18f).setDuration(240)
-            .setInterpolator(new android.view.animation.OvershootInterpolator(2.4f))
-            .withEndAction(() -> icon.animate().rotation(0f).scaleX(1f).scaleY(1f).setStartDelay(120).setDuration(260)
-                .setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start())
+        if (!motion()) { icon.setRotation(90f); return; }
+        icon.animate().rotation(90f).scaleX(1.16f).scaleY(1.16f).setDuration(220)
+            .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f))
+            .withEndAction(() -> icon.animate().scaleX(1f).scaleY(1f).setDuration(140).start())
             .start();
+    }
+
+    void closeMore() {
+        View icon = activeMoreIcon;
+        activeMoreIcon = null;
+        if (icon == null) return;
+        icon.animate().cancel();
+        if (!motion()) { icon.setRotation(0f); icon.setScaleX(1f); icon.setScaleY(1f); return; }
+        icon.animate().rotation(0f).scaleX(1f).scaleY(1f).setDuration(260)
+            .setInterpolator(new android.view.animation.OvershootInterpolator(1.8f)).start();
     }
 
     void actions(MediaEntry e) {
@@ -2363,6 +2377,7 @@ public final class SpatchUi extends FrameLayout {
         addView(scrim, new LayoutParams(-1, -1));
         close[0] = () -> {
             sheetClose = null;
+            closeMore();
             if (scrim.getParent() == null) return;
             if (!motion()) { removeView(scrim); return; }
             scrim.animate().alpha(0f).setDuration(160).start();

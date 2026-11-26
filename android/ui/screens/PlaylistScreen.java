@@ -796,7 +796,7 @@ final class PlaylistScreen {
         View moreGlyph = ui.icon("more", () -> ui.ink);
         moreBox.addView(moreGlyph, new FrameLayout.LayoutParams(ui.dp(20), ui.dp(20), Gravity.CENTER));
         ui.tappable(moreBox, "More options", () -> {
-            SpatchUi.animateMore(moreGlyph, ui.motion());
+            ui.openMore(moreGlyph);
             playlistActions(headTitle, link);
         });
         if (!land) topBar.addView(moreBox, ui.lp(ui.dp(42), ui.dp(42)));
