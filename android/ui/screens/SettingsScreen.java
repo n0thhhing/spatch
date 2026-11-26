@@ -415,6 +415,58 @@ final class SettingsScreen {
     }
 
     /** Redraws Settings in place after a change, keeping the scroll position. */
+    /**
+     * A new palette spreads from what you tapped: the screen as it was (copied from the window, GPU effects and all)
+     * is laid over the app, the new colours land at once underneath, and a circle growing out of the tap cuts through
+     * the old picture until it's gone. `from` is the tapped view, or null for wherever the finger went down.
+     */
+    void revealPalette(View from, Runnable change) {
+        android.view.Window window = ui.activity.getWindow();
+        View decor = window.getDecorView();
+        if (!ui.motion() || decor.getWidth() == 0) { change.run(); return; }
+        float cx = ui.touchX, cy = ui.touchY;
+        if (from != null) {
+            int[] at = new int[2];
+            from.getLocationInWindow(at);
+            cx = at[0] + from.getWidth() / 2f;
+            cy = at[1] + from.getHeight() / 2f;
+        }
+        float x = cx, y = cy;
+        android.graphics.Bitmap before = android.graphics.Bitmap.createBitmap(decor.getWidth(), decor.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
+        android.view.PixelCopy.request(window, before, result -> {
+            if (result != android.view.PixelCopy.SUCCESS) { before.recycle(); change.run(); return; }
+            float reach = (float) Math.hypot(Math.max(x, decor.getWidth() - x), Math.max(y, decor.getHeight() - y));
+            float[] radius = {0f};
+            android.graphics.Path hole = new android.graphics.Path();
+            android.graphics.drawable.Drawable old = new android.graphics.drawable.Drawable() {
+                @Override public void draw(android.graphics.Canvas c) {
+                    hole.rewind();
+                    hole.addCircle(x, y, radius[0], android.graphics.Path.Direction.CW);
+                    c.save();
+                    c.clipOutPath(hole);
+                    c.drawBitmap(before, 0, 0, null);
+                    c.restore();
+                }
+                @Override public void setAlpha(int alpha) {}
+                @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
+                @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+            };
+            old.setBounds(0, 0, decor.getWidth(), decor.getHeight());
+            decor.getOverlay().add(old);
+            ui.snapPalette = true;
+            change.run();
+            ui.snapPalette = false; // in case the change didn't touch the palette after all
+            android.animation.ValueAnimator grow = android.animation.ValueAnimator.ofFloat(0f, reach);
+            grow.setDuration(620);
+            grow.setInterpolator(new android.view.animation.PathInterpolator(.4f, 0f, .2f, 1f));
+            grow.addUpdateListener(a -> { radius[0] = (float) a.getAnimatedValue(); old.invalidateSelf(); });
+            grow.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(android.animation.Animator a) { decor.getOverlay().remove(old); before.recycle(); }
+            });
+            grow.start();
+        }, new android.os.Handler(android.os.Looper.getMainLooper()));
+    }
+
     void settingsChanged(boolean palette) {
         int y = ui.pageScroll != null ? ui.pageScroll.getScrollY() : 0;
         ui.showPage();
@@ -427,7 +479,8 @@ final class SettingsScreen {
         segmented(box, name, names, ui.prefs.getInt(key, fallback), pick -> {
             ui.prefs.edit().putInt(key, pick).apply();
             if (key.startsWith("eq_")) Audio.refreshEqualizer();
-            settingsChanged(palette);
+            if (palette) revealPalette(null, () -> settingsChanged(true)); // theme: from where the finger went down
+            else settingsChanged(false);
         });
     }
 
@@ -640,7 +693,7 @@ final class SettingsScreen {
             };
             ui.tappable(card, PALETTE_NAMES[i] + " palette" + (i == chosen ? ", selected" : ""), () -> {
                 ui.prefs.edit().putInt("palette", pick).apply();
-                settingsChanged(true);
+                revealPalette(card, () -> settingsChanged(true));
             });
             LinearLayout.LayoutParams at = ui.lp(ui.dp(146), ui.dp(98));
             at.setMarginEnd(ui.dp(8));
@@ -681,7 +734,7 @@ final class SettingsScreen {
                     c.drawCircle(cx, cy, r, paint);
                 }
             };
-            ui.tappable(dot, ACCENT_NAMES[i] + " accent", () -> { ui.prefs.edit().putInt("accent", pick).apply(); settingsChanged(true); });
+            ui.tappable(dot, ACCENT_NAMES[i] + " accent", () -> { ui.prefs.edit().putInt("accent", pick).apply(); revealPalette(dot, () -> settingsChanged(true)); });
             swatches.addView(dot, new LinearLayout.LayoutParams(0, ui.dp(44), 1));
         }
         box.addView(swatches, ui.fill(-2));
@@ -752,6 +805,44 @@ final class SettingsScreen {
 
     private static String db(int gain) { return (gain > 0 ? "+" : "") + gain + " dB"; }
 
+    /**
+     * Turning a switch on sends a soft ring of the accent out from the switch across its row, a small sign that it
+     * took. Drawn on the row's overlay, so the row clips it and nothing is laid out.
+     */
+    void ripple(View row, View from) {
+        if (!ui.motion() || row.getWidth() == 0) return;
+        float cx = from.getLeft() + from.getWidth() / 2f, cy = from.getTop() + from.getHeight() / 2f;
+        float reach = Math.max(cx, row.getWidth() - cx) + ui.dp(24);
+        int accent = ui.accent;
+        float[] t = {0f};
+        android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        android.graphics.Paint ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        ring.setStyle(android.graphics.Paint.Style.STROKE);
+        ring.setStrokeWidth(ui.dp(2));
+        android.graphics.drawable.Drawable wave = new android.graphics.drawable.Drawable() {
+            @Override public void draw(android.graphics.Canvas c) {
+                float r = reach * t[0], fade = 1f - t[0];
+                fill.setColor((accent & 0x00ffffff) | Math.round(0x30 * fade) << 24);
+                ring.setColor((accent & 0x00ffffff) | Math.round(0x90 * fade) << 24);
+                c.drawCircle(cx, cy, r, fill);
+                c.drawCircle(cx, cy, r, ring);
+            }
+            @Override public void setAlpha(int alpha) {}
+            @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
+            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        };
+        wave.setBounds(0, 0, row.getWidth(), row.getHeight());
+        row.getOverlay().add(wave);
+        android.animation.ValueAnimator spread = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        spread.setDuration(620);
+        spread.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
+        spread.addUpdateListener(a -> { t[0] = (float) a.getAnimatedValue(); wave.invalidateSelf(); });
+        spread.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) { row.getOverlay().remove(wave); }
+        });
+        spread.start();
+    }
+
     void toggle(LinearLayout box, String name, String detail, String key, boolean fallback, boolean rebuild) {
         LinearLayout line = ui.row();
         line.setPadding(ui.dp(18), ui.dp(12), ui.dp(16), ui.dp(12));
@@ -766,6 +857,7 @@ final class SettingsScreen {
         if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
         ui.tappable(line, name, () -> {
             sw.set(!sw.on);
+            if (sw.on) ripple(line, sw);
             ui.prefs.edit().putBoolean(key, sw.on).apply();
             if (android.os.Build.VERSION.SDK_INT >= 30) line.setStateDescription(sw.on ? "On" : "Off");
             if (key.equals("equalizer") || key.startsWith("eq_")) Audio.refreshEqualizer();

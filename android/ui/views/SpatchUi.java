@@ -442,8 +442,9 @@ public final class SpatchUi extends FrameLayout {
         int bars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         decor.setSystemUiVisibility(dark ? decor.getSystemUiVisibility() & ~bars : decor.getSystemUiVisibility() | bars);
         if (paletteAnim != null) { paletteAnim.cancel(); paletteAnim = null; }
-        if (!paletteReady || !motion()) {
+        if (!paletteReady || !motion() || snapPalette) {
             paletteReady = true;
+            snapPalette = false;
             bg = target[0]; surf = target[1]; surfHi = target[2]; ink = target[3];
             inkDim = target[4]; accent = target[5]; accent2 = target[6]; onAccent = target[7];
             applyColors();
@@ -486,6 +487,21 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** Re-tints everything once the playing cover's colour is known; true if the palette changed. */
+    /** The next palette change lands at once instead of crossfading: a reveal from the swatch shows it instead. */
+    boolean snapPalette;
+    /** Where the last touch went down, in window coordinates: where a reveal starts when no view is at hand. */
+    float touchX, touchY;
+
+    @Override public boolean dispatchTouchEvent(android.view.MotionEvent e) {
+        if (e.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
+            int[] at = new int[2];
+            getLocationInWindow(at);
+            touchX = at[0] + e.getX();
+            touchY = at[1] + e.getY();
+        }
+        return super.dispatchTouchEvent(e);
+    }
+
     boolean refreshPalette() {
         boolean fromArt = pref("art_colors", true);
         Integer seed = fromArt ? SEEDS.get(image) : null;
