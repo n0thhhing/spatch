@@ -297,7 +297,7 @@ final class PlaylistScreen {
         boolean playingThis = listIsPlaying() && ui.playing;
         names.add(new Option(playingThis ? "Pause" : "Play", "", "", playingThis ? "pause" : "play", false));
         runs.add(() -> { if (listIsPlaying()) ui.playerScreen.togglePlay(); else ui.command(PlayerScreen.PLAY, listShuffle > 0 ? 1 : 2, ui.playUri()); });
-        if (!OfficialPlayback.enabled()) {
+        if (!OfficialPlayback.enabled() || OfficialPlayback.supportsShuffle()) {
             names.add(new Option("Shuffle play", "", "", "shuffle", false));
             runs.add(() -> ui.command(PlayerScreen.PLAY, 1, ui.playUri()));
         }
@@ -602,17 +602,18 @@ final class PlaylistScreen {
         };
         ui.colored(shuffleBox, paintMode);
         ui.tappable(shuffleBox, "Shuffle: off, on or Smart Shuffle", () -> {
-            if (OfficialPlayback.enabled()) {
+            if (OfficialPlayback.enabled() && !OfficialPlayback.supportsShuffle()) {
                 ui.toast("Change shuffle in official Spotify");
                 return;
             }
             // Off → Shuffle → Smart Shuffle (playlists only) → Off, stored with Spotify for this list.
-            int next = listShuffle <= 0 ? 1 : listShuffle == 1 && smartAllowed ? 2 : 0;
+            boolean remoteShuffle = OfficialPlayback.enabled();
+            int next = remoteShuffle ? (listShuffle > 0 ? 0 : 1) : (listShuffle <= 0 ? 1 : listShuffle == 1 && smartAllowed ? 2 : 0);
             int before = listShuffle;
             listShuffle = next;
             paintMode.run();
-            if (listIsPlaying()) ui.command(PlayerScreen.SHUFFLE, next > 0 ? 1 : 0, "");
-            ui.submit(SpatchUi.PLAYLISTS, () -> {
+            if (remoteShuffle || listIsPlaying()) ui.command(PlayerScreen.SHUFFLE, next > 0 ? 1 : 0, "");
+            if (!remoteShuffle) ui.submit(SpatchUi.PLAYLISTS, () -> {
                 String error = SpatchUi.nativeSetShuffleMode(listUri, next);
                 if (error != null && !error.isEmpty()) ui.post(() -> {
                     listShuffle = before;
@@ -623,8 +624,8 @@ final class PlaylistScreen {
         });
         actions.addView(shuffleBox, ui.lp(actionSize, actionSize));
 
-        listShuffle = OfficialPlayback.enabled() ? 0 : -1;
-        if (OfficialPlayback.enabled()) shuffleBox.setVisibility(View.GONE);
+        listShuffle = OfficialPlayback.enabled() ? (OfficialPlayback.supportsShuffle() && ui.shuffle ? 1 : 0) : -1;
+        if (OfficialPlayback.enabled() && !OfficialPlayback.supportsShuffle()) shuffleBox.setVisibility(View.GONE);
         paintMode.run();
         if (!OfficialPlayback.enabled()) ui.submit(SpatchUi.PLAYLISTS, () -> {
             int known = SpatchUi.nativeShuffleMode(listUri);

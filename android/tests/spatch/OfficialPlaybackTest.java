@@ -1,10 +1,14 @@
 package spatch;
 
+import android.graphics.Bitmap;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.MediaSession;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -17,6 +21,12 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(manifest = Config.NONE, sdk = 35)
 public final class OfficialPlaybackTest {
+    @After public void tearDown() {
+        AppRemote.resetForTest();
+        SpatchUi.IMAGES.evictAll();
+        SpatchUi.SEEDS.clear();
+        SpatchUi.SEEDS2.clear();
+    }
     @Test public void stateUsesOfficialMetadataAndMonotonicPlaybackClock() {
         MediaMetadata metadata = new MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_MEDIA_ID, "spotify:track:abc")
@@ -119,5 +129,104 @@ public final class OfficialPlaybackTest {
         assertEquals("", OfficialPlayback.state(-1)[2]);
         service.onDestroy();
         official.release(); foreign.release();
+    }
+    @Test public void metadataArtNormalizesSpotifyImageUrisAndCachesBitmap() {
+        assertEquals("https://i.scdn.co/image/ab67616d0000b2731234",
+            OfficialPlayback.normalizeImageUri("spotify:image:ab67616d0000b2731234"));
+        assertEquals("https://i.scdn.co/image/abc",
+            OfficialPlayback.normalizeImageUri("  https://i.scdn.co/image/abc "));
+        assertEquals("spotify:playlist:xyz789",
+            OfficialPlayback.canonicalUri("https://open.spotify.com/playlist/xyz789?si=123"));
+
+        MediaMetadata withUri = new MediaMetadata.Builder()
+            .putString(MediaMetadata.METADATA_KEY_MEDIA_ID, "spotify:track:uri1")
+            .putString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI, "spotify:image:ab67616d0000b2739999")
+            .build();
+        assertEquals("https://i.scdn.co/image/ab67616d0000b2739999",
+            OfficialPlayback.fields(withUri, null, 0)[5]);
+
+        Bitmap bmp = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888);
+        MediaMetadata withBitmap = new MediaMetadata.Builder()
+            .putString(MediaMetadata.METADATA_KEY_MEDIA_ID, "spotify:track:bmp1")
+            .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, bmp)
+            .build();
+        String[] fields = OfficialPlayback.fields(withBitmap, null, 0);
+        assertTrue(fields[5].startsWith("official:art:"));
+        assertSame(bmp, SpatchUi.IMAGES.get(fields[5] + ":440"));
+        assertSame(bmp, SpatchUi.IMAGES.get(fields[5] + ":180"));
+    }
+    @Test public void appRemoteBuildsHelloParsesStateAndHandlesWampLifecycle() throws Exception {
+        AppRemote.resetForTest();
+        JSONArray hello = AppRemote.buildHello("client123", "spatch://cb", true);
+        assertEquals(AppRemote.WAMP_HELLO, hello.getInt(0));
+        assertEquals("spotify", hello.getString(1));
+        JSONObject details = hello.getJSONObject(2);
+        assertEquals("client123", details.getString("authid"));
+        assertEquals("client123", details.getJSONObject("info").getString("id"));
+        assertEquals("spatch://cb", details.getJSONObject("extras").getString("redirect_uri"));
+        assertEquals("true", details.getJSONObject("extras").getString("show_auth_view"));
+
+        // WELCOME connects and establishes session state.
+        AppRemote.onWampMessage(new JSONArray().put(AppRemote.WAMP_WELCOME).put(42L).put(new JSONObject()));
+        assertTrue(AppRemote.connected());
+
+        // Map synthetic subscription id 77 -> com.spotify.player_state, then deliver EVENT.
+        // onWampMessage mapped subscription 1 -> com.spotify.player_state on WELCOME; simulate SUBSCRIBED for req 1.
+        AppRemote.onWampMessage(new JSONArray().put(AppRemote.WAMP_SUBSCRIBED).put(1L).put(77L));
+        AppRemote.onWampMessage(new JSONArray().put(AppRemote.WAMP_SUBSCRIBED).put(2L).put(78L));
+
+        JSONObject contextKw = new JSONObject()
+            .put("uri", "spotify:playlist:pl1")
+            .put("title", "Focus Mix");
+        AppRemote.onWampMessage(new JSONArray().put(AppRemote.WAMP_EVENT).put(78L).put(1L).put(new JSONObject()).put(new JSONArray()).put(contextKw));
+
+        JSONObject stateKw = new JSONObject()
+            .put("is_paused", false)
+            .put("playback_speed", 1.0)
+            .put("playback_position", 12000L)
+            .put("track", new JSONObject()
+                .put("uri", "spotify:track:t1")
+                .put("name", "Night Drive")
+                .put("image_id", "spotify:image:img42")
+                .put("duration_ms", 180000L)
+                .put("album", new JSONObject().put("name", "Neon").put("uri", "spotify:album:al1"))
+                .put("artist", new JSONObject().put("name", "A1").put("uri", "spotify:artist:ar1"))
+                .put("artists", new JSONArray()
+                    .put(new JSONObject().put("name", "A1"))
+                    .put(new JSONObject().put("name", "A2"))))
+            .put("playback_options", new JSONObject().put("shuffle", true).put("repeat", 2))
+            .put("playback_restrictions", new JSONObject()
+                .put("can_skip_next", true)
+                .put("can_skip_prev", false)
+                .put("can_toggle_shuffle", true)
+                .put("can_seek", true));
+
+        AppRemote.onWampMessage(new JSONArray().put(AppRemote.WAMP_EVENT).put(77L).put(2L).put(new JSONObject()).put(new JSONArray()).put(stateKw));
+        String[] fields = AppRemote.fields(-1L, android.os.SystemClock.uptimeMillis());
+        assertNotNull(fields);
+        assertEquals(20, fields.length);
+        assertEquals("spotify:track:t1", fields[1]);
+        assertEquals("Night Drive", fields[2]);
+        assertEquals("A1, A2", fields[3]);
+        assertEquals("Neon", fields[4]);
+        assertEquals("https://i.scdn.co/image/img42", fields[5]);
+        assertEquals("true", fields[6]);
+        assertEquals("true", fields[7]);
+        assertEquals("1", fields[8]);
+        assertEquals("180000", fields[10]);
+        assertEquals("Focus Mix", fields[11]);
+        assertEquals("spotify:playlist:pl1", fields[13]);
+        assertEquals("true", fields[16]);
+        assertEquals("false", fields[17]);
+        assertEquals("spotify:album:al1", fields[18]);
+        assertEquals("spotify:artist:ar1", fields[19]);
+        assertTrue(AppRemote.supportsShuffle());
+        assertFalse(AppRemote.supports(PlayerScreen.PREVIOUS));
+        assertTrue(AppRemote.supports(PlayerScreen.NEXT));
+
+        // ABORT tears down connected state.
+        AppRemote.onWampMessage(new JSONArray().put(AppRemote.WAMP_ABORT).put(new JSONObject()).put("wamp.error.not_logged_in"));
+        assertFalse(AppRemote.connected());
+        assertFalse(AppRemote.supportsShuffle());
     }
 }

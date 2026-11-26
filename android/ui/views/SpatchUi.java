@@ -477,7 +477,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     /** The cover's primary and secondary accents: Rust picks from a 12x12 shrink of it. */
-    private static int[] seedPairOf(Bitmap bitmap) {
+    static int[] seedPairOf(Bitmap bitmap) {
         Bitmap small = Bitmap.createScaledBitmap(bitmap, 12, 12, true);
         int[] pixels = new int[144];
         small.getPixels(pixels, 0, 12, 0, 0, 12, 12);
@@ -695,7 +695,7 @@ public final class SpatchUi extends FrameLayout {
     }
 
     private static boolean playerPlayFrom(String context, String track, int index) {
-        return OfficialPlayback.enabled() ? OfficialPlayback.command(PlayerScreen.PLAY, 0, track) : nativePlayFrom(context, track, index);
+        return OfficialPlayback.enabled() ? OfficialPlayback.playFrom(context, track, index) : nativePlayFrom(context, track, index);
     }
 
     static String playbackFailure() {
@@ -2787,12 +2787,26 @@ public final class SpatchUi extends FrameLayout {
     Bitmap art(String url, int size) {
         String key = url + ':' + size;
         Bitmap b = IMAGES.get(key);
+        if (b == null && url.startsWith("official:art:")) {
+            Bitmap cached = IMAGES.get(url + ":440");
+            if (cached == null) cached = IMAGES.get(url + ":180");
+            if (cached != null) {
+                IMAGES.put(key, cached);
+                return cached;
+            }
+            return null;
+        }
         if (b == null && !url.isEmpty() && SystemClock.uptimeMillis() >= failed.getOrDefault(key, 0L) && loading.add(key)) {
             ART.execute(() -> {
-                // Small tiles ask Spotify's CDN for its 300 px (album) or 160 px (artist) copy instead of the 640 px one.
-                String small = size <= 180 ? smaller(url) : null;
-                Bitmap got = small == null ? null : CoreBridge.artwork(small, size);
-                if (got == null) got = CoreBridge.artwork(url, size);
+                Bitmap got = null;
+                if (url.startsWith("content://")) {
+                    got = decodeContentArt(url, size);
+                } else {
+                    // Small tiles ask Spotify's CDN for its 300 px (album) or 160 px (artist) copy instead of the 640 px one.
+                    String small = size <= 180 ? smaller(url) : null;
+                    got = small == null ? null : CoreBridge.artwork(small, size);
+                    if (got == null) got = CoreBridge.artwork(url, size);
+                }
                 if (got != null) {
                     IMAGES.put(key, got);
                     if (size == 440) ArtworkViews.cacheBlurs(key, got, GpuFx.blur(prefs));
@@ -2825,6 +2839,22 @@ public final class SpatchUi extends FrameLayout {
             });
         }
         return b;
+    }
+
+    private Bitmap decodeContentArt(String url, int size) {
+        try (java.io.InputStream in = activity.getContentResolver().openInputStream(android.net.Uri.parse(url))) {
+            if (in == null) return null;
+            Bitmap decoded = android.graphics.BitmapFactory.decodeStream(in);
+            if (decoded == null || size <= 0) return decoded;
+            int w = decoded.getWidth(), h = decoded.getHeight();
+            if (w <= size && h <= size) return decoded;
+            float scale = Math.min((float) size / w, (float) size / h);
+            Bitmap scaled = Bitmap.createScaledBitmap(decoded, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)), true);
+            if (scaled != decoded) decoded.recycle();
+            return scaled;
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private static String smaller(String url) {

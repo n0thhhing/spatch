@@ -11,12 +11,27 @@ Spatch's player and home-screen widgets mirror the official app's media session.
 owns audio and system media controls. A media session alone does not authorize the clone to
 receive Spotify audio; a second proxy session is not created.
 
+## Seamless playback modes
+
+Spatch supports two complementary ways to drive the installed official `com.spotify.music` app while keeping Spatch as the active interface:
+
+1. **Spotify App Remote IPC (`spatch.AppRemote`, optional Client ID)**:
+   - Bind directly to `com.spotify.music`'s protocol service (`BIND_PROTOCOL_SERVICE` / `START_APP_PROTOCOL_SERVICE`) using a pure-Java WAMP v2 over `Messenger` client.
+   - Configure an optional **App Remote Client ID**, **Redirect URI** (default `spatch://callback`), and copy Spatch's **package name & signing SHA-1** from **Settings → Playback → Playback backend**, then tap **Connect App Remote**.
+   - Once authorized by official Spotify, Spatch plays tracks/playlists/albums in context (`skip_to_index` / `play_spotify_uri`), queues tracks, seeks, toggles shuffle and repeat, and receives live track/context state without leaving Spatch.
+
+2. **MediaSession + Auto-return fallback (`spatch.OfficialPlayback`, zero-setup)**:
+   - Mirrors playback state, cover artwork (`spotify:image:` CDN URLs and in-memory `MediaMetadata` bitmaps + palette colors), and supported `MediaController` transport controls via Android notification-listener access.
+   - When playing a selection through the package-scoped `ACTION_VIEW` handoff and **Auto-return after handoff** is enabled (default on), Spatch listens for the official session to enter `PLAYING` / `BUFFERING` or update metadata and brings itself back to the front (`FLAG_ACTIVITY_REORDER_TO_FRONT`) after ~260 ms.
+
+Both modes preserve official Spotify's own authentication, free-account restrictions, and ads.
+
 ## Setup
 
 In the clone, open **Settings → Playback → Playback backend → Official Spotify fallback**.
 Keep official Spotify installed and signed into the same account for consistent library access. Grant **Spotify playback fallback** notification
 access in Android's settings when prompted, then return to Spatch. If no session is available,
-use **Open official Spotify** on the same settings page and start playback once.
+use **Open official Spotify** on the same settings page and start playback once. For full in-app control without `ACTION_VIEW` switching, add a Spotify Developer Client ID in the **App Remote Client ID** row and tap **Connect App Remote**.
 
 If Android says **Controlled by Restricted Setting**, tap the greyed-out **Allow notification
 access** row once to trigger Android's *"App was denied access"* dialog (newer Android builds hide

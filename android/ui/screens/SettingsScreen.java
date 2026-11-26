@@ -182,6 +182,47 @@ final class SettingsScreen {
             });
             if (OfficialPlayback.enabled()) {
                 settingsAction(backend, "Notification access", OfficialPlayback.status(), () -> OfficialPlayback.configure(ui.activity));
+                toggle(backend, "Auto-return after handoff", "Bring Spatch back to the front once playback starts in Spotify",
+                    OfficialPlayback.PREF_AUTO_RETURN, true, false);
+                String cid = AppRemote.clientId();
+                settingsAction(backend, "App Remote Client ID",
+                    cid.isEmpty() ? "Optional · enables seamless control without switching apps" : cid,
+                    () -> editRemotePref("App Remote Client ID", "Paste the Client ID from your Spotify Developer dashboard",
+                        cid, "", val -> {
+                            AppRemote.setClientId(val);
+                            if (val.isEmpty()) AppRemote.disconnect();
+                            else AppRemote.connect(ui.activity, true);
+                            settingsChanged(false);
+                        }));
+                settingsAction(backend, "Redirect URI", AppRemote.redirectUri(),
+                    () -> editRemotePref("Redirect URI", "Must match an Android Redirect URI in your Spotify Developer app",
+                        AppRemote.redirectUri(), AppRemote.DEFAULT_REDIRECT, val -> {
+                            AppRemote.setRedirectUri(val);
+                            settingsChanged(false);
+                        }));
+                String fingerprint = AppRemote.signingSha1(ui.activity);
+                settingsAction(backend, "Copy package & SHA-1",
+                    ui.activity.getPackageName() + (fingerprint.isEmpty() ? "" : " · " + fingerprint),
+                    () -> {
+                        android.content.ClipboardManager cm = (android.content.ClipboardManager) ui.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                        if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("Spatch App Remote", AppRemote.packageAndSha1(ui.activity)));
+                        ui.toast("Copied package name and SHA-1");
+                    });
+                settingsAction(backend, "Connect App Remote", AppRemote.statusSummary(), () -> {
+                    if (!AppRemote.configured()) {
+                        ui.toast("Add an App Remote Client ID first", true);
+                        return;
+                    }
+                    ui.submit(SpatchUi.COMMANDS, () -> {
+                        boolean ok = AppRemote.connectBlocking(ui.activity, true, 8000);
+                        ui.post(() -> {
+                            ui.revision = -1;
+                            ui.syncNativeState();
+                            settingsChanged(false);
+                            ui.toast(ok ? "App Remote connected" : AppRemote.statusSummary(), !ok);
+                        });
+                    });
+                });
                 settingsAction(backend, "Open official Spotify", "Sign in or start a session, then return to Spatch", () -> {
                     android.content.Intent launch = ui.activity.getPackageManager().getLaunchIntentForPackage(OfficialPlayback.PACKAGE);
                     if (launch != null) ui.activity.startActivity(launch);
@@ -754,6 +795,12 @@ final class SettingsScreen {
         line.addView(ui.icon("chevron", () -> ui.inkDim), ui.lp(ui.dp(24), ui.dp(24)));
         ui.tappable(line, title, action);
         box.addView(line, ui.fill(-2));
+    }
+
+    private void editRemotePref(String heading, String note, String current, String placeholder, java.util.function.Consumer<String> onSave) {
+        android.widget.EditText field = ui.createField(placeholder.isEmpty() ? "Enter value" : placeholder, current, false);
+        ui.sheetExtra = field;
+        ui.sheet(heading, note, new String[]{"Save", "Clear"}, pick -> onSave.accept(pick == 0 ? field.getText().toString().trim() : ""));
     }
 
     private static String db(int gain) { return (gain > 0 ? "+" : "") + gain + " dB"; }
