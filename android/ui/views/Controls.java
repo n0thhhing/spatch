@@ -333,7 +333,7 @@ final class Controls {
      * 120 Hz); `omega` is its stiffness in radians a second, `zeta` its damping, below 1 for an overshoot.
      */
     static final class Spring implements android.view.Choreographer.FrameCallback {
-        private final float omega, zeta;
+        private float omega, zeta;
         private final java.util.function.Consumer<Float> step;
         private float value, velocity, target;
         private long last;
@@ -350,6 +350,9 @@ final class Controls {
             last = 0;
             android.view.Choreographer.getInstance().postFrameCallback(this);
         }
+
+        /** Changes its stiffness and damping, for a spring whose feel depends on which way it's going. */
+        void tune(float omega, float zeta) { this.omega = omega; this.zeta = zeta; }
 
         void snap(float next) {
             cancel();

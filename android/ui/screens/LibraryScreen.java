@@ -4,7 +4,9 @@ import spatch.Dock.DockScroll;
 import spatch.SpatchUi.Row;
 import spatch.SpatchUi.Tile;
 
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
@@ -99,28 +101,39 @@ final class LibraryScreen {
 
         int count = SpatchUi.SECTIONS.length + 2;
         TextView[] filterChips = new TextView[count];
-        View filterPill = new View(ui.activity);
-        ui.bgRound(filterPill, 19, () -> ui.accent);
         LinearLayout filterRow = ui.row();
+        // The selected chip's colour is a pill drawn behind the chips. Its two edges each ride a spring, the leading one
+        // stiffer, so it stretches toward the new chip and settles there (like the dock's tab indicator) without
+        // laying anything out while it moves.
+        float[] pillEdges = new float[2];
+        FrameLayout[] trackRef = new FrameLayout[1];
+        Controls.Spring[] pillSprings = {
+            new Controls.Spring(0f, 20f, .62f, v -> { pillEdges[0] = v; if (trackRef[0] != null) trackRef[0].invalidate(); }),
+            new Controls.Spring(0f, 20f, .62f, v -> { pillEdges[1] = v; if (trackRef[0] != null) trackRef[0].invalidate(); }) };
+        Paint pillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         FrameLayout filterTrack = new FrameLayout(ui.activity) {
             private boolean placed;
             @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
                 super.onLayout(changed, l, t, r, b);
-                int sel = Math.max(0, Math.min(count - 1, ui.filter + 1));
-                TextView target = filterChips[sel];
+                TextView target = filterChips[Math.max(0, Math.min(count - 1, ui.filter + 1))];
                 if (!placed && target != null && target.getWidth() > 0) {
                     placed = true;
-                    int tw = target.getWidth(), th = Math.max(1, getHeight());
-                    LayoutParams lp = (LayoutParams) filterPill.getLayoutParams();
-                    lp.width = tw;
-                    filterPill.measure(MeasureSpec.makeMeasureSpec(tw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(th, MeasureSpec.EXACTLY));
-                    filterPill.layout(0, 0, tw, th);
-                    filterPill.setTranslationX(target.getLeft());
+                    pillSprings[0].snap(target.getLeft());
+                    pillSprings[1].snap(target.getRight());
                 }
             }
+            @Override protected void dispatchDraw(Canvas c) {
+                if (placed) {
+                    float h = getHeight();
+                    pillPaint.setColor(ui.accent);
+                    c.drawRoundRect(pillEdges[0], 0, Math.max(pillEdges[0] + h, pillEdges[1]), h, h / 2f, h / 2f, pillPaint);
+                }
+                super.dispatchDraw(c);
+            }
         };
+        trackRef[0] = filterTrack;
         ui.bgRound(filterTrack, 19, () -> ui.surf);
-        filterTrack.addView(filterPill, new FrameLayout.LayoutParams(0, ui.dp(38)));
+        ui.colored(filterTrack, filterTrack::invalidate);
         filterTrack.addView(filterRow, new FrameLayout.LayoutParams(-2, ui.dp(38)));
 
         for (int i = -1; i <= SpatchUi.SECTIONS.length; i++) {
@@ -159,7 +172,6 @@ final class LibraryScreen {
         FrameLayout contentHost = new FrameLayout(ui.activity);
         page.addView(contentHost, new LinearLayout.LayoutParams(-1, 0, 1));
         Runnable[] onQuery = new Runnable[1];
-        android.animation.ValueAnimator[] pillAnim = new android.animation.ValueAnimator[1];
 
         java.util.function.IntConsumer renderContent = dir -> {
             contentHost.removeAllViews();
@@ -228,28 +240,16 @@ final class LibraryScreen {
                 int prev = ui.filter;
                 ui.filter = index;
                 for (TextView c : filterChips) SpatchUi.recolorView(c);
-                int targetW = chip.getWidth();
-                float targetX = chip.getLeft();
-                FrameLayout.LayoutParams plp = (FrameLayout.LayoutParams) filterPill.getLayoutParams();
-                if (pillAnim[0] != null) pillAnim[0].cancel();
-                if (targetW > 0 && plp.width > 0 && ui.motion()) {
-                    int startW = filterPill.getWidth() > 0 ? filterPill.getWidth() : plp.width;
-                    float startX = filterPill.getTranslationX();
-                    android.animation.ValueAnimator slide = android.animation.ValueAnimator.ofFloat(0f, 1f);
-                    slide.setDuration(240);
-                    slide.setInterpolator(new android.view.animation.OvershootInterpolator(.8f));
-                    slide.addUpdateListener(a -> {
-                        float t = (float) a.getAnimatedValue();
-                        plp.width = Math.max(1, Math.round(startW + (targetW - startW) * t));
-                        filterPill.setLayoutParams(plp);
-                        filterPill.setTranslationX(startX + (targetX - startX) * t);
-                    });
-                    pillAnim[0] = slide;
-                    slide.start();
-                } else if (targetW > 0) {
-                    plp.width = targetW;
-                    filterPill.setLayoutParams(plp);
-                    filterPill.setTranslationX(targetX);
+                if (chip.getWidth() > 0 && ui.motion()) {
+                    boolean right = index > prev;
+                    // The edge moving toward the new chip leads; the other follows a little looser.
+                    pillSprings[right ? 1 : 0].tune(26f, .62f);
+                    pillSprings[right ? 0 : 1].tune(17f, .66f);
+                    pillSprings[0].to(chip.getLeft());
+                    pillSprings[1].to(chip.getRight());
+                } else if (chip.getWidth() > 0) {
+                    pillSprings[0].snap(chip.getLeft());
+                    pillSprings[1].snap(chip.getRight());
                 }
                 ensureChipVisible(chipScroll, chip, filterTrack);
                 renderContent.accept(ui.filter > prev ? 1 : -1);

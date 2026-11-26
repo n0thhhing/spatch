@@ -50,6 +50,50 @@ public class HomeEffectsTest {
         activity.finish();
     }
 
+    @Test public void libraryFilterPillSpringsToTheChosenChip() throws Exception {
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
+        ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
+        settle();
+        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "LIBRARY"));
+        settle();
+        shot(root, "library-chips-before");
+        View albums = text(root, "Albums");
+        assertNotNull(albums);
+        albums.performClick();
+        ShadowLooper.idleMainLooper(60, java.util.concurrent.TimeUnit.MILLISECONDS);
+        shot(root, "library-chips-moving");
+        settle();
+        settle();
+        shot(root, "library-chips-after");
+        View track = (View) albums.getParent().getParent();
+        float[] edges = null;
+        for (java.lang.reflect.Field f : track.getClass().getDeclaredFields()) {
+            if (f.getName().contains("pillEdges")) { f.setAccessible(true); edges = (float[]) f.get(track); }
+        }
+        assertNotNull("The track holds the pill's edges", edges);
+        assertEquals("Settled on the chip's left edge", albums.getLeft(), edges[0], 1f);
+        assertEquals("And its right edge", albums.getRight(), edges[1], 1f);
+        activity.finish();
+    }
+
+    private static void shot(View root, String name) throws Exception {
+        Bitmap bitmap = Bitmap.createBitmap(root.getWidth(), root.getHeight(), Bitmap.Config.ARGB_8888);
+        root.draw(new Canvas(bitmap));
+        File file = new File("build/reports/preview/" + name + ".png");
+        file.getParentFile().mkdirs();
+        try (FileOutputStream out = new FileOutputStream(file)) { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)); }
+    }
+
+    private static View text(View view, String label) {
+        if (view instanceof android.widget.TextView && label.contentEquals(((android.widget.TextView) view).getText())) return view;
+        if (view instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) view).getChildCount(); i++) {
+            View found = text(((ViewGroup) view).getChildAt(i), label);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     private static void frame(View view, Canvas canvas) {
         ShadowSystemClock.advanceBy(Duration.ofMillis(16));
         view.draw(canvas);
