@@ -46,6 +46,7 @@ fn artists(list: &[md::Artist]) -> String {
 pub struct AlbumPage {
     pub name: String,
     pub subtitle: String,
+    pub uri: String,
     pub image: String,
     pub tracks: Vec<Track>,
 }
@@ -87,17 +88,18 @@ pub fn request(uris: &[String]) -> Vec<u8> {
 fn album_page(a: &md::Album) -> AlbumPage {
     let by = artists(&a.artist);
     let year = a.date.as_ref().map_or(0, |d| d.year);
+    let uri = if a.gid.is_empty() { String::new() } else { link("album", &a.gid) };
     let image = cover(&a.cover_group, &a.cover);
     let tracks = a
         .disc
         .iter()
         .flat_map(|d| d.track.iter())
         .map(|t| Track { title: t.name.clone(), artist: if t.artist.is_empty() { by.clone() } else { artists(&t.artist) }, uri: link("track", &t.gid), image: image.clone(),
-            album: a.name.clone(), album_uri: link("album", &a.gid),
+            album: a.name.clone(), album_uri: uri.clone(),
             artist_uri: t.artist.first().or_else(|| a.artist.first()).map_or_else(String::new, |artist| link("artist", &artist.gid)),
             duration_ms: t.duration.max(0) as u32, explicit: t.explicit, ..Default::default() })
         .collect();
-    AlbumPage { name: a.name.clone(), subtitle: [by, if year > 0 { year.to_string() } else { String::new() }].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" • "), image, tracks }
+    AlbumPage { name: a.name.clone(), subtitle: [by, if year > 0 { year.to_string() } else { String::new() }].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" • "), uri, image, tracks }
 }
 
 /// The entities of a reply, in request order; links Spotify couldn't give are skipped.
@@ -274,24 +276,28 @@ fn resolve_tracks(tracks: &mut [Track], fetch_fn: impl Fn(&[String]) -> Result<V
 
 /// Loads the page for an album or artist link. Blocks: never on the UI thread.
 pub fn page(uri: &str) -> Result<Page, String> {
-    let first = fetch(&[uri.to_string()])?.into_iter().next().ok_or("Spotify has nothing for this link")?;
+    page_with(uri, fetch)
+}
+
+fn page_with(uri: &str, fetch_fn: impl Fn(&[String]) -> Result<Vec<Found>, String>) -> Result<Page, String> {
+    let first = fetch_fn(&[uri.to_string()])?.into_iter().next().ok_or("Spotify has nothing for this link")?;
     match first {
         Found::Album(mut a) => {
             // Album replies sometimes omit track names (sending only track gids, like Artist/Show do): resolve them by link.
-            resolve_tracks(&mut a.tracks, fetch);
+            resolve_tracks(&mut a.tracks, &fetch_fn);
             Ok(Page { name: a.name, subtitle: a.subtitle, image: a.image, tracks: a.tracks, releases: Vec::new() })
         }
         Found::Artist(artist) => {
             // The artist reply only names the tracks and releases by link: ask for the first few in one call.
             let top: Vec<_> = artist.top.iter().take(10).cloned().collect();
             let releases: Vec<_> = artist.releases.iter().take(16).cloned().collect();
-            let found = fetch(&[top.clone(), releases.clone()].concat()).unwrap_or_default();
+            let found = fetch_fn(&[top.clone(), releases.clone()].concat()).unwrap_or_default();
             let mut page = Page { name: artist.name, subtitle: "Artist".into(), image: artist.image, ..Default::default() };
             for f in found {
                 match f {
                     Found::Track(t) => page.tracks.push(t),
                     Found::Release { name, subtitle, uri, image } => page.releases.push((name, subtitle, uri, image)),
-                    Found::Album(a) => page.releases.push((a.name, a.subtitle, String::new(), a.image)),
+                    Found::Album(a) => page.releases.push((a.name, a.subtitle, a.uri, a.image)),
                     Found::Artist(_) | Found::Show(_) => {}
                 }
             }
@@ -301,7 +307,7 @@ pub fn page(uri: &str) -> Result<Page, String> {
             // Episodes come back with names when Spotify includes them; otherwise ask for the newest by link.
             let mut episodes = show.episodes;
             let n = episodes.len().min(30);
-            resolve_tracks(&mut episodes[..n], fetch);
+            resolve_tracks(&mut episodes[..n], &fetch_fn);
             episodes.retain(|e| !e.title.is_empty());
             Ok(Page { name: show.name, subtitle: if show.subtitle.is_empty() { "Podcast".into() } else { show.subtitle }, image: show.image, tracks: episodes, releases: Vec::new() })
         }
@@ -431,5 +437,35 @@ mod tests {
         });
         assert_eq!((page.tracks[0].title.as_str(), page.tracks[0].artist.as_str()), ("Resolved Song", "Feat Artist"));
         assert_eq!(page.tracks[1].title, "Already Named");
+    }
+
+    #[test]
+    fn artist_page_keeps_album_links_on_releases_with_discs() {
+        let album_gid = vec![2; 16];
+        let expected_uri = link("album", &album_gid);
+        let artist_uri = "spotify:artist:northbound";
+        let page = page_with(artist_uri, |uris| {
+            if uris == [artist_uri] {
+                Ok(vec![Found::Artist(ArtistPage {
+                    name: "Northbound".into(),
+                    image: String::new(),
+                    top: Vec::new(),
+                    releases: vec![expected_uri.clone()],
+                })])
+            } else {
+                let album = md::Album {
+                    gid: album_gid.clone(),
+                    name: "Between Stations".into(),
+                    artist: vec![md::Artist { name: "Northbound".into(), ..Default::default() }],
+                    date: Some(md::Date { year: 2025, ..Default::default() }),
+                    disc: vec![md::Disc { number: 1, track: vec![md::Track { gid: vec![1; 16], ..Default::default() }], ..Default::default() }],
+                    ..Default::default()
+                };
+                Ok(vec![Found::Album(album_page(&album))])
+            }
+        }).unwrap();
+        assert_eq!(page.releases.len(), 1);
+        assert_eq!(page.releases[0].0, "Between Stations");
+        assert_eq!(page.releases[0].2, expected_uri);
     }
 }

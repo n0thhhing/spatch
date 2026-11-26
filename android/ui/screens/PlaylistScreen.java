@@ -71,7 +71,7 @@ final class PlaylistScreen {
         detailTitle = detailSubtitle = detailImage = "";
         playlistLoading = true;
         playlistFailed = false;
-        String[] saved = unpackStrings(SpatchUi.nativeCached((SpatchUi.isDetail(e) ? "page3:" : "playlist4:") + e.uri));
+        String[] saved = unpackStrings(SpatchUi.nativeCached((SpatchUi.isDetail(e) ? "page4:" : "playlist4:") + e.uri));
         if (saved != null && saved.length > 0) applyReply(e, saved, true);
         else ui.showPage();
         ui.dockUi.updateDock();
@@ -91,7 +91,7 @@ final class PlaylistScreen {
             ui.showPage();
         }, 20_000);
         ui.submit(SpatchUi.PLAYLISTS, () -> {
-            String key = (SpatchUi.isDetail(e) ? "page3:" : "playlist4:") + e.uri;
+            String key = (SpatchUi.isDetail(e) ? "page4:" : "playlist4:") + e.uri;
             // What this page showed last time appears at once; Spotify's answer replaces it if it differs.
             if (attempt == 0 && !shownCached) {
                 String[] saved = unpackStrings(SpatchUi.nativeCached(key));
