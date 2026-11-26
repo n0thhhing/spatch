@@ -150,6 +150,7 @@ final class SettingsScreen {
 
             LinearLayout home = card(page, "Home");
             toggle(home, "Recently played", "Spotify’s own listening history", "home_recent", true, false);
+            toggle(home, "Hero visualizer", "A soft wave of the music along the foot of the big now-playing card; it flattens and stops when paused", "hero_wave", false, false);
             for (int i = 0; i < SpatchUi.SECTIONS.length; i++) toggle(home, SpatchUi.SECTIONS[i], "Show the " + SpatchUi.SECTIONS[i].toLowerCase(java.util.Locale.ROOT) + " shelf", "home_shelf_" + i, true, false);
 
             LinearLayout library = card(page, "Library");

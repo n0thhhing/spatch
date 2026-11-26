@@ -122,6 +122,7 @@ final class HomeScreen {
         scrim.setBackground(scrimBg);
         ui.colored(scrim, () -> scrimBg.setColors(new int[]{ui.surf & 0x00ffffff, (ui.surf & 0x00ffffff) | 0xc8000000, ui.surf}));
         hero.addView(scrim, new FrameLayout.LayoutParams(-1, ui.dp(130), Gravity.BOTTOM));
+        if (ui.pref("hero_wave", false)) hero.addView(new HeroWave(), new FrameLayout.LayoutParams(-1, ui.dp(44), Gravity.BOTTOM));
         LinearLayout words = ui.column();
         words.setPadding(ui.dp(18), 0, ui.dp(84), ui.dp(16));
         ui.heroTitle = ui.text("", 26, () -> ui.ink, true);
@@ -376,6 +377,76 @@ final class HomeScreen {
         page.addView(scroller, sp);
         if (cascadeShelf >= 0) cascadeShelf++;
         return true;
+    }
+
+    /**
+     * The optional mini visualizer along the foot of the Home hero: a soft wave through the music's levels (the same
+     * bass-weighted bars the player's ring reads from the core), drawn above the scrim and behind the title. On pause it
+     * eases flat and then stops drawing; hidden, or under the player, it doesn't draw at all.
+     */
+    private final class HeroWave extends View {
+        private static final int POINTS = 12;
+        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), edge = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path(), crest = new Path(); // the filled shape, and just its top edge for the line
+        private final float[] targets = new float[POINTS], levels = new float[POINTS];
+        private android.graphics.LinearGradient shade;
+        private int shadeColor, shadeHeight;
+        private long lastFrame;
+
+        HeroWave() {
+            super(ui.activity);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            edge.setStyle(Paint.Style.STROKE);
+            edge.setStrokeWidth(ui.dp(1.5f));
+            ui.colored(this, this::invalidate);
+        }
+
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility == VISIBLE) { lastFrame = 0; invalidate(); }
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight();
+            long now = SystemClock.uptimeMillis();
+            float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
+            lastFrame = now;
+            boolean run = ui.playing && ui.motion();
+            boolean live = run && ui.pref("audio", true) && Audio.ready(ui.activity) && Audio.level > 0;
+            if (live) SpatchUi.nativeRing(POINTS, targets);
+            float t = now / 1000f, peak = 0f;
+            for (int i = 0; i < POINTS; i++) {
+                // No audio to read: a slow swell that still reads as music, like the player's ring.
+                float want = !run ? 0f : live ? Math.min(1f, targets[i]) : .22f + .14f * (float) Math.sin(t * 2.2f + i * .7f) + .08f * (float) Math.sin(t * 1.3f - i * .4f);
+                levels[i] += (want - levels[i]) * (1f - (float) Math.exp(-dt / (want > levels[i] ? .05f : .14f)));
+                peak = Math.max(peak, levels[i]);
+            }
+            if (peak < .004f) { lastFrame = 0; return; } // flat: nothing to draw, and no next frame asked for
+            crest.rewind();
+            float px = 0, py = h - levels[0] * h * .9f;
+            crest.moveTo(px, py);
+            for (int i = 1; i < POINTS; i++) {
+                float x = w * i / (POINTS - 1), y = h - levels[i] * h * .9f;
+                crest.quadTo(px, py, (px + x) / 2f, (py + y) / 2f);
+                px = x; py = y;
+            }
+            crest.lineTo(w, py);
+            path.set(crest);
+            path.lineTo(w, h);
+            path.lineTo(0, h);
+            path.close();
+            if (shade == null || shadeColor != ui.accent || shadeHeight != (int) h) {
+                shadeColor = ui.accent;
+                shadeHeight = (int) h;
+                shade = new android.graphics.LinearGradient(0, 0, 0, h, (ui.accent & 0x00ffffff) | 0x66000000, ui.accent & 0x00ffffff, android.graphics.Shader.TileMode.CLAMP);
+            }
+            fill.setShader(shade);
+            c.drawPath(path, fill);
+            edge.setColor((ui.accent & 0x00ffffff) | 0x99000000);
+            c.drawPath(crest, edge);
+            if (live) Audio.want();
+            if (isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateOnAnimation();
+        }
     }
 
     /** Which shelf is being built while Home's first cascade is set up (-1 when it isn't), and whether it has run. */
