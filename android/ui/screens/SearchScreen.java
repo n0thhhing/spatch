@@ -5,8 +5,12 @@ import spatch.SpatchUi.Option;
 import spatch.SpatchUi.Row;
 import static spatch.PackedStrings.unpackStrings;
 
+import spatch.ArtworkViews.Art;
+
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -36,7 +40,8 @@ final class SearchScreen {
     private void scheduleSearch() {
         ui.removeCallbacks(searchRun);
         searchRequest++;
-        searchHits = new String[0];
+        // The old results stay until the new ones arrive (then they glide into place), so typing never blanks the list.
+        if (searchQuery.trim().isEmpty()) searchHits = new String[0];
         catalogPage = catalogError = "";
         searchBusy = !searchQuery.trim().isEmpty();
         renderSearch();
@@ -196,7 +201,13 @@ final class SearchScreen {
     private void renderSearch() {
         LinearLayout box = searchResults;
         if (box == null || !box.isAttachedToWindow() && box.getParent() == null) return;
+        java.util.Map<Object, Integer> was = new java.util.HashMap<>();
+        if (box.isLaidOut()) for (int i = 0; i < box.getChildCount(); i++) {
+            View child = box.getChildAt(i);
+            if (child.getTag() != null) was.put(child.getTag(), child.getTop());
+        }
         box.removeAllViews();
+        glide(box, was);
         String q = searchQuery.trim();
         if (q.isEmpty()) {
             List<String> recents = recentSearches();
@@ -222,6 +233,7 @@ final class SearchScreen {
                     box.addView(line, ui.fill(-2));
                 }
             }
+            box.addView(moodBoard(), ui.fill(-2));
             TextView note = ui.text("Search Spotify’s catalog, or switch to On this device for your library and cached music.", 13, () -> ui.inkDim, false);
             note.setPadding(ui.dp(2), ui.dp(18), ui.dp(2), 0);
             box.addView(note, ui.fill(-2));
@@ -242,16 +254,20 @@ final class SearchScreen {
             return;
         }
         String section = "";
-        for (int i = 0; i + HIT_FIELDS <= searchHits.length; i += HIT_FIELDS) {
+        MediaEntry best = new MediaEntry(searchHits[1], searchHits[2], searchHits[3], searchHits[4], PlaylistScreen.parseInt(searchHits[5]));
+        box.addView(topResult(best, searchHits[0], PlaylistScreen.parseInt(searchHits[6])), ui.fill(-2));
+        for (int i = HIT_FIELDS; i + HIT_FIELDS <= searchHits.length; i += HIT_FIELDS) {
             if (!searchHits[i].equals(section)) {
                 section = searchHits[i];
                 TextView header = ui.text(section, 13, () -> ui.accent, true);
                 header.setLetterSpacing(.04f);
-                header.setPadding(ui.dp(4), ui.dp(i == 0 ? 6 : 18), 0, ui.dp(4));
+                header.setPadding(ui.dp(4), ui.dp(18), 0, ui.dp(4));
+                header.setTag("section:" + section);
                 box.addView(header, ui.fill(-2));
             }
             MediaEntry e = new MediaEntry(searchHits[i + 1], searchHits[i + 2], searchHits[i + 3], searchHits[i + 4], PlaylistScreen.parseInt(searchHits[i + 5]));
             Row row = ui.new Row();
+            row.setTag("hit:" + e.uri);
             row.bind(e);
             if (isTrack(e.uri)) {
                 int ms = PlaylistScreen.parseInt(searchHits[i + 6]);
@@ -273,6 +289,142 @@ final class SearchScreen {
         if (!catalogPage.isEmpty()) box.addView(ui.pill(searchBusy ? "Loading…" : "Load more results", () -> {
             if (!searchBusy) runSearch(catalogPage, searchRequest);
         }), ui.fill(ui.dp(48)));
+    }
+
+    /**
+     * Results glide instead of jumping: once the new children are laid out (before they draw), each one that was there
+     * before slides from its old place to its new one, and each new one fades in a beat after the one above.
+     */
+    private void glide(LinearLayout box, java.util.Map<Object, Integer> was) {
+        if (!ui.motion()) return;
+        box.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                box.getViewTreeObserver().removeOnPreDrawListener(this);
+                int fresh = 0;
+                for (int i = 0; i < box.getChildCount(); i++) {
+                    View child = box.getChildAt(i);
+                    Integer top = child.getTag() == null ? null : was.get(child.getTag());
+                    child.animate().cancel();
+                    if (top != null) {
+                        child.setTranslationY(top - child.getTop());
+                        child.animate().translationY(0f).setDuration(260).setInterpolator(SpatchUi.EMPHASIZED).start();
+                    } else if (fresh < 10) {
+                        child.setAlpha(0f);
+                        child.setTranslationY(ui.dp(8));
+                        child.animate().alpha(1f).translationY(0f).setStartDelay(fresh++ * 30L).setDuration(240).setInterpolator(SpatchUi.EMPHASIZED).start();
+                    }
+                }
+                return true;
+            }
+        });
+    }
+
+    private String topUri = "";
+
+    /**
+     * The best match as a bigger card over its own blurred cover (blurred on the GPU), with the cover itself and its
+     * name in front. When a new best match arrives the backdrop settles in from a soft zoom.
+     */
+    private View topResult(MediaEntry e, String kind, int ms) {
+        FrameLayout card = new FrameLayout(ui.activity);
+        card.setTag("top");
+        ui.bgRound(card, 24, () -> ui.surfHi);
+        card.setClipToOutline(true);
+        Art backdrop = ui.artwork.new Art(Art.WIDE, false);
+        backdrop.bind(e.image);
+        if (GpuFx.blur(ui.prefs)) backdrop.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(ui.dp(26), ui.dp(26), android.graphics.Shader.TileMode.CLAMP));
+        card.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
+        View dim = new View(ui.activity);
+        dim.setBackgroundColor((ui.bg & 0x00ffffff) | 0x8c000000);
+        card.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout front = ui.row();
+        front.setPadding(ui.dp(16), ui.dp(16), ui.dp(16), ui.dp(16));
+        Art cover = ui.artwork.new Art(e.category == 2 ? Art.CIRCLE : Art.ROUNDED, false);
+        cover.letter = SpatchUi.initial(e.title);
+        cover.bind(e.image);
+        cover.setElevation(ui.dp(6));
+        front.addView(cover, ui.lp(ui.dp(104), ui.dp(104)));
+        LinearLayout words = ui.column();
+        words.setPadding(ui.dp(16), 0, 0, 0);
+        TextView label = ui.text("Top result · " + (kind.endsWith("s") ? kind.substring(0, kind.length() - 1) : kind), 12, () -> ui.accent, true);
+        TextView name = ui.text(e.title, 24, () -> ui.ink, true);
+        name.setMaxLines(2);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        TextView sub = ui.text(e.subtitle, 14, () -> ui.inkDim, false);
+        ui.oneLine(sub);
+        words.addView(label);
+        words.addView(name);
+        words.addView(sub);
+        front.addView(words, ui.weight());
+        if (isTrack(e.uri) && ms > 0) front.addView(ui.text(SpatchUi.time(ms), 13, () -> ui.inkDim, false));
+        card.addView(front, new FrameLayout.LayoutParams(-1, -2));
+        ui.tappable(card, e.title, .98f, () -> {
+            rememberSearch(searchQuery);
+            if (!isTrack(e.uri)) ui.playlistScreen.captureFlight(cover, e.image, e.category == 2);
+            ui.open(e);
+        });
+        card.setOnLongClickListener(v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); searchActions(e); return true; });
+        if (!e.uri.equals(topUri) && ui.motion()) {
+            backdrop.setScaleX(1.18f);
+            backdrop.setScaleY(1.18f);
+            backdrop.setAlpha(0f);
+            backdrop.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(700).setInterpolator(SpatchUi.EMPHASIZED).start();
+        }
+        topUri = e.uri;
+        ViewGroup.MarginLayoutParams spacing = new ViewGroup.MarginLayoutParams(-1, -2);
+        spacing.setMargins(0, ui.dp(6), 0, ui.dp(4));
+        card.setLayoutParams(spacing);
+        return card;
+    }
+
+    private static final String[] MOODS = {"Chill", "Pop", "Focus", "Hip-hop", "Workout", "Indie", "Sleep", "Rock", "Party", "Lo-fi", "Mood booster", "Jazz"};
+    private static final int[] MOOD_HUES = {200, 330, 160, 30, 0, 270, 230, 15, 300, 180, 50, 25};
+
+    /**
+     * With nothing typed: genre and mood shortcuts (each runs that search) in a loose two-column collage, tilted a
+     * little like cards pinned to a board, drifting very slightly for the first few seconds before coming to rest.
+     */
+    private View moodBoard() {
+        LinearLayout board = ui.row();
+        board.setGravity(Gravity.TOP);
+        board.setPadding(0, ui.dp(14), 0, ui.dp(4));
+        board.setClipChildren(false);
+        board.setClipToPadding(false);
+        board.setTag("moods");
+        LinearLayout[] columns = {ui.column(), ui.column()};
+        for (LinearLayout column : columns) { column.setClipChildren(false); board.addView(column, ui.weight()); }
+        java.util.Random seeded = new java.util.Random(7);
+        for (int i = 0; i < MOODS.length; i++) {
+            String mood = MOODS[i];
+            int hue = MOOD_HUES[i];
+            TextView tile = ui.text(mood, 17, () -> ui.ink, true);
+            tile.setGravity(Gravity.BOTTOM | Gravity.START);
+            tile.setPadding(ui.dp(14), ui.dp(12), ui.dp(14), ui.dp(12));
+            android.graphics.drawable.GradientDrawable bg = ui.bgRound(tile, 20, () -> SpatchUi.blend(ui.surfHi, android.graphics.Color.HSVToColor(new float[]{hue, .55f, ui.dark ? .55f : .85f}), .6f));
+            tile.setElevation(ui.dp(2));
+            float tilt = (seeded.nextFloat() - .5f) * 5f;
+            tile.setRotation(tilt);
+            LinearLayout.LayoutParams at = ui.fill(ui.dp(i % 3 == 0 ? 104 : i % 3 == 1 ? 76 : 90));
+            at.setMargins(ui.dp(6), ui.dp(6), ui.dp(6), ui.dp(6));
+            ui.tappable(tile, "Search " + mood, .96f, () -> { searchField.setText(mood); searchField.setSelection(mood.length()); ui.hideKeyboard(); });
+            columns[i % 2].addView(tile, at);
+            if (ui.motion()) {
+                // A slight drift, a few seconds long, then still: ambient motion shouldn't keep the screen redrawing.
+                android.animation.ObjectAnimator drift = android.animation.ObjectAnimator.ofPropertyValuesHolder(tile,
+                    android.animation.PropertyValuesHolder.ofFloat("translationY", 0f, ui.dp(seeded.nextBoolean() ? 3 : -3), 0f),
+                    android.animation.PropertyValuesHolder.ofFloat("rotation", tilt, tilt + (seeded.nextFloat() - .5f) * 1.6f, tilt));
+                drift.setDuration(3600 + seeded.nextInt(1600));
+                drift.setRepeatCount(2);
+                drift.setStartDelay(seeded.nextInt(600));
+                drift.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+                drift.start();
+                tile.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                    @Override public void onViewAttachedToWindow(View v) {}
+                    @Override public void onViewDetachedFromWindow(View v) { drift.cancel(); }
+                });
+            }
+        }
+        return board;
     }
 
     /** Long-press on a result: songs and episodes can play or queue; lists, albums and artists get the library menu. */

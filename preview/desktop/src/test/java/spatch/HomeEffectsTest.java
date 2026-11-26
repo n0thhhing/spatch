@@ -114,6 +114,42 @@ public class HomeEffectsTest {
         activity.finish();
     }
 
+    @Test public void searchShowsAMoodBoardThenATopResultAndResultsGlide() throws Exception {
+        PreviewActivity activity = Robolectric.buildActivity(PreviewActivity.class).setup().visible().get();
+        ViewGroup root = (ViewGroup) activity.getWindow().getDecorView();
+        settle();
+        SpatchUi ui = find(root, SpatchUi.class);
+        Reflect.call(ui, "go", new Class<?>[]{int.class}, (int) Reflect.get(SpatchUi.class, "SEARCH"));
+        settle();
+        assertNotNull("Empty search shows mood tiles", text(root, "Chill"));
+        shot(root, "search-moods");
+        String[] first = {"Songs", "Glasshouse", "Northbound", "spotify:track:a", "demo:0", "-1", "201000",
+            "Songs", "Lanterns", "Harbor Lights", "spotify:track:b", "demo:1", "-1", "187000",
+            "Songs", "Night Bus", "Velvet Static", "spotify:track:c", "demo:2", "-1", "233000",
+            "Albums", "Afterglow", "Harbor Lights", "spotify:album:d", "demo:3", "1", "0"};
+        Reflect.set(ui, "searchQuery", "gl");
+        Reflect.set(ui, "searchHits", first);
+        Reflect.call(ui, "renderSearch", new Class<?>[0]);
+        settle();
+        assertNotNull("The best match is a top result card", text(root, "Top result · Song"));
+        shot(root, "search-top-result");
+        View nightBus = text(root, "Night Bus");
+        String[] second = {"Songs", "Glasshouse", "Northbound", "spotify:track:a", "demo:0", "-1", "201000",
+            "Songs", "Night Bus", "Velvet Static", "spotify:track:c", "demo:2", "-1", "233000",
+            "Albums", "Afterglow", "Harbor Lights", "spotify:album:d", "demo:3", "1", "0"};
+        Reflect.set(ui, "searchHits", second);
+        Reflect.call(ui, "renderSearch", new Class<?>[0]);
+        View row = (View) text(root, "Night Bus").getParent().getParent();
+        int width = root.getWidth(), height = root.getHeight();
+        root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, width, height);
+        root.getViewTreeObserver().dispatchOnPreDraw();
+        while (row != null && !(row.getTag() instanceof String && ((String) row.getTag()).startsWith("hit:"))) row = row.getParent() instanceof View ? (View) row.getParent() : null;
+        assertNotNull(row);
+        assertTrue("A result that stays starts from its old place (it moved up a row) and glides", row.getTranslationY() > 0);
+        activity.finish();
+    }
+
     private static Object titleOf(Object entry) throws Exception {
         for (Class<?> c = entry.getClass(); c != null; c = c.getSuperclass()) {
             try { java.lang.reflect.Field f = c.getDeclaredField("title"); f.setAccessible(true); return f.get(entry); } catch (NoSuchFieldException next) { }
