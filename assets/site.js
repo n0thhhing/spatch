@@ -233,7 +233,7 @@ function gh(url) {
 }
 
 // Changelog: commits on the branch the nightlies build from, fetched live from GitHub.
-const REPO = 'n0thhhing/spatch', BRANCH = 'fresh', PER_PAGE = 40;
+const REPO = 'n0thhhing/spatch', BRANCH = 'main', PER_PAGE = 40;
 const log = document.querySelector('.log');
 const more = document.querySelector('.more');
 const areaBox = document.querySelector('.areas');

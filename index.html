@@ -291,7 +291,7 @@ openssl pkcs12 -export -legacy -in key.pem -out spatch-key.p12</code></pre>
           <p>An invite is a private link (an <code>index.json</code> address with a personal name and code after <code>#</code>) that lets <b>Install Spatch</b> download the exact Spotify APKM it needs automatically, so you don’t have to pick the file yourself.</p>
           <p>To add one, paste the link under <b>Spotify → Add an invite</b> in Spatch Manager, or share the link straight to Spatch Manager from a chat app. The invite stays in the Manager’s private, non-backed-up storage. A saved APKM or unmodified installed Spotify still comes first if you already have one.</p>
           <p>When downloading, the Manager sends your login only to the invite’s own host over HTTPS, selects only the entry whose version code and SHA-256 match the patch bundle, checks your phone’s Android version and ABI, and writes to a temporary file until both length and hash check out. Credentials are never forwarded if a redirect leaves the invite’s host.</p>
-          <p>Spatch never ships Spotify’s own files. If you want to run a private source for friends using <code>spatch source</code>, see the <a href="https://github.com/n0thhhing/spatch/blob/fresh/docs/private-source.md">private source guide on GitHub</a>.</p>
+          <p>Spatch never ships Spotify’s own files. If you want to run a private source for friends using <code>spatch source</code>, see the <a href="https://github.com/n0thhhing/spatch/blob/main/docs/private-source.md">private source guide on GitHub</a>.</p>
         </div>
       </section>
 
@@ -426,7 +426,7 @@ adb shell am broadcast -a spatch.action.SEEK -n com.spotify.music/spatch.SpatchW
 ./target/release/spatch inspect input.apkm
 ./target/release/spatch patch input.apkm --out out-dir --dry-run
 ./target/release/spatch bundle input.apkm --out spatch-bundle.zip</code></pre>
-          <p>Full build steps, checks and source layout live in the <a href="https://github.com/n0thhhing/spatch">Spatch repository on GitHub</a> and <a href="https://github.com/n0thhhing/spatch/blob/fresh/docs/development.md">docs/development.md</a>.</p>
+          <p>Full build steps, checks and source layout live in the <a href="https://github.com/n0thhhing/spatch">Spatch repository on GitHub</a> and <a href="https://github.com/n0thhhing/spatch/blob/main/docs/development.md">docs/development.md</a>.</p>
         </div>
       </section>
     </div>
@@ -499,7 +499,7 @@ adb shell am broadcast -a spatch.action.SEEK -n com.spotify.music/spatch.SpatchW
         <p class="log-status"><svg class="loader" aria-hidden="true"><use href="#cookie"/></svg>Loading changes from GitHub…</p>
       </div>
       <p class="log-more"><button class="more" type="button" hidden>Show older changes</button></p>
-      <noscript><p class="log-status">See every change in the <a href="https://github.com/n0thhhing/spatch/commits/fresh">commit history on GitHub</a>.</p></noscript>
+      <noscript><p class="log-status">See every change in the <a href="https://github.com/n0thhhing/spatch/commits/main">commit history on GitHub</a>.</p></noscript>
     </div>
   </main>
 
@@ -513,6 +513,6 @@ adb shell am broadcast -a spatch.action.SEEK -n com.spotify.music/spatch.SpatchW
     <a href="https://github.com/n0thhhing/spatch">Source on GitHub</a>
   </footer>
 
-  <script src="assets/site.js?v=20261126a"></script>
+  <script src="assets/site.js?v=20261126b"></script>
 </body>
 </html>
