@@ -1327,11 +1327,10 @@ final class PlayerScreen {
             MediaEntry entry = ui.upcoming.get(i);
             LinearLayout line = entry.editable ? new QueueRow(tracks, index, entry) : ui.row();
             Row song = ui.new Row();
+            song.onMore = () -> queueActions(index, entry);
             song.bind(entry);
             song.setOnClickListener(v -> ui.command(SKIP_TO, index, entry.queueKey));
             line.addView(song, ui.weight());
-            View options = ui.iconButton(ui.icon("more", () -> ui.inkDim), "Queue options for " + entry.title, .90f, () -> queueActions(index, entry));
-            line.addView(options, ui.lp(ui.dp(48), ui.dp(48)));
             // Editable rows lift on a long press instead (QueueRow): a press and release there opens these same options.
             if (!entry.editable) song.setOnLongClickListener(v -> { queueActions(index, entry); return true; });
             tracks.addView(line, ui.fill(-2));

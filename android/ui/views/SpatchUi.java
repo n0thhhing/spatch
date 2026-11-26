@@ -1876,6 +1876,7 @@ public final class SpatchUi extends FrameLayout {
     final class Row extends LinearLayout {
         private String boundUri = "";
         private MediaEntry boundEntry;
+        Runnable onMore;
         final Art art = artwork.new Art(Art.ROUNDED, false);
         final TextView name = text("", 16, ink, true), sub = text("", 13, inkDim, false), length = text("", 13, inkDim, false);
         private final Bars bars = controls.new Bars();
@@ -1935,7 +1936,8 @@ public final class SpatchUi extends FrameLayout {
                     fade.addUpdateListener(a -> moreBg.setColor((accent & 0x00ffffff) | (((int) a.getAnimatedValue()) << 24)));
                     fade.start();
                 }
-                if (boundEntry != null) actions(boundEntry);
+                if (onMore != null) onMore.run();
+                else if (boundEntry != null) actions(boundEntry);
             });
             moreBtn.setFocusable(false);
             moreBtn.setFocusableInTouchMode(false);
@@ -1996,7 +1998,7 @@ public final class SpatchUi extends FrameLayout {
             long ms = e instanceof Song ? ((Song) e).duration : 0;
             length.setText(ms > 0 ? time(ms) : "");
             length.setVisibility(ms > 0 ? VISIBLE : GONE);
-            boolean hasMenu = e instanceof Song || SearchScreen.isTrack(e.uri);
+            boolean hasMenu = onMore != null || e instanceof Song || SearchScreen.isTrack(e.uri);
             moreBtn.setVisibility(hasMenu ? VISIBLE : GONE);
             if (activeMoreIcon != moreIcon) { moreIcon.animate().cancel(); moreIcon.setRotation(0f); moreIcon.setScaleX(1f); moreIcon.setScaleY(1f); }
             explicitBadge.setVisibility(e instanceof Song && ((Song) e).explicit ? VISIBLE : GONE);
