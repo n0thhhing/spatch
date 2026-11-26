@@ -1011,52 +1011,13 @@ public final class Audio {
     private static byte[] fft;
     private static long sampled, retryAt;
 
-    /** On when the bars read Spotify's audio directly (see feed) instead of an Android Visualizer, which needs the microphone permission. */
+    /** On when the bars read Spotify's audio directly (the native Oboe tap) instead of an Android Visualizer, which needs the microphone permission. */
     static volatile boolean directOn;
-    private static final int DIRECT_FFT_N = 1024;
-    private static final float[] RING = new float[DIRECT_FFT_N];
-    private static final float[] WINDOW = new float[DIRECT_FFT_N];
-    private static int ringAt;
-    private static volatile long fedAt, oboeAt;
-    private static volatile int fedRate = 44100;
 
     static void setDirect(boolean on) {
         directOn = on;
-        fedAt = 0;
-        oboeAt = 0;
         try { nativeSetDirect(on); } catch (UnsatisfiedLinkError ignored) {}
         refreshEqualizer();
-    }
-
-    /**
-     * Hook: Spotify's AudioDriver calls this with each block of decoded PCM just before it is written to the AudioTrack, so
-     * before any volume is applied (the bars keep moving at volume 0) and with no microphone. Runs on the audio thread,
-     * so it only copies the newest window into a ring; it never throws.
-     */
-    public static void feed(byte[] pcm, int len, int rate, int channelConfig, int encoding) {
-        if (!directOn || (oboeAt != 0 && SystemClock.uptimeMillis() - oboeAt < 400)) return;
-        try {
-            int channels = channelConfig == 12 ? 2 : 1, width = encoding == 4 ? 4 : 2, frame = channels * width;
-            int frames = Math.min(len, pcm.length) / frame, take = Math.min(frames, DIRECT_FFT_N), first = (frames - take) * frame;
-            synchronized (RING) {
-                for (int i = 0; i < take; i++) {
-                    int at = first + i * frame;
-                    float sum = 0;
-                    for (int c = 0; c < channels; c++) {
-                        int o = at + c * width;
-                        sum += width == 2
-                            ? (short) ((pcm[o] & 255) | (pcm[o + 1] << 8)) / 32768f
-                            : Float.intBitsToFloat((pcm[o] & 255) | ((pcm[o + 1] & 255) << 8) | ((pcm[o + 2] & 255) << 16) | ((pcm[o + 3] & 255) << 24));
-                    }
-                    RING[ringAt] = sum / channels;
-                    ringAt = (ringAt + 1) % DIRECT_FFT_N;
-                }
-            }
-            fedRate = rate > 0 ? rate : 44100;
-            fedAt = SystemClock.uptimeMillis();
-        } catch (RuntimeException ignored) {
-            // A malformed block is simply skipped: the music must never depend on the visuals.
-        }
     }
 
     static boolean ready(Context context) {
@@ -1155,12 +1116,11 @@ public final class Audio {
         }
     }
 
-    /** One analysis from the audio fed by the native Oboe tap or Java hook; false (bars decay) when no audio has arrived lately. */
+    /** One analysis from the native Oboe tap; false (bars decay) when no audio has arrived lately. */
     private static boolean sampleDirect(long now) {
         float dt = sampled == 0 ? 16 : Math.min(100, now - sampled);
         try {
             if (nativeSampleDirect(dt, now, OUT)) {
-                oboeAt = now;
                 sampled = now;
                 say("Reading Spotify's audio directly (Oboe)");
                 System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
@@ -1170,23 +1130,14 @@ public final class Audio {
         } catch (UnsatisfiedLinkError ignored) {
             // Preview or standalone build without libspatch_app.
         }
-        if (fedAt == 0 || now - fedAt > 400) { say("Waiting for Spotify's audio"); return false; }
-        synchronized (RING) {
-            for (int i = 0; i < WINDOW.length; i++) WINDOW[i] = RING[(ringAt + i) % DIRECT_FFT_N];
-        }
-        say("Reading Spotify's audio directly");
-        sampled = now;
-        nativeAnalysePcm(WINDOW, fedRate, dt, now, OUT);
-        System.arraycopy(OUT, 0, BANDS, 0, BANDS.length);
-        bass = OUT[48]; level = OUT[49]; kick = OUT[50];
-        return true;
+        say("Waiting for Spotify's audio");
+        return false;
     }
 
     // The analysis and EQ curve solver are in Rust (app/src/spectrum.rs, eq.rs).
     private static native void nativeSetDirect(boolean on);
     private static native boolean nativeSampleDirect(float dtMs, long nowMs, float[] out);
     private static native void nativeAnalyse(byte[] fft, int rateHz, float dtMs, long nowMs, float[] out);
-    private static native void nativeAnalysePcm(float[] pcm, int rateHz, float dtMs, long nowMs, float[] out);
     private static native void nativeReset();
     private static final float[] OUT = new float[53];
     private static long loggedAt;

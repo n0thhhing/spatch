@@ -26,14 +26,12 @@ const MAX_REFS: u32 = 65536;
 
 /// Original classes moved into `HELPER_DEX` because their own DEX has no room for the references
 /// their edits add; behaviour and names are unchanged. Paths are relative to the decoded APK.
-const RELOCATED: [&str; 4] = [
+const RELOCATED: [&str; 3] = [
     "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali",
     // classes.dex is at the method-reference limit: the core hooks' classes move out with their new calls.
     "smali/com/spotify/esperanto/esperanto/ClientBase.smali",
     // So is classes2.dex, for the audio session hooks.
     "smali_classes2/com/spotify/playbacknative/AudioEffectsListener.smali",
-    // And for the audio tap in the PCM writer.
-    "smali_classes2/com/spotify/playbacknative/AudioDriver.smali",
 ];
 
 /// Each relocated class as (smali folder, path in it, original DEX, descriptor).
