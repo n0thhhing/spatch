@@ -31,6 +31,16 @@ final class HomeScreen {
         View greetBadge = new View(ui.activity) {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Path path = new Path();
+            private final Runnable tick = () -> { invalidate(); scheduleTick(); };
+            private void scheduleTick() {
+                removeCallbacks(tick);
+                if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
+                long now = System.currentTimeMillis();
+                postDelayed(tick, Math.max(1000L, 60_000L - (now % 60_000L) + 50L));
+            }
+            @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); scheduleTick(); }
+            @Override protected void onDetachedFromWindow() { removeCallbacks(tick); super.onDetachedFromWindow(); }
+            @Override protected void onWindowVisibilityChanged(int v) { super.onWindowVisibilityChanged(v); if (v == VISIBLE) { invalidate(); scheduleTick(); } else removeCallbacks(tick); }
             @Override protected void onDraw(Canvas c) {
                 float w = getWidth(), h = getHeight(), s = Math.min(w, h), cx = w / 2f, cy = h / 2f;
                 if (s <= 0) return;
@@ -47,11 +57,20 @@ final class HomeScreen {
                     paint.setColor(SpatchUi.blend(ui.surfHi, ui.accent, ui.dark ? .34f : .24f));
                     c.drawPath(path, paint);
                 }
-                c.save();
-                float gs = s * .48f;
-                c.translate(cx - gs / 2f, cy - gs / 2f);
-                SpatchUi.drawGlyph(c, paint, path, "sparkle", ui.accent, gs);
-                c.restore();
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                float min = cal.get(java.util.Calendar.MINUTE);
+                float hr = (cal.get(java.util.Calendar.HOUR) % 12) + min / 60f;
+                double minA = Math.toRadians(min * 6f - 90f);
+                double hrA = Math.toRadians(hr * 30f - 90f);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor(ui.accent);
+                paint.setStrokeWidth(Math.max(2f, s * 0.085f));
+                c.drawLine(cx, cy, cx + (float) Math.cos(hrA) * s * 0.20f, cy + (float) Math.sin(hrA) * s * 0.20f, paint);
+                paint.setStrokeWidth(Math.max(1.6f, s * 0.062f));
+                c.drawLine(cx, cy, cx + (float) Math.cos(minA) * s * 0.29f, cy + (float) Math.sin(minA) * s * 0.29f, paint);
+                paint.setStyle(Paint.Style.FILL);
+                c.drawCircle(cx, cy, Math.max(1.8f, s * 0.065f), paint);
             }
         };
         ui.colored(greetBadge, greetBadge::invalidate);
@@ -96,6 +115,7 @@ final class HomeScreen {
         hero.setClipToOutline(true);
         ui.heroArt = ui.artwork.new Art(Art.WIDE, false);
         ui.heroArt.crossfade = true;
+        if (ui.motion()) { ui.heroArt.setScaleX(1.18f); ui.heroArt.setScaleY(1.18f); }
         hero.addView(ui.heroArt, new FrameLayout.LayoutParams(-1, -1));
         View scrim = new View(ui.activity);
         GradientDrawable scrimBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{ui.surf & 0x00ffffff, (ui.surf & 0x00ffffff) | 0xc8000000, ui.surf});
@@ -116,18 +136,61 @@ final class HomeScreen {
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(ui.dp(58), ui.dp(58), Gravity.BOTTOM | Gravity.END);
         hp.setMargins(0, 0, ui.dp(16), ui.dp(14));
         hero.addView(heroPlay, hp);
+        View heroBar = new View(ui.activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Runnable pulse = this::invalidate;
+            @Override protected void onDetachedFromWindow() { removeCallbacks(pulse); super.onDetachedFromWindow(); }
+            @Override protected void onDraw(Canvas c) {
+                if (ui.duration <= 0) return;
+                float w = getWidth(), h = getHeight(), f = Math.max(0f, Math.min(1f, ui.shownProgress()));
+                paint.setColor((ui.ink & 0x00ffffff) | 0x1a000000);
+                c.drawRect(0, 0, w, h, paint);
+                paint.setColor(ui.accent);
+                c.drawRoundRect(0, 0, w * f, h, h / 2f, h / 2f, paint);
+                if (ui.playing && getWindowVisibility() == VISIBLE) { removeCallbacks(pulse); postDelayed(pulse, 250); }
+            }
+        };
+        ui.heroProgress = heroBar;
+        ui.colored(heroBar, heroBar::invalidate);
+        hero.addView(heroBar, new FrameLayout.LayoutParams(-1, ui.dp(3), Gravity.BOTTOM));
         ui.tappable(hero, "Open player", () -> ui.playerScreen.openPlayer(true));
 
-        LinearLayout liked = ui.row();
-        liked.setPadding(ui.dp(14), ui.dp(12), ui.dp(16), ui.dp(12));
+        FrameLayout liked = new FrameLayout(ui.activity);
         GradientDrawable lg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{SpatchUi.blend(ui.surfHi, ui.accent2, .28f), SpatchUi.blend(ui.surfHi, ui.accent, .22f)});
         lg.setCornerRadius(ui.dp(26));
         liked.setBackground(lg);
+        liked.setClipToOutline(true);
         ui.colored(liked, () -> lg.setColors(new int[]{SpatchUi.blend(ui.surfHi, ui.accent2, .28f), SpatchUi.blend(ui.surfHi, ui.accent, .22f)}));
+        View likedDeco = new View(ui.activity) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Path path = new Path();
+            @Override protected void onDraw(Canvas c) {
+                float w = getWidth(), h = getHeight();
+                if (w <= 0 || h <= 0) return;
+                int tint = (ui.accent & 0x00ffffff) | 0x1c000000;
+                float hs = h * 0.92f;
+                c.save();
+                c.translate(w - hs * 0.72f, -hs * 0.14f);
+                c.rotate(14f, hs / 2f, hs / 2f);
+                SpatchUi.drawGlyph(c, paint, path, "heart", tint, hs);
+                c.restore();
+                float ss = h * 0.46f;
+                c.save();
+                c.translate(w - hs * 1.28f, h - ss * 0.82f);
+                c.rotate(-12f, ss / 2f, ss / 2f);
+                SpatchUi.drawGlyph(c, paint, path, "sparkle", (ui.accent2 & 0x00ffffff) | 0x16000000, ss);
+                c.restore();
+            }
+        };
+        ui.colored(likedDeco, likedDeco::invalidate);
+        liked.addView(likedDeco, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout likedRow = ui.row();
+        likedRow.setPadding(ui.dp(14), ui.dp(12), ui.dp(16), ui.dp(12));
         FrameLayout badge = new FrameLayout(ui.activity);
         ui.bgRound(badge, 18, () -> (ui.ink & 0x00ffffff) | 0x26000000);
-        badge.addView(ui.icon("heart", () -> ui.ink), new FrameLayout.LayoutParams(ui.dp(22), ui.dp(22), Gravity.CENTER));
-        liked.addView(badge, ui.lp(ui.dp(44), ui.dp(44)));
+        View likedHeart = ui.icon("heart", () -> ui.ink);
+        badge.addView(likedHeart, new FrameLayout.LayoutParams(ui.dp(22), ui.dp(22), Gravity.CENTER));
+        likedRow.addView(badge, ui.lp(ui.dp(44), ui.dp(44)));
         LinearLayout lw = ui.column();
         lw.setPadding(ui.dp(14), 0, 0, 0);
         TextView likedTitle = ui.text("Liked Songs", 17, () -> ui.ink, true);
@@ -135,8 +198,18 @@ final class HomeScreen {
         ui.oneLine(likedTitle); ui.oneLine(likedSub);
         lw.addView(likedTitle);
         lw.addView(likedSub);
-        liked.addView(lw, ui.weight());
-        ui.tappable(liked, "Open Liked Songs", () -> ui.playlistScreen.openPlaylist(new MediaEntry("Liked Songs", "", "spotify:collection:tracks", "", 0)));
+        likedRow.addView(lw, ui.weight());
+        liked.addView(likedRow, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL));
+        ui.tappable(liked, "Open Liked Songs", () -> {
+            if (ui.motion()) {
+                likedHeart.animate().cancel();
+                likedHeart.animate().scaleX(1.26f).scaleY(1.26f).setDuration(100)
+                    .withEndAction(() -> likedHeart.animate().scaleX(1f).scaleY(1f).setDuration(260)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start())
+                    .start();
+            }
+            ui.playlistScreen.openPlaylist(new MediaEntry("Liked Songs", "", "spotify:collection:tracks", "", 0));
+        });
 
         if (ui.landscape()) {
             LinearLayout topRow = ui.row();
@@ -187,7 +260,12 @@ final class HomeScreen {
             page.addView(note);
             ui.libraryScreen.libraryRecoveryActions(page, false);
         }
-        return ui.scrolling(page);
+        android.widget.ScrollView scroll = ui.scrolling(page);
+        scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> {
+            ui.dockUi.scrollDock(y - oldY, y <= 0);
+            if (ui.motion() && ui.heroArt != null) ui.heroArt.setTranslationY(Math.min(ui.dp(28), Math.max(0f, y * 0.35f)));
+        });
+        return scroll;
     }
 
     List<MediaEntry> recent = new ArrayList<>();

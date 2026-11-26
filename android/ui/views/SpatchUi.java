@@ -232,6 +232,7 @@ public final class SpatchUi extends FrameLayout {
     /** Whether the playing playlist is in Smart Shuffle, as Spotify keeps it (read when the context changes). */
     boolean smartShuffle;
     Art mArt, heroArt;
+    View heroProgress;
     Runnable sheetClose;
 
     SpatchUi(Activity activity) {
@@ -677,6 +678,7 @@ public final class SpatchUi extends FrameLayout {
     void invalidateProgress() {
         if (wave != null) wave.invalidate();
         if (mArt != null) mArt.invalidate();
+        if (heroProgress != null) heroProgress.invalidate();
     }
 
     void animateProgress(float from) {
@@ -1629,7 +1631,7 @@ public final class SpatchUi extends FrameLayout {
         pageScroll = null;
         pageList = null;
         libraryList = null;
-        heroArt = null; heroTitle = heroArtist = null;
+        heroArt = null; heroProgress = null; heroTitle = heroArtist = null;
         View page = playlist != null ? playlistScreen.playlistPage() : tab == HOME ? homeScreen.homePage() : tab == SEARCH ? searchScreen.searchPage() : tab == LIBRARY ? libraryScreen.libraryPage() : tab == CREATE ? createPage() : tab == PROFILE ? profilePage() : tab == STATS ? statsPage() : settingsScreen.settingsPage();
         pageHost.addView(page, new LayoutParams(-1, -1));
         shownKey = pageKey();
