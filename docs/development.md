@@ -7,35 +7,31 @@ the earlier Spotify-UI patch. Start changes from `fresh`; keep the pinned input 
 
 | Location | Responsibility |
 | --- | --- |
-| `src/` | Desktop patcher, guarded edits, DEX compilation, bundles and source staging |
-| `app/src/spotify/` | Spotify protobuf requests, decoders and domain operations |
-| `app/src/ui/mod.rs` | Playback/library/playlist JNI contracts, revision counters and current account state |
-| `app/src/ui/downloads.rs` | Offline JNI endpoints and validated, account-scoped song labels |
-| `app/src/ui/account.rs` | Profile and playlist creation/addition endpoints with their preview tests |
-| `app/src/bridge.rs` | JNI transport, Rust stream handlers, session generations and UI pushes |
-| `app/src/cache.rs` | Bounded account-scoped screen answers and packed string encoding |
-| `app/src/eq.rs`, `spectrum.rs`, `autoeq.rs` | DSP math, FFT analysis and headphone catalog parsing |
-| `java/dex/src/spatch/SpatchUi.java` | Screen composition, navigation, playback/library state and JNI boundary |
-| `AboutScreen.java` in the same directory | About information, build details, credits and support links |
-| `ArtworkViews.java` in the same directory | Cover tiles, artwork transitions, backdrop, motes and the audio ring |
-| `SoundSettings.java` in the same directory | Equalizer editor, effects and headphone profile browsing |
-| `CreationSheet.java` in the same directory | Create menu, playlist draft, validation and submission |
-| `SpatchApp.java` in the same directory | Async native loading, overlay/auth lifecycle and native return control |
-| `MediaEntry.java`, `ProgressMotion.java` in the same directory | Media row/song models and playback progress animation |
-| `PackedStrings.java` in the same directory | Shared UTF-8 JNI payload encoding/decoding |
-| `CoreBridge.java`, `Subscriptions.java` | Spotify transports, stream disposal, catalog calls and artwork IO |
-| `Audio.java` in the same directory | Android audio sessions/effects, capture and retry scheduling |
-| `java/dex/stubs/` | Compile-only Spotify/RxJava signatures; never package them |
-| `app/preview/src/spatch/` | Shared Android preview host and offline Spotify boundary adapter |
-| `app/preview/desktop/` | Native Mac host build and rendered UI tests |
-| `java/dex/test/`, `app/preview/desktop/src/test/` | Java contract/math and rendered UI regression checks |
-| `tests/` | Desktop contract runners and nightly input selection checks |
-| `manager/`, `source/cloudflare/` | Android installer and optional private source service |
+| `crates/patcher/src/` | Desktop patcher, guarded edits, DEX compilation, bundles and source staging |
+| `crates/core/src/spotify/` | Spotify protobuf requests, decoders and domain operations |
+| `crates/core/src/ui/mod.rs` | Playback/library/playlist JNI contracts, revision counters and current account state |
+| `crates/core/src/ui/downloads.rs` | Offline JNI endpoints and validated, account-scoped song labels |
+| `crates/core/src/ui/account.rs` | Profile and playlist creation/addition endpoints with their preview tests |
+| `crates/core/src/bridge.rs` | JNI transport, Rust stream handlers, session generations and UI pushes |
+| `crates/core/src/cache.rs` | Bounded account-scoped screen answers and packed string encoding |
+| `crates/core/src/eq.rs`, `spectrum.rs`, `autoeq.rs` | DSP math, FFT analysis and headphone catalog parsing |
+| `android/ui/views/` | Shared views (`SpatchUi.java`, `Dock.java`, `ArtworkViews.java`, `Controls.java`, `MediaEntry.java`, `ProgressMotion.java`, `Blur.java`, `Confetti.java`, `GpuFx.java`) |
+| `android/ui/screens/` | App screens (`HomeScreen.java`, `PlayerScreen.java`, `PlaylistScreen.java`, `LibraryScreen.java`, `SearchScreen.java`, `SettingsScreen.java`, `SoundSettings.java`, `Downloads.java`, `CreationSheet.java`, `AboutScreen.java`) |
+| `android/ui/bridge/` | Spotify bridge (`CoreBridge.java`, `Subscriptions.java`, `SpatchApp.java`, `PackedStrings.java`, `PublicTrackMetadata.java`, `WebAuth.java`, `DevIntegrity.java`, `SpotifyWeb.java`) |
+| `android/ui/audio/` | Android audio sessions/effects (`Audio.java`, `OfficialPlayback.java`) |
+| `android/ui/lyrics/` | Synced lyrics (`Lyrics.java`, `LyricGen.java`) |
+| `android/ui/widget/` | Home-screen widgets, persisted last-played state, background resume, exported `spatch.action.*` intents and Quick Settings tile (`SpatchWidget.java`, `SpatchWidgetSmall.java`, `PlaybackTile.java`) |
+| `android/widget/res/` | Widget layouts, animators and drawables compiled by `aapt2` |
+| `android/stubs/` | Compile-only Spotify/RxJava signatures; never package them |
+| `preview/src/spatch/` | Shared Android preview host and offline Spotify boundary adapter |
+| `preview/desktop/` | Native Mac host build and rendered UI tests |
+| `android/tests/`, `preview/desktop/src/test/` | Java contract/math tests, desktop contract runners (`nightly-inputs.py`, `java-contracts.py`, `integrity-diagnostics.py`) and rendered UI regression checks |
+| `tools/` | Nightly build script (`tools/nightly.sh`) and version-porting helpers (`tools/port/`) |
 
-Register production Java helpers in `src/helpers.rs`. The preview excludes Spotify-only bridges
+Register production Java helpers in `crates/patcher/src/helpers.rs`. The preview excludes Spotify-only bridges
 and compiles the actual UI/audio sources; do not create a second implementation of a screen.
-Java files live directly under their declared `spatch` package directory. Both preview builds
-discover the shared sources from the same directory.
+All Java files under `android/ui/` declare `package spatch;` and are grouped into subdirectories by responsibility. Both preview builds
+discover the shared sources from `android/ui/`.
 Update their exclusions when introducing another Spotify-only helper.
 
 ## Lifecycle rules
@@ -73,6 +69,12 @@ Update their exclusions when introducing another Spotify-only helper.
   names/artwork in the account-scoped `download-items` answer, validate the five-field metadata
   before mutation, and commit it under the session gate. Retain uncached offline URIs in the
   Downloaded filter. Cancelling preview jobs must invalidate their tokens before removing state.
+- `SpatchWidget` persists the last-played track metadata in `spatch_widget` preferences and its
+  cover in `filesDir` (`spatch_widget_cover.png`) so home-screen widgets keep their state when the
+  app is closed. Pressing Play or sending a `spatch.action.*` broadcast while closed uses
+  `goAsync()` to wake Spotify’s `MediaButtonReceiver` in the background, load `libspatch_app.so`,
+  wait for `CoreBridge.hasTransport()` + `SpatchUi.connectNative()`, and resume or seek to the
+  saved position without opening `SpotifyMainActivity`.
 
 ## Checks
 
@@ -81,34 +83,31 @@ From the repository root:
 ```sh
 cargo test --locked
 cargo clippy --all-targets --locked -- -D warnings
-cargo test --locked --manifest-path app/Cargo.toml
-cargo clippy --all-targets --locked --manifest-path app/Cargo.toml -- -D warnings
-cargo test --locked --manifest-path app/Cargo.toml --features preview
-cargo clippy --all-targets --locked --manifest-path app/Cargo.toml --features preview -- -D warnings
-python3 tests/nightly-inputs.py
-JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 tests/java-contracts.py
-node --test source/cloudflare/worker.test.mjs
+cargo test --locked --manifest-path crates/core/Cargo.toml --features preview
+cargo clippy --all-targets --locked --manifest-path crates/core/Cargo.toml --features preview -- -D warnings
+python3 android/tests/nightly-inputs.py
+JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 android/tests/java-contracts.py
 ```
 
-On Mac, `app/preview/mac.sh --check` runs the shared Android UI under Robolectric and writes PNGs
-to `app/preview/desktop/build/reports/preview/`. The suite covers navigation/animation, creation,
+On Mac, `preview/mac.sh --check` runs the shared Android UI under Robolectric and writes PNGs
+to `preview/desktop/build/reports/preview/`. The suite covers navigation/animation, creation,
 EQ editing, playlist picking/filtering, inset preservation and detached-screen job cancellation.
-Use `app/preview/mac.sh` to rebuild/open the native Mac app. Close an existing preview before
-replacing its bundle. The Android preview APK is built by `app/preview/build.sh`.
+Use `preview/mac.sh` to rebuild/open the native Mac app. Close an existing preview before
+replacing its bundle. The Android preview APK is built by `preview/build.sh`.
 
-For patch packaging, build the ARM64 library using [the app prerequisites](../app/README.md#build),
+For patch packaging, build the ARM64 library using [the core prerequisites](../crates/core/README.md#build),
 then run the patcher with the pinned APKM and a fresh output directory:
 
 ```sh
-cargo ndk -t arm64-v8a -P 29 build --release --locked --manifest-path app/Cargo.toml
+cargo ndk -t arm64-v8a -P 29 build --release --locked --manifest-path crates/core/Cargo.toml
 cargo build --release --locked
 ./target/release/spatch patch /path/to/pinned.apkm --out /tmp/spatch-check-new --dry-run
 ```
 
 The dry run verifies exact inputs, smali anchors, Java compilation and allowed helper DEX classes.
 It does not establish authenticated Spotify acceptance or acoustic behavior on a phone. See
-[the hook map](spotify-map.md) for protocol evidence and [Manager checks](../manager/README.md#checking)
-for signed bundle round trips.
+[the hook map](spotify-map.md) for protocol evidence and [external control intents](intents.md)
+for the exported automation receiver.
 
 ## Device follow-up
 

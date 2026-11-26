@@ -1,11 +1,9 @@
 # Spatch
 
 Spatch runs a Rust-driven Android UI over Spotify's existing playback, cache and Connect services.
-This branch supports Spotify **9.2.0.2053** (version code **148387875**) and supports Spotify’s native sign-in flow on fresh installs. APKM and split hashes are pinned in [src/input.rs](src/input.rs).
+This branch supports Spotify **9.2.0.2053** (version code **148387875**) and supports Spotify’s native sign-in flow on fresh installs. APKM and split hashes are pinned in [crates/patcher/src/input.rs](crates/patcher/src/input.rs).
 
-See [the app README](app/README.md) for UI features and the standalone preview, and
-[Spatch Manager](manager/README.md) for applying and signing bundles on Android.
-[Development notes](docs/development.md) map the sources, lifecycle rules and validation commands.
+See [the core README](crates/core/README.md) for UI features and the standalone preview, [Development notes](docs/development.md) for the source map, lifecycle rules and validation commands, and [External control intents](docs/intents.md) for automation via Tasker, MacroDroid, KWGT or ADB.
 The earlier redesign lives on the `main` branch.
 
 An optional [official Spotify playback fallback](docs/official-playback-fallback.md) keeps Spatch's
@@ -16,7 +14,7 @@ it requires Android notification access and retains normal account restrictions 
 
 - Rust with 2024 edition support, a JDK, apktool, Android SDK platform 35 or later, and Android SDK build tools
 - The matching Spotify APKM
-- The [ARM64 Rust library build](app/README.md#build) for signed patches and bundles
+- The [ARM64 Rust library build](crates/core/README.md#build) for signed patches and bundles
 - Your signing key for signed patches
 
 ## Usage
@@ -45,7 +43,7 @@ Build a signed set. The password is read by `apksigner` from the environment var
 ./target/release/spatch patch <input.apkm> --out <new-dir> --keystore <file> --alias <name> --ks-pass-env SPATCH_KS_PASS
 ```
 
-Write a patch bundle for [Spatch Manager](manager/README.md). Bundle creation also uses `aapt2`:
+Write a patch bundle for Spatch Manager. Bundle creation also uses `aapt2`:
 
 ```bash
 ./target/release/spatch bundle <input.apkm> --out <new-file.zip>
@@ -67,18 +65,20 @@ adb install-multiple -r base.apk split_config.*.apk
 
 ## How it works
 
-The patcher checks the input hashes, applies twenty guarded smali edits, then builds the Java helper
+The patcher checks the input hashes, applies guarded smali edits, then builds the Java helper
 DEX. Signed patches and Manager bundles also include the ARM64 Rust library. See the
-[hook map](docs/spotify-map.md) and [porting notes](docs/targets.md).
+[hook map](docs/spotify-map.md), [porting notes](docs/targets.md) and [external control intents](docs/intents.md).
 
 | Path | Role |
 | --- | --- |
-| `src/input.rs` | Supported input and split hashes |
-| `src/edits.rs` | Smali edits and their required anchors |
-| `src/dex.rs` | DEX reassembly, relocation and helper compilation |
-| `src/bundle.rs` | Manager bundle creation and clone metadata |
-| `java/dex/stubs/` | Compile-only Spotify Transport and RxJava stubs |
-| `src/source.rs` | APKM and index staging for private sources |
+| `crates/patcher/src/input.rs` | Supported input and split hashes |
+| `crates/patcher/src/edits.rs` | Smali edits and their required anchors |
+| `crates/patcher/src/dex.rs` | DEX reassembly, relocation and helper compilation |
+| `crates/patcher/src/bundle.rs` | Manager bundle creation and clone metadata |
+| `crates/patcher/src/source.rs` | APKM and index staging for private sources |
+| `crates/core/src/` | Rust core, Spotify protobuf clients, DSP and JNI bridge |
+| `android/ui/` | Android UI, audio effects, widgets and Spotify bridge (`audio/`, `bridge/`, `lyrics/`, `screens/`, `views/`, `widget/`) |
+| `android/stubs/` | Compile-only Spotify Transport and RxJava stubs |
 
 ## Integrity diagnostics
 
@@ -99,12 +99,11 @@ are outside the byte scanner's coverage. See [the diagnostic hook map](docs/spot
 ```bash
 cargo test --locked
 cargo clippy --all-targets --locked -- -D warnings
-cargo test --manifest-path app/Cargo.toml --locked
-cargo test --manifest-path app/Cargo.toml --features preview --locked
-python3 tests/nightly-inputs.py
-JAVA_HOME=/path/to/jdk python3 tests/integrity-diagnostics.py
-JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 tests/java-contracts.py
-app/preview/mac.sh --check
+cargo test --manifest-path crates/core/Cargo.toml --features preview --locked
+python3 android/tests/nightly-inputs.py
+JAVA_HOME=/path/to/jdk python3 android/tests/integrity-diagnostics.py
+JAVA_HOME=/path/to/jdk ANDROID_HOME=/path/to/android-sdk python3 android/tests/java-contracts.py
+preview/mac.sh --check
 ```
 
 Run the real-APKM smoke test with the pinned archive and Android tools installed:
@@ -113,15 +112,12 @@ Run the real-APKM smoke test with the pinned archive and Android tools installed
 SPATCH_APKM=/path/to/spotify.apkm cargo test --locked dry_run_on_supplied_apkm -- --ignored
 ```
 
-For a local nightly bundle without publishing, use the [ARM64 build prerequisites](app/README.md#build).
+For a local nightly bundle without publishing, use the [ARM64 build prerequisites](crates/core/README.md#build).
 The script builds the library from the selected Git commit. Set `SPATCH_APP_SO` to use a prebuilt library.
 
 ```bash
-SPATCH_APKM=/path/to/spotify.apkm NIGHTLY_BUILD=normal NIGHTLY_OUT=/absolute/output/dir scripts/nightly.sh
+SPATCH_APKM=/path/to/spotify.apkm NIGHTLY_BUILD=normal NIGHTLY_OUT=/absolute/output/dir tools/nightly.sh
 ```
-
-See [Manager checks](manager/README.md#checking) for comparing a Manager-applied bundle with the
-desktop patcher output.
 
 ## License
 

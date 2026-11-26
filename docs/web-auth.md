@@ -77,7 +77,7 @@ Both suspend call sites (`:395`, `:479`) route through `b`, so one anchor covers
 
 ## Helper
 
-`java/dex/src/spatch/WebAuth.java`, registered in `src/helpers.rs`, compiled into `classes16.dex`.
+`android/ui/bridge/WebAuth.java`, registered in `crates/patcher/src/helpers.rs`, compiled into `classes16.dex`.
 
 - Matches the path by reflection on `Lp/a631;->a` (`Lp/bf70`) and its `i()` method, which rebuilds
   a real `java.net.URI` via `g()`. `bf70.toString()` only returns field `i` directly, one raw

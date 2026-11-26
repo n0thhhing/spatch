@@ -1,6 +1,6 @@
 # Spotify hooks on fresh
 
-[The edit table](../src/edits.rs) applies twenty guarded hooks to Spotify 9.2.0.2053. Each edit requires
+[The edit table](../crates/patcher/src/edits.rs) applies guarded hooks to Spotify 9.2.0.2053. Each edit requires
 exactly one anchor match; the diagnostic controls described below default off.
 
 | Spotify entry point | Spatch call | Purpose |
@@ -14,13 +14,13 @@ exactly one anchor match; the diagnostic controls described below default off.
 
 `RetrofitMaker` and `ClientBase` move out of `classes.dex` and `AudioEffectsListener` moves out of `classes2.dex` to
 make room for their new calls. They keep their original class names in `classes16.dex`, where the
-[Java helpers](../src/helpers.rs) also live.
+[Java helpers](../crates/patcher/src/helpers.rs) also live.
 
-- [CoreBridge.java](../java/dex/src/spatch/CoreBridge.java) bridges calls and subscriptions between Rust and Spotify's transport.
-- [Subscriptions.java](../java/dex/src/spatch/Subscriptions.java) owns Rx disposables, including synchronous termination and cancellation races.
-- [SpatchApp.java](../java/dex/src/spatch/SpatchApp.java) loads the Rust library and mounts the UI on the activity.
-- [SpatchUi.java](../java/dex/src/spatch/SpatchUi.java) hosts Android views and renders the UI.
-- [Audio.java](../java/dex/src/spatch/Audio.java) captures FFT samples and manages the active session’s audio effects.
+- [CoreBridge.java](../android/ui/bridge/CoreBridge.java) bridges calls and subscriptions between Rust and Spotify's transport.
+- [Subscriptions.java](../android/ui/bridge/Subscriptions.java) owns Rx disposables, including synchronous termination and cancellation races.
+- [SpatchApp.java](../android/ui/bridge/SpatchApp.java) loads the Rust library and mounts the UI on the activity.
+- [SpatchUi.java](../android/ui/views/SpatchUi.java) hosts Android views and renders the UI.
+- [Audio.java](../android/ui/audio/Audio.java) captures FFT samples and manages the active session’s audio effects.
 
 For input hashes and version porting, see [Patch targets](targets.md). The earlier redesign lives on
 the `main` branch.
@@ -28,7 +28,7 @@ the `main` branch.
 ## Public song details fallback
 
 Playlist membership comes from the account's existing core/playlist service. When its song-detail
-services leave rows blank, [PublicTrackMetadata.java](../java/dex/src/spatch/PublicTrackMetadata.java)
+services leave rows blank, [PublicTrackMetadata.java](../android/ui/bridge/PublicTrackMetadata.java)
 uses Spotify's public embed session to fill names, artists, covers, albums and durations.
 `GET https://open.spotify.com/embed/api/token` must explicitly return `isAnonymous=true`; an account
 token is never accepted by this fallback. Its short-lived token is kept in memory and sent only to
@@ -81,15 +81,15 @@ Other details checked against the original APK:
   `audio_episode`. The bridge requests these supported result types with a native page limit of 20.
 - `on_demand_sets_enabled` is conditional on account configuration; the bridge does not force it.
 - Query text and opaque page tokens pass unencoded to Retrofit's query map, which performs encoding.
-- The response field numbers match [the minimal schema](../app/proto/com.spotify.searchview.proto.proto):
+- The response field numbers match [the minimal schema](../crates/core/proto/com.spotify.searchview.proto.proto):
   hits 1, next page token 4, entity identity 1–3, nested section 14, track duration 18.
   Best-match highlights are a separate oneof and do not replace the track/album/etc. payload.
 
 The temporary `Radiohead` request logger and its proxy hook have been removed. Search results
-still use the existing [catalog decoder](../app/src/spotify/catalog.rs) and Search screen; failed
+still use the existing [catalog decoder](../crates/core/src/spotify/catalog.rs) and Search screen; failed
 requests remain available in Settings → Developer → Playback diagnostics.
 
-`python3 tests/java-contracts.py` (with `JAVA_HOME` and `ANDROID_HOME` set) runs the production
+`python3 android/tests/java-contracts.py` (with `JAVA_HOME` and `ANDROID_HOME` set) runs the production
 Java bridge against local fixtures. It checks factory selection, complete metadata, canonical
 locale use, Unicode queries, opaque paging tokens, reply serialization, native routes and subscription cancellation races. These checks also
 run in CI; the fixtures do not establish authentication or live server acceptance.
@@ -201,7 +201,7 @@ Compare skip and empty-token variants separately. The once-a-day session cadence
 backend verdict can make a run inconclusive; restarting alone does not guarantee a new verdict.
 No spoof/replay/general identity layer is implemented before this decision gate is evaluated.
 
-`python3 tests/integrity-diagnostics.py` runs the actual helper against local boundary fakes for
+`python3 android/tests/integrity-diagnostics.py` runs the actual helper against local boundary fakes for
 passthrough identity, skip, empty-token copy/unknown fields, errors, continuations, trace boundaries
 and preference reset. It does not test Google or Spotify server acceptance.
 
