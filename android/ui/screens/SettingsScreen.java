@@ -144,6 +144,15 @@ final class SettingsScreen {
                 @Override public void onViewAttachedToWindow(View v) { v.post(showGen); }
                 @Override public void onViewDetachedFromWindow(View v) {}
             });
+            java.io.File lyricModel = LyricGen.model();
+            if (lyricModel != null && lyricModel.exists()) {
+                long bytes = lyricModel.length();
+                String size = bytes < 1024 * 1024 ? (bytes / 1024) + " KB" : String.format(java.util.Locale.ROOT, "%.1f MB", bytes / 1048576.0);
+                ui.controls.settingsAction(lyrics, "Delete the lyric model", size + " on disk", () -> {
+                    LyricGen.deleteModel();
+                    settingsChanged(false);
+                });
+            }
 
 
             LinearLayout celebrations = ui.controls.card(page, "Motion & celebrations");
@@ -701,12 +710,8 @@ final class SettingsScreen {
 
     /** Shows how much artwork is stored on the phone and clears it when tapped. */
     private void cacheRow(LinearLayout box) {
-        TextView clear = ui.text("Clear", 14, ui.onAccent, true);
-        clear.setGravity(Gravity.CENTER);
+        TextView clear = ui.chip("Clear", () -> ui.onAccent, () -> ui.accent, 20);
         clear.setPadding(ui.dp(18), 0, ui.dp(18), 0);
-        GradientDrawable clearBg = ui.round(ui.accent, 20);
-        clear.setBackground(clearBg);
-        ui.colored(clear, () -> { clear.setTextColor(ui.onAccent); clearBg.setColor(ui.accent); });
         clear.setLayoutParams(ui.lp(-2, ui.dp(40)));
         LinearLayout line = ui.controls.row(box, "Artwork cache", "Counting…", clear);
         TextView size = (TextView) ((LinearLayout) line.getChildAt(0)).getChildAt(1);

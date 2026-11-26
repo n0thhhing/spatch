@@ -57,22 +57,13 @@ final class PlayerScreen {
 
     /** The player's more menu: what is not pinned to the bar, plus share and settings. */
     private void openPlayerMenu(View anchor) {
-        if (ui.accountMenu != null) ui.accountMenu.dismiss();
         LinearLayout menu = ui.column();
         menu.setPadding(ui.dp(8), ui.dp(8), ui.dp(8), ui.dp(8));
-        android.widget.PopupWindow popup = new android.widget.PopupWindow(menu, ui.dp(272), -2, true);
-        ui.accountMenu = popup;
-        popup.setBackgroundDrawable(ui.round(ui.surf, 24));
-        popup.setElevation(ui.dp(14));
-        popup.setOutsideTouchable(true);
-        popup.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
-        popup.setOnDismissListener(() -> { if (ui.accountMenu == popup) ui.accountMenu = null; });
-        if (!ui.pref("bar_timer", false)) ui.menuAction(menu, SpatchUi.sleepAt > SystemClock.uptimeMillis() ? "Sleep timer (running)" : "Sleep timer", "timer", () -> { popup.dismiss(); openSleepTimer(); });
-        if (!ui.pref("bar_devices", false)) ui.menuAction(menu, "Play on another device", "devices", () -> { popup.dismiss(); openDevices(); });
-        ui.menuAction(menu, "Share", "share", () -> { popup.dismiss(); share(); });
-        ui.menuAction(menu, "Player settings", "settings", () -> { popup.dismiss(); closePlayer(); ui.openSettings(true); });
-        popup.showAsDropDown(anchor, 0, ui.dp(4), Gravity.END);
-        ui.popIn(menu);
+        if (!ui.pref("bar_timer", false)) ui.menuAction(menu, SpatchUi.sleepAt > SystemClock.uptimeMillis() ? "Sleep timer (running)" : "Sleep timer", "timer", () -> { if (ui.accountMenu != null) ui.accountMenu.dismiss(); openSleepTimer(); });
+        if (!ui.pref("bar_devices", false)) ui.menuAction(menu, "Play on another device", "devices", () -> { if (ui.accountMenu != null) ui.accountMenu.dismiss(); openDevices(); });
+        ui.menuAction(menu, "Share", "share", () -> { if (ui.accountMenu != null) ui.accountMenu.dismiss(); share(); });
+        ui.menuAction(menu, "Player settings", "settings", () -> { if (ui.accountMenu != null) ui.accountMenu.dismiss(); closePlayer(); ui.openSettings(true); });
+        ui.dropMenu(anchor, 272, menu, 4);
     }
 
     private float sheetCornerRadius;

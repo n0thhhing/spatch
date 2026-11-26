@@ -706,11 +706,7 @@ final class SoundSettings {
             page.addView(search, ui.fill(ui.dp(52)));
             headphoneResults = ui.column();
             page.addView(headphoneResults, ui.fill(-2));
-            search.addTextChangedListener(new android.text.TextWatcher() {
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                public void onTextChanged(CharSequence s, int start, int before, int count) { headphoneQuery = s.toString(); renderHeadphones(); }
-                public void afterTextChanged(android.text.Editable e) {}
-            });
+            ui.onText(search, t -> { headphoneQuery = t; renderHeadphones(); });
             renderHeadphones();
             loadHeadphones();
         } else if (panel == 7) {
