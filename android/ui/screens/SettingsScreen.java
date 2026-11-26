@@ -72,6 +72,7 @@ final class SettingsScreen {
                 accentRow(look);
             }
             toggle(look, "Expressive type", "Google Sans Flex on Pixel; off uses Roboto", "expressive_type", true, true);
+            toggle(look, "Material icons", "Use Material Symbols Rounded icons instead of Spatch’s geometric icons", "material_icons", false, true);
 
             LinearLayout visuals = card(page, "Artwork & visualizer");
             choice(visuals, "Visualizer", new String[]{"Bars", "Ring", "Off", "Contour"}, "viz", 0, false);

@@ -241,6 +241,7 @@ public final class SpatchUi extends FrameLayout {
         post(playerScreen::applyRotation);
         density = getResources().getDisplayMetrics().density;
         prefs = activity.getSharedPreferences("spatch_ui", Context.MODE_PRIVATE);
+        materialIcons = prefs.getBoolean("material_icons", false);
         OfficialPlayback.init(activity);
         if (forgetProfile) {
             forgetProfile = false;
@@ -1082,6 +1083,7 @@ public final class SpatchUi extends FrameLayout {
 
     /** Rebuilds the whole tree: insets or font/motion settings changed. */
     void build() {
+        materialIcons = prefs.getBoolean("material_icons", false);
         if (accountMenu != null) accountMenu.dismiss();
         creation.closeCreateMenu();
         playerScreen.closeQueue();
@@ -2436,10 +2438,12 @@ public final class SpatchUi extends FrameLayout {
         @Override protected void onDraw(Canvas c) { drawGlyph(c, paint, path, symbol, color, Math.min(getWidth(), getHeight())); }
     }
 
-    /** Draws an icon (24-unit grid from Rust) into a `size` square at the canvas origin. */
+    /** Draws an icon (Material Symbols Rounded when enabled, else 24-unit grid from Rust) into a `size` square at the canvas origin. */
+    static volatile boolean materialIcons;
     private static final android.graphics.CornerPathEffect GLYPH_CORNER = new android.graphics.CornerPathEffect(1.4f);
 
     static void drawGlyph(Canvas canvas, Paint paint, Path path, String key, int color, float size) {
+        if (materialIcons && MaterialIcons.draw(canvas, paint, key, color, size)) return;
         float[] points = GLYPHS.get(key);
         if (points == null) return;
         canvas.save();
