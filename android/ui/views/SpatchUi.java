@@ -190,6 +190,7 @@ public final class SpatchUi extends FrameLayout {
     boolean polling, fetching, libraryReady, refreshing, playing, shuffle;
     int repeat;
     Boolean pending, saved;
+    long pendingUntil;
     String title = "", artist = "", album = "", source = "", image = "", uri = "", rating = "", context = "", quality = "";
     boolean buffering, canNext = true, canPrevious = true;
     private long prevTappedAt;
@@ -1017,7 +1018,7 @@ public final class SpatchUi extends FrameLayout {
         }
         playing = Boolean.parseBoolean(s[6]);
         if (backdrop != null) backdrop.drifting(playing);
-        if (pending != null && (changed || pending == playing)) pending = null;
+        if (pending != null && (changed || (pending == playing && SystemClock.uptimeMillis() >= pendingUntil))) pending = null;
         shuffle = Boolean.parseBoolean(s[7]);
         repeat = Integer.parseInt(s[8]);
         position = Long.parseLong(s[9]);

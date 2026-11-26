@@ -905,16 +905,38 @@ final class PlayerScreen {
         });
     }
 
+    private long pendingSeq;
+    private Runnable pendingTimeout, pendingSettle;
+
     void togglePlay() {
-        if (ui.uri.isEmpty() || ui.pending != null) return;
-        boolean want = !ui.playing;
+        if (ui.uri.isEmpty()) return;
+        boolean current = ui.pending != null ? ui.pending : ui.playing;
+        boolean want = !current;
+        long seq = ++pendingSeq;
+        if (pendingTimeout != null) ui.removeCallbacks(pendingTimeout);
+        if (pendingSettle != null) ui.removeCallbacks(pendingSettle);
         ui.pending = want;
+        ui.pendingUntil = SystemClock.uptimeMillis() + 450;
         ui.refresh();
+        pendingSettle = () -> {
+            if (pendingSeq == seq && ui.pending != null && ui.pending == ui.playing) {
+                ui.pending = null;
+                ui.refresh();
+            }
+        };
+        ui.postDelayed(pendingSettle, 460);
         ui.submit(SpatchUi.COMMANDS, () -> {
             boolean ok = SpatchUi.playerCommand(want ? RESUME : PAUSE, 0, "");
             ui.post(() -> {
-                if (!ok) { ui.pending = null; ui.refresh(); }
-                else ui.postDelayed(() -> { if (ui.pending != null && ui.pending == want) { ui.pending = null; ui.refresh(); } }, 2500);
+                if (pendingSeq != seq) return;
+                if (!ok) {
+                    if (pendingSettle != null) ui.removeCallbacks(pendingSettle);
+                    ui.pending = null;
+                    ui.refresh();
+                } else {
+                    pendingTimeout = () -> { if (pendingSeq == seq && ui.pending != null) { ui.pending = null; ui.refresh(); } };
+                    ui.postDelayed(pendingTimeout, 2500);
+                }
             });
         });
     }
