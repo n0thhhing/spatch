@@ -638,7 +638,7 @@ checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
 
 [[package]]
 name = "spatch"
-version = "0.8.1"
+version = "1.0.0"
 dependencies = [
  "bsdiff",
  "sha2",
@@ -647,7 +647,7 @@ dependencies = [
 
 [[package]]
 name = "spatch_app"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "jni",
  "log",

@@ -1,7 +1,7 @@
-# Working on fresh
+# Development notes
 
-This branch replaces Spotify’s screen with shared Android views backed by Rust. `main` contains
-the earlier Spotify-UI patch. Start changes from `fresh`; keep the pinned input hashes intact.
+`main` replaces Spotify’s screen with shared Android views backed by Rust; `legacy` contains
+the earlier Spotify-UI patch. Start changes from `main`; keep the pinned input hashes intact.
 
 ## Source map
 

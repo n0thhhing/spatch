@@ -4,7 +4,7 @@ Spatch runs a Rust-driven Android UI over Spotify's existing playback, cache and
 This branch supports Spotify **9.2.0.2053** (version code **148387875**) and supports Spotify’s native sign-in flow on fresh installs. APKM and split hashes are pinned in [crates/patcher/src/input.rs](crates/patcher/src/input.rs).
 
 See [the core README](crates/core/README.md) for UI features and the standalone preview, [Development notes](docs/development.md) for the source map, lifecycle rules and validation commands, and [External control intents](docs/intents.md) for automation via Tasker, MacroDroid, KWGT or ADB.
-The earlier redesign lives on the `main` branch.
+The earlier redesign lives on the `legacy` branch.
 
 An optional [official Spotify playback fallback](docs/official-playback-fallback.md) keeps Spatch's
 interface while the installed official app handles audio. Enable it in Settings → Playback;

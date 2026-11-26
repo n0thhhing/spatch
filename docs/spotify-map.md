@@ -1,4 +1,4 @@
-# Spotify hooks on fresh
+# Spotify hooks
 
 [The edit table](../crates/patcher/src/edits.rs) applies guarded hooks to Spotify 9.2.0.2053. Each edit requires
 exactly one anchor match; the diagnostic controls described below default off.
@@ -23,7 +23,7 @@ make room for their new calls. They keep their original class names in `classes1
 - [Audio.java](../android/ui/audio/Audio.java) captures FFT samples and manages the active session’s audio effects.
 
 For input hashes and version porting, see [Patch targets](targets.md). The earlier redesign lives on
-the `main` branch.
+the `legacy` branch.
 
 ## Public song details fallback
 

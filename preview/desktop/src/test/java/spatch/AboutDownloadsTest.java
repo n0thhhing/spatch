@@ -38,7 +38,7 @@ public class AboutDownloadsTest {
         click(find(ui, "Source code"));
         assertEquals("https://github.com/n0thhhing/spatch", shadowOf(ui.activity).getNextStartedActivity().getDataString());
         click(find(ui, "Releases & updates"));
-        assertTrue(shadowOf(ui.activity).getNextStartedActivity().getDataString().endsWith("/releases/tag/branch-fresh"));
+        assertTrue(shadowOf(ui.activity).getNextStartedActivity().getDataString().endsWith("/releases/tag/nightly"));
         screenshot(ui, "about");
         ui.activity.finish();
     }

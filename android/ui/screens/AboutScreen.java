@@ -40,9 +40,9 @@ final class AboutScreen {
 
         LinearLayout project = ui.controls.card(page, "Project & support");
         ui.controls.settingsAction(project, "Source code", "Browse the project on GitHub", () -> open(ui, PROJECT));
-        ui.controls.settingsAction(project, "Releases & updates", "Download the latest fresh build", () -> open(ui, PROJECT + "/releases/tag/branch-fresh"));
+        ui.controls.settingsAction(project, "Releases & updates", "Download the latest nightly build", () -> open(ui, PROJECT + "/releases/tag/nightly"));
         ui.controls.settingsAction(project, "Report a problem", "Check existing issues or describe a bug", () -> open(ui, PROJECT + "/issues"));
-        ui.controls.settingsAction(project, "License", "MIT License · © 2026 n0thhhing", () -> open(ui, PROJECT + "/blob/fresh/LICENSE"));
+        ui.controls.settingsAction(project, "License", "MIT License · © 2026 n0thhhing", () -> open(ui, PROJECT + "/blob/main/LICENSE"));
 
         LinearLayout credits = ui.controls.card(page, "Credits");
         note(ui, credits, "Built with Rust and Android. The native desktop preview uses Robolectric and the same Android screens.");
