@@ -2,7 +2,7 @@ const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const panels = [...document.querySelectorAll('[data-panel]')];
 const tabs = [...document.querySelectorAll('.tabs a')];
 const ind = document.querySelector('.tab-ind');
-const names = { overview: 'Spatch', features: 'Features · Spatch', install: 'Install · Spatch', questions: 'Questions · Spatch', changelog: 'Changelog · Spatch' };
+const names = { overview: 'Spatch', features: 'Features · Spatch', install: 'Install · Spatch', docs: 'Docs · Spatch', questions: 'Questions · Spatch', changelog: 'Changelog · Spatch' };
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
 
 // Heading letters stay hidden until their first sweep, so they never flash in the fallback
@@ -187,15 +187,26 @@ function updateSeek() {
 
 function show(first) {
   const id = location.hash.slice(1);
-  const name = panels.some(p => p.dataset.panel === id) ? id : 'overview';
+  const target = id ? document.getElementById(id) : null;
+  const host = target && target.closest('[data-panel]');
+  const name = panels.some(p => p.dataset.panel === id) ? id : host ? host.dataset.panel : 'overview';
+  const anchor = host && target !== host ? target : null;
+  if (!first && document.body.dataset.tab === name) {
+    if (anchor) anchor.scrollIntoView({ behavior: reduce ? 'instant' : 'smooth' });
+    else scrollTo({ top: 0, behavior: 'instant' });
+    return;
+  }
   // Scroll before swapping tabs, while the current layout is still valid.
-  if (!first) scrollTo({ top: 0, behavior: 'instant' });
+  if (!first && !anchor) scrollTo({ top: 0, behavior: 'instant' });
   for (const p of panels) p.hidden = p.dataset.panel !== name;
   for (const t of tabs) t.hash === '#' + name ? t.setAttribute('aria-current', 'page') : t.removeAttribute('aria-current');
   document.body.dataset.tab = name;
   document.title = names[name];
   // Next frame, so reading the tab's position shares that frame's layout instead of forcing an extra one.
-  requestAnimationFrame(placeIndicator);
+  requestAnimationFrame(() => {
+    placeIndicator();
+    if (anchor) anchor.scrollIntoView({ behavior: 'instant' });
+  });
   const panel = panels.find(p => p.dataset.panel === name);
   // The first sweep waits for the web font, so letters are measured in the right face.
   first ? document.fonts.ready.then(() => sweep(panel)) : sweep(panel);

@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,100..1000,0..100&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/site.css?v=20261123o">
+  <link rel="stylesheet" href="assets/site.css?v=20261126a">
 </head>
 <body data-tab="overview">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -38,6 +38,7 @@
       <a href="#overview" aria-current="page"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.5l8.5 7V20h-5.5v-5.5h-6V20H3.5z"/></svg><span>Overview</span></a>
       <a href="#features"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.1 6.4 6.4 2.1-6.4 2.1L12 20.5l-2.1-6.4L3.5 12l6.4-2.1z"/></svg><span>Features</span></a>
       <a href="#install"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span>Install</span></a>
+      <a href="#docs"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h8.5l3.5 3.5V19.5H6z"/><path d="M14.5 4.5V8H18M9 12h6M9 15.5h4.5"/></svg><span>Docs</span></a>
       <a href="#questions"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.5v.4M12 16.9v.2"/></svg><span>Questions</span></a>
       <a href="#changelog"><svg class="ti" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Changelog</span></a>
     </nav>
@@ -234,6 +235,202 @@
       </section>
     </div>
 
+    <!-- Docs -->
+    <div class="panel" id="p-docs" data-panel="docs">
+      <header class="page-head">
+        <h1 class="flex">Docs</h1>
+        <p class="lede">Short guides to installing, tuning and troubleshooting Spatch on your phone.</p>
+      </header>
+
+      <nav class="areas docs-toc" aria-label="Documentation sections">
+        <a class="area" href="#docs-getting-started">Getting started</a>
+        <a class="area" href="#docs-signing-key">Your signing key</a>
+        <a class="area" href="#docs-private-sources">Private sources</a>
+        <a class="area" href="#docs-clones">Second Spotify</a>
+        <a class="area" href="#docs-settings">Settings tour</a>
+        <a class="area" href="#docs-sound">Sound</a>
+        <a class="area" href="#docs-lyrics">Lyrics</a>
+        <a class="area" href="#docs-automation">Widget &amp; automation</a>
+        <a class="area" href="#docs-fallback">Official playback fallback</a>
+        <a class="area" href="#docs-troubleshooting">Troubleshooting</a>
+        <a class="area" href="#docs-building">Building from source</a>
+      </nav>
+
+      <section class="split doc" id="docs-getting-started" aria-labelledby="docs-getting-started-h">
+        <h2 id="docs-getting-started-h">Getting started</h2>
+        <div class="prose">
+          <p>Spatch Manager patches Spotify on your phone, signs it with a key made there and installs it. You need a 64-bit phone on Android 10 or newer and Spotify 9.2.0.2053.</p>
+          <ol>
+            <li>Install <code>spatch-manager.apk</code> from the <a href="https://github.com/n0thhhing/spatch-manager/releases">Spatch Manager releases page</a>.</li>
+            <li>If unmodified Spotify 9.2.0.2053 is already installed, the Manager uses it. Otherwise, tap <b>Choose Spotify APKM</b> and pick the matching APKM once; the Manager keeps it for future updates.</li>
+            <li>Tap <b>Install Spatch</b>. Android asks once to allow installs from the Manager, then to confirm. Nothing is uploaded.</li>
+          </ol>
+          <h3>Updates: nightly vs release</h3>
+          <p>Turn on <b>Tell me about new patches</b> in the Manager to check twice a day; tapping the notification opens straight into the update. Leave <b>Nightly patches</b> off to follow tagged releases, or turn it on to get each new nightly build as changes land. Updates replace only <code>base.apk</code> with the same key, so your login and downloads stay. On Android 12 and newer they install without a confirmation screen once the Manager has installed Spotify. <b>Update manager</b> appears when a newer Manager build is ready.</p>
+          <h3>First launch</h3>
+          <p>Fresh installs use Spotify’s own sign-in screen. Once signed in, Spatch loads your library and account from Spotify’s core; the first load needs a live connection rather than an old cache. Premium is what Spatch is built and tested with — free accounts currently have trouble loading and playing music.</p>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-signing-key" aria-labelledby="docs-signing-key-h">
+        <h2 id="docs-signing-key-h">Your signing key</h2>
+        <div class="prose">
+          <p>Android only installs an update when the new APK is signed with the same key as the one already on your phone. The Manager creates a key on your device the first time you install Spatch.</p>
+          <p>Use <b>Export key</b> in the Manager to save a password-protected <code>.p12</code> backup somewhere safe. If you switch phones or reinstall the Manager, use <b>Import key</b> to bring it back before updating.</p>
+          <p>If the key is lost, Android refuses to install updates over Spatch. You have to uninstall first and install fresh, which removes your offline downloads and local app data.</p>
+          <h3>Keys from the desktop patcher</h3>
+          <p><b>Import key</b> also reads a <code>.p12</code> keystore made with <code>keytool</code> for the desktop patcher, so the Manager can update a desktop-patched install in place. If Android can’t read a newer <code>keytool</code> file (AES encryption), re-export it with legacy encryption first, then delete the temporary <code>key.pem</code> file:</p>
+          <pre><code>openssl pkcs12 -in your.p12 -nodes -out key.pem
+openssl pkcs12 -export -legacy -in key.pem -out spatch-key.p12</code></pre>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-private-sources" aria-labelledby="docs-private-sources-h">
+        <h2 id="docs-private-sources-h">Private sources and invites</h2>
+        <div class="prose">
+          <p>An invite is a private link (an <code>index.json</code> address with a personal name and code after <code>#</code>) that lets <b>Install Spatch</b> download the exact Spotify APKM it needs automatically, so you don’t have to pick the file yourself.</p>
+          <p>To add one, paste the link under <b>Spotify → Add an invite</b> in Spatch Manager, or share the link straight to Spatch Manager from a chat app. The invite stays in the Manager’s private, non-backed-up storage. A saved APKM or unmodified installed Spotify still comes first if you already have one.</p>
+          <p>When downloading, the Manager sends your login only to the invite’s own host over HTTPS, selects only the entry whose version code and SHA-256 match the patch bundle, checks your phone’s Android version and ABI, and writes to a temporary file until both length and hash check out. Credentials are never forwarded if a redirect leaves the invite’s host.</p>
+          <p>Spatch never ships Spotify’s own files. If you want to run a private source for friends using <code>spatch source</code>, see the <a href="https://github.com/n0thhhing/spatch/blob/fresh/docs/private-source.md">private source guide on GitHub</a>.</p>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-clones" aria-labelledby="docs-clones-h">
+        <h2 id="docs-clones-h">Second Spotify (clones)</h2>
+        <div class="prose">
+          <p>A clone installs a second Spatch beside the regular Spotify app (or another Spatch install), under its own package name such as <code>com.spotify.music.two</code>. Its package, content providers and app-owned permissions are renamed in every split, so it sits cleanly next to official Spotify.</p>
+          <ul>
+            <li><b>Name and limit:</b> give the clone its own launcher name and package suffix. The full package name can be up to 127 characters. Screens inside the app still say Spotify.</li>
+            <li><b>Own icon:</b> optionally pick any picture on your phone as the clone’s launcher icon.</li>
+            <li><b>Own login and downloads:</b> each clone keeps its own account session, settings and offline downloads. Clones are signed with your phone’s key and need that same key to update in place.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-settings" aria-labelledby="docs-settings-h">
+        <h2 id="docs-settings-h">Settings tour</h2>
+        <div class="prose">
+          <p>Tap your avatar at the top right of any screen to open Settings. Controls are grouped into seven pages.</p>
+          <ul>
+            <li><b>Appearance:</b> pick Dynamic colours or a fixed palette, Theme (System, Dark or Light), Artwork colours, accent colour, Expressive type and Material icons. Tune Artwork &amp; visualizer (Visualizer style, Follow the music, Spinning artwork, Artwork pulse, Cover glow, Blurred backdrop, GPU effects, Frosted bars, Floating motes, Rotating stickers), Player layout &amp; buttons (Allow rotation, Hide controls when idle, Quality line, top-bar buttons), Lyrics options, Motion &amp; celebrations (Reduce motion, Playback confetti), Home shelves and Library sorting or grid view.</li>
+            <li><b>Playback:</b> Spotify’s own switches (Streaming quality up to Lossless, Allow quality downgrade, Download over cellular, Normalise volume, Gapless playback, Automix, Crossfade, Play explicit content, Private session, Show unavailable songs — changing them updates Spotify too), Playback backend, and Keep screen on while the player is open.</li>
+            <li><b>Equalizer &amp; sound:</b> Sound processing switch, 10-band graphic equalizer, Headphone correction, Loudness &amp; bass, Space, Gain &amp; dynamics and Compatibility.</li>
+            <li><b>Navigation &amp; gestures:</b> Slide to switch across the bottom bar, Hide controls while scrolling, Double-tap artwork to play or pause, Swipe artwork to skip, Hold-to-seek step (5 s, 10 s or 30 s) and Haptics.</li>
+            <li><b>Downloads &amp; storage:</b> Offline mode (asks before turning on), your downloaded items and cache size.</li>
+            <li><b>Developer:</b> Playback diagnostics, the Automation &amp; intents reference and Refresh library.</li>
+            <li><b>About:</b> build commit, host Spotify version, Android version, copyable build details, project links and license.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-sound" aria-labelledby="docs-sound-h">
+        <h2 id="docs-sound-h">Sound</h2>
+        <div class="prose">
+          <p>Turn on <b>Sound processing</b> in <b>Settings → Equalizer &amp; sound</b> to shape audio playing on your phone. Every stage lives on this page.</p>
+          <ul>
+            <li><b>Equalizer:</b> drag the 10-band curve (31 Hz to 16 kHz) or switch to <b>Faders</b>, fine-tune any band in 0.1 dB steps, start from eight presets (Flat, Bass boost, Warm, Vocals, Treble boost, Rock, Electronic, Acoustic), or save, copy and reset your curve. Toggle <b>Tone curve</b> off to compare.</li>
+            <li><b>AutoEq headphone correction:</b> open <b>Headphone correction</b> to search the AutoEq database for your headphone model or import custom GraphicEQ text, then tune <b>Correction intensity</b>. Uses up to 64 bands on Android’s DynamicsProcessing when supported.</li>
+            <li><b>Loudness &amp; bass:</b> <b>Equal loudness</b> applies ISO 226 compensation based on your media volume threshold; <b>Bass boost</b> adds low-end weight; <b>Bass tuner</b> lets you pick Natural, Transient or Sustain character, cutoff frequency and post-gain. <b>Space</b> adds Reverberation and Virtualizer; <b>Gain &amp; dynamics</b> adds Automatic headroom, a Limiter and Left/Right channel balance.</li>
+            <li><b>Legacy compatibility:</b> under <b>Compatibility</b>, turn this on if Spotify doesn’t expose an active audio session on your phone. It attaches to the global output mix, which may affect other apps’ audio. You can also set a preferred processing buffer (0 ms uses the device default).</li>
+          </ul>
+          <h3>What “device bands (fallback)” means</h3>
+          <p>When a phone doesn’t support Android’s DynamicsProcessing effect (or refuses to open it), Spatch falls back to the phone’s built-in hardware equalizer and reports <code>device bands (fallback)</code> in Compatibility and Diagnostics. Basic tone shaping still works, while high-band AutoEq precision, the limiter and channel balance need DynamicsProcessing.</p>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-lyrics" aria-labelledby="docs-lyrics-h">
+        <h2 id="docs-lyrics-h">Lyrics</h2>
+        <div class="prose">
+          <p>Tap the lyrics button in the player for full-screen synced lyrics, where tapping any line jumps the song there. You can also show one to three lines under the cover via <b>Settings → Appearance → Lyrics in the player</b>.</p>
+          <ul>
+            <li><b>Spotify &amp; LRCLIB:</b> Spatch uses Spotify’s lyrics first. With <b>More lyrics from LRCLIB</b> on (enabled by default in Appearance), it checks <code>lrclib.net</code> when Spotify has no lyrics or only whole-line timing, adding word-by-word highlighting when available.</li>
+            <li><b>Timing nudge:</b> if a song’s lyrics sit slightly early or late, use the <code>−</code> and <code>+</code> timing buttons in the lyrics header to shift them in 0.5-second steps for that track.</li>
+            <li><span class="tag">Experimental</span><b>Generate missing lyrics:</b> in <b>Settings → Appearance</b>, this listens on your phone when no service has lyrics for a song, writes rough timed lyrics locally and saves them for next time. Turning it on downloads a ~60 MB speech model once; it uses extra battery while listening.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-automation" aria-labelledby="docs-automation-h">
+        <h2 id="docs-automation-h">Widget and automation</h2>
+        <div class="prose">
+          <p>Add the Spatch home-screen widget from your launcher’s widget picker for artwork and playback controls, or add the Spatch tile in Android’s Quick Settings shade for one-tap play and pause. Both remember the last-played track when Spatch is closed and wake playback in the background.</p>
+          <h3>External control intents</h3>
+          <p>Automation apps (Tasker, MacroDroid, Automate, KWGT, Termux or ADB) can send a <b>Broadcast</b> intent to package <code>com.spotify.music</code> (or your clone’s package, shown in <b>Settings → Developer → Automation &amp; intents</b>) and component <code>&lt;package&gt;/spatch.SpatchWidget</code>. Always include the package or component name so Android 8+ delivers the broadcast. If Spatch is closed, playback wakes in the background without opening the main UI.</p>
+          <div class="table-wrap">
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th scope="col">Action</th>
+                  <th scope="col">What it does</th>
+                  <th scope="col">Extras</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>spatch.action.PLAY</code></td><td>Resume playback (or last played at saved position)</td><td>—</td></tr>
+                <tr><td><code>spatch.action.PAUSE</code></td><td>Pause playback</td><td>—</td></tr>
+                <tr><td><code>spatch.action.TOGGLE</code></td><td>Toggle play / pause</td><td>—</td></tr>
+                <tr><td><code>spatch.action.NEXT</code></td><td>Skip to next track</td><td>—</td></tr>
+                <tr><td><code>spatch.action.PREVIOUS</code></td><td>Skip to previous track</td><td>—</td></tr>
+                <tr><td><code>spatch.action.SEEK</code></td><td>Seek within the current track</td><td><code>position_ms</code> (or <code>position</code>) in ms</td></tr>
+                <tr><td><code>spatch.action.PLAY_URI</code></td><td>Play a Spotify URI</td><td><code>uri</code>, optional <code>context</code>, <code>shuffle</code>, <code>position_ms</code></td></tr>
+                <tr><td><code>spatch.action.SHUFFLE</code></td><td>Set shuffle state</td><td><code>enabled</code> / <code>shuffle</code> (bool) or <code>mode</code> (0/1)</td></tr>
+                <tr><td><code>spatch.action.REPEAT</code></td><td>Set repeat mode</td><td><code>mode</code> (0 off, 1 all, 2 one)</td></tr>
+                <tr><td><code>spatch.action.QUEUE</code></td><td>Add a track to the queue</td><td><code>uri</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>ADB examples</h3>
+          <pre><code># Resume last played in the background
+adb shell am broadcast -a spatch.action.PLAY -n com.spotify.music/spatch.SpatchWidget
+
+# Play a specific track at 30 seconds
+adb shell am broadcast -a spatch.action.PLAY_URI -n com.spotify.music/spatch.SpatchWidget \
+  --es uri "spotify:track:4cOdK2wGLETKBW3PvgPWqT" \
+  --el position_ms 30000
+
+# Seek to 1:00
+adb shell am broadcast -a spatch.action.SEEK -n com.spotify.music/spatch.SpatchWidget \
+  --el position_ms 60000</code></pre>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-fallback" aria-labelledby="docs-fallback-h">
+        <h2 id="docs-fallback-h">Official playback fallback</h2>
+        <div class="prose">
+          <p>Official playback fallback lets you browse and control music in Spatch (typically installed as a clone) while the installed, official Spotify app plays the audio. Enable it under <b>Settings → Playback → Playback backend → Official Spotify fallback</b>, and keep official Spotify installed and signed into the same account.</p>
+          <p>Spatch mirrors playback state and controls using Android’s <b>notification access</b> permission, restricted to <code>com.spotify.music</code> only (it never reads or logs notification text). On newer Android builds, if the switch is greyed out as a restricted setting, tap it once, then open your clone’s <b>App info → ⋮ → Allow restricted settings</b> and return to enable access. <b>Auto-return after handoff</b> (on by default) brings Spatch back to the front once Spotify starts playing.</p>
+          <p>Normal Spotify ads and free-account limits still apply. Built-in EQ, clone downloads, Connect transfers and some queue or shuffle controls remain in the official app while fallback is active. You can switch back to <b>Built-in player</b> at any time.</p>
+          <p><span class="tag">Experimental</span><b>App Remote:</b> for in-app playback control without switching over to official Spotify, <b>Playback backend</b> also includes optional App Remote settings (Client ID, Redirect URI, package &amp; SHA-1 copy and <b>Connect App Remote</b>).</p>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-troubleshooting" aria-labelledby="docs-troubleshooting-h">
+        <h2 id="docs-troubleshooting-h">Troubleshooting</h2>
+        <div class="prose">
+          <p>Common snags and where to look first.</p>
+          <ul>
+            <li><b>Library stuck on “Connecting”:</b> Spatch retries automatically now. Give it a few seconds, tap <b>Retry</b> if shown, or run <b>Settings → Developer → Refresh library</b>. Check that you’re signed in and online for the first load.</li>
+            <li><b>“Signed with a different key” error:</b> Android blocks updating an app signed with another key. Either import the original <code>.p12</code> key in Spatch Manager, uninstall the existing app first (this clears downloads), or install Spatch as a <a href="#docs-clones">Second Spotify clone</a>.</li>
+            <li><b>Play Protect prompt:</b> because Spatch is signed with your own key on your phone, Play Protect doesn’t recognize it. Choose <b>More details → Install anyway</b> (or <b>Install without scanning</b>) if asked.</li>
+            <li><b>Downloads and offline mode:</b> long-press a song or hold the player cover to download it; downloads appear in <b>Library → Downloaded</b> and <b>Settings → Downloads &amp; storage</b>. If browsing or search won’t load anything, check that <b>Offline mode</b> is turned off in Downloads &amp; storage.</li>
+            <li><b>Where logs are:</b> open <b>Settings → Developer → Playback diagnostics</b> to view and copy connection, playback, library, search and audio-effect details. Your Profile page’s Connection card also has <b>Copy details</b>.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="split doc" id="docs-building" aria-labelledby="docs-building-h">
+        <h2 id="docs-building-h">Building from source</h2>
+        <div class="prose">
+          <p>Building locally needs Rust (2024 edition), a JDK, <code>apktool</code>, Android SDK platform 35+ with build tools, the matching Spotify APKM, and the ARM64 Rust library build (via <code>cargo-ndk</code>) for signed patches and bundles.</p>
+          <pre><code>cargo build --release
+./target/release/spatch inspect input.apkm
+./target/release/spatch patch input.apkm --out out-dir --dry-run
+./target/release/spatch bundle input.apkm --out spatch-bundle.zip</code></pre>
+          <p>Full build steps, checks and source layout live in the <a href="https://github.com/n0thhhing/spatch">Spatch repository on GitHub</a> and <a href="https://github.com/n0thhhing/spatch/blob/fresh/docs/development.md">docs/development.md</a>.</p>
+        </div>
+      </section>
+    </div>
+
     <!-- Questions -->
     <div class="panel" id="p-questions" data-panel="questions">
       <header class="page-head">
@@ -316,6 +513,6 @@
     <a href="https://github.com/n0thhhing/spatch">Source on GitHub</a>
   </footer>
 
-  <script src="assets/site.js?v=20261123o"></script>
+  <script src="assets/site.js?v=20261126a"></script>
 </body>
 </html>
