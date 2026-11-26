@@ -263,7 +263,7 @@ final class PlayerScreen {
         boolean walking = visible && current >= 0 && l.wordAt[current] != null;
         if (visible && !key.equals(lyricKey)) {
             lyricKey = key;
-            for (int i = 0; i < 3; i++) rows[i].setText(lyricText(want[i]));
+            for (int i = 0; i < 3; i++) { rows[i].setText(lyricText(want[i])); rows[i].scrollTo(0, 0); }
             float[] from = { 1f, .38f, 0f }, to = { .38f, 1f, .38f };
             if (ui.motion() && !want[1].isEmpty()) {
                 // The lines step up: each fades to the look of the one above it while the block slides up into place.
@@ -278,7 +278,44 @@ final class PlayerScreen {
             }
         }
         long next = walking ? walkWords(rows[1], l, current, now, rows[1].getCurrentTextColor()) : 250;
+        if (visible && current >= 0 && followLyricScroll(rows[1], l, current, now, walking)) next = Math.min(next, 16);
         box.postDelayed(() -> playerLyrics(box), next);
+    }
+
+    /** Keeps a long single-line lyric smoothly scrolled to the active word (or playhead fraction) without ellipsizing it. */
+    private boolean followLyricScroll(TextView view, CoreBridge.Lyrics l, int line, long now, boolean walking) {
+        android.text.Layout layout = view.getLayout();
+        if (layout == null || layout.getLineCount() == 0) return false;
+        int avail = view.getWidth() - view.getPaddingLeft() - view.getPaddingRight();
+        if (avail <= 0) return false;
+        int maxScroll = Math.max(0, Math.round(layout.getLineWidth(0) + ui.dp(10) - avail));
+        int targetX = 0;
+        if (maxScroll > 0) {
+            if (walking && l.wordAt[line] != null && l.wordStart[line] != null) {
+                int[] at = l.wordAt[line];
+                long[] when = l.wordStart[line];
+                String text = l.words[line] == null ? "" : l.words[line];
+                int k = -1;
+                for (int i = 0; i < at.length && i < when.length && when[i] <= now; i++) k = i;
+                if (k >= 0) {
+                    int s = Math.min(at[k], text.length());
+                    int e = k + 1 < at.length ? Math.min(at[k + 1], text.length()) : text.length();
+                    float mid = (layout.getPrimaryHorizontal(s) + layout.getPrimaryHorizontal(e)) * .5f;
+                    targetX = Math.max(0, Math.min(maxScroll, Math.round(mid - avail * .42f)));
+                }
+            } else {
+                long start = l.starts[line];
+                long nextStart = line + 1 < l.starts.length && l.starts[line + 1] > start ? l.starts[line + 1] : 0;
+                long end = l.ends[line] > start ? l.ends[line] : (nextStart > 0 ? nextStart : start + 4000);
+                long span = Math.max(800L, Math.min(end - start, 8000L));
+                float frac = Math.max(0f, Math.min(1f, ((now - start) / (float) span - .15f) / .70f));
+                targetX = Math.round(maxScroll * frac);
+            }
+        }
+        int cur = view.getScrollX();
+        int nextX = !ui.motion() || Math.abs(targetX - cur) <= 1 ? targetX : cur + Math.round((targetX - cur) * .18f);
+        if (nextX != cur) view.scrollTo(nextX, 0);
+        return Math.abs(targetX - nextX) > 1 || (maxScroll > 0 && !walking && ui.playing);
     }
 
     /**
@@ -336,20 +373,40 @@ final class PlayerScreen {
         boolean motion = ui.motion();
         float rise = ui.dp(2.5f), shine = ui.dp(4); // at most 8 dp of glow: inside a lyric line's padding
         long since = k < 0 ? 0 : now - when[k];
-        long held = k < 0 ? 0 : (k + 1 < when.length ? when[k + 1] : l.ends[line]) - when[k];
+        long wordEnd = 0;
+        if (k >= 0) {
+            if (k + 1 < when.length) {
+                wordEnd = when[k + 1];
+            } else {
+                long rawEnd = l.ends[line] > when[k] ? l.ends[line] : 0;
+                boolean nextLineEnd = line + 1 < l.starts.length && rawEnd == l.starts[line + 1];
+                if (rawEnd == 0 || nextLineEnd) {
+                    long avg = k > 0 ? Math.max(350L, Math.min(1100L, (when[k] - when[0]) / k)) : 900L;
+                    long est = when[k] + Math.min(1800L, avg * 2);
+                    wordEnd = rawEnd > when[k] ? Math.min(rawEnd, est) : est;
+                } else {
+                    wordEnd = Math.min(rawEnd, when[k] + 4500L);
+                }
+            }
+        }
+        long held = k < 0 ? 0 : Math.max(0L, wordEnd - when[k]);
         float up = !motion ? 1f : Math.min(1f, since / 160f);
         up = 1f - (1f - up) * (1f - up) * (1f - up); // ease out: quick to rise, gentle to land
         // A held note (over 0.6 s) keeps swelling until its end; a quick word just lifts and glows.
-        float swell = held > 600 ? Math.min(1f, since / (float) held) : 0f;
+        float swell = held > 600 ? Math.min(1f, Math.min(since, held) / (float) held) : 0f;
+        // Once the last word of a line finishes (e.g. before an instrumental break), ease its lift and glow back down.
+        float settleOut = k < 0 || now <= wordEnd ? 1f : !motion ? 0f : Math.max(0f, 1f - (now - wordEnd) / 300f);
+        settleOut = settleOut * settleOut;
         w.arriving.accent = (ui.accent & 0x00ffffff) | 0xd0000000;
-        w.arriving.lift = k < 0 ? 0 : rise * up * (1f + .4f * swell);
-        w.arriving.glow = k < 0 ? 0 : shine * up * (1f + swell);
+        w.arriving.lift = k < 0 ? 0 : rise * up * (1f + .4f * swell) * settleOut;
+        w.arriving.glow = k < 0 ? 0 : shine * up * (1f + swell) * settleOut;
         float down = !motion ? 1f : Math.min(1f, (SystemClock.uptimeMillis() - w.leftAt) / 200f);
         w.leaving.accent = w.arriving.accent;
         w.leaving.lift = w.leftLift * (1f - down);
         w.leaving.glow = w.leftGlow * (1f - down);
         view.invalidate();
-        boolean moving = motion && (up < 1f || down < 1f || (swell > 0f && swell < 1f));
+        boolean settlingOut = settleOut > 0f && settleOut < 1f;
+        boolean moving = motion && (up < 1f || down < 1f || settlingOut || (swell > 0f && swell < 1f && now <= wordEnd));
         return moving ? 16 : 40;
     }
 
@@ -513,7 +570,10 @@ final class PlayerScreen {
                 rows[k].setLineSpacing(0, 1.05f);
                 rows[k].setGravity(Gravity.START);
                 rows[k].setSingleLine(true);
-                rows[k].setEllipsize(android.text.TextUtils.TruncateAt.END);
+                rows[k].setEllipsize(null);
+                rows[k].setHorizontallyScrolling(true);
+                rows[k].setHorizontalFadingEdgeEnabled(true);
+                rows[k].setFadingEdgeLength(ui.dp(24));
                 rows[k].setPadding(0, ui.dp(4), 0, ui.dp(2));
                 rows[k].setAlpha(sung ? 1f : .38f);
                 box.addView(rows[k], ui.fill(-2));
@@ -529,7 +589,7 @@ final class PlayerScreen {
             box.setClipToOutline(true);
             // The lines sit on a quiet glass card; left padding is inset 10 dp because LeadingMarginSpan adds 10 dp inside
             // each TextView's own clip rect so the leftmost sung word's glow never clips on the left.
-            box.setPadding(ui.dp(10), ui.dp(10), ui.dp(20), ui.dp(10));
+            box.setPadding(ui.dp(10), ui.dp(10), ui.dp(14), ui.dp(10));
             ui.bgRound(box, 26, () -> (ui.ink & 0x00ffffff) | 0x16000000);
             ui.tappable(box, "Open lyrics", this::openLyrics);
             LinearLayout.LayoutParams lineParams = ui.lp(-1, 0); // collapsed until the song's lyrics are about to start

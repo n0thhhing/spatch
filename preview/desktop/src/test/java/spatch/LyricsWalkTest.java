@@ -47,6 +47,17 @@ public class LyricsWalkTest {
         File file = new File("build/reports/preview/lyrics-walk.png");
         file.getParentFile().mkdirs();
         try (FileOutputStream out = new FileOutputStream(file)) { assertTrue(shot.compress(Bitmap.CompressFormat.PNG, 100, out)); }
+        // Past the end of the first line (ends[0] = 8500 ms, next line at 9000 ms), the last word settles back down.
+        Reflect.set(ui, "position", 3000L + 5500L + 350L);
+        settle();
+        PlayerScreen.SungWord settled = null;
+        for (TextView line : texts(root)) {
+            if (!(line.getText() instanceof Spanned)) continue;
+            Spanned text = (Spanned) line.getText();
+            PlayerScreen.SungWord[] found = text.getSpans(0, text.length(), PlayerScreen.SungWord.class);
+            for (PlayerScreen.SungWord w : found) if (w.lift > .05f || w.glow > .05f) settled = w;
+        }
+        assertNull("Past the end of the last word on a line, lift and glow settle back to zero", settled);
         activity.finish();
     }
 
