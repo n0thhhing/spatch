@@ -578,6 +578,10 @@ final class SettingsScreen {
         HorizontalScrollView strip = new HorizontalScrollView(ui.activity);
         strip.setHorizontalScrollBarEnabled(false);
         strip.setClipToPadding(false);
+        // The Theme switch in this card turns off child clipping on its ancestors (so its pill can overshoot), which
+        // also stops this strip from being clipped to its own edges; the scrolled tiles then spilled past the card.
+        strip.setOutlineProvider(android.view.ViewOutlineProvider.BOUNDS);
+        strip.setClipToOutline(true);
         strip.setPadding(ui.dp(14), 0, ui.dp(14), ui.dp(12));
         LinearLayout cards = ui.row();
         int chosen = Math.max(0, Math.min(SpatchUi.PALETTES.length - 1, ui.prefs.getInt("palette", 0)));
