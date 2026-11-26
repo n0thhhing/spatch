@@ -412,13 +412,17 @@ final class HomeScreen {
             float dt = lastFrame == 0 ? .016f : Math.min(.05f, (now - lastFrame) / 1000f);
             lastFrame = now;
             boolean run = ui.playing && ui.motion();
-            boolean live = run && ui.pref("audio", true) && Audio.ready(ui.activity) && Audio.level > 0;
+            boolean audio = run && ui.pref("audio", true);
+            if (audio) Audio.want();
+            boolean live = audio && Audio.ready(ui.activity) && Audio.level > 0;
             if (live) SpatchUi.nativeRing(POINTS, targets);
             float t = now / 1000f, peak = 0f;
             for (int i = 0; i < POINTS; i++) {
                 // No audio to read: a slow swell that still reads as music, like the player's ring.
-                float want = !run ? 0f : live ? Math.min(1f, targets[i]) : .22f + .14f * (float) Math.sin(t * 2.2f + i * .7f) + .08f * (float) Math.sin(t * 1.3f - i * .4f);
-                levels[i] += (want - levels[i]) * (1f - (float) Math.exp(-dt / (want > levels[i] ? .05f : .14f)));
+                float want = !run ? 0f : live
+                    ? Math.min(1f, .04f + 1.15f * (float) Math.pow(Math.max(0f, targets[i]), 1.05))
+                    : .22f + .14f * (float) Math.sin(t * 2.2f + i * .7f) + .08f * (float) Math.sin(t * 1.3f - i * .4f);
+                levels[i] += (want - levels[i]) * (1f - (float) Math.exp(-dt / (want > levels[i] ? .025f : .08f)));
                 peak = Math.max(peak, levels[i]);
             }
             if (peak < .004f) { lastFrame = 0; return; } // flat: nothing to draw, and no next frame asked for
@@ -444,7 +448,6 @@ final class HomeScreen {
             c.drawPath(path, fill);
             edge.setColor((ui.accent & 0x00ffffff) | 0x99000000);
             c.drawPath(crest, edge);
-            if (live) Audio.want();
             if (isShown() && getWindowVisibility() == VISIBLE && !ui.playerOpen) postInvalidateOnAnimation();
         }
     }
