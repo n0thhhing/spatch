@@ -302,8 +302,7 @@ public final class CoreBridge implements Transport {
      */
     public static byte[] resolveAudio(String fileIdHex) throws Exception {
         java.util.Map<String, String> params = new java.util.HashMap<>();
-        params.put("product", "premium");
-        params.put("country", "US");
+        // No product=premium: with one, an anonymous token resolves but the CDN 404s the file it names.
         params.put("market", "from_token");
         params.put("salt", java.util.UUID.randomUUID().toString());
         // file id as base62 (given) and as hex, under each media type, one and two segments.
