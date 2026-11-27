@@ -155,7 +155,9 @@ public final class DevIntegrity {
     public static Object verify(p.dmt0 service, VerifyRequest request, p.osm continuation) throws ReflectiveOperationException {
         // A null prefs must not escape as an NPE: the caller would record a permanent error for this request.
         SharedPreferences p = prefs;
-        int variant = p == null ? 0 : p.getInt("integrity_variant", 0);
+        // 1 by default now: a blank local reply alone left playback broken, so forward the verify with an
+        // empty token instead and let Spotify see a call. 0 restores the blank reply.
+        int variant = p == null ? 1 : p.getInt("integrity_variant", 1);
         boolean skip = enabled("integrity_skip");
         boolean empty = skip && variant == 1;
         int originalSize = request.getSerializedSize();
