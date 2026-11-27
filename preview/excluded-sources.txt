@@ -1,4 +1,5 @@
 CoreBridge
 SpatchApp
 Subscriptions
+DevIntegrity
 SpotifyWeb

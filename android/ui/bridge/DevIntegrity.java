@@ -57,16 +57,28 @@ public final class DevIntegrity {
         return "Integrity log " + file.length() + " bytes · Copy diagnostics includes it";
     }
 
-    /** The log tail, only for the copy button, so a tester can send it without adb. */
+    /**
+     * Only the lines that answer the experiment, for the copy button: a chat message holds a few
+     * hundred bytes and the full log is mostly call stacks. Capped so a paste never gets cut.
+     */
     public static String report() {
         java.io.File file = logFile();
-        if (file == null) return "Integrity log: not started";
+        if (file == null) return "\nIntegrity: not started";
         try {
-            byte[] all = java.nio.file.Files.readAllBytes(file.toPath());
-            int from = Math.max(0, all.length - 6000);
-            return "\nIntegrity log (tail):\n" + new String(all, from, all.length - from, java.nio.charset.StandardCharsets.UTF_8);
+            String all = new String(java.nio.file.Files.readAllBytes(file.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            StringBuilder out = new StringBuilder("\nIntegrity:\n");
+            for (String line : all.split("\n")) {
+                if (line.contains("verify_reached") || line.contains("forwarded=") || line.contains("caller_")
+                    || line.contains("recheck_forced") || line.contains("plugin_started") || line.contains("validation_enabled")
+                    || line.contains("token_result") || line.contains("saved_attempt_day")) {
+                    out.append(line.substring(Math.max(0, line.indexOf("SpatchIntegrity")))).append('\n');
+                }
+            }
+            int cap = 1200;
+            if (out.length() > cap) out.setLength(cap);
+            return out.toString();
         } catch (Exception failed) {
-            return "\nIntegrity log: " + failed;
+            return "\nIntegrity: " + failed;
         }
     }
 
@@ -74,15 +86,24 @@ public final class DevIntegrity {
         java.io.File dir = c.getExternalFilesDir(null);
         if (dir == null) dir = c.getFilesDir(); // external storage can be unmounted
         java.io.File out = new java.io.File(dir, "integrity.log");
+        Process p = null;
         try {
-            Process p = new ProcessBuilder("logcat", "-d", "-v", "time", "--pid=" + android.os.Process.myPid()).redirectErrorStream(true).start();
-            try (java.io.InputStream in = p.getInputStream(); java.io.FileOutputStream file = new java.io.FileOutputStream(out, false)) {
-                byte[] buffer = new byte[8192];
-                for (int n; (n = in.read(buffer)) > 0; ) file.write(buffer, 0, n);
+            p = new ProcessBuilder("logcat", "-d", "-v", "time", "--pid=" + android.os.Process.myPid()).redirectErrorStream(true).start();
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            try (java.io.InputStream in = p.getInputStream()) {
+                byte[] chunk = new byte[8192];
+                for (int n; (n = in.read(chunk)) > 0; ) buffer.write(chunk, 0, n);
             }
-            p.destroy();
+            // Only replace the file once the dump has content, so a failed read keeps the last good log.
+            if (buffer.size() > 0) {
+                try (java.io.FileOutputStream file = new java.io.FileOutputStream(out, false)) {
+                    buffer.writeTo(file);
+                }
+            }
         } catch (Exception failed) {
             Log.w(TAG, "snapshot failed: " + failed);
+        } finally {
+            if (p != null) p.destroy();
         }
     }
 
@@ -91,6 +112,7 @@ public final class DevIntegrity {
         return p == null || p.getBoolean(key, true);
     }
 
+    /** Always on: this build is the experiment, so every hook reports. */
     private static boolean observing() {
         return true;
     }
@@ -131,11 +153,13 @@ public final class DevIntegrity {
 
     /** Preserve the request and continuation unchanged unless an experiment is selected. */
     public static Object verify(p.dmt0 service, VerifyRequest request, p.osm continuation) throws ReflectiveOperationException {
-        if (!observing()) return service.a(request, continuation);
+        // A null prefs must not escape as an NPE: the caller would record a permanent error for this request.
+        SharedPreferences p = prefs;
+        int variant = p == null ? 0 : p.getInt("integrity_variant", 0);
         boolean skip = enabled("integrity_skip");
-        boolean empty = skip && prefs.getInt("integrity_variant", 0) == 1;
+        boolean empty = skip && variant == 1;
         int originalSize = request.getSerializedSize();
-        Log.i(TAG, "verify_reached skip=" + skip + " variant=" + prefs.getInt("integrity_variant", 0) + " bytes=" + originalSize);
+        Log.i(TAG, "verify_reached skip=" + skip + " variant=" + variant + " bytes=" + originalSize);
         if (skip && !empty) {
             // A local fake answer, so Spotify never sees this client's failing verdict.
             Log.i(TAG, ROUTE + " mode=skip request_bytes=" + originalSize + " forwarded=false");
