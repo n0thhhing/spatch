@@ -26,6 +26,8 @@ jobs:
           cargo clippy -p spatch_app --all-targets --features preview --locked -- -D warnings
       - name: Check nightly input selection
         run: python3 android/tests/nightly-inputs.py
+      - name: Check semantic binding discovery
+        run: python3 -m unittest discover -s tools/port -p 'test_*.py'
       - name: Check Java bridge contracts
         run: python3 android/tests/java-contracts.py
 

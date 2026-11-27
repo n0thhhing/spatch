@@ -10,6 +10,25 @@ See the [hook map](spotify-map.md) for the classes and calls involved.
 
 ## Porting a new Spotify build
 
+Discover the required bridge bindings directly from the new input before proposing a port:
+
+```sh
+python3 tools/port/port.py bindings <new.apkm> --out <work-dir>/bindings.json
+```
+
+This command uses Python's standard library and reads the original DEX without decompilation.
+It identifies Retrofit annotations through their consumer's control flow, the app factory through
+its constructor argument, and the locale, authorization, raw-body and request-URL members through
+their contracts. Missing or ambiguous required roles return a nonzero status without replacing
+the output. The manifest records input/base/DEX hashes, descriptors and discovery evidence.
+Treat it as discovered bindings: it does not yet generate helper sources, verify injection-site
+dataflow, rebuild a patch or establish runtime support. Supported input hashes remain unchanged.
+
+Run the malformed-input and false-match checks with
+`python3 -m unittest discover -s tools/port -p 'test_*.py'`.
+Set `SPATCH_PORT_INPUTS` to the directory containing the three original APKMs to also check
+discovery against the inspected cross-version bindings.
+
 1. Run `python3 tools/port/port.py <old.apkm> <new.apkm> --work <work-dir>` to decode both APKMs
    and generate proposed class, member and resource mappings.
 2. Review the [manual alias table](../tools/port/aliases.tsv) and compare classes with

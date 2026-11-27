@@ -2,6 +2,7 @@
 """Helps port Spatch to a new Spotify build.
 
     python3 scripts/port/port.py <old.apkm> <new.apkm> [--work <dir>]
+    python3 tools/port/port.py bindings <new.apkm> --out <bindings.json>
 
 Decodes both builds (cached in the work folder), maps every resource ID by name, and matches each
 obfuscated Spotify class Spatch refers to (in src/ and java/dex/) with its renamed self in the new
@@ -141,6 +142,9 @@ def referenced():
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == 'bindings':
+        from bindings import main as discover_bindings
+        return discover_bindings(sys.argv[2:])
     ap = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     ap.add_argument('old')
     ap.add_argument('new')
