@@ -4,6 +4,8 @@ include!(concat!(env!("OUT_DIR"), "/helpers.rs"));
 
 /// Stand-ins used by javac, never packaged in the helper DEX.
 pub const STUBS: &[(&str, &str)] = &[
+    ("dmt0.java", include_str!("../../../android/stubs/p/dmt0.java")),
+    ("osm.java", include_str!("../../../android/stubs/p/osm.java")),
     ("x740.java", include_str!("../../../android/stubs/p/x740.java")),
     ("brs0.java", include_str!("../../../android/stubs/p/brs0.java")),
     ("ii31.java", include_str!("../../../android/stubs/p/ii31.java")),
@@ -17,6 +19,14 @@ pub const STUBS: &[(&str, &str)] = &[
     ("Disposable.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/disposables/Disposable.java")),
     ("Observable.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/core/Observable.java")),
     ("Single.java", include_str!("../../../android/stubs/io/reactivex/rxjava3/core/Single.java")),
+    (
+        "VerifyRequest.java",
+        include_str!("../../../android/stubs/com/spotify/integrity/integrityimpl/proto/VerifyRequest.java"),
+    ),
+    (
+        "VerifyResponse.java",
+        include_str!("../../../android/stubs/com/spotify/integrity/integrityimpl/proto/VerifyResponse.java"),
+    ),
     (
         "BatchedExtensionResponse.java",
         include_str!(
