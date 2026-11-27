@@ -229,6 +229,8 @@ public class CatalogRequestCheck {
         public Single<Playlist4ApiProto.SelectedListContent> playlist(String playlistId) { throw new UnsupportedOperationException(); }
         public Single<BatchedExtensionResponse> extendedMetadata(com.google.protobuf.Empty request) { throw new UnsupportedOperationException(); }
         public Single<p.ii31> lyrics(String trackId) { throw new UnsupportedOperationException(); }
+        public Single<p.ii31> storageResolve(String path, Map<String,String> params) { throw new UnsupportedOperationException(); }
+        public Single<BatchedExtensionResponse> extendedMetadataAsWeb(com.google.protobuf.Empty request, Map<String,String> headers) { throw new UnsupportedOperationException(); }
         @SuppressWarnings("unchecked")
         public Single<MainViewResponse> search(Map<String,String> params, Map<String,String> headers) {
             assert headers.isEmpty() : "Query metadata cannot be mixed with partial header metadata";
