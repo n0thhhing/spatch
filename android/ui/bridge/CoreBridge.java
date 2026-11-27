@@ -308,11 +308,11 @@ public final class CoreBridge implements Transport {
         params.put("salt", java.util.UUID.randomUUID().toString());
         // file id as base62 (given) and as hex, under each media type, one and two segments.
         String hex = fileIdHex.matches("[0-9a-zA-Z]{22}") ? hexOf(fileIdHex) : fileIdHex;
+        // Proven shape: interactive/<format>/<file id as hex>. The format only selects quality, any value answers.
         String[] shapes = {
-            "interactive/" + fileIdHex, "interactive/" + hex,
-            "interactive/" + fileIdHex + "/" + fileIdHex, "interactive/" + hex + "/" + hex,
-            "interactive/9/" + fileIdHex, "interactive/9/" + hex,
-            "prefetch/" + fileIdHex, "other/" + fileIdHex,
+            "interactive/9/" + hex,
+            "interactive/0/" + hex,
+            "interactive/" + hex,
         };
         String first = "";
         for (String shape : shapes) {
