@@ -352,8 +352,8 @@ fn audio_files_of(track: &[u8]) -> Vec<(u32, String, u64)> {
         let (mut format, mut id) = (0u32, String::new());
         for (m, w) in wire::fields(v.bytes()) {
             match m {
-                // The id travels as the 16 raw bytes; storage-resolve wants the 22-char base62 text of them.
-                1 => id = base62(w.bytes()),
+                // The raw bytes as hex: storage-resolve takes hex, not the base62 text used in links.
+                1 => id = w.bytes().iter().map(|b| format!("{b:02x}")).collect(),
                 2 => format = w.number() as u32,
                 _ => {}
             }
