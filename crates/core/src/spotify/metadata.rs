@@ -12,13 +12,25 @@ pub const SERVICE: &str = "spotify.metadata_esperanto.proto.ClassicMetadataServi
 
 const BASE62: &[u8; 62] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-/// Spotify's 16-byte id as the 22-character base62 text used in links.
+/// Spotify's id as its base62 text. Links carry 16-byte ids (22 characters) and audio files 20-byte ones (27),
+/// so this works on bignums rather than a fixed width.
 pub fn base62(gid: &[u8]) -> String {
-    let mut value = gid.iter().fold(0u128, |acc, &b| (acc << 8) | b as u128);
-    let mut text = [b'0'; 22];
-    for slot in text.iter_mut().rev() {
-        *slot = BASE62[(value % 62) as usize];
-        value /= 62;
+    let mut value = gid.to_vec();
+    let mut text = Vec::new();
+    while value.iter().any(|&b| b != 0) {
+        // One pass divides the big-endian number by 62 and yields the remainder.
+        let mut remainder = 0u16;
+        for byte in value.iter_mut() {
+            let current = (remainder << 8) | u16::from(*byte);
+            *byte = (current / 62) as u8;
+            remainder = current % 62;
+        }
+        text.push(BASE62[remainder as usize]);
+    }
+    text.reverse();
+    // Zero ids (and short ones) keep the 22-character shape link ids are expected in.
+    while text.len() < 22 {
+        text.insert(0, b'0');
     }
     String::from_utf8_lossy(&text).into_owned()
 }
@@ -353,6 +365,19 @@ fn audio_files_of(track: &[u8]) -> Vec<(u32, String, u64)> {
 
 #[cfg(test)]
 mod tests {
+    use super::base62;
+
+    #[test]
+    fn base62_keeps_the_whole_id_at_any_length() {
+        // 16-byte link ids and 20-byte audio file ids both survive intact; a u128 path truncated the latter.
+        let gid: Vec<u8> = (0u8..20).collect();
+        let text = base62(&gid);
+        assert_eq!(text, "29Ss3YQSUdYr1VgfHtUUraQ1B");
+        assert_eq!(base62(&[0u8; 20]), "0".repeat(22));
+        assert_eq!(base62(&[0u8; 20]).len().max(27), 27);
+        assert_eq!(base62(b"\x00\x01"), format!("{}1", "0".repeat(21)));
+    }
+
     use super::*;
 
     fn item(e: Entity) -> cosmos::MetadataItem {
