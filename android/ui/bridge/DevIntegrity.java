@@ -58,25 +58,16 @@ public final class DevIntegrity {
     }
 
     /**
-     * Only the lines that answer the experiment, for the copy button: a chat message holds a few
-     * hundred bytes and the full log is mostly call stacks. Capped so a paste never gets cut.
+     * The verdicts so far, for the copy button. Kept in its own append-only file because the
+     * snapshot dump rolls over and would lose the startup lines a chat-sized paste needs.
      */
     public static String report() {
-        java.io.File file = logFile();
+        java.io.File file = verdictFile();
         if (file == null) return "\nIntegrity: not started";
         try {
             String all = new String(java.nio.file.Files.readAllBytes(file.toPath()), java.nio.charset.StandardCharsets.UTF_8);
-            StringBuilder out = new StringBuilder("\nIntegrity:\n");
-            for (String line : all.split("\n")) {
-                if (line.contains("verify_reached") || line.contains("forwarded=") || line.contains("caller_")
-                    || line.contains("recheck_forced") || line.contains("plugin_started") || line.contains("validation_enabled")
-                    || line.contains("token_result") || line.contains("saved_attempt_day")) {
-                    out.append(line.substring(Math.max(0, line.indexOf("SpatchIntegrity")))).append('\n');
-                }
-            }
             int cap = 1200;
-            if (out.length() > cap) out.setLength(cap);
-            return out.toString();
+            return all.length() > cap ? all.substring(all.length() - cap) : all;
         } catch (Exception failed) {
             return "\nIntegrity: " + failed;
         }
@@ -107,6 +98,24 @@ public final class DevIntegrity {
         }
     }
 
+    private static java.io.File verdictFile() {
+        Context c = app;
+        if (c == null) return null;
+        java.io.File dir = c.getExternalFilesDir(null);
+        if (dir == null) dir = c.getFilesDir();
+        return new java.io.File(dir, "integrity-verdicts.txt");
+    }
+
+    private static void verdict(String line) {
+        java.io.File file = verdictFile();
+        if (file == null) return;
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(file, true)) {
+            out.write((line + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+            // The log still has it; the copy button is the convenience, not the record.
+        }
+    }
+
     private static boolean enabled(String key) {
         SharedPreferences p = prefs;
         return p == null || p.getBoolean(key, true);
@@ -119,10 +128,12 @@ public final class DevIntegrity {
 
     public static void pluginConstructed() {
         if (observing()) Log.i(TAG, "plugin_constructed");
+        verdict("plugin_constructed");
     }
 
     public static void pluginStarted() {
         if (observing()) Log.i(TAG, "plugin_started");
+        verdict("plugin_started");
     }
 
     public static void validation(boolean value) {
@@ -136,6 +147,7 @@ public final class DevIntegrity {
     /** Logs the day guard; the patch also always falls through so a fresh verify runs on every start. */
     public static void recheck(int savedDay, int deviceDay) {
         Log.i(TAG, "recheck_forced saved_day=" + savedDay + " device_day=" + deviceDay);
+        verdict("recheck_forced saved_day=" + savedDay + " device_day=" + deviceDay);
     }
 
     public static void scheduled(int savedDay) {
@@ -162,9 +174,11 @@ public final class DevIntegrity {
         boolean empty = skip && variant == 1;
         int originalSize = request.getSerializedSize();
         Log.i(TAG, "verify_reached skip=" + skip + " variant=" + variant + " bytes=" + originalSize);
+        verdict("verify_reached variant=" + variant + " bytes=" + originalSize);
         if (skip && !empty) {
             // A local fake answer, so Spotify never sees this client's failing verdict.
             Log.i(TAG, ROUTE + " mode=skip request_bytes=" + originalSize + " forwarded=false");
+            verdict("mode=skip forwarded=false");
             return VerifyResponse.n();
         }
         if (empty) {
@@ -175,16 +189,19 @@ public final class DevIntegrity {
         }
         Log.i(TAG, ROUTE + " mode=" + (empty ? "empty-token" : "forward") + " request_bytes=" + originalSize
             + " sent_bytes=" + request.getSerializedSize() + " forwarded=true");
+        verdict("mode=" + (empty ? "empty-token" : "forward") + " forwarded=true");
         return service.a(request, continuation);
     }
 
     /** Runs after the verifier has consumed the response, including after a coroutine resumes. */
     public static void accepted() {
         if (observing()) Log.i(TAG, ROUTE + " caller_result=accepted");
+        verdict("caller_result=accepted");
     }
 
     /** Do not log exception messages: they may contain tokens or request contents. */
     public static void failure(Throwable error) {
+        verdict("caller_error=" + error.getClass().getSimpleName());
         if (observing()) Log.i(TAG, ROUTE + " caller_error=" + error.getClass().getName());
     }
 
