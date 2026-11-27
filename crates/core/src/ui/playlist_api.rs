@@ -282,3 +282,25 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeWatchPlaylist(mut env: JNIEnv,
 pub extern "system" fn Java_spatch_SpatchUi_nativeStopPlaylist(_: JNIEnv, _: JClass) {
     stop_watching_playlist();
 }
+
+/// Experiment: a track's audio files from extended-metadata, then each one's CDN URL. Returns the lines to show.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeAudioTest(mut env: JNIEnv, _: JClass, uri: JString) -> jbyteArray {
+    let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    let mut lines = Vec::new();
+    match crate::spotify::metadata::audio_files(&uri, "US", "free") {
+        Err(e) => lines.push(format!("AUDIO_FILES error: {e}")),
+        Ok(files) if files.is_empty() => lines.push("AUDIO_FILES: no files in reply".into()),
+        Ok(files) => {
+            lines.push(format!("AUDIO_FILES: {} files", files.len()));
+            for (format, id, size) in files.iter().take(4) {
+                lines.push(format!("fmt {format} id {id} size {size}"));
+                match bridge::resolve_audio(id) {
+                    Ok(url) => lines.push(format!("  -> {url}")),
+                    Err(e) => lines.push(format!("  -> resolve error: {e}")),
+                }
+            }
+        }
+    }
+    packed_strings(&env, &lines)
+}

@@ -27,6 +27,20 @@ public interface SpotifyWeb {
     @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)
     Single<p.ii31> lyrics(@p.brs0(value = "trackId", encoded = false) String trackId);
 
+    /** extended-metadata again, with a placeholder header the WebAuth hook swaps for the web-player bearer. */
+    @p.ngr0("extended-metadata/v0/extended-metadata")
+    @p.gf60(value = { "Accept: application/protobuf", "Content-Type: application/protobuf" }, allowUnsafeNonAsciiValues = false)
+    Single<BatchedExtensionResponse> extendedMetadataAsWeb(@p.xmb com.google.protobuf.Empty request,
+        @p.pc60(allowUnsafeNonAsciiValues = false) Map<String, String> headers);
+
+    /** One audio file's CDN URL: storage-resolve v2. The path is a full sub-path so shapes can be tried. */
+    @p.x740("storage-resolve/v2/files/audio/{path}")
+    @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)
+    Single<p.ii31> storageResolve(
+        @p.brs0(value = "path", encoded = true) String path,
+        @p.pjz0(encoded = false) Map<String, String> params
+    );
+
     /** Catalog search: searchview v3, matching Spotify's own search endpoint. */
     @p.x740("searchview/v3/search")
     @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)

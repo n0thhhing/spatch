@@ -2,6 +2,7 @@
 
 use super::playlist::Track;
 use crate::bridge;
+use super::wire;
 use crate::protos::com::spotify::metadata::cosmos::proto as cosmos;
 use crate::protos::com::spotify::metadata::proto as md;
 use cosmos::metadata_item::Item as Entity;
@@ -313,6 +314,41 @@ fn page_with(uri: &str, fetch_fn: impl Fn(&[String]) -> Result<Vec<Found>, Strin
         }
         _ => Err("That link isn’t an album, artist or podcast".into()),
     }
+}
+
+/// A track's audio files, taken from its own TRACK_V4 payload (field 12) rather than the gated AUDIO_FILES
+/// extension: the ids are the same and TRACK_V4 is what already answers for this account.
+pub fn audio_files(uri: &str, country: &str, catalogue: &str) -> Result<Vec<(u32, String, u64)>, String> {
+    let reply = bridge::extended_metadata_as_web(&super::extended::request(&[uri.to_string()], super::extended::TRACK_V4, Some((country, catalogue))))?;
+    let decoded = super::extended::decode(&reply);
+    log::info!("audio files via TRACK_V4: {} bytes, statuses {:?}", reply.len(), decoded.iter().map(|(_, s, p)| (*s, p.as_ref().map_or(0, Vec::len))).collect::<Vec<_>>());
+    for (_uri, status, payload) in decoded {
+        let Some(payload) = payload.filter(|_| (200..300).contains(&status)) else { continue };
+        let files = audio_files_of(&payload);
+        if !files.is_empty() {
+            return Ok(files);
+        }
+    }
+    Ok(Vec::new())
+}
+
+/// spotify.metadata.Track.file (12) and .preview (15): each is {file_id = 1 (bytes), format = 2}.
+fn audio_files_of(track: &[u8]) -> Vec<(u32, String, u64)> {
+    let mut out = Vec::new();
+    for (n, v) in wire::fields(track) {
+        if n != 12 && n != 15 { continue; }
+        let (mut format, mut id) = (0u32, String::new());
+        for (m, w) in wire::fields(v.bytes()) {
+            match m {
+                // The id travels as the 16 raw bytes; storage-resolve wants the 22-char base62 text of them.
+                1 => id = base62(w.bytes()),
+                2 => format = w.number() as u32,
+                _ => {}
+            }
+        }
+        if !id.is_empty() { out.push((format, id, 0)); }
+    }
+    out
 }
 
 #[cfg(test)]

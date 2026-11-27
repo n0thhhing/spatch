@@ -304,6 +304,18 @@ final class SettingsScreen {
                     }
                 });
             });
+            ui.controls.settingsAction(developer, "Audio file resolve test", "Ask Spotify for a song's audio file and its CDN URL", () -> {
+                // The first song of the first playlist that has one; the now-playing song is enough to see the shape.
+                String uri = ui.upcoming.isEmpty() ? "" : ui.upcoming.get(0).uri;
+                byte[] reply = uri.isEmpty() ? null : SpatchUi.nativeAudioTest(uri);
+                String text = reply == null ? "Nothing queued to resolve" : String.join("\n", spatch.PackedStrings.unpackStrings(reply));
+                ui.sheet("Audio file resolve", text, new String[]{"Copy", "Close"}, choice -> {
+                    if (choice == 0) {
+                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(Context.CLIPBOARD_SERVICE);
+                        if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Audio file resolve", text));
+                    }
+                });
+            });
             ui.controls.settingsAction(developer, "Automation & intents", "View and copy broadcast intents for Tasker, MacroDroid and shortcuts", () -> {
                 String pkg = ui.activity.getPackageName();
                 String component = pkg + "/spatch.SpatchWidget";

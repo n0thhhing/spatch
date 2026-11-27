@@ -285,6 +285,83 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    /** The same extended-metadata call, forced onto a web-player bearer (WebAuth already swaps when it can; this
+     *  always does, and is used where the app's own token is known to 502). */
+    public static byte[] extendedMetadataAsWeb(byte[] request) throws Exception {
+        try {
+            return bytes(web().extendedMetadataAsWeb(com.google.protobuf.Empty.q(request), java.util.Collections.singletonMap("X-Web-Token", "1"))
+                .timeout(15, TimeUnit.SECONDS).blockingGet());
+        } catch (RuntimeException failed) {
+            throw new IllegalStateException(httpDetail(failed), failed);
+        }
+    }
+
+    /**
+     * A CDN URL for one audio file id (storage-resolve v2). Several path shapes are tried because the file id must be
+     * repeated per segment range and the exact layout differs by format; the first 200 answers.
+     */
+    public static byte[] resolveAudio(String fileIdHex) throws Exception {
+        java.util.Map<String, String> params = new java.util.HashMap<>();
+        params.put("product", "premium");
+        params.put("country", "US");
+        params.put("market", "from_token");
+        params.put("salt", java.util.UUID.randomUUID().toString());
+        // file id as base62 (given) and as hex, under each media type, one and two segments.
+        String hex = fileIdHex.matches("[0-9a-zA-Z]{22}") ? hexOf(fileIdHex) : fileIdHex;
+        String[] shapes = {
+            "interactive/" + fileIdHex, "interactive/" + hex,
+            "interactive/" + fileIdHex + "/" + fileIdHex, "interactive/" + hex + "/" + hex,
+            "interactive/9/" + fileIdHex, "interactive/9/" + hex,
+            "prefetch/" + fileIdHex, "other/" + fileIdHex,
+        };
+        String first = "";
+        for (String shape : shapes) {
+            try {
+                byte[] body = bytes(web().storageResolve(shape, params).timeout(12, TimeUnit.SECONDS).blockingGet());
+                String url = protobufText(body, 1);
+                android.util.Log.i("SpatchBridge", "resolve ok " + shape + " -> " + url);
+                if (!url.isEmpty()) return url.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            } catch (RuntimeException failed) {
+                if (first.isEmpty()) first = shape + ": " + httpDetail(failed);
+                android.util.Log.i("SpatchBridge", "resolve miss " + shape + ": " + httpDetail(failed));
+            }
+        }
+        throw new IllegalStateException(first);
+    }
+
+    private static final String B62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    /** The 16 bytes behind a 22-character base62 file id, as hex. */
+    private static String hexOf(String base62) {
+        java.math.BigInteger value = java.math.BigInteger.ZERO;
+        for (char c : base62.toCharArray()) value = value.multiply(java.math.BigInteger.valueOf(62)).add(java.math.BigInteger.valueOf(B62.indexOf(c)));
+        byte[] raw = value.toByteArray();
+        StringBuilder hex = new StringBuilder();
+        for (int i = Math.max(0, raw.length - 16); i < raw.length; i++) hex.append(String.format("%02x", raw[i]));
+        while (hex.length() < 32) hex.insert(0, '0');
+        return hex.toString();
+    }
+
+    /** The first string of the given protobuf field number: a plain tag scan, enough for one text field. */
+    private static String protobufText(byte[] body, int want) {
+        int i = 0;
+        while (i < body.length) {
+            int tag = body[i++] & 0xff;
+            int field = tag >>> 3, type = tag & 7;
+            if (type == 2) {
+                int length = 0, shift = 0;
+                while (i < body.length && shift < 28) { int b = body[i++]; length |= (b & 0x7f) << shift; shift += 7; if (b >= 0) break; }
+                if (field == want) return new String(body, i, Math.min(length, body.length - i), java.nio.charset.StandardCharsets.UTF_8);
+                i += length;
+            } else if (type == 0) {
+                while (i < body.length && (body[i++] & 0x80) != 0) { }
+            } else if (type == 5) i += 4;
+            else if (type == 1) i += 8;
+            else return "";
+        }
+        return "";
+    }
+
     /**
      * A song's lyrics: Spotify's first, then LRCLIB (free, keyless) when Spotify has none and the setting allows, then
      * the copy saved on the phone the last time either answered. If all three come up empty, Spotify's own error is

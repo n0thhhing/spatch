@@ -43,6 +43,7 @@ public final class WebAuth {
             Object uri = pathMethod.invoke(url);
             path = uri instanceof URI ? ((URI) uri).getPath() : null;
         }
+        // The forced call sends X-Web-Token as a header; it is not a path, so any request carrying it swaps.
         boolean hit = path != null && path.contains("extended-metadata");
         if (hit ? !hitLogged : misses < 6) {
             if (hit) hitLogged = true;

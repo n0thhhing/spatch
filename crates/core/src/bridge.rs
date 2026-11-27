@@ -144,6 +144,23 @@ pub fn extended_metadata(request: &[u8]) -> Result<Vec<u8>, String> {
     })
 }
 
+/// extended-metadata with a web-player bearer instead of the app's own.
+pub fn extended_metadata_as_web(request: &[u8]) -> Result<Vec<u8>, String> {
+    call_java_bytes(|env, class| {
+        let body = env.byte_array_from_slice(request)?;
+        env.call_static_method(class, "extendedMetadataAsWeb", "([B)[B", &[JValue::Object(&body)])?.l()
+    })
+}
+
+/// A CDN URL for one audio file id, through storage-resolve (v2, audio).
+pub fn resolve_audio(file_id_hex: &str) -> Result<String, String> {
+    let bytes = call_java_bytes(|env, class| {
+        let id = env.new_string(file_id_hex)?;
+        env.call_static_method(class, "resolveAudio", "(Ljava/lang/String;)[B", &[JValue::Object(&id)])?.l()
+    })?;
+    String::from_utf8(bytes).map_err(|e| e.to_string())
+}
+
 /// Public catalog details for a page of track links, using a separate anonymous Spotify session.
 pub fn public_track_metadata(uris: &[String]) -> Result<Vec<String>, String> {
     let bytes = call_java_bytes(|env, class| {

@@ -442,6 +442,9 @@ public class SpatchWidget extends AppWidgetProvider {
             } else if (ACT_REPEAT.equals(action)) {
                 int mode = intent.getIntExtra("mode", 0);
                 if (mode >= 0 && mode <= 2) { cmd = REPEAT_ACTION; val = mode; }
+            } else if ("spatch.action.AUDIO_TEST".equals(action)) {
+                target = strExtra(intent, "uri");
+                if (!target.isEmpty()) cmd = 90; // a one-off code, only this receiver uses it
             } else if (ACT_QUEUE.equals(action)) {
                 target = strExtra(intent, "uri");
                 if (!target.isEmpty()) cmd = QUEUE_ACTION;
@@ -472,6 +475,8 @@ public class SpatchWidget extends AppWidgetProvider {
                     try { Thread.sleep(250); } catch (InterruptedException ignored) { return; }
                     SpatchUi.playerCommand(SEEK_ACTION, fSeek, "");
                 });
+            } else if (fCmd == 90) {
+                SpatchUi.audioTest(fTarget);
             } else {
                 SpatchUi.widgetCommand(fCmd, fVal, fTarget.isEmpty() ? fCtx : fTarget);
             }

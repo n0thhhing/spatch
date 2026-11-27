@@ -366,7 +366,7 @@ fn generated_helper(name: &str, expected: &std::collections::HashSet<String>) ->
     if let Some(owner) = name.strip_suffix("-IA") {
         return expected.contains(&format!("{owner};"));
     }
-    let parts = name.split_once("$$ExternalSyntheticLambda").or_else(|| name.rsplit_once('$'));
+    let parts = name.split_once("$$ExternalSyntheticLambda").or_else(|| name.split_once("$$ExternalSyntheticBackport")).or_else(|| name.rsplit_once('$'));
     parts.is_some_and(|(owner, number)| {
         expected.contains(&format!("{owner};"))
             && !number.is_empty()
