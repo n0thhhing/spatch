@@ -42,6 +42,22 @@ public final class DevIntegrity {
         t.start();
     }
 
+    /** The integrity log tail for the diagnostics sheet, so a tester can copy it without adb. */
+    public static String report() {
+        Context c = app;
+        if (c == null) return "Integrity log: not started";
+        java.io.File dir = c.getExternalFilesDir(null);
+        if (dir == null) dir = c.getFilesDir();
+        java.io.File file = new java.io.File(dir, "integrity.log");
+        try {
+            byte[] all = java.nio.file.Files.readAllBytes(file.toPath());
+            int from = Math.max(0, all.length - 4000);
+            return "Integrity log (tail):\n" + new String(all, from, all.length - from, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception failed) {
+            return "Integrity log: " + failed;
+        }
+    }
+
     private static void snapshot(Context c) {
         java.io.File dir = c.getExternalFilesDir(null);
         if (dir == null) dir = c.getFilesDir(); // external storage can be unmounted
