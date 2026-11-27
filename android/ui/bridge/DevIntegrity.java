@@ -42,19 +42,31 @@ public final class DevIntegrity {
         t.start();
     }
 
-    /** The integrity log tail for the diagnostics sheet, so a tester can copy it without adb. */
-    public static String report() {
+    private static java.io.File logFile() {
         Context c = app;
-        if (c == null) return "Integrity log: not started";
+        if (c == null) return null;
         java.io.File dir = c.getExternalFilesDir(null);
         if (dir == null) dir = c.getFilesDir();
-        java.io.File file = new java.io.File(dir, "integrity.log");
+        return new java.io.File(dir, "integrity.log");
+    }
+
+    /** One line for the diagnostics sheet: the sheet is too small to hold the whole log. */
+    public static String summary() {
+        java.io.File file = logFile();
+        if (file == null) return "Integrity log: not started";
+        return "Integrity log " + file.length() + " bytes · Copy diagnostics includes it";
+    }
+
+    /** The log tail, only for the copy button, so a tester can send it without adb. */
+    public static String report() {
+        java.io.File file = logFile();
+        if (file == null) return "Integrity log: not started";
         try {
             byte[] all = java.nio.file.Files.readAllBytes(file.toPath());
-            int from = Math.max(0, all.length - 4000);
-            return "Integrity log (tail):\n" + new String(all, from, all.length - from, java.nio.charset.StandardCharsets.UTF_8);
+            int from = Math.max(0, all.length - 6000);
+            return "\nIntegrity log (tail):\n" + new String(all, from, all.length - from, java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception failed) {
-            return "Integrity log: " + failed;
+            return "\nIntegrity log: " + failed;
         }
     }
 

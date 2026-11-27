@@ -296,11 +296,11 @@ final class SettingsScreen {
                     + "\nLibrary loaded " + ui.libraryReady + " · upcoming " + ui.upcoming.size()
                     + "\nEqualizer " + Audio.eqStatus + "\nEQ detail " + Audio.eqError + "\nVisualizer " + Audio.status
                     + "\nSearch " + (ui.searchScreen.catalogError.isEmpty() ? "No error" : ui.searchScreen.catalogError)
-                    + "\n" + CoreBridge.diagnostics() + "\n" + DevIntegrity.report();
+                    + "\n" + CoreBridge.diagnostics() + "\n" + DevIntegrity.summary();
                 ui.sheet("Diagnostics", report, new String[]{"Copy diagnostics", "Close"}, choice -> {
                     if (choice == 0) {
                         android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ui.activity.getSystemService(Context.CLIPBOARD_SERVICE);
-                        if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch diagnostics", report));
+                        if (clipboard != null) clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Spatch diagnostics", report + DevIntegrity.report()));
                     }
                 });
             });
