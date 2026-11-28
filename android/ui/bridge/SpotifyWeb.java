@@ -41,6 +41,11 @@ public interface SpotifyWeb {
         @p.pjz0(encoded = false) Map<String, String> params
     );
 
+    /** A track's audio key: playplay v2. The reply is a small protobuf (key bytes). */
+    @p.x740("playplay/v2/key/track/{file_id}")
+    @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)
+    Single<p.ii31> playplayKey(@p.brs0(value = "file_id", encoded = false) String fileId);
+
     /** Catalog search: searchview v3, matching Spotify's own search endpoint. */
     @p.x740("searchview/v3/search")
     @p.gf60(value = { "Accept: application/protobuf" }, allowUnsafeNonAsciiValues = false)

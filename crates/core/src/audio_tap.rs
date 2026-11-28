@@ -12,6 +12,11 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, AtomicUsize
 #[cfg(not(feature = "preview"))]
 use std::sync::Mutex;
 
+/// The rate and channel count of the newest tapped stream, for the recorder.
+pub fn recorder_format() -> (i32, u16) {
+    native_hook::newest_format()
+}
+
 pub const FFT_N: usize = 1024;
 pub const RING_N: usize = 4096;
 
@@ -239,7 +244,7 @@ pub extern "system" fn Java_spatch_Audio_nativeSampleDirect(
 
 #[cfg(all(target_os = "android", not(feature = "preview")))]
 mod native_hook {
-    use super::{DIRECT_ENABLED, RING};
+    use super::{DIRECT_ENABLED, RING, recorder};
     use std::ffi::{CStr, c_char, c_int, c_void};
     use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
 
@@ -356,6 +361,14 @@ mod native_hook {
 
     static SLOTS: [StreamSlot; 8] = [const { StreamSlot::new() }; 8];
     static NEXT_SLOT: AtomicUsize = AtomicUsize::new(0);
+
+    /// The newest stream's (rate, channels), for the recorder.
+    pub fn newest_format() -> (i32, u16) {
+        let n = NEXT_SLOT.load(Ordering::Acquire);
+        if n == 0 { return (44_100, 2); }
+        let slot = &SLOTS[(n - 1) % SLOTS.len()];
+        (slot.rate.load(Ordering::Acquire).max(8_000), slot.channels.load(Ordering::Acquire).max(1) as u16)
+    }
 
     pub fn install() {
         if HOOKED.swap(true, Ordering::AcqRel) {
@@ -597,6 +610,14 @@ mod native_hook {
         if !direct {
             return;
         }
+        // The recorder gets the raw interleaved buffer, before any downmix.
+        if recorder::ON.load(Ordering::Acquire) {
+            match fmt {
+                2 => recorder::write_f32(unsafe { std::slice::from_raw_parts(audio_data as *const f32, total) }),
+                4 => recorder::write_i32(unsafe { std::slice::from_raw_parts(audio_data as *const i32, total) }),
+                _ => recorder::write_i16(unsafe { std::slice::from_raw_parts(audio_data as *const i16, total) }),
+            }
+        }
         match fmt {
             2 => RING.push_f32(unsafe { std::slice::from_raw_parts(audio_data as *const f32, total) }, ch, rate),
             4 => RING.push_i32(unsafe { std::slice::from_raw_parts(audio_data as *const i32, total) }, ch, rate),
@@ -726,5 +747,91 @@ mod tests {
         let peak_bin = (1..FFT_N / 2).max_by_key(|&b| mag(b)).unwrap();
         assert!((peak_bin as isize - target_bin as isize).abs() <= 1, "peak {peak_bin} vs {target_bin}");
         assert!(mag(peak_bin) > 10_000);
+    }
+}
+
+/// Records the tapped stream to a WAV file, for getting audio out of the app independent of any key:
+/// the core has already decrypted what reaches here. Stereo, the source rate and format as-is.
+pub mod recorder {
+    use std::io::{Seek, Write};
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    pub static ON: AtomicBool = AtomicBool::new(false);
+    static SINK: Mutex<Option<Sink>> = Mutex::new(None);
+
+    struct Sink {
+        file: std::fs::File,
+        rate: i32,
+        channels: u16,
+        samples: u32,
+    }
+
+    pub fn start(path: &str, rate: i32, channels: u16) -> Result<(), String> {
+        let mut file = std::fs::File::create(path).map_err(|e| e.to_string())?;
+        // A 44-byte header with zero sizes; `stop` rewrites the real ones.
+        file.write_all(&wav_header(rate as u32, channels, 0)).map_err(|e| e.to_string())?;
+        *SINK.lock().unwrap() = Some(Sink { file, rate, channels, samples: 0 });
+        ON.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    pub fn stop() -> Option<(String, u32, i32)> {
+        ON.store(false, Ordering::Release);
+        let sink = SINK.lock().unwrap().take()?;
+        let mut file = sink.file;
+        let data_bytes = sink.samples * u32::from(sink.channels) * 2;
+        let _ = file.seek(std::io::SeekFrom::Start(0));
+        let _ = file.write_all(&wav_header(sink.rate as u32, sink.channels, data_bytes));
+        Some((format!("{} samples at {} Hz, {}ch", sink.samples, sink.rate, sink.channels), sink.samples, sink.rate))
+    }
+
+    /// i16 conversion of any pcm16/32/float buffer, interleaved as it arrives.
+    pub fn write_i16(pcm: &[i16]) {
+        if !ON.load(Ordering::Acquire) { return; }
+        let mut guard = SINK.lock().unwrap();
+        let Some(sink) = guard.as_mut() else { return };
+        let mut bytes = Vec::with_capacity(pcm.len() * 2);
+        for &s in pcm { bytes.extend_from_slice(&s.to_le_bytes()); }
+        let _ = sink.file.write_all(&bytes);
+        sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
+    }
+
+    pub fn write_f32(pcm: &[f32]) {
+        if !ON.load(Ordering::Acquire) { return; }
+        let mut guard = SINK.lock().unwrap();
+        let Some(sink) = guard.as_mut() else { return };
+        let mut bytes = Vec::with_capacity(pcm.len() * 2);
+        for &s in pcm { bytes.extend_from_slice(&((s.clamp(-1.0, 1.0) * 32_767.0) as i16).to_le_bytes()); }
+        let _ = sink.file.write_all(&bytes);
+        sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
+    }
+
+    pub fn write_i32(pcm: &[i32]) {
+        if !ON.load(Ordering::Acquire) { return; }
+        let mut guard = SINK.lock().unwrap();
+        let Some(sink) = guard.as_mut() else { return };
+        let mut bytes = Vec::with_capacity(pcm.len() * 2);
+        for &s in pcm { bytes.extend_from_slice(&((s >> 16) as i16).to_le_bytes()); }
+        let _ = sink.file.write_all(&bytes);
+        sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
+    }
+
+    fn wav_header(rate: u32, channels: u16, data_bytes: u32) -> [u8; 44] {
+        let byte_rate = rate * u32::from(channels) * 2;
+        let mut h = [0u8; 44];
+        h[0..4].copy_from_slice(b"RIFF");
+        h[4..8].copy_from_slice(&(36u32 + data_bytes).to_le_bytes());
+        h[8..12].copy_from_slice(b"WAVEfmt ");
+        h[12..16].copy_from_slice(&16u32.to_le_bytes());
+        h[16..18].copy_from_slice(&1u16.to_le_bytes()); // PCM
+        h[18..20].copy_from_slice(&channels.to_le_bytes());
+        h[20..24].copy_from_slice(&rate.to_le_bytes());
+        h[24..28].copy_from_slice(&byte_rate.to_le_bytes());
+        h[28..30].copy_from_slice(&(channels * 2).to_le_bytes());
+        h[30..32].copy_from_slice(&16u16.to_le_bytes());
+        h[32..36].copy_from_slice(b"data");
+        h[36..40].copy_from_slice(&data_bytes.to_le_bytes());
+        h
     }
 }

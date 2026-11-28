@@ -170,6 +170,14 @@ fn unhex(text: &str) -> Vec<u8> {
     (0..text.len() / 2).filter_map(|i| u8::from_str_radix(&text[i * 2..i * 2 + 2], 16).ok()).collect()
 }
 
+/// A track's audio key through playplay v2.
+pub fn call_playplay(file_id_hex: &str) -> Result<Vec<u8>, String> {
+    call_java_bytes(|env, class| {
+        let id = env.new_string(file_id_hex)?;
+        env.call_static_method(class, "playplayKey", "(Ljava/lang/String;)[B", &[JValue::Object(&id)])?.l()
+    })
+}
+
 /// Raw bytes of a URL, for the decrypt experiment.
 pub fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     call_java_bytes(|env, class| {

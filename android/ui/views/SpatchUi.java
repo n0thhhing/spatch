@@ -64,6 +64,20 @@ public final class SpatchUi extends FrameLayout {
     static native byte[] nativeAudioTest(String uri);
     static native byte[] nativeDecryptTest(String uri);
     static native byte[] nativeStreamTest(String uri);
+    static native byte[] nativeRecordStart();
+    static native byte[] nativeRecordStop();
+
+    static void record(boolean start) {
+        new Thread(() -> {
+            try {
+                byte[] reply = start ? nativeRecordStart() : nativeRecordStop();
+                android.util.Log.i("Spatch", "RECORD " + (start ? "start" : "stop"));
+                if (reply != null) android.util.Log.i("Spatch", "RECORD\n" + String.join("\n", spatch.PackedStrings.unpackStrings(reply)));
+            } catch (Throwable failed) {
+                android.util.Log.i("Spatch", "RECORD failed: " + failed);
+            }
+        }, "record").start();
+    }
 
     static void streamTest(String uri) {
         new Thread(() -> {

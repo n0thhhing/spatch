@@ -339,6 +339,15 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    /** The audio key for a file id through playplay v2, or the HTTP status text on refusal. */
+    public static byte[] playplayKey(String fileIdHex) throws Exception {
+        try {
+            return bytes(web().playplayKey(fileIdHex).timeout(15, TimeUnit.SECONDS).blockingGet());
+        } catch (RuntimeException failed) {
+            throw new IllegalStateException(httpDetail(failed), failed);
+        }
+    }
+
     /**
      * A CDN URL for one audio file id (storage-resolve v2). Several path shapes are tried because the file id must be
      * repeated per segment range and the exact layout differs by format; the first 200 answers.

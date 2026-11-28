@@ -442,6 +442,12 @@ public class SpatchWidget extends AppWidgetProvider {
             } else if (ACT_REPEAT.equals(action)) {
                 int mode = intent.getIntExtra("mode", 0);
                 if (mode >= 0 && mode <= 2) { cmd = REPEAT_ACTION; val = mode; }
+            } else if ("spatch.action.RECORD_START".equals(action)) {
+                SpatchUi.record(true);
+                return;
+            } else if ("spatch.action.RECORD_STOP".equals(action)) {
+                SpatchUi.record(false);
+                return;
             } else if ("spatch.action.INTEGRITY".equals(action)) {
                 spatch.DevIntegrity.setVariant(intent.getIntExtra("variant", -1));
                 return;

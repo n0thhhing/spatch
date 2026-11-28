@@ -56,6 +56,7 @@ public final class SpatchApp {
             loaded = true;
         } catch (Throwable e) {
             loadError = String.valueOf(e);
+            android.util.Log.e("SpatchLoader", "load failed", e);
         }
         return loaded;
     }

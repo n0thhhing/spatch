@@ -230,6 +230,7 @@ public class CatalogRequestCheck {
         public Single<BatchedExtensionResponse> extendedMetadata(com.google.protobuf.Empty request) { throw new UnsupportedOperationException(); }
         public Single<p.ii31> lyrics(String trackId) { throw new UnsupportedOperationException(); }
         public Single<p.ii31> storageResolve(String path, Map<String,String> params) { throw new UnsupportedOperationException(); }
+        public Single<p.ii31> playplayKey(String fileId) { throw new UnsupportedOperationException(); }
         public Single<BatchedExtensionResponse> extendedMetadataAsWeb(com.google.protobuf.Empty request, Map<String,String> headers) { throw new UnsupportedOperationException(); }
         @SuppressWarnings("unchecked")
         public Single<MainViewResponse> search(Map<String,String> params, Map<String,String> headers) {

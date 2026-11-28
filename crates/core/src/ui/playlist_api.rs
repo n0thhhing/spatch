@@ -356,6 +356,13 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeStreamTest(mut env: JNIEnv, _:
     }
     bridge::cancel(sub);
     if errors > 0 { lines.push(format!("stream error code {errors}")); }
+    // The per-track audio key path (playplay v2), which the decryptor needs.
+    for (_, file_id, _) in files.iter().take(2) {
+        match bridge::call_playplay(file_id) {
+            Ok(key) => lines.push(format!("playplay key {} bytes {:02x?}", key.len(), &key[..key.len().min(40)])),
+            Err(e) => lines.push(format!("playplay: {e}")),
+        }
+    }
     // What the core itself would stream: format and whether it is encrypted.
     match bridge::call(downloads::DOWNLOAD, "GetMediaManifest", &downloads::manifest_params(if handle.is_empty() { id.as_str() } else { handle.as_str() }, &id)) {
         Ok(reply) => {
@@ -406,4 +413,29 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeDecryptTest(mut env: JNIEnv, _
         None => lines.push("no key captured yet; play a track first".into()),
     }
     packed_strings(&env, &lines)
+}
+
+/// Starts recording the tapped stream to a WAV in the cache folder: the core has already decrypted it.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStart(mut env: JNIEnv, _: JClass) -> jbyteArray {
+    let Some(dir) = crate::cache::dir() else { return packed_strings(&env, &["no cache dir".into()]) };
+    let path = format!("{}/spatch-recording.wav", dir.display());
+    let (rate, channels) = crate::audio_tap::recorder_format();
+    match crate::audio_tap::recorder::start(&path, rate, channels) {
+        Ok(()) => packed_strings(&env, &[format!("recording to {path}")]),
+        Err(e) => packed_strings(&env, &[format!("record: {e}")]),
+    }
+}
+
+/// Stops the recording and reports what was captured.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStop(mut env: JNIEnv, _: JClass) -> jbyteArray {
+    match crate::audio_tap::recorder::stop() {
+        Some((text, samples, rate)) => {
+            let dir = crate::cache::dir().map(|d| d.display().to_string()).unwrap_or_default();
+            let seconds = samples as f64 / rate.max(1) as f64;
+            packed_strings(&env, &[format!("recorded {text}, {seconds:.1} s, {dir}/spatch-recording.wav")])
+        }
+        None => packed_strings(&env, &["was not recording".into()]),
+    }
 }
