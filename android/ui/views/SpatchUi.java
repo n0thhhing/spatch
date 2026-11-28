@@ -65,12 +65,15 @@ public final class SpatchUi extends FrameLayout {
     static native byte[] nativeDecryptTest(String uri);
     static native byte[] nativeStreamTest(String uri);
     static native byte[] nativeRecordStart();
-    static native byte[] nativeRecordStop();
+    static native byte[] nativeRecordStop(String shareDir);
+    static native byte[] nativeRecordState();
 
     static void record(boolean start) {
         new Thread(() -> {
             try {
-                byte[] reply = start ? nativeRecordStart() : nativeRecordStop();
+                java.io.File external = activity.getExternalFilesDir(null);
+                byte[] reply = start ? nativeRecordStart()
+                    : nativeRecordStop(external == null ? "" : external.getPath());
                 android.util.Log.i("Spatch", "RECORD " + (start ? "start" : "stop"));
                 if (reply != null) android.util.Log.i("Spatch", "RECORD\n" + String.join("\n", spatch.PackedStrings.unpackStrings(reply)));
             } catch (Throwable failed) {

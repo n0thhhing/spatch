@@ -760,25 +760,55 @@ mod tests {
 /// Records the tapped stream to a WAV file, for getting audio out of the app independent of any key:
 /// the core has already decrypted what reaches here. Stereo, the source rate and format as-is.
 pub mod recorder {
-    use std::io::{Seek, Write};
+    use std::io::{Seek, SeekFrom, Write};
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
 
     pub static ON: AtomicBool = AtomicBool::new(false);
     static SINK: Mutex<Option<Sink>> = Mutex::new(None);
 
+    /// About 30 minutes at 44.1 kHz stereo: a forgotten recording cannot fill the phone.
+    const CAP_BYTES: u32 = 300 * 1024 * 1024;
+
     struct Sink {
         file: std::fs::File,
         rate: i32,
         channels: u16,
         samples: u32,
+        bytes: u32,
+        cap: u32,
+        closed: bool,
+        // Reused across callbacks so the audio thread stops allocating per buffer.
+        buf: Vec<u8>,
+    }
+
+    /// What a UI row shows: whether a recording is live and how many seconds it has run.
+    pub struct RecorderState {
+        pub recording: bool,
+        pub seconds: f64,
+    }
+
+    pub fn state() -> RecorderState {
+        let guard = SINK.lock().unwrap();
+        match guard.as_ref() {
+            Some(sink) if !sink.closed => RecorderState {
+                recording: true,
+                seconds: sink.samples as f64 / f64::from(sink.rate.max(1)),
+            },
+            _ => RecorderState { recording: false, seconds: 0.0 },
+        }
     }
 
     pub fn start(path: &str, rate: i32, channels: u16) -> Result<(), String> {
+        // Stop the previous recording first, so its handle cannot leak or be half-finalised.
+        let _ = stop();
         let mut file = std::fs::File::create(path).map_err(|e| e.to_string())?;
-        // A 44-byte header with zero sizes; `stop` rewrites the real ones.
-        file.write_all(&wav_header(rate as u32, channels, 0)).map_err(|e| e.to_string())?;
-        *SINK.lock().unwrap() = Some(Sink { file, rate, channels, samples: 0 });
+        // A 44-byte header with zero sizes; every write rewrites the real ones.
+        file.write_all(&wav_header(rate as u32, channels.max(1), 0)).map_err(|e| e.to_string())?;
+        let sink = Sink {
+            file, rate, channels: channels.max(1), samples: 0, bytes: 0, cap: CAP_BYTES, closed: false, buf: Vec::new(),
+        };
+        *SINK.lock().unwrap() = Some(sink);
         ON.store(true, Ordering::Release);
         Ok(())
     }
@@ -786,11 +816,47 @@ pub mod recorder {
     pub fn stop() -> Option<(String, u32, i32)> {
         ON.store(false, Ordering::Release);
         let sink = SINK.lock().unwrap().take()?;
-        let mut file = sink.file;
         let data_bytes = sink.samples * u32::from(sink.channels) * 2;
-        let _ = file.seek(std::io::SeekFrom::Start(0));
+        let mut file = &sink.file;
+        let _ = file.seek(SeekFrom::Start(0));
         let _ = file.write_all(&wav_header(sink.rate as u32, sink.channels, data_bytes));
         Some((format!("{} samples at {} Hz, {}ch", sink.samples, sink.rate, sink.channels), sink.samples, sink.rate))
+    }
+
+    impl Sink {
+        fn push(&mut self) {
+            if self.closed { return; }
+            // Whole frames only, so the header's byte count always matches the sample count.
+            let frame = usize::from(self.channels) * 2;
+            let room = self.cap.saturating_sub(self.bytes) as usize;
+            let n = (room / frame * frame).min(self.buf.len());
+            if n > 0 && self.file.write_all(&self.buf[..n]).is_err() {
+                self.close();
+                return;
+            }
+            self.bytes += n as u32;
+            self.samples += (n / frame) as u32;
+            // Rewrite the header each time, so the file stays valid even if `stop` never runs.
+            let _ = self.file.seek(SeekFrom::Start(0));
+            let _ = self.file.write_all(&wav_header(self.rate as u32, self.channels, self.bytes));
+            let _ = self.file.seek(SeekFrom::Start(44 + u64::from(self.bytes)));
+            if self.bytes >= self.cap { self.close(); }
+        }
+
+        fn close(&mut self) {
+            // Stay closed, so later callbacks cannot scribble over the header or data.
+            let _ = self.file.seek(SeekFrom::Start(0));
+            let _ = self.file.write_all(&wav_header(self.rate as u32, self.channels, self.bytes));
+            self.closed = true;
+            ON.store(false, Ordering::Release);
+        }
+    }
+
+    fn encode(sink: &mut Sink, len: usize, mut put: impl FnMut(&mut Vec<u8>)) {
+        sink.buf.clear();
+        sink.buf.reserve(len * 2);
+        put(&mut sink.buf);
+        sink.push();
     }
 
     /// i16 conversion of any pcm16/32/float buffer, interleaved as it arrives.
@@ -798,30 +864,33 @@ pub mod recorder {
         if !ON.load(Ordering::Acquire) { return; }
         let mut guard = SINK.lock().unwrap();
         let Some(sink) = guard.as_mut() else { return };
-        let mut bytes = Vec::with_capacity(pcm.len() * 2);
-        for &s in pcm { bytes.extend_from_slice(&s.to_le_bytes()); }
-        let _ = sink.file.write_all(&bytes);
-        sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
+        encode(sink, pcm.len(), |bytes| {
+            for &s in pcm { bytes.extend_from_slice(&s.to_le_bytes()); }
+        });
     }
 
     pub fn write_f32(pcm: &[f32]) {
         if !ON.load(Ordering::Acquire) { return; }
         let mut guard = SINK.lock().unwrap();
         let Some(sink) = guard.as_mut() else { return };
-        let mut bytes = Vec::with_capacity(pcm.len() * 2);
-        for &s in pcm { bytes.extend_from_slice(&((s.clamp(-1.0, 1.0) * 32_767.0) as i16).to_le_bytes()); }
-        let _ = sink.file.write_all(&bytes);
-        sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
+        encode(sink, pcm.len(), |bytes| {
+            for &s in pcm { bytes.extend_from_slice(&((s.clamp(-1.0, 1.0) * 32_767.0) as i16).to_le_bytes()); }
+        });
     }
 
     pub fn write_i32(pcm: &[i32]) {
         if !ON.load(Ordering::Acquire) { return; }
         let mut guard = SINK.lock().unwrap();
         let Some(sink) = guard.as_mut() else { return };
-        let mut bytes = Vec::with_capacity(pcm.len() * 2);
-        for &s in pcm { bytes.extend_from_slice(&((s >> 16) as i16).to_le_bytes()); }
-        let _ = sink.file.write_all(&bytes);
-        sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
+        encode(sink, pcm.len(), |bytes| {
+            for &s in pcm { bytes.extend_from_slice(&((s >> 16) as i16).to_le_bytes()); }
+        });
+    }
+
+    /// Lowers the cap so a test need not write 300 MB.
+    #[cfg(test)]
+    pub(super) fn set_cap_for_test(cap: u32) {
+        if let Some(sink) = SINK.lock().unwrap().as_mut() { sink.cap = cap; }
     }
 
     /// The header for outside checks.
@@ -856,7 +925,23 @@ pub mod recorder {
 
 #[cfg(test)]
 mod recorder_tests {
-    use super::recorder::wav_header_for_test as header;
+    use super::recorder::{self, wav_header_for_test as header};
+
+    // All these touch the shared SINK, so they take turns.
+    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn lock() -> std::sync::MutexGuard<'static, ()> {
+        TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn temp(name: &str) -> String {
+        format!("{}/spatch-rec-test-{name}-{}.wav", std::env::temp_dir().display(), std::process::id())
+    }
+
+    fn head(path: &str) -> [u8; 44] {
+        let bytes = std::fs::read(path).unwrap();
+        bytes[..44].try_into().unwrap()
+    }
 
     #[test]
     fn header_layout_matches_a_playable_wav() {
@@ -873,5 +958,66 @@ mod recorder_tests {
         assert_eq!(&h[36..40], b"data");
         assert_eq!(u32::from_le_bytes(h[40..44].try_into().unwrap()), 1_000);
         assert_eq!(u32::from_le_bytes(h[4..8].try_into().unwrap()), 1_036);
+    }
+
+    #[test]
+    fn header_is_correct_before_stop_and_after_dropping_the_sink() {
+        let _lock = lock();
+        let path = temp("header");
+        recorder::start(&path, 44_100, 2).unwrap();
+        recorder::write_i16(&[7; 200]);
+        let h = head(&path);
+        // The file is already playable mid-recording, so a lost `stop` cannot leave a zero-length WAV.
+        assert_eq!(u32::from_le_bytes(h[40..44].try_into().unwrap()), 400);
+        recorder::stop();
+        assert_eq!(u32::from_le_bytes(head(&path)[40..44].try_into().unwrap()), 400);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn start_stops_the_previous_recording() {
+        let _lock = lock();
+        let first = temp("first");
+        let second = temp("second");
+        recorder::start(&first, 44_100, 2).unwrap();
+        recorder::write_i16(&[1; 40]);
+        recorder::start(&second, 44_100, 2).unwrap();
+        assert_eq!(u32::from_le_bytes(head(&first)[40..44].try_into().unwrap()), 80);
+        assert_eq!(u32::from_le_bytes(head(&second)[40..44].try_into().unwrap()), 0);
+        assert!(recorder::stop().is_some());
+        let _ = std::fs::remove_file(first);
+        let _ = std::fs::remove_file(second);
+    }
+
+    #[test]
+    fn stop_reports_samples_and_state_tracks_progress() {
+        let _lock = lock();
+        let path = temp("state");
+        assert!(!recorder::state().recording);
+        recorder::start(&path, 44_100, 2).unwrap();
+        assert!(recorder::state().recording);
+        recorder::write_i16(&[1; 88_200]);
+        assert!((recorder::state().seconds - 1.0).abs() < 0.001);
+        let (_, samples, rate) = recorder::stop().unwrap();
+        assert_eq!((samples, rate), (44_100, 44_100));
+        assert!(!recorder::state().recording);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn writes_stop_at_the_cap_with_a_valid_header() {
+        let _lock = lock();
+        let path = temp("cap");
+        recorder::start(&path, 44_100, 2).unwrap();
+        recorder::set_cap_for_test(8);
+        // Whole frames only: two stereo frames fit, the rest of the buffer is dropped.
+        recorder::write_i16(&[1; 8]);
+        assert!(!recorder::state().recording);
+        assert!(!recorder::ON.load(std::sync::atomic::Ordering::Acquire));
+        assert_eq!(u32::from_le_bytes(head(&path)[40..44].try_into().unwrap()), 8);
+        // Further callbacks are dropped and the header is left alone.
+        recorder::write_i16(&[1; 8]);
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), 52);
+        let _ = std::fs::remove_file(path);
     }
 }

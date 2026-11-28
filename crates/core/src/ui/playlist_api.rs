@@ -417,7 +417,7 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeDecryptTest(mut env: JNIEnv, _
 
 /// Starts recording the tapped stream to a WAV in the cache folder: the core has already decrypted it.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStart(mut env: JNIEnv, _: JClass) -> jbyteArray {
+pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStart(env: JNIEnv, _: JClass) -> jbyteArray {
     let Some(dir) = crate::cache::dir() else { return packed_strings(&env, &["no cache dir".into()]) };
     let path = format!("{}/spatch-recording.wav", dir.display());
     let (rate, channels) = crate::audio_tap::recorder_format();
@@ -429,13 +429,36 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStart(mut env: JNIEnv, _
 
 /// Stops the recording and reports what was captured.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStop(mut env: JNIEnv, _: JClass) -> jbyteArray {
-    match crate::audio_tap::recorder::stop() {
-        Some((text, samples, rate)) => {
-            let dir = crate::cache::dir().map(|d| d.display().to_string()).unwrap_or_default();
-            let seconds = samples as f64 / rate.max(1) as f64;
-            packed_strings(&env, &[format!("recorded {text}, {seconds:.1} s, {dir}/spatch-recording.wav")])
+pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStop(mut env: JNIEnv, _: JClass, share: JString) -> jbyteArray {
+    let share_dir = env.get_string(&share).ok().map(|s| std::path::PathBuf::from(String::from(s)));
+    let Some((text, samples, rate)) = crate::audio_tap::recorder::stop() else {
+        return packed_strings(&env, &["was not recording".into()]);
+    };
+    let seconds = samples as f64 / rate.max(1) as f64;
+    let Some(dir) = crate::cache::dir() else { return packed_strings(&env, &[format!("recorded {text}")]) };
+    let source = dir.join("spatch-recording.wav");
+    // The private cache is not readable over adb, so leave a copy where a file manager reaches it.
+    let note = match share_dir {
+        Some(out) if std::fs::create_dir_all(&out).is_ok() => {
+            let target = out.join("spatch-recording.wav");
+            match std::fs::copy(&source, &target) {
+                Ok(_) => format!(", copied to {}", target.display()),
+                Err(e) => format!(", copy failed: {e}"),
+            }
         }
-        None => packed_strings(&env, &["was not recording".into()]),
-    }
+        _ => String::new(),
+    };
+    packed_strings(&env, &[format!("recorded {text}, {seconds:.1} s, {}{note}", source.display())])
+}
+
+/// For a UI row: "recording <n> s" or "idle".
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeRecordState(env: JNIEnv, _: JClass) -> jbyteArray {
+    let state = crate::audio_tap::recorder::state();
+    let text = if state.recording {
+        format!("recording {:.1} s", state.seconds)
+    } else {
+        "idle".to_string()
+    };
+    packed_strings(&env, &[text])
 }
