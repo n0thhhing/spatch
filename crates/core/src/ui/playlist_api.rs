@@ -356,6 +356,26 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeStreamTest(mut env: JNIEnv, _:
     }
     bridge::cancel(sub);
     if errors > 0 { lines.push(format!("stream error code {errors}")); }
+    // The preview: a plain MP3 over HTTPS, no key and no CDN resolution.
+    match crate::spotify::metadata::preview_id(&uri, "US", "free") {
+        Ok(preview) => {
+            let url = format!("https://p.scdn.co/mp3-preview/{preview}");
+            lines.push(format!("preview url {url}"));
+            match bridge::fetch_bytes(&url) {
+                Ok(bytes) => {
+                    lines.push(format!("preview {} bytes, head {:02x?}", bytes.len(), &bytes[..4.min(bytes.len())]));
+                    if let Some(dir) = crate::cache::dir() {
+                        let path = dir.join("spatch-preview.mp3");
+                        if std::fs::write(&path, &bytes).is_ok() {
+                            lines.push(format!("preview saved {}", path.display()));
+                        }
+                    }
+                }
+                Err(e) => lines.push(format!("preview fetch: {e}")),
+            }
+        }
+        Err(e) => lines.push(format!("preview id: {e}")),
+    }
     // The per-track audio key path (playplay v2), which the decryptor needs.
     for (_, file_id, _) in files.iter().take(2) {
         match bridge::call_playplay(file_id) {

@@ -116,11 +116,25 @@ public final class DevIntegrity {
         }
     }
 
+    /** Records the first play result after a verify, so an arm's outcome is on file, not only seen. */
+    public static void played(boolean started) {
+        verdict("outcome=" + (started ? "played" : "silent"));
+        outcomeRecorded = true;
+    }
+
+    /** Whether the current arm has already recorded an outcome. */
+    public static boolean outcomeRecorded() {
+        return outcomeRecorded;
+    }
+
+    private static volatile boolean outcomeRecorded;
+
     /** Sets the A/B variant from a broadcast (0 blank reply, 1 empty token, 2 real token). */
     public static void setVariant(int variant) {
         SharedPreferences p = prefs;
         if (p == null || variant < 0) return;
         p.edit().putInt("integrity_variant", variant).apply();
+        outcomeRecorded = false;
         Log.i(TAG, "variant set to " + variant);
         verdict("variant set to " + variant);
     }

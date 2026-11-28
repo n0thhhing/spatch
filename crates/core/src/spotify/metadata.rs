@@ -344,6 +344,23 @@ pub fn audio_files(uri: &str, country: &str, catalogue: &str) -> Result<Vec<(u32
     Ok(Vec::new())
 }
 
+/// The preview id out of a TRACK_V4 payload (Track.preview = 15 {file_id = 1}), as text.
+pub fn preview_id(uri: &str, country: &str, catalogue: &str) -> Result<String, String> {
+    let reply = bridge::extended_metadata_as_web(&super::extended::request(&[uri.to_string()], super::extended::TRACK_V4, Some((country, catalogue))))?;
+    for (_uri, status, payload) in super::extended::decode(&reply) {
+        let Some(payload) = payload.filter(|_| (200..300).contains(&status)) else { continue };
+        for (n, v) in wire::fields(&payload) {
+            if n != 15 { continue; }
+            for (m, w) in wire::fields(v.bytes()) {
+                if m == 1 {
+                    return Ok(base62(w.bytes()));
+                }
+            }
+        }
+    }
+    Err("no preview id".into())
+}
+
 /// spotify.metadata.Track.file (12) and .preview (15): each is {file_id = 1 (bytes), format = 2}.
 fn audio_files_of(track: &[u8]) -> Vec<(u32, String, u64)> {
     let mut out = Vec::new();
