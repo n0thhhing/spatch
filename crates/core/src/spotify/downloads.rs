@@ -11,7 +11,8 @@
 //!
 //! `SubscribeContexts` and `SubscribeTotalProgress` keep the state here live; a full `GetContexts` reconciles it.
 
-use super::wire::{self, fields, first};
+use super::wire::{self, bytes_field, fields, first, number_field, string_field};
+use crate::bridge;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -568,4 +569,71 @@ mod tests {
         assert!(s.put(&d(State::NotDownloaded, 0.0)), "removed");
         assert!(!s.put(&d(State::NotDownloaded, 0.0)), "removing nothing");
     }
+}
+
+/// The download service's own streaming API, which decrypts as it reads: a downloaded (or remote)
+/// file is asked for in byte ranges and comes back as plaintext.
+pub const DOWNLOAD: &str = "spotify.download.esperanto.proto.Download";
+
+/// GetMediaHandleParams.MediaType.AUDIO
+const MEDIA_AUDIO: u64 = 1;
+
+/// The core's handle for a track's audio, which is the id its streamer accepts.
+pub fn media_handle(track_id: &str) -> Result<String, String> {
+    let mut request = Vec::new();
+    number_field(&mut request, 1, MEDIA_AUDIO);
+    string_field(&mut request, 2, track_id);
+    // A server stream, and slow: the handle arrives up to 30 s later, after the licence is granted.
+    let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
+    let id = bridge::subscribe(DOWNLOAD, "GetMediaHandleId", &request, move |reply| {
+        if let Ok(bytes) = reply { let _ = tx.send(bytes.to_vec()); }
+    })?;
+    let reply = rx.recv_timeout(std::time::Duration::from_secs(32)).map_err(|_| "handle timed out".to_string())?;
+    bridge::cancel(id);
+    log::info!("media handle reply {} bytes {:02x?}", reply.len(), &reply[..reply.len().min(32)]);
+    let fields = fields(&reply);
+    let handle = first(&fields, 1).map(|v| v.number().to_string()).unwrap_or_default();
+    if handle.is_empty() {
+        let status = first(&fields, 2).map(|v| v.number()).unwrap_or(0);
+        return Err(format!("no media handle (status {status})"));
+    }
+    Ok(handle)
+}
+
+/// ProgressiveFileStreamerParams { url = 1 }: a streamer over an already-resolved CDN URL.
+pub fn progressive_streamer(url: &str) -> Result<u64, String> {
+    let mut request = Vec::new();
+    string_field(&mut request, 1, url);
+    let reply = bridge::call(DOWNLOAD, "CreateProgressiveFileStreamer", &request)?;
+    log::info!("streamer reply {} bytes {:02x?}", reply.len(), &reply[..reply.len().min(16)]);
+    first(&fields(&reply), 1).map(|v| v.number()).ok_or_else(|| "no streamer id".into())
+}
+
+/// RequestDataParams { file_streamer = 1 { id = 1 }, start = 2, end = 3 }.
+pub fn request_data(streamer: u64, start: u64, end: u64) -> Vec<u8> {
+    let mut id = Vec::new();
+    number_field(&mut id, 1, streamer);
+    let mut request = Vec::new();
+    bytes_field(&mut request, 1, &id);
+    number_field(&mut request, 2, start);
+    number_field(&mut request, 3, end);
+    request
+}
+
+/// One RequestDataResponse: (position, total, final, error, data).
+pub fn decode_data(bytes: &[u8]) -> (u64, u64, bool, u64, Vec<u8>) {
+    let f = fields(bytes);
+    let n = |k: u32| first(&f, k).map(|v| v.number()).unwrap_or(0);
+    let data = first(&f, 5).map(|v| v.bytes().to_vec()).unwrap_or_default();
+    (n(1), n(2), n(3) == 1, n(4), data)
+}
+
+/// MediaManifestParams { manifest_id = 1, playback_id = 2, session_id = 3, request_type = 4, media_type = 5 }.
+pub fn manifest_params(manifest_id: &str, playback_id: &str) -> Vec<u8> {
+    let mut request = Vec::new();
+    string_field(&mut request, 1, manifest_id);
+    string_field(&mut request, 2, playback_id);
+    number_field(&mut request, 4, 0); // MediaManifestRequestType.INTERACTIVE
+    number_field(&mut request, 5, MEDIA_AUDIO);
+    request
 }

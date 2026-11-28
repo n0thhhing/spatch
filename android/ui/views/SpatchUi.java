@@ -63,6 +63,15 @@ public final class SpatchUi extends FrameLayout {
     static native byte[] nativePage(String uri);
     static native byte[] nativeAudioTest(String uri);
     static native byte[] nativeDecryptTest(String uri);
+    static native byte[] nativeStreamTest(String uri);
+
+    static void streamTest(String uri) {
+        new Thread(() -> {
+            byte[] reply = nativeStreamTest(uri);
+            String text = reply == null ? "stream test returned nothing" : String.join("\n", spatch.PackedStrings.unpackStrings(reply));
+            android.util.Log.i("Spatch", "STREAM TEST\n" + text);
+        }, "stream-test").start();
+    }
 
     static void decryptTest(String uri) {
         new Thread(() -> {

@@ -289,6 +289,8 @@ final class SettingsScreen {
         }
         case 5: {
             LinearLayout developer = ui.controls.card(page, "Developer");
+            ui.controls.toggle(developer, "Answer integrity locally", "Off sends the real verify, which fails on our signature", "integrity_skip", true, false);
+            ui.controls.choice(developer, "Integrity answer", new String[]{"Local reply", "Empty token"}, "integrity_variant", 1, false);
             ui.controls.settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
                 String report = "Build " + SpatchUi.nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
                     + "\nPlaying " + ui.playing + " · buffering " + ui.buffering

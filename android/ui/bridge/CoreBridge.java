@@ -39,22 +39,34 @@ public final class CoreBridge implements Transport {
         return new CoreBridge(t);
     }
 
+    /** The calls that name a media URL or manifest, logged with their payload (URLs are readable ASCII). */
+    private static void trace(String method, byte[] request) {
+        if (request == null || request.length == 0) return;
+        if (!"CreateProgressiveFileStreamer".equals(method) && !"GetMediaManifest".equals(method)
+            && !"RequestData".equals(method) && !"CreateSegmentFileStreamer".equals(method)) return;
+        String text = new String(request, java.nio.charset.StandardCharsets.ISO_8859_1).replaceAll("[^\\x20-\\x7e]", ".");
+        android.util.Log.i("SpatchStream", method + " " + (text.length() > 300 ? text.substring(0, 300) : text));
+    }
+
     private void seen(String service) {
         if (service != null) SERVICES.putIfAbsent(service, inner);
     }
 
     public Single callSingle(String service, String method, byte[] request) {
         seen(service);
+        trace(method, request);
         return inner.callSingle(service, method, request);
     }
 
     public Observable callStream(String service, String method, byte[] request) {
         seen(service);
+        trace(method, request);
         return inner.callStream(service, method, request);
     }
 
     public byte[] callSync(String service, String method, byte[] request) {
         seen(service);
+        trace(method, request);
         return inner.callSync(service, method, request);
     }
 

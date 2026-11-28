@@ -107,6 +107,11 @@ pub fn set_dir(dir: PathBuf) {
     cache.prune();
 }
 
+/// The answers folder, for writing side files next to it.
+pub fn dir() -> Option<PathBuf> {
+    ANSWERS.lock().unwrap().as_ref()?.dir.clone()
+}
+
 pub fn set_account(account: Option<&str>) {
     ANSWERS.lock().unwrap().get_or_insert_with(Answers::default).account(account);
 }

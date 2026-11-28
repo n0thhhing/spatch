@@ -305,6 +305,81 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeAudioTest(mut env: JNIEnv, _: 
     packed_strings(&env, &lines)
 }
 
+/// Experiment: pull a whole track through the core's own decrypting streamer and write it to a file.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeStreamTest(mut env: JNIEnv, _: JClass, uri: JString) -> jbyteArray {
+    use crate::bridge;
+    use crate::spotify::{downloads, metadata};
+    let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    let mut lines = Vec::new();
+    let id = uri.trim_start_matches("spotify:track:").to_string();
+    let files = match metadata::audio_files(&uri, "US", "free") {
+        Ok(files) if !files.is_empty() => files,
+        Ok(_) => return packed_strings(&env, &["no audio files".into()]),
+        Err(e) => return packed_strings(&env, &[format!("audio files: {e}")]),
+    };
+    let url = match bridge::resolve_audio(&files[0].1) {
+        Ok(url) => url,
+        Err(e) => return packed_strings(&env, &[format!("resolve: {e}")]),
+    };
+    lines.push(format!("track id {id}"));
+    let handle = downloads::media_handle(&id).unwrap_or_default();
+    lines.push(format!("handle {handle}"));
+    let streamer = match downloads::progressive_streamer(&url) {
+        Ok(s) => s,
+        Err(e) => return packed_strings(&env, &[format!("streamer: {e}")]),
+    };
+    lines.push(format!("streamer {streamer}"));
+    // One subscription: RequestData answers with a series of chunks, each carrying its own data.
+    let (tx, rx) = std::sync::mpsc::channel::<(u64, u64, bool, u64, Vec<u8>)>();
+    let request = downloads::request_data(streamer, 0, 4 << 20);
+    let sub = match bridge::subscribe(downloads::DOWNLOAD, "RequestData", &request, move |reply| match reply {
+        Ok(bytes) => { let _ = tx.send(downloads::decode_data(bytes)); }
+        Err(e) => { log::warn!("chunk: {e}"); }
+    }) {
+        Ok(id) => id,
+        Err(e) => return packed_strings(&env, &[format!("subscribe: {e}")]),
+    };
+    let mut out = Vec::new();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let mut errors = 0;
+    while std::time::Instant::now() < deadline && out.len() < 20 << 20 {
+        match rx.recv_timeout(std::time::Duration::from_millis(800)) {
+            Ok((_pos, total, _final, error, data)) => {
+                errors = errors.max(error);
+                lines.push(format!("chunk {} bytes, total {total}", data.len()));
+                out.extend_from_slice(&data);
+                if data.len() < 8 << 10 { break; }
+            }
+            Err(_) => break,
+        }
+    }
+    bridge::cancel(sub);
+    if errors > 0 { lines.push(format!("stream error code {errors}")); }
+    // What the core itself would stream: format and whether it is encrypted.
+    match bridge::call(downloads::DOWNLOAD, "GetMediaManifest", &downloads::manifest_params(if handle.is_empty() { id.as_str() } else { handle.as_str() }, &id)) {
+        Ok(reply) => {
+            lines.push(format!("manifest reply {} bytes {:02x?}", reply.len(), &reply[..reply.len().min(24)]));
+            let manifest = downloads::decode_data(&reply).4;
+            lines.push(format!("manifest {} bytes head {:02x?}", manifest.len(), &manifest[..8.min(manifest.len())]));
+            for needle in ["OGG_VORBIS_96", "OGG_VORBIS_160", "OGG_VORBIS_320", "MP3_96", "MP3_160", "MP3_256", "file_id_hex"] {
+                if String::from_utf8_lossy(&manifest).contains(needle) { lines.push(format!("manifest has {needle}")); }
+            }
+        }
+        Err(e) => lines.push(format!("manifest: {e}")),
+    }
+    lines.push(format!("collected {} bytes, head {:02x?}", out.len(), &out[..4.min(out.len())]));
+    let path = match crate::cache::dir() {
+        Some(dir) => format!("{}/spatch-stream.bin", dir.display()),
+        None => return packed_strings(&env, &["no cache dir".into()]),
+    };
+    match std::fs::write(&path, &out) {
+        Ok(()) => lines.push(format!("wrote {path}")),
+        Err(e) => lines.push(format!("write: {e}")),
+    }
+    packed_strings(&env, &lines)
+}
+
 /// Experiment: decrypt a real downloaded file with the last key the core used, to prove the scheme.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeDecryptTest(mut env: JNIEnv, _: JClass, uri: JString) -> jbyteArray {
