@@ -70,13 +70,50 @@ public final class SpatchUi extends FrameLayout {
 
     /** Where finished recordings are copied, set when the screen is built. */
     static volatile String shareDir = "";
+    static volatile android.content.Context appContext;
+
+    /** Copies a finished recording into Music/Spatch through MediaStore, so it is reachable everywhere. */
+    private static String publishToMusic(String path) {
+        try {
+            java.io.File source = new java.io.File(path);
+            if (!source.isFile()) return null;
+            String name = "spatch-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(new java.util.Date()) + ".wav";
+            android.content.ContentValues values = new android.content.ContentValues();
+            values.put(android.provider.MediaStore.Audio.Media.DISPLAY_NAME, name);
+            values.put(android.provider.MediaStore.Audio.Media.MIME_TYPE, "audio/wav");
+            values.put(android.provider.MediaStore.Audio.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_MUSIC + "/Spatch");
+            android.content.Context app = appContext;
+            if (app == null) return null;
+            android.net.Uri target = app.getContentResolver().insert(android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
+            if (target == null) return null;
+            try (java.io.OutputStream out = app.getContentResolver().openOutputStream(target);
+                 java.io.InputStream in = new java.io.FileInputStream(source)) {
+                byte[] buffer = new byte[65536];
+                for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
+            }
+            return name;
+        } catch (Exception failed) {
+            android.util.Log.i("Spatch", "RECORD publish failed: " + failed);
+            return null;
+        }
+    }
 
     static void record(boolean start) {
         new Thread(() -> {
             try {
                 byte[] reply = start ? nativeRecordStart() : nativeRecordStop(shareDir);
                 android.util.Log.i("Spatch", "RECORD " + (start ? "start" : "stop"));
-                if (reply != null) android.util.Log.i("Spatch", "RECORD\n" + String.join("\n", spatch.PackedStrings.unpackStrings(reply)));
+                if (reply == null) return;
+                String text = String.join("\n", spatch.PackedStrings.unpackStrings(reply));
+                android.util.Log.i("Spatch", "RECORD\n" + text);
+                // adb cannot read Android/data for this package, so on stop also publish it to Music.
+                if (!start && text.contains(".wav")) {
+                    String path = shareDir.isEmpty() ? "" : new java.io.File(shareDir, "spatch-recording.wav").getPath();
+                    if (!path.isEmpty()) {
+                        String saved = publishToMusic(path);
+                        if (saved != null) android.util.Log.i("Spatch", "RECORD saved to " + saved);
+                    }
+                }
             } catch (Throwable failed) {
                 android.util.Log.i("Spatch", "RECORD failed: " + failed);
             }
@@ -277,6 +314,7 @@ public final class SpatchUi extends FrameLayout {
 
     SpatchUi(Activity activity) {
         super(activity);
+        appContext = activity.getApplicationContext();
         java.io.File external = activity.getExternalFilesDir(null);
         shareDir = external == null ? "" : external.getPath();
         this.activity = activity;
