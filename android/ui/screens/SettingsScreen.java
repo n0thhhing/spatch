@@ -295,7 +295,7 @@ final class SettingsScreen {
                 boolean on = !ui.prefs.getBoolean("recording", false);
                 ui.prefs.edit().putBoolean("recording", on).apply();
                 SpatchUi.record(on);
-                ui.toast(on ? "Recording to the cache folder" : "Stopped recording");
+                ui.toast(on ? "Recording, saved to the app's files folder" : "Stopped recording");
             });
             ui.controls.settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
                 String report = "Build " + SpatchUi.nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
