@@ -264,10 +264,15 @@ public final class CoreBridge implements Transport {
         try {
             return (byte[]) message.getClass().getMethod("toByteArray").invoke(message);
         } catch (NoSuchMethodException notProto) {
+            StringBuilder seen = new StringBuilder();
             for (String method : new String[] { "c", "getOrThrow", "a" }) {
-                try { return (byte[]) message.getClass().getMethod(method).invoke(message); }
-                catch (NoSuchMethodException next) { /* try the next */ }
+                try {
+                    Object value = message.getClass().getMethod(method).invoke(message);
+                    seen.append(method).append('=').append(value == null ? "null" : value.getClass().getSimpleName()).append(' ');
+                    if (value instanceof byte[]) return (byte[]) value;
+                } catch (NoSuchMethodException next) { /* try the next */ }
             }
+            android.util.Log.i("SpatchBridge", "reply " + message.getClass().getName() + " " + seen);
             android.util.Log.i("SpatchBridge", "unknown reply type " + message.getClass().getName());
             throw notProto;
         }
@@ -327,8 +332,8 @@ public final class CoreBridge implements Transport {
         for (String shape : shapes) {
             try {
                 byte[] body = bytes(web().storageResolve(shape, params).timeout(12, TimeUnit.SECONDS).blockingGet());
-                String url = protobufText(body, 1);
-                android.util.Log.i("SpatchBridge", "resolve ok " + shape + " -> " + url);
+                // Field 1 is the result code, field 2 the cdnurl list (repeatable, one per CDN).
+                String url = protobufText(body, 2);
                 if (!url.isEmpty()) return url.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             } catch (Exception failed) {
                 if (first.isEmpty()) first = shape + ": " + failed;
