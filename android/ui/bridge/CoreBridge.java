@@ -42,8 +42,7 @@ public final class CoreBridge implements Transport {
     /** The calls that name a media URL or manifest, logged with their payload (URLs are readable ASCII). */
     private static void trace(String method, byte[] request) {
         if (request == null || request.length == 0) return;
-        if (!"CreateProgressiveFileStreamer".equals(method) && !"GetMediaManifest".equals(method)
-            && !"RequestData".equals(method) && !"CreateSegmentFileStreamer".equals(method)) return;
+        if (!method.startsWith("Create") && !method.startsWith("Request") && !method.startsWith("GetMedia")) return;
         String text = new String(request, java.nio.charset.StandardCharsets.ISO_8859_1).replaceAll("[^\\x20-\\x7e]", ".");
         android.util.Log.i("SpatchStream", method + " " + (text.length() > 300 ? text.substring(0, 300) : text));
     }

@@ -116,6 +116,15 @@ public final class DevIntegrity {
         }
     }
 
+    /** Sets the A/B variant from a broadcast (0 blank reply, 1 empty token, 2 real token). */
+    public static void setVariant(int variant) {
+        SharedPreferences p = prefs;
+        if (p == null || variant < 0) return;
+        p.edit().putInt("integrity_variant", variant).apply();
+        Log.i(TAG, "variant set to " + variant);
+        verdict("variant set to " + variant);
+    }
+
     private static boolean enabled(String key) {
         SharedPreferences p = prefs;
         return p == null || p.getBoolean(key, true);
@@ -167,10 +176,10 @@ public final class DevIntegrity {
     public static Object verify(p.dmt0 service, VerifyRequest request, p.osm continuation) throws ReflectiveOperationException {
         // A null prefs must not escape as an NPE: the caller would record a permanent error for this request.
         SharedPreferences p = prefs;
-        // 1 by default now: a blank local reply alone left playback broken, so forward the verify with an
-        // empty token instead and let Spotify see a call. 0 restores the blank reply.
+        // Variants: 0 blank local reply, 1 forward with the token blanked, 2 forward the real token (the
+        // failure a re-signed build has anyway). 2 is independent of the skip toggle, so the A/B is one pref.
         int variant = p == null ? 1 : p.getInt("integrity_variant", 1);
-        boolean skip = enabled("integrity_skip");
+        boolean skip = variant != 2 && enabled("integrity_skip");
         boolean empty = skip && variant == 1;
         int originalSize = request.getSerializedSize();
         Log.i(TAG, "verify_reached skip=" + skip + " variant=" + variant + " bytes=" + originalSize);
