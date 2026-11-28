@@ -435,6 +435,27 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeDecryptTest(mut env: JNIEnv, _
     packed_strings(&env, &lines)
 }
 
+/// Fetches a track's preview MP3 into the cache and replies "saved <path>", or why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativePreview(mut env: JNIEnv, _: JClass, uri: JString) -> jbyteArray {
+    let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    let preview = match crate::spotify::metadata::preview_id(&uri, "US", "free") {
+        Ok(id) => id,
+        Err(e) => return packed_strings(&env, &[format!("no preview id: {e}")]),
+    };
+    let Some(dir) = crate::cache::dir() else { return packed_strings(&env, &["no cache dir".into()]) };
+    let bytes = match bridge::fetch_bytes(&format!("https://p.scdn.co/mp3-preview/{preview}")) {
+        Ok(bytes) if bytes.len() > 1024 => bytes,
+        Ok(bytes) => return packed_strings(&env, &[format!("preview too short: {} bytes", bytes.len())]),
+        Err(e) => return packed_strings(&env, &[format!("preview: {e}")]),
+    };
+    let path = dir.join("spatch-preview.mp3");
+    match std::fs::write(&path, &bytes) {
+        Ok(()) => packed_strings(&env, &[format!("saved {} ({} bytes)", path.display(), bytes.len())]),
+        Err(e) => packed_strings(&env, &[format!("write: {e}")]),
+    }
+}
+
 /// Starts recording the tapped stream to a WAV in the cache folder: the core has already decrypted it.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_spatch_SpatchUi_nativeRecordStart(env: JNIEnv, _: JClass) -> jbyteArray {

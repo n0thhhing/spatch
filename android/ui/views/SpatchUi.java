@@ -67,6 +67,7 @@ public final class SpatchUi extends FrameLayout {
     static native byte[] nativeRecordStart();
     static native byte[] nativeRecordStop(String shareDir);
     static native byte[] nativeRecordState();
+    static native byte[] nativePreview(String uri);
 
     /** Where finished recordings are copied, set when the screen is built. */
     static volatile String shareDir = "";
@@ -118,6 +119,23 @@ public final class SpatchUi extends FrameLayout {
                 android.util.Log.i("Spatch", "RECORD failed: " + failed);
             }
         }, "record").start();
+    }
+
+    /** Fetches a preview, publishes it to Music and reports where it went. */
+    static void previewTest(String uri) {
+        new Thread(() -> {
+            try {
+                byte[] reply = nativePreview(uri);
+                String text = reply == null ? "preview failed" : String.join("\n", spatch.PackedStrings.unpackStrings(reply));
+                android.util.Log.i("Spatch", "PREVIEW\n" + text);
+                if (text.startsWith("saved ")) {
+                    String r = publishToMusic(text.substring(6).trim());
+                    if (r != null) android.util.Log.i("Spatch", "PREVIEW published " + r);
+                }
+            } catch (Throwable failed) {
+                android.util.Log.i("Spatch", "PREVIEW failed: " + failed);
+            }
+        }, "preview").start();
     }
 
     static void streamTest(String uri) {
