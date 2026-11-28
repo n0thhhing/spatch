@@ -480,6 +480,8 @@ mod native_hook {
             return res;
         }
         let name = unsafe { CStr::from_ptr(symbol) }.to_bytes();
+        // Every undefined symbol the core resolves by name is visible here.
+        log::info!("audio_tap: dlsym {}", String::from_utf8_lossy(name));
         match name {
             b"AAudioStreamBuilder_setDataCallback" => {
                 REAL_SET_DATA_CB.store(res as usize, Ordering::Release);

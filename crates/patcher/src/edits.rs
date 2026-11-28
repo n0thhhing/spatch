@@ -6,7 +6,7 @@ pub struct Edit {
     pub replacement: &'static str,
 }
 
-pub const EDITS: [Edit; 22] = [
+pub const EDITS: [Edit; 23] = [
     Edit { file: "smali/com/spotify/connectivity/httpretrofit/RetrofitMaker.smali", anchor: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/hv31;\n", replacement: "    iput-object p5, p0, Lcom/spotify/connectivity/httpretrofit/RetrofitMaker;->mAssertion:Lp/hv31;\n\n    invoke-static {p0, p5}, Lspatch/CoreBridge;->webgate(Ljava/lang/Object;Ljava/lang/Object;)V\n" },
     // The Rust app reaches Spotify's core through the same Esperanto transports Spotify's screens use:
     // every client's transport passes through CoreBridge.
@@ -94,6 +94,12 @@ pub const EDITS: [Edit; 22] = [
         file: "smali_classes9/p/kls0.smali",
         anchor: "    check-cast v1, Lp/enf1;\n\n    .line 114\n",
         replacement: "    check-cast v1, Lp/enf1;\n\n    .line 114\n\n    invoke-static {v1}, Lspatch/DevIntegrity;->tokenOutcome(Ljava/lang/Object;)V\n",
+    },
+    // Every streamed sample is decrypted here, so this is where the audio key is still in hand.
+    Edit {
+        file: "smali_classes2/com/spotify/native_crypto/NativeCryptoProvider.smali",
+        anchor: ".method public final chachaDecrypt([B[B[B[B)[B\n    .locals 2\n\n    .line 1\n",
+        replacement: ".method public final chachaDecrypt([B[B[B[B)[B\n    .locals 2\n\n    invoke-static {p1, p2}, Lspatch/AudioCrypto;->seen([B[B)V\n\n    .line 1\n",
     },
     // The extended-metadata service 502s the app's own token but accepts a web-player one; this
     // swaps the bearer on that one webgate path only, falling back to the app's token on any error.

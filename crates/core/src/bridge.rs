@@ -152,6 +152,50 @@ pub fn extended_metadata_as_web(request: &[u8]) -> Result<Vec<u8>, String> {
     })
 }
 
+/// The last (key, nonce) the core decrypted a sample with, from the AudioCrypto.seen hook.
+pub fn aes_seen() -> Option<(Vec<u8>, Vec<u8>)> {
+    let java = java().ok()?;
+    let mut env = java.vm.attach_current_thread_permanently().ok()?;
+    let class: &JClass = java.class.as_obj().into();
+    let hex = env.call_static_method(class, "lastKey", "()Ljava/lang/String;", &[]).ok()?.l().ok()?;
+    if hex.is_null() { return None; }
+    let text: String = env.get_string(&hex.into()).ok()?.into();
+    let mut parts = text.split(' ');
+    let key = unhex(parts.next()?);
+    let nonce = unhex(parts.next()?);
+    Some((key, nonce))
+}
+
+fn unhex(text: &str) -> Vec<u8> {
+    (0..text.len() / 2).filter_map(|i| u8::from_str_radix(&text[i * 2..i * 2 + 2], 16).ok()).collect()
+}
+
+/// Raw bytes of a URL, for the decrypt experiment.
+pub fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
+    call_java_bytes(|env, class| {
+        let url = env.new_string(url)?;
+        env.call_static_method(class, "fetchBytes", "(Ljava/lang/String;)[B", &[JValue::Object(&url)])?.l()
+    })
+}
+
+/// Decrypts bytes with a captured key through the helper, for the experiment.
+pub fn decrypt_file(key: &[u8], nonce: &[u8], aad: &[u8], body: &[u8]) -> String {
+    let java = match java() { Ok(j) => j, Err(e) => return format!("java: {e}") };
+    let mut env = match java.vm.attach_current_thread_permanently() { Ok(e) => e, Err(e) => return format!("env: {e}") };
+    let class: &JClass = java.class.as_obj().into();
+    let mut call = || -> Result<String, String> {
+        let k = env.byte_array_from_slice(key).map_err(|e| e.to_string())?;
+        let n = env.byte_array_from_slice(nonce).map_err(|e| e.to_string())?;
+        let a = env.byte_array_from_slice(aad).map_err(|e| e.to_string())?;
+        let b = env.byte_array_from_slice(body).map_err(|e| e.to_string())?;
+        let out = env.call_static_method(class, "decryptFile", "([B[B[B[B)Ljava/lang/String;",
+            &[JValue::Object(&k), JValue::Object(&n), JValue::Object(&a), JValue::Object(&b)]).map_err(|e| e.to_string())?.l().map_err(|e| e.to_string())?;
+        let text: String = env.get_string(&out.into()).map_err(|e| e.to_string())?.into();
+        Ok(text)
+    };
+    call().unwrap_or_else(|e| e)
+}
+
 /// A CDN URL for one audio file id, through storage-resolve (v2, audio).
 pub fn resolve_audio(file_id_hex: &str) -> Result<String, String> {
     let bytes = call_java_bytes(|env, class| {

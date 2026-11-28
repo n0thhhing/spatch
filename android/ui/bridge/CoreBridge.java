@@ -259,6 +259,23 @@ public final class CoreBridge implements Transport {
         }
     }
 
+    /** Raw bytes of a URL (the CDN audio), for the decrypt experiment. */
+    public static byte[] fetchBytes(String url) throws Exception {
+        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+        c.setConnectTimeout(8000);
+        c.setReadTimeout(20000);
+        try {
+            try (java.io.InputStream in = c.getInputStream()) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buffer = new byte[65536];
+                for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
+                return out.toByteArray();
+            }
+        } finally {
+            c.disconnect();
+        }
+    }
+
     private static byte[] bytes(Object message) throws ReflectiveOperationException {
         // A protobuf answers toByteArray; a Retrofit p.ii31 is an okhttp ResponseBody with a different accessor.
         try {

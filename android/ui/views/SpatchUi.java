@@ -62,6 +62,15 @@ public final class SpatchUi extends FrameLayout {
     static native byte[] nativePlaylist(String uri, int offset);
     static native byte[] nativePage(String uri);
     static native byte[] nativeAudioTest(String uri);
+    static native byte[] nativeDecryptTest(String uri);
+
+    static void decryptTest(String uri) {
+        new Thread(() -> {
+            byte[] reply = nativeDecryptTest(uri);
+            String text = reply == null ? "decrypt test returned nothing" : String.join("\n", spatch.PackedStrings.unpackStrings(reply));
+            android.util.Log.i("Spatch", "DECRYPT TEST\n" + text);
+        }, "decrypt-test").start();
+    }
 
     /** Runs the audio-file resolve experiment off the main thread and reports it as a notification-ish sheet. */
     static void audioTest(String uri) {

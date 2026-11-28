@@ -304,3 +304,31 @@ pub extern "system" fn Java_spatch_SpatchUi_nativeAudioTest(mut env: JNIEnv, _: 
     }
     packed_strings(&env, &lines)
 }
+
+/// Experiment: decrypt a real downloaded file with the last key the core used, to prove the scheme.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_spatch_SpatchUi_nativeDecryptTest(mut env: JNIEnv, _: JClass, uri: JString) -> jbyteArray {
+    let Some(uri) = read(&mut env, &uri) else { return std::ptr::null_mut() };
+    let mut lines = Vec::new();
+    let files = match crate::spotify::metadata::audio_files(&uri, "US", "free") {
+        Ok(files) if !files.is_empty() => files,
+        Ok(_) => { return packed_strings(&env, &["no audio files".into()]); }
+        Err(e) => { return packed_strings(&env, &[format!("audio files: {e}")]); }
+    };
+    let (format, id, _) = files[0].clone();
+    lines.push(format!("file fmt {format} id {}", &id[..16.min(id.len())]));
+    let url = match bridge::resolve_audio(&id) {
+        Ok(url) => url,
+        Err(e) => { return packed_strings(&env, &[format!("resolve: {e}")]); }
+    };
+    let body = match bridge::fetch_bytes(&url) {
+        Ok(body) => body,
+        Err(e) => { return packed_strings(&env, &[format!("download: {e}")]); }
+    };
+    lines.push(format!("downloaded {} bytes", body.len()));
+    match bridge::aes_seen() {
+        Some((key, nonce)) => lines.push(bridge::decrypt_file(&key, &nonce, &[], &body)),
+        None => lines.push("no key captured yet; play a track first".into()),
+    }
+    packed_strings(&env, &lines)
+}

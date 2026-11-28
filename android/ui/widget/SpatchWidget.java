@@ -442,6 +442,9 @@ public class SpatchWidget extends AppWidgetProvider {
             } else if (ACT_REPEAT.equals(action)) {
                 int mode = intent.getIntExtra("mode", 0);
                 if (mode >= 0 && mode <= 2) { cmd = REPEAT_ACTION; val = mode; }
+            } else if ("spatch.action.DECRYPT_TEST".equals(action)) {
+                target = strExtra(intent, "uri");
+                if (!target.isEmpty()) cmd = 91;
             } else if ("spatch.action.AUDIO_TEST".equals(action)) {
                 target = strExtra(intent, "uri");
                 if (!target.isEmpty()) cmd = 90; // a one-off code, only this receiver uses it
@@ -477,6 +480,8 @@ public class SpatchWidget extends AppWidgetProvider {
                 });
             } else if (fCmd == 90) {
                 SpatchUi.audioTest(fTarget);
+            } else if (fCmd == 91) {
+                SpatchUi.decryptTest(fTarget);
             } else {
                 SpatchUi.widgetCommand(fCmd, fVal, fTarget.isEmpty() ? fCtx : fTarget);
             }
