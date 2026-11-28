@@ -824,6 +824,11 @@ pub mod recorder {
         sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
     }
 
+    /// The header for outside checks.
+    pub fn header_for_check(rate: u32, channels: u16, data: u32) -> [u8; 44] {
+        wav_header(rate, channels, data)
+    }
+
     /// The header for tests, to pin the layout.
     pub fn wav_header_for_test(rate: u32, channels: u16, data_bytes: u32) -> [u8; 44] {
         wav_header(rate, channels, data_bytes)
