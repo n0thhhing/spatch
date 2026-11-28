@@ -260,7 +260,17 @@ public final class CoreBridge implements Transport {
     }
 
     private static byte[] bytes(Object message) throws ReflectiveOperationException {
-        return (byte[]) message.getClass().getMethod("toByteArray").invoke(message);
+        // A protobuf answers toByteArray; a Retrofit p.ii31 is an okhttp ResponseBody with a different accessor.
+        try {
+            return (byte[]) message.getClass().getMethod("toByteArray").invoke(message);
+        } catch (NoSuchMethodException notProto) {
+            for (String method : new String[] { "c", "getOrThrow", "a" }) {
+                try { return (byte[]) message.getClass().getMethod(method).invoke(message); }
+                catch (NoSuchMethodException next) { /* try the next */ }
+            }
+            android.util.Log.i("SpatchBridge", "unknown reply type " + message.getClass().getName());
+            throw notProto;
+        }
     }
 
     /** A playlist's items from Spotify's playlist service (playlist4 SelectedListContent bytes); `id` is the base62 id. */
@@ -320,8 +330,8 @@ public final class CoreBridge implements Transport {
                 String url = protobufText(body, 1);
                 android.util.Log.i("SpatchBridge", "resolve ok " + shape + " -> " + url);
                 if (!url.isEmpty()) return url.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            } catch (RuntimeException failed) {
-                if (first.isEmpty()) first = shape + ": " + httpDetail(failed);
+            } catch (Exception failed) {
+                if (first.isEmpty()) first = shape + ": " + failed;
                 android.util.Log.i("SpatchBridge", "resolve miss " + shape + ": " + httpDetail(failed));
             }
         }
