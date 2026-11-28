@@ -13,8 +13,15 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, AtomicUsize
 use std::sync::Mutex;
 
 /// The rate and channel count of the newest tapped stream, for the recorder.
+#[cfg(all(target_os = "android", not(feature = "preview")))]
 pub fn recorder_format() -> (i32, u16) {
     native_hook::newest_format()
+}
+
+/// Off the device there is no tapped stream; the recorder's own default.
+#[cfg(not(all(target_os = "android", not(feature = "preview"))))]
+pub fn recorder_format() -> (i32, u16) {
+    (44_100, 2)
 }
 
 pub const FFT_N: usize = 1024;
@@ -817,21 +824,49 @@ pub mod recorder {
         sink.samples += (pcm.len() / usize::from(sink.channels.max(1))) as u32;
     }
 
+    /// The header for tests, to pin the layout.
+    pub fn wav_header_for_test(rate: u32, channels: u16, data_bytes: u32) -> [u8; 44] {
+        wav_header(rate, channels, data_bytes)
+    }
+
     fn wav_header(rate: u32, channels: u16, data_bytes: u32) -> [u8; 44] {
         let byte_rate = rate * u32::from(channels) * 2;
         let mut h = [0u8; 44];
         h[0..4].copy_from_slice(b"RIFF");
         h[4..8].copy_from_slice(&(36u32 + data_bytes).to_le_bytes());
-        h[8..12].copy_from_slice(b"WAVEfmt ");
-        h[12..16].copy_from_slice(&16u32.to_le_bytes());
-        h[16..18].copy_from_slice(&1u16.to_le_bytes()); // PCM
-        h[18..20].copy_from_slice(&channels.to_le_bytes());
-        h[20..24].copy_from_slice(&rate.to_le_bytes());
-        h[24..28].copy_from_slice(&byte_rate.to_le_bytes());
-        h[28..30].copy_from_slice(&(channels * 2).to_le_bytes());
-        h[30..32].copy_from_slice(&16u16.to_le_bytes());
-        h[32..36].copy_from_slice(b"data");
-        h[36..40].copy_from_slice(&data_bytes.to_le_bytes());
+        h[8..12].copy_from_slice(b"WAVE");
+        h[12..16].copy_from_slice(b"fmt ");
+        h[16..20].copy_from_slice(&16u32.to_le_bytes());
+        h[20..22].copy_from_slice(&1u16.to_le_bytes()); // PCM
+        h[22..24].copy_from_slice(&channels.to_le_bytes());
+        h[24..28].copy_from_slice(&rate.to_le_bytes());
+        h[28..32].copy_from_slice(&byte_rate.to_le_bytes());
+        h[32..34].copy_from_slice(&(channels * 2).to_le_bytes());
+        h[34..36].copy_from_slice(&16u16.to_le_bytes());
+        h[36..40].copy_from_slice(b"data");
+        h[40..44].copy_from_slice(&data_bytes.to_le_bytes());
         h
+    }
+}
+
+#[cfg(test)]
+mod recorder_tests {
+    use super::recorder::wav_header_for_test as header;
+
+    #[test]
+    fn header_layout_matches_a_playable_wav() {
+        let h = header(44_100, 2, 1_000);
+        assert_eq!(&h[0..4], b"RIFF");
+        assert_eq!(&h[8..12], b"WAVE");
+        // The fmt chunk id and its size are separate fields; shifting them breaks every decoder.
+        assert_eq!(&h[12..16], b"fmt ");
+        assert_eq!(u32::from_le_bytes(h[16..20].try_into().unwrap()), 16);
+        assert_eq!(u16::from_le_bytes(h[20..22].try_into().unwrap()), 1);
+        assert_eq!(u16::from_le_bytes(h[22..24].try_into().unwrap()), 2);
+        assert_eq!(u32::from_le_bytes(h[24..28].try_into().unwrap()), 44_100);
+        assert_eq!(u32::from_le_bytes(h[28..32].try_into().unwrap()), 176_400);
+        assert_eq!(&h[36..40], b"data");
+        assert_eq!(u32::from_le_bytes(h[40..44].try_into().unwrap()), 1_000);
+        assert_eq!(u32::from_le_bytes(h[4..8].try_into().unwrap()), 1_036);
     }
 }
