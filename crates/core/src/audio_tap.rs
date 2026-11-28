@@ -840,7 +840,8 @@ pub mod recorder {
             let _ = self.file.seek(SeekFrom::Start(0));
             let _ = self.file.write_all(&wav_header(self.rate as u32, self.channels, self.bytes));
             let _ = self.file.seek(SeekFrom::Start(44 + u64::from(self.bytes)));
-            if self.bytes >= self.cap { self.close(); }
+            // Stop less than a full frame short of the cap, so a ragged cap still closes.
+            if self.cap.saturating_sub(self.bytes) < frame as u32 { self.close(); }
         }
 
         fn close(&mut self) {
@@ -961,7 +962,7 @@ mod recorder_tests {
     }
 
     #[test]
-    fn header_is_correct_before_stop_and_after_dropping_the_sink() {
+    fn header_stays_valid_mid_recording() {
         let _lock = lock();
         let path = temp("header");
         recorder::start(&path, 44_100, 2).unwrap();

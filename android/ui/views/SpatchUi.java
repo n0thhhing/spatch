@@ -68,12 +68,13 @@ public final class SpatchUi extends FrameLayout {
     static native byte[] nativeRecordStop(String shareDir);
     static native byte[] nativeRecordState();
 
+    /** Where finished recordings are copied, set when the screen is built. */
+    static volatile String shareDir = "";
+
     static void record(boolean start) {
         new Thread(() -> {
             try {
-                java.io.File external = activity.getExternalFilesDir(null);
-                byte[] reply = start ? nativeRecordStart()
-                    : nativeRecordStop(external == null ? "" : external.getPath());
+                byte[] reply = start ? nativeRecordStart() : nativeRecordStop(shareDir);
                 android.util.Log.i("Spatch", "RECORD " + (start ? "start" : "stop"));
                 if (reply != null) android.util.Log.i("Spatch", "RECORD\n" + String.join("\n", spatch.PackedStrings.unpackStrings(reply)));
             } catch (Throwable failed) {
@@ -276,6 +277,8 @@ public final class SpatchUi extends FrameLayout {
 
     SpatchUi(Activity activity) {
         super(activity);
+        java.io.File external = activity.getExternalFilesDir(null);
+        shareDir = external == null ? "" : external.getPath();
         this.activity = activity;
         SpatchWidget.uiStarted(activity);
         post(playerScreen::applyRotation);
