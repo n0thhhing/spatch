@@ -291,6 +291,12 @@ final class SettingsScreen {
             LinearLayout developer = ui.controls.card(page, "Developer");
             ui.controls.toggle(developer, "Answer integrity locally", "Off sends the real verify, which fails on our signature", "integrity_skip", true, false);
             ui.controls.choice(developer, "Integrity answer", new String[]{"Local reply", "Empty token", "Real token"}, "integrity_variant", 1, false);
+            ui.controls.settingsAction(developer, "Record audio to WAV", "Save what is playing to spatch-recording.wav in the cache", () -> {
+                boolean on = !ui.prefs.getBoolean("recording", false);
+                ui.prefs.edit().putBoolean("recording", on).apply();
+                SpatchUi.record(on);
+                ui.toast(on ? "Recording to the cache folder" : "Stopped recording");
+            });
             ui.controls.settingsAction(developer, "Playback diagnostics", "Connection, playback and audio effects", () -> {
                 String report = "Build " + SpatchUi.nativeBuild() + "\nAndroid " + android.os.Build.VERSION.SDK_INT
                     + "\nPlaying " + ui.playing + " · buffering " + ui.buffering

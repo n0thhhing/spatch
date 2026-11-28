@@ -40,11 +40,14 @@ public final class SpatchApp {
             java.util.zip.CRC32 crc = new java.util.zip.CRC32();
             crc.update(bytes, 0, bytes.length);
             File lib = new File(dir, "libspatch_app-" + bytes.length + "-" + Long.toHexString(crc.getValue()) + ".so");
-            if (!lib.isFile()) {
+            // The CRC in the name is unique per build, but a stale file could still sit under it, so a
+            // zero-length or truncated copy is replaced rather than loaded.
+            if (!lib.isFile() || lib.length() != bytes.length) {
                 File part = new File(dir, lib.getName() + ".part");
                 try (OutputStream out = new FileOutputStream(part)) {
                     out.write(bytes);
                 }
+                if (lib.isFile() && !lib.setWritable(true)) throw new java.io.IOException("can't unlock " + lib);
                 if (!part.renameTo(lib)) throw new java.io.IOException("can't save " + lib);
                 File[] old = dir.listFiles();
                 if (old != null) for (File f : old) if (!f.equals(lib)) f.delete();
